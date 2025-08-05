@@ -1,155 +1,120 @@
-
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
-import { Camera, Save, User, AlertCircle } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
-import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { Camera, Save } from 'lucide-react';
 
-
-
-export const ProfileSettings = () => {
+export function ProfileSettings() {
+  const { user } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [company, setCompany] = useState('');
-  const { toast } = useToast();
-  const { tenant, user } = useTenant();
+  const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
-  // Buscar perfil do usuário
-  const { data: profileData, isLoading, error } = useSupabaseQuery({
+  // Buscar dados do perfil
+  const { data: profile, isLoading } = useSupabaseQuery({
     table: 'profiles',
-    queryKey: ['user-profile', user?.id],
     select: '*',
-    filters: user?.id ? [{ column: 'id', operator: 'eq', value: user.id }] : [],
-    enabled: !!user?.id
+    filters: [{ column: 'user_id', operator: 'eq', value: user?.id }],
+    single: true
   });
 
-  const profile = profileData?.[0];
+  // Mutação para atualizar perfil
+  const updateProfileMutation = useSupabaseMutation({
+    table: 'profiles',
+    operation: 'update',
+    onSuccess: () => {
+      toast.success('Perfil atualizado com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar perfil: ' + error.message);
+    }
+  });
 
-  // Atualizar estados quando o perfil for carregado
+  // Preencher campos quando os dados do perfil carregarem
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
+      setEmail(profile.email || '');
       setPhone(profile.phone || '');
-      setCompany(profile.company || '');
+      setBio(profile.bio || '');
+      setAvatarUrl(profile.avatar_url || '');
     }
   }, [profile]);
 
-  // Mutation para atualizar perfil
-  const updateProfileMutation = useSupabaseMutation({
-    table: 'profiles',
-    operation: 'update',
-    invalidateQueries: [['user-profile', user?.id]],
-    successMessage: 'Perfil atualizado com sucesso!',
-    errorMessage: 'Erro ao atualizar perfil',
-    onError: (error: any) => {
-      toast({
-          title: 'Erro',
-          description: error.message || 'Erro ao atualizar perfil',
-          variant: 'destructive'
-        });
-      }
-    }
-  );
+  const handleSave = () => {
+    if (!user?.id) return;
 
-  const handleSaveProfile = () => {
-    const profileData = {
-      id: user?.id,
+    updateProfileMutation.mutate({
+      user_id: user.id,
       first_name: firstName,
       last_name: lastName,
+      email: email,
       phone: phone,
-      company: company
-    };
+      bio: bio,
+      avatar_url: avatarUrl
+    });
+  };
 
-    updateProfileMutation.mutate(profileData);
+  const getInitials = () => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Informações do Perfil</CardTitle>
+          <CardTitle>Perfil</CardTitle>
+          <CardDescription>Carregando informações do perfil...</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <Skeleton className="h-10 w-40" />
-        </CardContent>
       </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <div>
-          <h3 className="font-semibold">Erro ao carregar perfil</h3>
-          <AlertDescription>
-            {error instanceof Error ? error.message : 'Erro desconhecido'}
-          </AlertDescription>
-        </div>
-      </Alert>
     );
   }
 
   return (
     <Card>
       <CardHeader>
+        <CardTitle>Perfil</CardTitle>
+        <CardDescription>
+          Gerencie suas informações pessoais e preferências de conta
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Avatar Section */}
         <div className="flex items-center space-x-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={profile?.avatar_url} />
-            <AvatarFallback>
-              <User className="h-8 w-8" />
+          <Avatar className="h-20 w-20">
+            <AvatarImage src={avatarUrl} alt="Avatar" />
+            <AvatarFallback className="text-lg">
+              {getInitials() || 'U'}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <CardTitle>Informações do Perfil</CardTitle>
-            <div className="flex items-center space-x-2 mt-2">
-              <Badge variant="secondary">{profile?.role || 'Usuário'}</Badge>
-              {profile?.tenant_id && (
-                <Badge variant="outline">ID: {profile.tenant_id.slice(0, 8)}</Badge>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Button variant="outline" size="sm">
+              <Camera className="h-4 w-4 mr-2" />
+              Alterar Foto
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              JPG, GIF ou PNG. Máximo 1MB.
+            </p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+
+        {/* Personal Information */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="firstName">Nome</Label>
-            <Input 
-              id="firstName" 
+            <Input
+              id="firstName"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="Seu nome"
@@ -157,57 +122,57 @@ export const ProfileSettings = () => {
           </div>
           <div className="space-y-2">
             <Label htmlFor="lastName">Sobrenome</Label>
-            <Input 
-              id="lastName" 
+            <Input
+              id="lastName"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="Seu sobrenome"
             />
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input 
-            id="email" 
-            type="email" 
-            value={profile?.email || ''}
-            disabled
-            className="bg-gray-50"
-          />
-          <p className="text-xs text-gray-500">
-            O email não pode ser alterado aqui. Use as configurações de segurança.
-          </p>
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="phone">Telefone</Label>
-          <Input 
-            id="phone" 
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+55 11 99999-0000"
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="company">Empresa</Label>
-          <Input 
-            id="company" 
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            placeholder="Nome da sua empresa"
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="seu@email.com"
           />
         </div>
 
-        <Button 
-          onClick={handleSaveProfile}
-          disabled={updateProfileMutation.isPending}
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {updateProfileMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
-        </Button>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Telefone</Label>
+          <Input
+            id="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="(11) 99999-9999"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="bio">Bio</Label>
+          <Textarea
+            id="bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Conte um pouco sobre você..."
+            rows={3}
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button 
+            onClick={handleSave}
+            disabled={updateProfileMutation.isPending}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {updateProfileMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
-};
+}

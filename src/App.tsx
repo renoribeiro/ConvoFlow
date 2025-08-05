@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,10 +29,11 @@ import Campaigns from "./pages/Campaigns";
 import Followups from "./pages/Followups";
 import Automation from "./pages/Automation";
 import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
+import { ProfileSettings } from "@/components/settings/profilesettings";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import WhatsAppNumbers from "./pages/WhatsAppNumbers";
 
 const queryClient = new QueryClient();
 
@@ -43,15 +43,15 @@ const App = () => (
       <AuthProvider>
         <TenantProvider>
           <ChatbotProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               
@@ -71,15 +71,16 @@ const App = () => (
                 <Route path="campaigns" element={<Campaigns />} />
                 <Route path="followups" element={<Followups />} />
                 <Route path="automation" element={<Automation />} />
+                <Route path="whatsapp-numbers" element={<WhatsAppNumbers />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="admin" element={<AdminDashboard />} />
-                <Route path="profile" element={<Profile />} />
+                <Route path="profile" element={<ProfileSettings />} />
                 <Route path="notifications" element={<Notifications />} />
               </Route>
               
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
+            </BrowserRouter>
           </ChatbotProvider>
         </TenantProvider>
       </AuthProvider>

@@ -47,7 +47,7 @@ export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps
 
   // Processar dados para obter valores únicos
   const sources = sourcesData || [];
-  const availableTags = tagsData.map(tag => ({ id: tag.id, name: tag.name, color: tag.color })) || [];
+  const availableTags = (tagsData || []).map(tag => ({ id: tag.id, name: tag.name, color: tag.color }));
 
   const updateFilters = (key: string, value: any) => {
     onFiltersChange({ ...filters, [key]: value });

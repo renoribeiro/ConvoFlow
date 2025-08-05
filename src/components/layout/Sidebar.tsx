@@ -19,7 +19,8 @@ import {
   FileText,
   LogOut,
   Workflow,
-  Shield
+  Shield,
+  Smartphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const baseNavigationItems = [
   { name: 'Campanhas', href: '/dashboard/campaigns', icon: Megaphone },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: UserCheck },
   { name: 'Automação', href: '/dashboard/automation', icon: Workflow },
+  { name: 'Números WhatsApp', href: '/dashboard/whatsapp-numbers', icon: Smartphone },
   { name: 'Configurações', href: '/dashboard/settings', icon: Settings },
 ];
 

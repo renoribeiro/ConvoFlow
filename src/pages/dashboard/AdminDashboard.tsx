@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
@@ -166,6 +167,49 @@ const AdminDashboard = () => {
     orderBy: [{ column: 'created_at', ascending: false }]
   });
 
+  // Mutations para CRUD de usuários
+  const createUserMutation = useSupabaseMutation({
+    table: 'profiles',
+    operation: 'insert',
+    onSuccess: () => {
+      toast.success('Usuário criado com sucesso!');
+      setIsCreateUserOpen(false);
+      resetUserForm();
+      refetchUsers();
+    },
+    onError: (error) => {
+      toast.error('Erro ao criar usuário: ' + error.message);
+    }
+  });
+
+  const updateUserMutation = useSupabaseMutation({
+    table: 'profiles',
+    operation: 'update',
+    onSuccess: () => {
+      toast.success('Usuário atualizado com sucesso!');
+      setIsEditUserOpen(false);
+      resetUserForm();
+      refetchUsers();
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar usuário: ' + error.message);
+    }
+  });
+
+  const deleteUserMutation = useSupabaseMutation({
+    table: 'profiles',
+    operation: 'delete',
+    onSuccess: () => {
+      toast.success('Usuário excluído com sucesso!');
+      setIsDeleteUserOpen(false);
+      setSelectedUser(null);
+      refetchUsers();
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir usuário: ' + error.message);
+    }
+  });
+
   // Mutations para CRUD de afiliados
   const createAffiliateMutation = useSupabaseMutation({
     table: 'affiliates',
@@ -210,6 +254,19 @@ const AdminDashboard = () => {
   });
 
   // Funções auxiliares
+  const resetUserForm = () => {
+    setUserForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      role: 'tenant_user' as User['role'],
+      isActive: true,
+      tenantId: '',
+      planType: 'basic'
+    });
+  };
+
   const resetAffiliateForm = () => {
     setAffiliateForm({
       name: '',
@@ -224,6 +281,55 @@ const AdminDashboard = () => {
   const generateAffiliateCode = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setAffiliateForm(prev => ({ ...prev, affiliate_code: code }));
+  };
+
+  const handleCreateUser = () => {
+    if (!userForm.firstName || !userForm.lastName || !userForm.email) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    createUserMutation.mutate({
+      data: {
+        first_name: userForm.firstName,
+        last_name: userForm.lastName,
+        email: userForm.email,
+        phone: userForm.phone,
+        role: userForm.role,
+        is_active: userForm.isActive,
+        tenant_id: userForm.tenantId
+      }
+    });
+  };
+
+  const handleEditUser = () => {
+    if (!selectedUser) return;
+
+    updateUserMutation.mutate({
+      data: {
+        first_name: userForm.firstName,
+        last_name: userForm.lastName,
+        email: userForm.email,
+        phone: userForm.phone,
+        role: userForm.role,
+        is_active: userForm.isActive,
+        tenant_id: userForm.tenantId
+      },
+      options: {
+        filter: { column: 'user_id', operator: 'eq', value: selectedUser.id }
+      }
+    });
+  };
+
+  const handleDeleteUser = () => {
+    if (!selectedUser) return;
+
+    deleteUserMutation.mutate({
+      data: {},
+      options: {
+        filter: { column: 'user_id', operator: 'eq', value: selectedUser.id }
+      }
+    });
   };
 
   const handleCreateAffiliate = () => {
@@ -377,7 +483,10 @@ const AdminDashboard = () => {
                 <Search className="h-4 w-4" />
               </Button>
             </div>
-            <Button onClick={() => setIsCreateUserOpen(true)}>
+            <Button onClick={() => {
+              resetUserForm();
+              setIsCreateUserOpen(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Usuário
             </Button>
@@ -439,13 +548,77 @@ const AdminDashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                setSelectedUser({
+                                  id: user.id,
+                                  name: `${user.first_name} ${user.last_name}`,
+                                  email: user.email,
+                                  role: user.role,
+                                  status: user.is_active ? 'active' : 'inactive',
+                                  lastLogin: '',
+                                  createdAt: user.created_at,
+                                  tenantId: user.tenant_id,
+                                  tenantName: user.tenants?.name,
+                                  phone: user.phone
+                                });
+                                setIsViewUserOpen(true);
+                              }}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                setSelectedUser({
+                                  id: user.id,
+                                  name: `${user.first_name} ${user.last_name}`,
+                                  email: user.email,
+                                  role: user.role,
+                                  status: user.is_active ? 'active' : 'inactive',
+                                  lastLogin: '',
+                                  createdAt: user.created_at,
+                                  tenantId: user.tenant_id,
+                                  tenantName: user.tenants?.name,
+                                  phone: user.phone
+                                });
+                                setUserForm({
+                                  firstName: user.first_name || '',
+                                  lastName: user.last_name || '',
+                                  email: user.email || '',
+                                  phone: user.phone || '',
+                                  role: user.role,
+                                  isActive: user.is_active,
+                                  tenantId: user.tenant_id || '',
+                                  planType: 'basic'
+                                });
+                                setIsEditUserOpen(true);
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                setSelectedUser({
+                                  id: user.id,
+                                  name: `${user.first_name} ${user.last_name}`,
+                                  email: user.email,
+                                  role: user.role,
+                                  status: user.is_active ? 'active' : 'inactive',
+                                  lastLogin: '',
+                                  createdAt: user.created_at,
+                                  tenantId: user.tenant_id,
+                                  tenantName: user.tenants?.name,
+                                  phone: user.phone
+                                });
+                                setIsDeleteUserOpen(true);
+                              }}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -914,6 +1087,259 @@ const AdminDashboard = () => {
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsViewAffiliateOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Criar Usuário */}
+      <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Usuário</DialogTitle>
+            <DialogDescription>
+              Preencha as informações do novo usuário
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="create-firstName">Nome</Label>
+                <Input
+                  id="create-firstName"
+                  value={userForm.firstName}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, firstName: e.target.value }))}
+                  placeholder="Nome"
+                />
+              </div>
+              <div>
+                <Label htmlFor="create-lastName">Sobrenome</Label>
+                <Input
+                  id="create-lastName"
+                  value={userForm.lastName}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, lastName: e.target.value }))}
+                  placeholder="Sobrenome"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="create-email">Email</Label>
+              <Input
+                id="create-email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-phone">Telefone</Label>
+              <Input
+                id="create-phone"
+                value={userForm.phone}
+                onChange={(e) => setUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="(11) 99999-9999"
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-role">Função</Label>
+              <Select value={userForm.role} onValueChange={(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a função" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tenant_user">Usuário</SelectItem>
+                  <SelectItem value="tenant_admin">Administrador</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="create-active"
+                checked={userForm.isActive}
+                onCheckedChange={(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))}
+              />
+              <Label htmlFor="create-active">Usuário ativo</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsCreateUserOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleCreateUser}
+              disabled={createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Usuário */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do usuário
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-firstName">Nome</Label>
+                <Input
+                  id="edit-firstName"
+                  value={userForm.firstName}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, firstName: e.target.value }))}
+                  placeholder="Nome"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-lastName">Sobrenome</Label>
+                <Input
+                  id="edit-lastName"
+                  value={userForm.lastName}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, lastName: e.target.value }))}
+                  placeholder="Sobrenome"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">Telefone</Label>
+              <Input
+                id="edit-phone"
+                value={userForm.phone}
+                onChange={(e) => setUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="(11) 99999-9999"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Função</Label>
+              <Select value={userForm.role} onValueChange={(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a função" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tenant_user">Usuário</SelectItem>
+                  <SelectItem value="tenant_admin">Administrador</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="edit-active"
+                checked={userForm.isActive}
+                onCheckedChange={(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))}
+              />
+              <Label htmlFor="edit-active">Usuário ativo</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleEditUser}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Excluir Usuário */}
+      <AlertDialog open={isDeleteUserOpen} onOpenChange={setIsDeleteUserOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o usuário "{selectedUser?.name}"? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteUser}
+              disabled={deleteUserMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUserMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal Visualizar Usuário */}
+      <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Usuário</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Nome</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.name}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Telefone</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Função</Label>
+                  <div>
+                    <Badge variant={selectedUser.role === 'super_admin' ? 'destructive' : 'secondary'}>
+                      {selectedUser.role}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div>
+                    <Badge variant={selectedUser.status === 'active' ? 'default' : 'secondary'}>
+                      {selectedUser.status === 'active' ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Tenant</Label>
+                  <p className="text-sm text-muted-foreground">{selectedUser.tenantName || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Criado em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(selectedUser.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsViewUserOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
