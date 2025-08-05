@@ -109,7 +109,7 @@ export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps
                 <SelectContent>
                   <SelectItem value="all">Todos os estágios</SelectItem>
                   {stages.map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id.toString()}>
+                    <SelectItem key={stage.id} value={stage.id}>
                       {stage.name}
                     </SelectItem>
                   ))}
@@ -130,7 +130,7 @@ export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps
               <SelectContent>
                 <SelectItem value="all">Todas as fontes</SelectItem>
                 {sources.map((source) => (
-                  <SelectItem key={source.id} value={source.id.toString()}>
+                  <SelectItem key={source.id} value={source.id}>
                     {source.name}
                   </SelectItem>
                 ))}

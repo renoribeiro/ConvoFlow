@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
+import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Table,
@@ -42,12 +43,16 @@ import {
   BarChart3,
   Settings,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { useIsSuperAdmin } from '@/contexts/TenantContext';
 import { Navigate } from 'react-router-dom';
 import CommissionPayments from '@/components/CommissionPayments';
 import StripeConfiguration from '@/components/StripeConfiguration';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface User {
   id: string;
@@ -80,12 +85,15 @@ interface Affiliate {
   id: string;
   name: string;
   email: string;
-  code: string;
-  commission: number;
-  totalEarnings: number;
-  referrals: number;
-  status: 'active' | 'inactive';
-  joinedAt: string;
+  affiliate_code: string;
+  commission_rate_first_month: number;
+  commission_rate_recurring: number;
+  total_referrals: number;
+  total_commission: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  stripe_account_id?: string;
 }
 
 const AdminDashboard = () => {
@@ -120,441 +128,161 @@ const AdminDashboard = () => {
     isActive: true,
     tenantId: '',
     planType: 'basic'
-   });
+  });
    
   // Estados do formulário de afiliado
   const [affiliateForm, setAffiliateForm] = useState({
     name: '',
     email: '',
-    phone: '',
-    commissionFirstMonth: 30,
-    commissionRecurring: 10,
-    isActive: true
+    affiliate_code: '',
+    commission_rate_first_month: 30,
+    commission_rate_recurring: 10,
+    is_active: true
   });
+
+  // Queries para buscar dados
+  const { data: affiliates = [], isLoading: affiliatesLoading, refetch: refetchAffiliates } = useSupabaseQuery({
+    table: 'affiliates',
+    queryKey: ['affiliates'],
+    select: '*',
+    orderBy: [{ column: 'created_at', ascending: false }]
+  });
+
+  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useSupabaseQuery({
+    table: 'profiles',
+    queryKey: ['admin-users'],
+    select: `
+      id,
+      first_name,
+      last_name,
+      email,
+      role,
+      is_active,
+      created_at,
+      updated_at,
+      tenant_id,
+      tenants(name)
+    `,
+    orderBy: [{ column: 'created_at', ascending: false }]
+  });
+
+  // Mutations para CRUD de afiliados
+  const createAffiliateMutation = useSupabaseMutation({
+    table: 'affiliates',
+    operation: 'insert',
+    onSuccess: () => {
+      toast.success('Afiliado criado com sucesso!');
+      setIsCreateAffiliateOpen(false);
+      resetAffiliateForm();
+      refetchAffiliates();
+    },
+    onError: (error) => {
+      toast.error('Erro ao criar afiliado: ' + error.message);
+    }
+  });
+
+  const updateAffiliateMutation = useSupabaseMutation({
+    table: 'affiliates',
+    operation: 'update',
+    onSuccess: () => {
+      toast.success('Afiliado atualizado com sucesso!');
+      setIsEditAffiliateOpen(false);
+      resetAffiliateForm();
+      refetchAffiliates();
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar afiliado: ' + error.message);
+    }
+  });
+
+  const deleteAffiliateMutation = useSupabaseMutation({
+    table: 'affiliates',
+    operation: 'delete',
+    onSuccess: () => {
+      toast.success('Afiliado excluído com sucesso!');
+      setIsDeleteAffiliateOpen(false);
+      setSelectedAffiliate(null);
+      refetchAffiliates();
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir afiliado: ' + error.message);
+    }
+  });
+
+  // Funções auxiliares
+  const resetAffiliateForm = () => {
+    setAffiliateForm({
+      name: '',
+      email: '',
+      affiliate_code: '',
+      commission_rate_first_month: 30,
+      commission_rate_recurring: 10,
+      is_active: true
+    });
+  };
+
+  const generateAffiliateCode = () => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setAffiliateForm(prev => ({ ...prev, affiliate_code: code }));
+  };
+
+  const handleCreateAffiliate = () => {
+    if (!affiliateForm.name || !affiliateForm.email || !affiliateForm.affiliate_code) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    createAffiliateMutation.mutate({
+      name: affiliateForm.name,
+      email: affiliateForm.email,
+      affiliate_code: affiliateForm.affiliate_code,
+      commission_rate_first_month: affiliateForm.commission_rate_first_month,
+      commission_rate_recurring: affiliateForm.commission_rate_recurring,
+      is_active: affiliateForm.is_active
+    });
+  };
+
+  const handleEditAffiliate = () => {
+    if (!selectedAffiliate) return;
+
+    updateAffiliateMutation.mutate({
+      id: selectedAffiliate.id,
+      name: affiliateForm.name,
+      email: affiliateForm.email,
+      affiliate_code: affiliateForm.affiliate_code,
+      commission_rate_first_month: affiliateForm.commission_rate_first_month,
+      commission_rate_recurring: affiliateForm.commission_rate_recurring,
+      is_active: affiliateForm.is_active
+    });
+  };
+
+  const handleDeleteAffiliate = () => {
+    if (!selectedAffiliate) return;
+    deleteAffiliateMutation.mutate({ id: selectedAffiliate.id });
+  };
+
+  const openEditAffiliate = (affiliate: Affiliate) => {
+    setSelectedAffiliate(affiliate);
+    setAffiliateForm({
+      name: affiliate.name,
+      email: affiliate.email,
+      affiliate_code: affiliate.affiliate_code,
+      commission_rate_first_month: affiliate.commission_rate_first_month,
+      commission_rate_recurring: affiliate.commission_rate_recurring,
+      is_active: affiliate.is_active
+    });
+    setIsEditAffiliateOpen(true);
+  };
+
+  const copyAffiliateCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success('Código copiado para a área de transferência!');
+  };
 
   // Redirect se não for super admin
   if (!isSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
-
-  // Buscar dados reais do Supabase usando função RPC
-  const { data: usersData, isLoading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery({
-    queryKey: ['admin-users-complete'],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_admin_users_data');
-      if (error) {
-        throw error;
-      }
-      return data;
-    }
-  });
-
-  const { data: tenants = [], isLoading: tenantsLoading } = useSupabaseQuery({
-    table: 'tenants',
-    select: `
-      id,
-      name,
-      subscription_status,
-      plan_type,
-      created_at,
-      updated_at
-    `,
-    queryKey: ['admin-tenants']
-  });
-
-  const { data: contacts = [], isLoading: contactsLoading } = useSupabaseQuery({
-    table: 'contacts',
-    select: 'id, name, phone, created_at',
-    queryKey: ['admin-contacts']
-  });
-
-  const { data: messages = [], isLoading: messagesLoading } = useSupabaseQuery({
-    table: 'messages',
-    select: 'id, created_at',
-    queryKey: ['admin-messages']
-  });
-
-  const users: User[] = usersData?.map((profile: any) => ({
-    id: profile.id,
-    name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Usuário sem nome',
-    email: profile.email || 'email@exemplo.com',
-    role: profile.role || 'tenant_user',
-    status: profile.is_active ? 'active' : 'inactive',
-    lastLogin: profile.updated_at || profile.created_at,
-    createdAt: profile.created_at,
-    tenantId: profile.tenant_id,
-    tenantName: profile.tenant_name,
-    planType: profile.plan_type,
-    phone: profile.phone,
-    avatarUrl: profile.avatar_url
-  })) || [];
-
-  const subscriptions: Subscription[] = tenants.map((tenant: any) => ({
-    id: tenant.id,
-    userId: tenant.id,
-    userName: tenant.name || 'Tenant',
-    plan: tenant.plan_type || 'Free',
-    status: tenant.subscription_status || 'active',
-    amount: tenant.plan_type === 'Pro' ? 99.90 : 0,
-    currency: 'BRL',
-    nextBilling: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    stripeSubscriptionId: `sub_${tenant.id}`
-  }));
-
-  // Calcular métricas baseadas nos filtros de data separados
-  const activeUsersFilterDate = new Date();
-  activeUsersFilterDate.setDate(activeUsersFilterDate.getDate() - parseInt(activeUsersDateFilter));
-
-  const newSubscriptionsFilterDate = new Date();
-  newSubscriptionsFilterDate.setDate(newSubscriptionsFilterDate.getDate() - parseInt(newSubscriptionsDateFilter));
-
-  // Usuários ativos (que fizeram login nos últimos X dias)
-  const activeUsers = users.filter(user => {
-    const lastLogin = new Date(user.lastLogin);
-    return lastLogin >= activeUsersFilterDate;
-  });
-
-  // Novas assinaturas no período
-  const newSubscriptions = subscriptions.filter(sub => {
-    const createdAt = new Date(tenants.find(t => t.id === sub.id)?.created_at || '');
-    return createdAt >= newSubscriptionsFilterDate;
-  });
-
-  // Buscar dados reais dos afiliados
-  const { data: affiliatesData = [], isLoading: affiliatesLoading, refetch: refetchAffiliates } = useSupabaseQuery({
-    table: 'affiliates',
-    select: `
-      id,
-      name,
-      email,
-      referral_code,
-      commission_rate_first_month,
-      commission_rate_recurring,
-      is_active,
-      created_at,
-      (
-        SELECT COUNT(*) 
-        FROM affiliate_referrals ar 
-        WHERE ar.affiliate_id = affiliates.id
-      ) as referrals_count,
-      (
-        SELECT COALESCE(SUM(total_commission_paid), 0) 
-        FROM affiliate_referrals ar 
-        WHERE ar.affiliate_id = affiliates.id
-      ) as total_earnings
-    `,
-    queryKey: ['admin-affiliates']
-  });
-
-  const affiliates: Affiliate[] = affiliatesData.map((affiliate: any) => ({
-    id: affiliate.id,
-    name: affiliate.name,
-    email: affiliate.email,
-    code: affiliate.referral_code,
-    commission: affiliate.commission_rate_first_month,
-    totalEarnings: affiliate.total_earnings || 0,
-    referrals: affiliate.referrals_count || 0,
-    status: affiliate.is_active ? 'active' : 'inactive',
-    joinedAt: affiliate.created_at
-  }));
-
-  const formatCurrency = (amount: number, currency: string = 'BRL') => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Funções CRUD para usuários
-  const resetUserForm = () => {
-    setUserForm({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      role: 'tenant_user',
-      isActive: true,
-      tenantId: '',
-      planType: 'basic'
-    });
-  };
-
-  const handleCreateUser = async () => {
-    setIsLoading(true);
-    try {
-      // Primeiro criar o usuário no auth.users
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: userForm.email,
-        password: 'temp123456', // Senha temporária
-        email_confirm: true
-      });
-
-      if (authError) throw authError;
-
-      // Depois criar o perfil
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authUser.user.id,
-          first_name: userForm.firstName,
-          last_name: userForm.lastName,
-          phone: userForm.phone,
-          role: userForm.role,
-          is_active: userForm.isActive,
-          tenant_id: userForm.tenantId
-        });
-
-      if (profileError) throw profileError;
-
-      toast.success('Usuário criado com sucesso!');
-      setIsCreateUserOpen(false);
-      resetUserForm();
-      refetchUsers();
-    } catch (error: any) {
-      toast.error('Erro ao criar usuário: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEditUser = async () => {
-    if (!selectedUser) return;
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          first_name: userForm.firstName,
-          last_name: userForm.lastName,
-          phone: userForm.phone,
-          role: userForm.role,
-          is_active: userForm.isActive,
-          tenant_id: userForm.tenantId
-        })
-        .eq('id', selectedUser.id);
-
-      if (error) throw error;
-
-      toast.success('Usuário atualizado com sucesso!');
-      setIsEditUserOpen(false);
-      setSelectedUser(null);
-      resetUserForm();
-      refetchUsers();
-    } catch (error: any) {
-      toast.error('Erro ao atualizar usuário: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteUser = async () => {
-    if (!selectedUser) return;
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', selectedUser.id);
-
-      if (error) throw error;
-
-      toast.success('Usuário excluído com sucesso!');
-      setIsDeleteUserOpen(false);
-      setSelectedUser(null);
-      refetchUsers();
-    } catch (error: any) {
-      toast.error('Erro ao excluir usuário: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const openEditModal = (user: User) => {
-    setSelectedUser(user);
-    const nameParts = user.name.split(' ');
-    setUserForm({
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
-      email: user.email,
-      phone: user.phone || '',
-      role: user.role,
-      isActive: user.status === 'active',
-      tenantId: user.tenantId || '',
-      planType: user.planType || 'basic'
-    });
-    setIsEditUserOpen(true);
-  };
-
-  const openDeleteModal = (user: User) => {
-    setSelectedUser(user);
-    setIsDeleteUserOpen(true);
-  };
-
-  const openViewModal = (user: User) => {
-    setSelectedUser(user);
-    setIsViewUserOpen(true);
-  };
-
-  // Funções CRUD para afiliados
-  const resetAffiliateForm = () => {
-    setAffiliateForm({
-      name: '',
-      email: '',
-      phone: '',
-      commissionFirstMonth: 30,
-      commissionRecurring: 10,
-      isActive: true
-    });
-  };
-
-  const generateAffiliateCode = (name: string) => {
-    const cleanName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `${cleanName.substring(0, 6)}${randomSuffix}`;
-  };
-
-  const handleCreateAffiliate = async () => {
-    setIsLoading(true);
-    try {
-      const affiliateCode = generateAffiliateCode(affiliateForm.name);
-      
-      const { error } = await supabase
-        .from('affiliates')
-        .insert({
-          name: affiliateForm.name,
-          email: affiliateForm.email,
-          phone: affiliateForm.phone,
-          referral_code: affiliateCode,
-          commission_rate_first_month: affiliateForm.commissionFirstMonth / 100,
-          commission_rate_recurring: affiliateForm.commissionRecurring / 100,
-          is_active: affiliateForm.isActive
-        });
-
-      if (error) throw error;
-
-      toast.success('Afiliado criado com sucesso!');
-      setIsCreateAffiliateOpen(false);
-      resetAffiliateForm();
-      refetchAffiliates();
-    } catch (error: any) {
-      toast.error('Erro ao criar afiliado: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEditAffiliate = async () => {
-    if (!selectedAffiliate) return;
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('affiliates')
-        .update({
-          name: affiliateForm.name,
-          email: affiliateForm.email,
-          phone: affiliateForm.phone,
-          commission_rate_first_month: affiliateForm.commissionFirstMonth / 100,
-          commission_rate_recurring: affiliateForm.commissionRecurring / 100,
-          is_active: affiliateForm.isActive
-        })
-        .eq('id', selectedAffiliate.id);
-
-      if (error) throw error;
-
-      toast.success('Afiliado atualizado com sucesso!');
-      setIsEditAffiliateOpen(false);
-      setSelectedAffiliate(null);
-      resetAffiliateForm();
-      refetchAffiliates();
-    } catch (error: any) {
-      toast.error('Erro ao atualizar afiliado: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteAffiliate = async () => {
-    if (!selectedAffiliate) return;
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('affiliates')
-        .delete()
-        .eq('id', selectedAffiliate.id);
-
-      if (error) throw error;
-
-      toast.success('Afiliado excluído com sucesso!');
-      setIsDeleteAffiliateOpen(false);
-      setSelectedAffiliate(null);
-      refetchAffiliates();
-    } catch (error: any) {
-      toast.error('Erro ao excluir afiliado: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const openEditAffiliateModal = (affiliate: Affiliate) => {
-    setSelectedAffiliate(affiliate);
-    setAffiliateForm({
-      name: affiliate.name,
-      email: affiliate.email,
-      phone: '', // Não temos phone no mock atual
-      commissionFirstMonth: affiliate.commission,
-      commissionRecurring: 10, // Valor padrão
-      isActive: affiliate.status === 'active'
-    });
-    setIsEditAffiliateOpen(true);
-  };
-
-  const openDeleteAffiliateModal = (affiliate: Affiliate) => {
-    setSelectedAffiliate(affiliate);
-    setIsDeleteAffiliateOpen(true);
-  };
-
-  const openViewAffiliateModal = (affiliate: Affiliate) => {
-    setSelectedAffiliate(affiliate);
-    setIsViewAffiliateOpen(true);
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { label: 'Ativo', variant: 'default' as const },
-      inactive: { label: 'Inativo', variant: 'secondary' as const },
-      suspended: { label: 'Suspenso', variant: 'destructive' as const },
-      past_due: { label: 'Em Atraso', variant: 'destructive' as const },
-      canceled: { label: 'Cancelado', variant: 'secondary' as const },
-      trialing: { label: 'Trial', variant: 'outline' as const }
-    };
-
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.inactive;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const getRoleBadge = (role: string) => {
-    const roleConfig = {
-      super_admin: { label: 'Super Admin', variant: 'destructive' as const },
-      tenant_admin: { label: 'Admin', variant: 'default' as const },
-      tenant_user: { label: 'Usuário', variant: 'secondary' as const }
-    };
-
-    const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.tenant_user;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
 
   return (
     <div className="space-y-6">
@@ -568,17 +296,13 @@ const AdminDashboard = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="users">Usuários</TabsTrigger>
           <TabsTrigger value="billing">Faturamento</TabsTrigger>
           <TabsTrigger value="reports">Relatórios</TabsTrigger>
           <TabsTrigger value="affiliates">Afiliados</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
-          <TabsTrigger value="stripe" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Stripe
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -589,200 +313,82 @@ const AdminDashboard = () => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {usersLoading ? '...' : users.length}
-                </div>
+                <div className="text-2xl font-bold">{users.length}</div>
                 <p className="text-xs text-muted-foreground">
-                  {users.filter(u => {
-                    const createdThisMonth = new Date(u.createdAt).getMonth() === new Date().getMonth();
-                    return createdThisMonth;
-                  }).length} novos este mês
+                  Últimos 30 dias
                 </p>
               </CardContent>
             </Card>
-            
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Afiliados Ativos</CardTitle>
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {usersLoading ? '...' : activeUsers.length}
+                  {affiliates.filter(a => a.is_active).length}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Últimos {activeUsersDateFilter} dias
+                  Total de {affiliates.length} afiliados
                 </p>
-                <div className="mt-2">
-                  <Select value={activeUsersDateFilter} onValueChange={setActiveUsersDateFilter}>
-                    <SelectTrigger className="w-full h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">Últimos 7 dias</SelectItem>
-                      <SelectItem value="30">Últimos 30 dias</SelectItem>
-                      <SelectItem value="90">Últimos 90 dias</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </CardContent>
             </Card>
-            
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Comissões Pagas</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {tenantsLoading ? '...' : subscriptions.filter(s => s.status === 'active').length}
+                  R$ {affiliates.reduce((sum, a) => sum + Number(a.total_commission), 0).toFixed(2)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {subscriptions.filter(s => s.status === 'past_due').length} em atraso
+                  Total acumulado
                 </p>
               </CardContent>
             </Card>
-            
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Novas Assinaturas</CardTitle>
+                <CardTitle className="text-sm font-medium">Indicações</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {tenantsLoading ? '...' : newSubscriptions.length}
+                  {affiliates.reduce((sum, a) => sum + a.total_referrals, 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Últimos {newSubscriptionsDateFilter} dias
+                  Total de indicações
                 </p>
-                <div className="mt-2">
-                  <Select value={newSubscriptionsDateFilter} onValueChange={setNewSubscriptionsDateFilter}>
-                    <SelectTrigger className="w-full h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">Últimos 7 dias</SelectItem>
-                      <SelectItem value="30">Últimos 30 dias</SelectItem>
-                      <SelectItem value="90">Últimos 90 dias</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Input
+                placeholder="Buscar usuários..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-[300px]"
+              />
+              <Button variant="outline" size="icon">
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button onClick={() => setIsCreateUserOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Usuário
+            </Button>
+          </div>
+
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Gestão de Usuários</CardTitle>
-                  <CardDescription>
-                    Gerencie todos os usuários da plataforma
-                  </CardDescription>
-                </div>
-                <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={resetUserForm}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Novo Usuário
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Criar Novo Usuário</DialogTitle>
-                      <DialogDescription>
-                        Preencha os dados para criar um novo usuário no sistema.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="firstName">Nome</Label>
-                          <Input
-                            id="firstName"
-                            value={userForm.firstName}
-                            onChange={(e) => setUserForm({...userForm, firstName: e.target.value})}
-                            placeholder="Nome"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="lastName">Sobrenome</Label>
-                          <Input
-                            id="lastName"
-                            value={userForm.lastName}
-                            onChange={(e) => setUserForm({...userForm, lastName: e.target.value})}
-                            placeholder="Sobrenome"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={userForm.email}
-                          onChange={(e) => setUserForm({...userForm, email: e.target.value})}
-                          placeholder="email@exemplo.com"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="phone">Telefone</Label>
-                        <Input
-                          id="phone"
-                          value={userForm.phone}
-                          onChange={(e) => setUserForm({...userForm, phone: e.target.value})}
-                          placeholder="(11) 99999-9999"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="role">Função</Label>
-                        <Select value={userForm.role} onValueChange={(value: User['role']) => setUserForm({...userForm, role: value})}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="super_admin">Super Admin</SelectItem>
-                            <SelectItem value="tenant_admin">Admin do Tenant</SelectItem>
-                            <SelectItem value="tenant_user">Usuário</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="isActive"
-                          checked={userForm.isActive}
-                          onCheckedChange={(checked) => setUserForm({...userForm, isActive: checked})}
-                        />
-                        <Label htmlFor="isActive">Usuário ativo</Label>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsCreateUserOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleCreateUser} disabled={isLoading}>
-                        {isLoading ? 'Criando...' : 'Criar Usuário'}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar usuários..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </div>
+              <CardTitle>Usuários do Sistema</CardTitle>
+              <CardDescription>
+                Gerencie todos os usuários da plataforma
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -790,58 +396,215 @@ const AdminDashboard = () => {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
+                    <TableHead>Função</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Último Login</TableHead>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>Criado em</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {usersLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">Carregando...</TableCell>
-                    </TableRow>
-                  ) : usersError ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-red-500">
-                        Erro ao carregar dados: {usersError.message}
+                      <TableCell colSpan={7} className="text-center py-8">
+                        Carregando usuários...
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">Nenhum usuário encontrado</TableCell>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        Nenhum usuário encontrado
+                      </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
+                    users.map((user: any) => (
                       <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {user.first_name} {user.last_name}
+                        </TableCell>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>{getRoleBadge(user.role)}</TableCell>
-                        <TableCell>{getStatusBadge(user.status)}</TableCell>
-                        <TableCell>{formatDate(user.lastLogin)}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'super_admin' ? 'destructive' : 'secondary'}>
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.is_active ? 'default' : 'secondary'}>
+                            {user.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{user.tenants?.name || 'N/A'}</TableCell>
+                        <TableCell>
+                          {format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              title="Visualizar"
-                              onClick={() => openViewModal(user)}
+                            <Button variant="ghost" size="icon">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="billing" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Faturamento</CardTitle>
+              <CardDescription>
+                Visão geral do faturamento da plataforma
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <h3 className="text-lg font-semibold mb-2">Em Desenvolvimento</h3>
+                <p className="text-muted-foreground">
+                  Funcionalidades de faturamento em breve
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Relatórios</CardTitle>
+              <CardDescription>
+                Relatórios detalhados do sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <h3 className="text-lg font-semibold mb-2">Em Desenvolvimento</h3>
+                <p className="text-muted-foreground">
+                  Relatórios avançados em breve
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="affiliates" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Input
+                placeholder="Buscar afiliados..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-[300px]"
+              />
+              <Button variant="outline" size="icon">
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button onClick={() => setIsCreateAffiliateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Afiliado
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Programa de Afiliados</CardTitle>
+              <CardDescription>
+                Gerencie afiliados e suas comissões
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Comissão 1º Mês</TableHead>
+                    <TableHead>Comissão Recorrente</TableHead>
+                    <TableHead>Indicações</TableHead>
+                    <TableHead>Total Ganho</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {affiliatesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        Carregando afiliados...
+                      </TableCell>
+                    </TableRow>
+                  ) : affiliates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        Nenhum afiliado encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    affiliates.map((affiliate: Affiliate) => (
+                      <TableRow key={affiliate.id}>
+                        <TableCell className="font-medium">{affiliate.name}</TableCell>
+                        <TableCell>{affiliate.email}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <code className="bg-muted px-2 py-1 rounded text-sm">
+                              {affiliate.affiliate_code}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => copyAffiliateCode(affiliate.affiliate_code)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>{affiliate.commission_rate_first_month}%</TableCell>
+                        <TableCell>{affiliate.commission_rate_recurring}%</TableCell>
+                        <TableCell>{affiliate.total_referrals}</TableCell>
+                        <TableCell>R$ {Number(affiliate.total_commission).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Badge variant={affiliate.is_active ? 'default' : 'secondary'}>
+                            {affiliate.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedAffiliate(affiliate);
+                                setIsViewAffiliateOpen(true);
+                              }}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              title="Editar"
-                              onClick={() => openEditModal(user)}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditAffiliate(affiliate)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              title="Excluir"
-                              onClick={() => openDeleteModal(user)}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedAffiliate(affiliate);
+                                setIsDeleteAffiliateOpen(true);
+                              }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -856,391 +619,19 @@ const AdminDashboard = () => {
           </Card>
         </TabsContent>
 
-        {/* Modal de Edição de Usuário */}
-        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Editar Usuário</DialogTitle>
-              <DialogDescription>
-                Atualize os dados do usuário {selectedUser?.name}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="editFirstName">Nome</Label>
-                  <Input
-                    id="editFirstName"
-                    value={userForm.firstName}
-                    onChange={(e) => setUserForm({...userForm, firstName: e.target.value})}
-                    placeholder="Nome"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="editLastName">Sobrenome</Label>
-                  <Input
-                    id="editLastName"
-                    value={userForm.lastName}
-                    onChange={(e) => setUserForm({...userForm, lastName: e.target.value})}
-                    placeholder="Sobrenome"
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editPhone">Telefone</Label>
-                <Input
-                  id="editPhone"
-                  value={userForm.phone}
-                  onChange={(e) => setUserForm({...userForm, phone: e.target.value})}
-                  placeholder="(11) 99999-9999"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editRole">Função</Label>
-                <Select value={userForm.role} onValueChange={(value: User['role']) => setUserForm({...userForm, role: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                    <SelectItem value="tenant_admin">Admin do Tenant</SelectItem>
-                    <SelectItem value="tenant_user">Usuário</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="editPlanType">Plano</Label>
-                <Select value={userForm.planType} onValueChange={(value) => setUserForm({...userForm, planType: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="basic">Básico</SelectItem>
-                    <SelectItem value="pro">Pro</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="editIsActive"
-                  checked={userForm.isActive}
-                  onCheckedChange={(checked) => setUserForm({...userForm, isActive: checked})}
-                />
-                <Label htmlFor="editIsActive">Usuário ativo</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleEditUser} disabled={isLoading}>
-                {isLoading ? 'Salvando...' : 'Salvar Alterações'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal de Confirmação de Exclusão */}
-        <AlertDialog open={isDeleteUserOpen} onOpenChange={setIsDeleteUserOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir o usuário <strong>{selectedUser?.name}</strong>?
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDeleteUser}
-                disabled={isLoading}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {isLoading ? 'Excluindo...' : 'Excluir'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Modal de Visualização de Usuário */}
-        <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Detalhes do Usuário</DialogTitle>
-              <DialogDescription>
-                Informações completas do usuário {selectedUser?.name}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Nome Completo</Label>
-                  <p className="text-sm">{selectedUser?.name || 'Não informado'}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                  <p className="text-sm">{selectedUser?.email || 'Não informado'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Telefone</Label>
-                  <p className="text-sm">{selectedUser?.phone || 'Não informado'}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Função</Label>
-                  <div>{selectedUser && getRoleBadge(selectedUser.role)}</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                  <div>{selectedUser && getStatusBadge(selectedUser.status)}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Plano</Label>
-                  <p className="text-sm capitalize">{selectedUser?.planType || 'Não informado'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Tenant</Label>
-                  <p className="text-sm">{selectedUser?.tenantName || 'Não informado'}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Último Login</Label>
-                  <p className="text-sm">{selectedUser?.lastLogin ? formatDate(selectedUser.lastLogin) : 'Nunca'}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-muted-foreground">Data de Criação</Label>
-                <p className="text-sm">{selectedUser?.createdAt ? formatDate(selectedUser.createdAt) : 'Não informado'}</p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsViewUserOpen(false)}>
-                Fechar
-              </Button>
-              <Button onClick={() => {
-                setIsViewUserOpen(false);
-                if (selectedUser) openEditModal(selectedUser);
-              }}>
-                Editar Usuário
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <TabsContent value="billing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Faturamento e Assinaturas</CardTitle>
-                  <CardDescription>
-                    Gerencie assinaturas e pagamentos via Stripe
-                  </CardDescription>
-                </div>
-                <Button>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Plano</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Próximo Pagamento</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenantsLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center">Carregando...</TableCell>
-                    </TableRow>
-                  ) : subscriptions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center">Nenhuma assinatura encontrada</TableCell>
-                    </TableRow>
-                  ) : (
-                    subscriptions.map((subscription) => (
-                      <TableRow key={subscription.id}>
-                        <TableCell className="font-medium">{subscription.userName}</TableCell>
-                        <TableCell>{subscription.plan}</TableCell>
-                        <TableCell>{getStatusBadge(subscription.status)}</TableCell>
-                        <TableCell>{formatCurrency(subscription.amount, subscription.currency)}</TableCell>
-                        <TableCell>{formatDate(subscription.nextBilling)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="reports" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Relatório de Receitas</CardTitle>
-                <CardDescription>
-                  Análise financeira mensal
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Janeiro 2024</span>
-                    <span className="font-bold">{formatCurrency(2450.00)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Dezembro 2023</span>
-                    <span className="font-bold">{formatCurrency(2180.00)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Novembro 2023</span>
-                    <span className="font-bold">{formatCurrency(1950.00)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Cobranças Pendentes</CardTitle>
-                <CardDescription>
-                  Pagamentos em atraso ou falharam
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <span>3 cobranças falharam</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-4 w-4 text-warning" />
-                    <span>5 pagamentos em atraso</span>
-                  </div>
-                  <Button variant="outline" className="w-full">
-                    Ver Detalhes
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="affiliates" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Gestão de Afiliados</CardTitle>
-                  <CardDescription>
-                    Gerencie o programa de afiliados
-                  </CardDescription>
-                </div>
-                <Button onClick={() => setIsCreateAffiliateOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo Afiliado
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Comissão</TableHead>
-                    <TableHead>Ganhos Totais</TableHead>
-                    <TableHead>Indicações</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {affiliates.map((affiliate) => (
-                    <TableRow key={affiliate.id}>
-                      <TableCell className="font-medium">{affiliate.name}</TableCell>
-                      <TableCell>
-                        <code className="bg-muted px-2 py-1 rounded text-sm">
-                          {affiliate.code}
-                        </code>
-                      </TableCell>
-                      <TableCell>{affiliate.commission}%</TableCell>
-                      <TableCell>{formatCurrency(affiliate.totalEarnings)}</TableCell>
-                      <TableCell>{affiliate.referrals}</TableCell>
-                      <TableCell>{getStatusBadge(affiliate.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => openViewAffiliateModal(affiliate)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => openEditAffiliateModal(affiliate)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => openDeleteAffiliateModal(affiliate)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="payments" className="space-y-4">
           <CommissionPayments />
-        </TabsContent>
-
-        <TabsContent value="stripe" className="space-y-4">
           <StripeConfiguration />
         </TabsContent>
       </Tabs>
 
-      {/* Modal para criar afiliado */}
+      {/* Modal Criar Afiliado */}
       <Dialog open={isCreateAffiliateOpen} onOpenChange={setIsCreateAffiliateOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Novo Afiliado</DialogTitle>
+            <DialogTitle>Criar Novo Afiliado</DialogTitle>
             <DialogDescription>
-              Cadastre um novo afiliado para o sistema.
+              Adicione um novo afiliado ao programa
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1251,9 +642,8 @@ const AdminDashboard = () => {
               <Input
                 id="name"
                 value={affiliateForm.name}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, name: e.target.value }))}
                 className="col-span-3"
-                placeholder="Nome do afiliado"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -1264,80 +654,83 @@ const AdminDashboard = () => {
                 id="email"
                 type="email"
                 value={affiliateForm.email}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, email: e.target.value }))}
                 className="col-span-3"
-                placeholder="email@exemplo.com"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Telefone
+              <Label htmlFor="code" className="text-right">
+                Código
               </Label>
-              <Input
-                id="phone"
-                value={affiliateForm.phone}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, phone: e.target.value })}
-                className="col-span-3"
-                placeholder="(11) 99999-9999"
-              />
+              <div className="col-span-3 flex space-x-2">
+                <Input
+                  id="code"
+                  value={affiliateForm.affiliate_code}
+                  onChange={(e) => setAffiliateForm(prev => ({ ...prev, affiliate_code: e.target.value.toUpperCase() }))}
+                  placeholder="Ex: JOAO123"
+                />
+                <Button type="button" variant="outline" onClick={generateAffiliateCode}>
+                  Gerar
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="commissionFirst" className="text-right">
+              <Label htmlFor="firstMonth" className="text-right">
                 Comissão 1º Mês (%)
               </Label>
               <Input
-                id="commissionFirst"
+                id="firstMonth"
                 type="number"
-                value={affiliateForm.commissionFirstMonth}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionFirstMonth: Number(e.target.value) })}
+                value={affiliateForm.commission_rate_first_month}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, commission_rate_first_month: Number(e.target.value) }))}
                 className="col-span-3"
-                min="0"
-                max="100"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="commissionRecurring" className="text-right">
+              <Label htmlFor="recurring" className="text-right">
                 Comissão Recorrente (%)
               </Label>
               <Input
-                id="commissionRecurring"
+                id="recurring"
                 type="number"
-                value={affiliateForm.commissionRecurring}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionRecurring: Number(e.target.value) })}
+                value={affiliateForm.commission_rate_recurring}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, commission_rate_recurring: Number(e.target.value) }))}
                 className="col-span-3"
-                min="0"
-                max="100"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="isActive" className="text-right">
+              <Label htmlFor="active" className="text-right">
                 Ativo
               </Label>
               <Switch
-                id="isActive"
-                checked={affiliateForm.isActive}
-                onCheckedChange={(checked) => setAffiliateForm({ ...affiliateForm, isActive: checked })}
+                id="active"
+                checked={affiliateForm.is_active}
+                onCheckedChange={(checked) => setAffiliateForm(prev => ({ ...prev, is_active: checked }))}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateAffiliateOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsCreateAffiliateOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateAffiliate} disabled={isLoading}>
-              {isLoading ? 'Criando...' : 'Criar Afiliado'}
+            <Button 
+              type="button" 
+              onClick={handleCreateAffiliate}
+              disabled={createAffiliateMutation.isPending}
+            >
+              {createAffiliateMutation.isPending ? 'Criando...' : 'Criar Afiliado'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal para editar afiliado */}
+      {/* Modal Editar Afiliado */}
       <Dialog open={isEditAffiliateOpen} onOpenChange={setIsEditAffiliateOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Editar Afiliado</DialogTitle>
             <DialogDescription>
-              Edite as informações do afiliado.
+              Atualize as informações do afiliado
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1348,9 +741,8 @@ const AdminDashboard = () => {
               <Input
                 id="edit-name"
                 value={affiliateForm.name}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, name: e.target.value }))}
                 className="col-span-3"
-                placeholder="Nome do afiliado"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -1361,174 +753,172 @@ const AdminDashboard = () => {
                 id="edit-email"
                 type="email"
                 value={affiliateForm.email}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, email: e.target.value }))}
                 className="col-span-3"
-                placeholder="email@exemplo.com"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-phone" className="text-right">
-                Telefone
+              <Label htmlFor="edit-code" className="text-right">
+                Código
               </Label>
               <Input
-                id="edit-phone"
-                value={affiliateForm.phone}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, phone: e.target.value })}
+                id="edit-code"
+                value={affiliateForm.affiliate_code}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, affiliate_code: e.target.value.toUpperCase() }))}
                 className="col-span-3"
-                placeholder="(11) 99999-9999"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-commissionFirst" className="text-right">
+              <Label htmlFor="edit-firstMonth" className="text-right">
                 Comissão 1º Mês (%)
               </Label>
               <Input
-                id="edit-commissionFirst"
+                id="edit-firstMonth"
                 type="number"
-                value={affiliateForm.commissionFirstMonth}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionFirstMonth: Number(e.target.value) })}
+                value={affiliateForm.commission_rate_first_month}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, commission_rate_first_month: Number(e.target.value) }))}
                 className="col-span-3"
-                min="0"
-                max="100"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-commissionRecurring" className="text-right">
+              <Label htmlFor="edit-recurring" className="text-right">
                 Comissão Recorrente (%)
               </Label>
               <Input
-                id="edit-commissionRecurring"
+                id="edit-recurring"
                 type="number"
-                value={affiliateForm.commissionRecurring}
-                onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionRecurring: Number(e.target.value) })}
+                value={affiliateForm.commission_rate_recurring}
+                onChange={(e) => setAffiliateForm(prev => ({ ...prev, commission_rate_recurring: Number(e.target.value) }))}
                 className="col-span-3"
-                min="0"
-                max="100"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-isActive" className="text-right">
+              <Label htmlFor="edit-active" className="text-right">
                 Ativo
               </Label>
               <Switch
-                id="edit-isActive"
-                checked={affiliateForm.isActive}
-                onCheckedChange={(checked) => setAffiliateForm({ ...affiliateForm, isActive: checked })}
+                id="edit-active"
+                checked={affiliateForm.is_active}
+                onCheckedChange={(checked) => setAffiliateForm(prev => ({ ...prev, is_active: checked }))}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditAffiliateOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsEditAffiliateOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleEditAffiliate} disabled={isLoading}>
-              {isLoading ? 'Salvando...' : 'Salvar Alterações'}
+            <Button 
+              type="button" 
+              onClick={handleEditAffiliate}
+              disabled={updateAffiliateMutation.isPending}
+            >
+              {updateAffiliateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal para visualizar afiliado */}
-      <Dialog open={isViewAffiliateOpen} onOpenChange={setIsViewAffiliateOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Detalhes do Afiliado</DialogTitle>
-            <DialogDescription>
-              Informações completas do afiliado.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAffiliate && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Nome</Label>
-                  <p className="text-sm">{selectedAffiliate.name}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                  <p className="text-sm">{selectedAffiliate.email}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Código</Label>
-                  <p className="text-sm font-mono">{selectedAffiliate.code}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Comissão</Label>
-                  <p className="text-sm">{selectedAffiliate.commission}%</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                  <Badge variant={selectedAffiliate.status === 'active' ? 'default' : 'secondary'}>
-                    {selectedAffiliate.status === 'active' ? 'Ativo' : 'Inativo'}
-                  </Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Total de Indicações</Label>
-                  <p className="text-sm font-semibold">{selectedAffiliate.referrals}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Ganhos Totais</Label>
-                  <p className="text-sm font-semibold">{formatCurrency(selectedAffiliate.totalEarnings)}</p>
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-muted-foreground">Data de Cadastro</Label>
-                <p className="text-sm">{formatDate(selectedAffiliate.joinedAt)}</p>
-              </div>
-              <div className="mt-4 p-4 bg-muted rounded-lg">
-                <Label className="text-sm font-medium">Link de Indicação</Label>
-                <div className="flex items-center space-x-2 mt-2">
-                  <Input 
-                    value={`${window.location.origin}/signup?ref=${selectedAffiliate.code}`}
-                    readOnly
-                    className="text-xs"
-                  />
-                  <Button 
-                    size="sm" 
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/signup?ref=${selectedAffiliate.code}`);
-                      toast.success('Link copiado!');
-                    }}
-                  >
-                    Copiar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setIsViewAffiliateOpen(false)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal para deletar afiliado */}
+      {/* Modal Excluir Afiliado */}
       <AlertDialog open={isDeleteAffiliateOpen} onOpenChange={setIsDeleteAffiliateOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Afiliado</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o afiliado "{selectedAffiliate?.name}"? 
-              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDeleteAffiliate}
+              disabled={deleteAffiliateMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isLoading ? 'Excluindo...' : 'Excluir'}
+              {deleteAffiliateMutation.isPending ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal Visualizar Afiliado */}
+      <Dialog open={isViewAffiliateOpen} onOpenChange={setIsViewAffiliateOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Afiliado</DialogTitle>
+          </DialogHeader>
+          {selectedAffiliate && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Nome</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAffiliate.name}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAffiliate.email}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Código</Label>
+                  <div className="flex items-center space-x-2">
+                    <code className="bg-muted px-2 py-1 rounded text-sm">
+                      {selectedAffiliate.affiliate_code}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyAffiliateCode(selectedAffiliate.affiliate_code)}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div>
+                    <Badge variant={selectedAffiliate.is_active ? 'default' : 'secondary'}>
+                      {selectedAffiliate.is_active ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Comissão 1º Mês</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAffiliate.commission_rate_first_month}%</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Comissão Recorrente</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAffiliate.commission_rate_recurring}%</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Total de Indicações</Label>
+                  <p className="text-sm text-muted-foreground">{selectedAffiliate.total_referrals}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Total Ganho</Label>
+                  <p className="text-sm text-muted-foreground">R$ {Number(selectedAffiliate.total_commission).toFixed(2)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Criado em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(selectedAffiliate.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Atualizado em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(selectedAffiliate.updated_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsViewAffiliateOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

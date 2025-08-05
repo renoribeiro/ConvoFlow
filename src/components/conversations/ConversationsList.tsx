@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { NewConversationModal } from './NewConversationModal';
 
 interface Conversation {
   id: string;
@@ -113,15 +114,19 @@ export const ConversationsList = ({ searchQuery, selectedId, onSelect }: Convers
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg h-full">
-      <div className="p-4 border-b border-border">
+    <div className="bg-card border border-border rounded-lg h-full flex flex-col">
+      <div className="p-4 border-b border-border flex-shrink-0">
         <h3 className="font-semibold text-foreground">Conversas Ativas</h3>
+        <NewConversationModal onConversationCreated={(contactId) => {
+          // Atualizar a lista de conversas quando uma nova conversa for criada
+          // O hook useSupabaseQuery irá automaticamente revalidar os dados
+        }} />
         <p className="text-sm text-muted-foreground">
           {isLoading ? 'Carregando...' : `${filteredConversations.length} conversas`}
         </p>
       </div>
       
-      <ScrollArea className="h-[calc(100%-80px)]">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-1 p-2">
           {isLoading ? (
             // Loading skeleton

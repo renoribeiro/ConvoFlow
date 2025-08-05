@@ -44,9 +44,9 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
 
       switch (operation) {
         case 'insert':
-          // Adicionar tenant_id automaticamente se não for a tabela profiles ou tenants
+          // Adicionar tenant_id automaticamente se não for a tabela profiles, tenants ou affiliates
           let insertData = data;
-          if (tenant?.id && table !== 'profiles' && table !== 'tenants') {
+          if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
             insertData = Array.isArray(data) 
               ? data.map(item => ({ ...item, tenant_id: tenant.id }))
               : { ...data, tenant_id: tenant.id };
@@ -130,9 +130,9 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
           }
           break;
         case 'upsert':
-          // Adicionar tenant_id automaticamente se não for a tabela profiles ou tenants
+          // Adicionar tenant_id automaticamente se não for a tabela profiles, tenants ou affiliates
           let upsertData = data;
-          if (tenant?.id && table !== 'profiles' && table !== 'tenants') {
+          if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
             upsertData = Array.isArray(data) 
               ? data.map(item => ({ ...item, tenant_id: tenant.id }))
               : { ...data, tenant_id: tenant.id };

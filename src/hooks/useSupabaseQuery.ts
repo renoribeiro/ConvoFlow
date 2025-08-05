@@ -56,8 +56,8 @@ export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
       try {
         let query = supabase.from(table).select(select);
 
-        // Filtrar por tenant automaticamente se não for a tabela profiles
-        if (tenant?.id && table !== 'profiles' && table !== 'tenants') {
+        // Filtrar por tenant automaticamente se não for a tabela profiles, tenants ou affiliates
+        if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
           query = query.eq('tenant_id', tenant.id);
         }
 
@@ -156,7 +156,7 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
       let query = supabase.from(options.table).select(options.select || '*');
       
       // Filtrar por tenant automaticamente
-      if (tenant?.id && options.table !== 'profiles') {
+      if (tenant?.id && options.table !== 'profiles' && options.table !== 'tenants' && options.table !== 'affiliates') {
         query = query.eq('tenant_id', tenant.id);
       }
       
@@ -196,7 +196,7 @@ export function useSupabaseCount(table: string, filters?: QueryFilter[]) {
         .select('*', { count: 'exact', head: true });
       
       // Filtrar por tenant automaticamente
-      if (tenant?.id) {
+      if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
         query = query.eq('tenant_id', tenant.id);
       }
       

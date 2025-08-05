@@ -12,35 +12,37 @@ export default function Conversations() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <div className="flex flex-col h-full">
-      <PageHeader
-        title="Conversas"
-        description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
-        breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Conversas' }
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Buscar conversas..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-64"
-              />
+    <div className="flex flex-col h-[calc(100vh-80px)] -m-6">
+      <div className="px-6 py-4 bg-background border-b border-border flex-shrink-0">
+        <PageHeader
+          title="Conversas"
+          description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
+          breadcrumbs={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Conversas' }
+          ]}
+          actions={
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Buscar conversas..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </div>
+              <Button variant="outline" size="sm">
+                <Filter className="w-4 h-4 mr-2" />
+                Filtros
+              </Button>
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filtros
-            </Button>
-          </div>
-        }
-      />
+          }
+        />
+      </div>
 
-      <div className="flex flex-1 gap-4 mt-6 overflow-hidden">
-        <div className="w-80 flex-shrink-0">
+      <div className="flex flex-1 gap-4 p-6 overflow-hidden min-h-0">
+        <div className="w-80 flex-shrink-0 h-full">
           <ConversationsList
             searchQuery={searchQuery}
             selectedId={selectedConversation}
@@ -48,7 +50,7 @@ export default function Conversations() {
           />
         </div>
         
-        <div className="flex-1 border border-border rounded-lg">
+        <div className="flex-1 border border-border rounded-lg h-full">
           <ChatWindow conversationId={selectedConversation} />
         </div>
       </div>

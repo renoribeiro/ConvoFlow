@@ -7,7 +7,30 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Send, Paperclip, Smile, Phone, Video, MoreVertical, AlertCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Send, Paperclip, Smile, Phone, Video, MoreVertical, AlertCircle, Edit, User, Tag, MapPin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
@@ -62,6 +85,13 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    lead_source_id: '',
+    current_stage_id: ''
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { tenant } = useTenant();
@@ -107,6 +137,22 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     enabled: !!conversationId
   });
 
+  // Query para buscar lead sources
+  const { data: leadSources = [] } = useSupabaseQuery({
+    table: 'lead_sources',
+    select: 'id, name',
+    filters: tenant?.id ? [{ column: 'tenant_id', operator: 'eq', value: tenant.id }] : [],
+    enabled: !!tenant?.id
+  });
+
+  // Query para buscar funnel stages
+  const { data: funnelStages = [] } = useSupabaseQuery({
+    table: 'funnel_stages',
+    select: 'id, name',
+    filters: tenant?.id ? [{ column: 'tenant_id', operator: 'eq', value: tenant.id }] : [],
+    enabled: !!tenant?.id
+  });
+
   // Mutation para enviar mensagem
   const sendMessageMutation = useSupabaseMutation({
     table: 'messages',
@@ -120,6 +166,20 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       console.error('Erro ao enviar mensagem:', error);
       setIsSending(false);
       toast.error('Erro ao enviar mensagem. Tente novamente.');
+    }
+  });
+
+  // Mutation para atualizar contato
+  const updateContactMutation = useSupabaseMutation({
+    table: 'contacts',
+    operation: 'update',
+    onSuccess: () => {
+      toast.success('Contato atualizado com sucesso!');
+      setIsEditModalOpen(false);
+    },
+    onError: (error) => {
+      console.error('Erro ao atualizar contato:', error);
+      toast.error('Erro ao atualizar contato. Tente novamente.');
     }
   });
 
@@ -181,6 +241,29 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       </div>
     );
   }
+
+  // Função para abrir modal de edição
+  const handleEditContact = () => {
+    if (contact) {
+      setEditForm({
+        name: contact.name || '',
+        phone: contact.phone || '',
+        lead_source_id: contact.lead_source_id || '',
+        current_stage_id: contact.current_stage_id || ''
+      });
+      setIsEditModalOpen(true);
+    }
+  };
+
+  // Função para salvar alterações do contato
+  const handleSaveContact = () => {
+    if (!contact?.id) return;
+
+    updateContactMutation.mutate({
+      id: contact.id,
+      ...editForm
+    });
+  };
 
   const handleSendMessage = async () => {
     if (!message.trim() || !conversationId || isSending || !tenant?.id) return;
@@ -284,9 +367,9 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border rounded-lg">
+    <div className="flex flex-col h-full bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10">
             <AvatarFallback>
@@ -314,9 +397,28 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
           <Badge variant="secondary" className="text-xs">
             {contact?.lead_sources?.name || 'Desconhecido'}
           </Badge>
-          <Button variant="ghost" size="sm">
-            <MoreVertical className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleEditContact}>
+                <Edit className="w-4 h-4 mr-2" />
+                Editar Contato
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="w-4 h-4 mr-2" />
+                Ver Perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Tag className="w-4 h-4 mr-2" />
+                Alterar Etapa
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -371,7 +473,7 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border flex-shrink-0">
         {/* Input de arquivo oculto */}
         <input
           ref={fileInputRef}
@@ -441,6 +543,98 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
           </Button>
         </form>
       </div>
+
+      {/* Modal de Edição do Contato */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Contato</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do contato abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Nome
+              </Label>
+              <Input
+                id="name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone" className="text-right">
+                Telefone
+              </Label>
+              <Input
+                id="phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="lead_source" className="text-right">
+                Fonte
+              </Label>
+              <Select
+                value={editForm.lead_source_id}
+                onValueChange={(value) => setEditForm({ ...editForm, lead_source_id: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione uma fonte" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leadSources.map((source: any) => (
+                    <SelectItem key={source.id} value={source.id}>
+                      {source.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="stage" className="text-right">
+                Etapa
+              </Label>
+              <Select
+                value={editForm.current_stage_id}
+                onValueChange={(value) => setEditForm({ ...editForm, current_stage_id: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione uma etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnelStages.map((stage: any) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveContact}
+              disabled={updateContactMutation.isPending}
+            >
+              {updateContactMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
