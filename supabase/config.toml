@@ -1,0 +1,7 @@
+project_id = "pqjkuwyshybxldzpfbbs"
+
+[functions.evolution-webhook]
+verify_jwt = true
+
+[functions.job-worker]
+verify_jwt = true

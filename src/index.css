@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ConvoFlow Design System - WhatsApp Business Theme
+All colors MUST be HSL. Semantic tokens for scalable theming.
+*/
+
+@layer base {
+  :root {
+    /* Core Brand Colors - WhatsApp Inspired */
+    --whatsapp-primary: 142 69% 58%; /* WhatsApp Green */
+    --whatsapp-secondary: 142 69% 48%; /* Darker Green */
+    --whatsapp-light: 142 69% 95%; /* Very Light Green */
+    
+    /* Business Dashboard Colors */
+    --business-dark: 215 28% 17%; /* Dark Blue-Gray */
+    --business-medium: 215 16% 47%; /* Medium Gray */
+    --business-light: 215 16% 97%; /* Light Gray */
+    
+    /* Status Colors */
+    --success: 142 76% 36%; /* Success Green */
+    --warning: 43 89% 38%; /* Warning Orange */
+    --error: 0 84% 60%; /* Error Red */
+    --info: 221 83% 53%; /* Info Blue */
+    
+    /* Light Theme Variables */
+    --background: 0 0% 100%;
+    --foreground: 215 28% 17%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+
+    --primary: 142 69% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 16% 97%;
+    --secondary-foreground: 215 28% 17%;
+
+    --muted: 215 16% 97%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 142 69% 95%;
+    --accent-foreground: 142 69% 48%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 16% 91%;
+    --input: 215 16% 91%;
+    --ring: 142 69% 58%;
+
+    /* Custom Business Variables */
+    --dashboard-bg: 215 16% 99%;
+    --sidebar-bg: 0 0% 100%;
+    --navbar-bg: 0 0% 100%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--whatsapp-primary)), hsl(var(--whatsapp-secondary)));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(142 76% 26%));
+    --gradient-background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--dashboard-bg)));
+    
+    /* Shadows */
+    --shadow-soft: 0 2px 8px hsl(var(--whatsapp-primary) / 0.1);
+    --shadow-medium: 0 4px 16px hsl(var(--whatsapp-primary) / 0.15);
+    --shadow-strong: 0 8px 32px hsl(var(--whatsapp-primary) / 0.2);
+    
+    /* Animations */
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Theme Variables */
+    --background: 215 28% 7%;
+    --foreground: 0 0% 98%;
+
+    --card: 215 28% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 215 28% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 142 69% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 28% 15%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 215 28% 15%;
+    --muted-foreground: 215 16% 65%;
+
+    --accent: 215 28% 15%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 28% 20%;
+    --input: 215 28% 20%;
+    --ring: 142 69% 58%;
+
+    /* Dark Business Variables */
+    --dashboard-bg: 215 28% 5%;
+    --sidebar-bg: 215 28% 10%;
+    --navbar-bg: 215 28% 10%;
+    
+    /* Dark Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--whatsapp-primary)), hsl(var(--whatsapp-secondary)));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(142 76% 26%));
+    --gradient-background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--dashboard-bg)));
+    
+    /* Dark Shadows */
+    --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 4px 16px hsl(0 0% 0% / 0.4);
+    --shadow-strong: 0 8px 32px hsl(0 0% 0% / 0.5);
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
