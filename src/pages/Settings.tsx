@@ -5,7 +5,6 @@ import {
   User, 
   Bell, 
   Shield, 
-  Smartphone, 
   Database,
   Palette
 } from 'lucide-react';
@@ -14,7 +13,7 @@ import { NotificationSettings } from '@/components/settings/NotificationSettings
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
-import { WhatsAppSettings } from '@/components/whatsapp/WhatsAppSettings';
+
 
 export default function Settings() {
   return (
@@ -29,7 +28,7 @@ export default function Settings() {
       />
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Perfil
@@ -37,10 +36,6 @@ export default function Settings() {
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="w-4 h-4" />
             Notificações
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-            <Smartphone className="w-4 h-4" />
-            WhatsApp
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center gap-2">
             <Shield className="w-4 h-4" />
@@ -64,9 +59,7 @@ export default function Settings() {
           <NotificationSettings />
         </TabsContent>
 
-        <TabsContent value="whatsapp">
-          <WhatsAppSettings />
-        </TabsContent>
+
 
         <TabsContent value="security">
           <SecuritySettings />

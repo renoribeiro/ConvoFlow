@@ -35,6 +35,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import WhatsAppNumbers from "./pages/WhatsAppNumbers";
 
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -72,6 +73,7 @@ const App = () => (
                 <Route path="followups" element={<Followups />} />
                 <Route path="automation" element={<Automation />} />
                 <Route path="whatsapp-numbers" element={<WhatsAppNumbers />} />
+
                 <Route path="settings" element={<Settings />} />
                 <Route path="admin" element={<AdminDashboard />} />
                 <Route path="profile" element={<ProfileSettings />} />

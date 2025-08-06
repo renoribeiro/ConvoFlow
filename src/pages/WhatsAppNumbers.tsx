@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, Edit, Eye, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,10 +10,9 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
-import { ViewInstanceModal } from '@/components/whatsapp/ViewInstanceModal';
-import { EditInstanceModal } from '@/components/whatsapp/EditInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
+import { WebhookConfigModal } from '@/components/whatsapp/WebhookConfigModal';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -38,10 +37,9 @@ interface WhatsAppInstance {
 export default function WhatsAppNumbers() {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [refreshingInstance, setRefreshingInstance] = useState<string | null>(null);
   
   const { tenant } = useTenant();
@@ -70,6 +68,40 @@ export default function WhatsAppNumbers() {
     table: 'whatsapp_instances',
     invalidateKeys: ['whatsapp-instances']
   });
+
+  // Verificação automática de status a cada 30 segundos
+  useEffect(() => {
+    const checkConnectionStatus = async () => {
+      if (instances.length === 0) return;
+      
+      for (const instance of instances) {
+        try {
+          const status = await refreshInstanceStatus(instance.instance_key);
+          if (status && status !== instance.status) {
+            await updateInstanceMutation.mutateAsync({
+              id: instance.id,
+              updates: { 
+                status,
+                last_connected_at: status === 'open' ? new Date().toISOString() : instance.last_connected_at
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao verificar status da instância ${instance.instance_key}:`, error);
+        }
+      }
+    };
+
+    const interval = setInterval(checkConnectionStatus, 30000); // 30 segundos
+    
+    // Verificação inicial após 5 segundos
+    const timeout = setTimeout(checkConnectionStatus, 5000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [instances, refreshInstanceStatus, updateInstanceMutation]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -157,6 +189,11 @@ export default function WhatsAppNumbers() {
     }
   };
 
+  const handleConfigureWebhook = (instance: WhatsAppInstance) => {
+    setSelectedInstance(instance);
+    setShowWebhookModal(true);
+  };
+
   const handleRefreshStatus = async (instance: WhatsAppInstance) => {
     setRefreshingInstance(instance.id);
     try {
@@ -182,15 +219,7 @@ export default function WhatsAppNumbers() {
     }
   };
 
-  const handleView = (instance: WhatsAppInstance) => {
-    setSelectedInstance(instance);
-    setShowViewModal(true);
-  };
 
-  const handleEdit = (instance: WhatsAppInstance) => {
-    setSelectedInstance(instance);
-    setShowEditModal(true);
-  };
 
   const handleDelete = (instance: WhatsAppInstance) => {
     setSelectedInstance(instance);
@@ -200,14 +229,37 @@ export default function WhatsAppNumbers() {
   const resetModals = () => {
     setSelectedInstance(null);
     setShowCreateModal(false);
-    setShowViewModal(false);
-    setShowEditModal(false);
     setShowDeleteModal(false);
     setShowQRModal(false);
+    setShowWebhookModal(false);
   };
 
   const connectedInstances = instances.filter(i => i.status === 'open').length;
   const totalInstances = instances.length;
+
+  // Verificar se tenant ainda está carregando
+  if (!tenant) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Números WhatsApp"
+          description="Gerencie seus números e instâncias do WhatsApp"
+          breadcrumbs={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Números WhatsApp' }
+          ]}
+        />
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center">
+              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+              <span>Carregando informações do tenant...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -358,50 +410,37 @@ export default function WhatsAppNumbers() {
                         <RefreshCw className={`h-4 w-4 ${refreshingInstance === instance.id ? 'animate-spin' : ''}`} />
                       </Button>
                       
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleView(instance)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(instance)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      
                       {instance.status === 'close' && (
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleShowQR(instance)}
+                          title="Conectar via QR Code"
                         >
                           <QrCode className="h-4 w-4" />
                         </Button>
                       )}
                       
-                      {instance.status === 'open' ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDisconnect(instance)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <WifiOff className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleConnect(instance)}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <Wifi className="h-4 w-4" />
-                        </Button>
+                      {instance.status === 'open' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleConfigureWebhook(instance)}
+                            title="Configurar Webhook"
+                          >
+                            <Webhook className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDisconnect(instance)}
+                            className="text-red-600 hover:text-red-700"
+                            title="Desconectar"
+                          >
+                            <WifiOff className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                       
                       <Button
@@ -433,22 +472,6 @@ export default function WhatsAppNumbers() {
 
       {selectedInstance && (
         <>
-          <ViewInstanceModal
-            open={showViewModal}
-            onOpenChange={setShowViewModal}
-            instance={selectedInstance}
-          />
-
-          <EditInstanceModal
-            open={showEditModal}
-            onOpenChange={setShowEditModal}
-            instance={selectedInstance}
-            onSuccess={() => {
-              resetModals();
-              refetch();
-            }}
-          />
-
           <DeleteInstanceModal
             open={showDeleteModal}
             onOpenChange={setShowDeleteModal}
@@ -462,6 +485,16 @@ export default function WhatsAppNumbers() {
           <QRCodeModal
             open={showQRModal}
             onOpenChange={setShowQRModal}
+            instance={selectedInstance}
+            onSuccess={() => {
+              resetModals();
+              refetch();
+            }}
+          />
+
+          <WebhookConfigModal
+            open={showWebhookModal}
+            onOpenChange={setShowWebhookModal}
             instance={selectedInstance}
             onSuccess={() => {
               resetModals();

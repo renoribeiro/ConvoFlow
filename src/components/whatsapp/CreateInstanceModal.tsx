@@ -3,13 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
-import { Loader2 } from 'lucide-react';
+import { Loader2, QrCode } from 'lucide-react';
+import { env } from '@/lib/env';
 
 interface CreateInstanceModalProps {
   open: boolean;
@@ -20,17 +19,15 @@ interface CreateInstanceModalProps {
 export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateInstanceModalProps) => {
   const [formData, setFormData] = useState({
     name: '',
-    instance_key: '',
-    evolution_api_url: '',
-    evolution_api_key: '',
-    webhook_url: '',
-    is_active: true
+    instance_key: ''
   });
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [showQrCode, setShowQrCode] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const { tenant } = useTenant();
   const { toast } = useToast();
-  const { createInstance } = useEvolutionApi();
+  const { createInstance, getQRCode } = useEvolutionApi();
 
   const createInstanceMutation = useSupabaseMutation({
     table: 'whatsapp_instances',
@@ -58,33 +55,17 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
       return;
     }
 
-    if (!formData.evolution_api_url.trim()) {
-      toast({
-        title: "Erro",
-        description: "URL da Evolution API é obrigatória",
-        variant: "destructive"
-      });
-      return;
-    }
 
-    if (!formData.evolution_api_key.trim()) {
-      toast({
-        title: "Erro",
-        description: "Chave da Evolution API é obrigatória",
-        variant: "destructive"
-      });
-      return;
-    }
 
     setLoading(true);
 
     try {
-      // Primeiro, criar a instância na Evolution API
+      // Primeiro, criar a instância na Evolution API com configurações padrão
       await createInstance(formData.instance_key, {
         instanceName: formData.instance_key,
-        token: formData.evolution_api_key,
+        token: env.VITE_EVOLUTION_API_KEY,
         qrcode: true,
-        webhook: formData.webhook_url || undefined,
+        webhook: env.VITE_EVOLUTION_WEBHOOK_URL || undefined,
         webhook_by_events: false,
         webhook_base64: false,
         events: [
@@ -97,32 +78,43 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
         ]
       });
 
-      // Depois, salvar no banco de dados
+      // Salvar no banco de dados com configurações padrão
       await createInstanceMutation.mutateAsync({
         name: formData.name.trim(),
         instance_key: formData.instance_key.trim(),
-        evolution_api_url: formData.evolution_api_url.trim(),
-        evolution_api_key: formData.evolution_api_key.trim(),
-        webhook_url: formData.webhook_url.trim() || null,
-        is_active: formData.is_active,
+        evolution_api_url: env.VITE_EVOLUTION_API_URL,
+        evolution_api_key: env.VITE_EVOLUTION_API_KEY,
+        webhook_url: env.VITE_EVOLUTION_WEBHOOK_URL || null,
+        is_active: true,
         status: 'close',
         tenant_id: tenant?.id
       });
 
+      // Aguardar um momento e obter o QR Code
+      setTimeout(async () => {
+        try {
+          const qrCodeData = await getQRCode(formData.instance_key);
+          if (qrCodeData) {
+            setQrCode(qrCodeData);
+            setShowQrCode(true);
+          }
+        } catch (error) {
+          console.error('Erro ao obter QR Code:', error);
+        }
+      }, 2000);
+
       toast({
         title: "Sucesso",
-        description: "Instância criada com sucesso"
+        description: "Instância criada com sucesso! Aguarde o QR Code..."
       });
 
-      // Reset form
-      setFormData({
-        name: '',
-        instance_key: '',
-        evolution_api_url: '',
-        evolution_api_key: '',
-        webhook_url: '',
-        is_active: true
-      });
+      // Reset form apenas se não estiver mostrando QR Code
+      if (!showQrCode) {
+        setFormData({
+          name: '',
+          instance_key: ''
+        });
+      }
 
       onSuccess();
     } catch (error: any) {
@@ -192,58 +184,17 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="evolution_api_url">URL da Evolution API *</Label>
-              <Input
-                id="evolution_api_url"
-                placeholder="https://api.evolution.com"
-                value={formData.evolution_api_url}
-                onChange={(e) => handleInputChange('evolution_api_url', e.target.value)}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                URL base da sua instância da Evolution API
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="evolution_api_key">Chave da Evolution API *</Label>
-              <Input
-                id="evolution_api_key"
-                type="password"
-                placeholder="Sua chave da Evolution API"
-                value={formData.evolution_api_key}
-                onChange={(e) => handleInputChange('evolution_api_key', e.target.value)}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                Chave de autenticação da Evolution API
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="webhook_url">URL do Webhook (Opcional)</Label>
-              <Input
-                id="webhook_url"
-                placeholder="https://seu-dominio.com/webhook"
-                value={formData.webhook_url}
-                onChange={(e) => handleInputChange('webhook_url', e.target.value)}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                URL para receber eventos da Evolution API
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => handleInputChange('is_active', checked)}
-                disabled={loading}
-              />
-              <Label htmlFor="is_active">Instância ativa</Label>
-            </div>
+            {showQrCode && qrCode && (
+              <div className="space-y-2 text-center">
+                <Label>QR Code para Conexão</Label>
+                <div className="flex justify-center p-4 bg-white rounded-lg">
+                  <img src={qrCode} alt="QR Code" className="max-w-[200px] max-h-[200px]" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Escaneie este QR Code com o WhatsApp para conectar sua instância
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -255,10 +206,25 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar Instância
-            </Button>
+            {showQrCode ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowQrCode(false);
+                  setQrCode(null);
+                  setFormData({ name: '', instance_key: '' });
+                  onSuccess();
+                }}
+              >
+                <QrCode className="mr-2 h-4 w-4" />
+                Finalizar
+              </Button>
+            ) : (
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Criar Instância
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

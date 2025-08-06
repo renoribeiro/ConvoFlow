@@ -33,6 +33,7 @@ interface SidebarProps {
 const baseNavigationItems = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
   { name: 'Conversas', href: '/dashboard/conversations', icon: MessageSquare },
+  { name: 'Chat Evolution', href: '/dashboard/chat', icon: MessageSquare },
   { name: 'Contatos', href: '/dashboard/contacts', icon: Users },
   { name: 'Funil de Vendas', href: '/dashboard/funnel', icon: Target },
   { name: 'Rastreamento', href: '/dashboard/tracking', icon: TrendingUp },

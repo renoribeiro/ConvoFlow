@@ -89,19 +89,39 @@ export class EvolutionApiService {
   }
 
   // Instance Management
-  async createInstance(instanceName: string, webhookUrl?: string): Promise<EvolutionInstance> {
+  async createInstance(instanceName: string, webhookUrl?: string, settings?: any): Promise<EvolutionInstance> {
     const payload = {
       instanceName,
-      webhook: webhookUrl,
+      token: instanceName, // Use instance name as token for simplicity
       qrcode: true,
       number: false,
+      webhook: webhookUrl,
       webhook_by_events: true,
+      webhook_base64: false,
       events: [
         'APPLICATION_STARTUP',
         'QRCODE_UPDATED',
+        'CONNECTION_UPDATE',
         'MESSAGES_UPSERT',
-        'CONNECTION_UPDATE'
-      ]
+        'MESSAGES_UPDATE',
+        'MESSAGES_DELETE',
+        'SEND_MESSAGE',
+        'CONTACTS_SET',
+        'CONTACTS_UPSERT',
+        'CONTACTS_UPDATE',
+        'PRESENCE_UPDATE',
+        'CHATS_SET',
+        'CHATS_UPSERT',
+        'CHATS_UPDATE',
+        'CHATS_DELETE',
+        'GROUPS_UPSERT',
+        'GROUP_UPDATE',
+        'GROUP_PARTICIPANTS_UPDATE',
+        'NEW_JWT_TOKEN'
+      ],
+      reject_call: false,
+      msg_retry_count: 3,
+      ...settings
     };
 
     return this.makeRequest<EvolutionInstance>('/instance/create', {
@@ -125,6 +145,16 @@ export class EvolutionApiService {
     return Array.isArray(response) ? response : [];
   }
 
+  async restartInstance(instanceName: string): Promise<void> {
+    await this.makeRequest(`/instance/restart/${instanceName}`, {
+      method: 'PUT',
+    });
+  }
+
+  async getInstanceStatus(instanceName: string): Promise<{ instance: { state: string } }> {
+    return this.makeRequest<{ instance: { state: string } }>(`/instance/connectionState/${instanceName}`);
+  }
+
   async connectInstance(instanceName: string): Promise<{ qrcode?: string }> {
     return this.makeRequest<{ qrcode?: string }>(`/instance/connect/${instanceName}`, {
       method: 'GET',
@@ -141,11 +171,21 @@ export class EvolutionApiService {
     return this.makeRequest<{ qrcode: string }>(`/instance/qrcode/${instanceName}`);
   }
 
+  async refreshQRCode(instanceName: string): Promise<{ qrcode: string }> {
+    return this.makeRequest<{ qrcode: string }>(`/instance/qrcode/${instanceName}`, {
+      method: 'GET',
+    });
+  }
+
   // Message Management
-  async sendMessage(instanceName: string, remoteJid: string, message: string): Promise<any> {
+  async sendMessage(instanceName: string, remoteJid: string, message: string, options?: any): Promise<any> {
     const payload = {
       number: remoteJid,
       text: message,
+      delay: options?.delay || 0,
+      quoted: options?.quoted,
+      mentions: options?.mentions,
+      linkPreview: options?.linkPreview !== false
     };
 
     return this.makeRequest(`/message/sendText/${instanceName}`, {
@@ -158,16 +198,276 @@ export class EvolutionApiService {
     instanceName: string, 
     remoteJid: string, 
     mediaUrl: string, 
-    caption?: string
+    caption?: string,
+    options?: any
   ): Promise<any> {
     const payload = {
       number: remoteJid,
       media: mediaUrl,
       caption,
+      delay: options?.delay || 0,
+      quoted: options?.quoted,
+      mentions: options?.mentions
     };
 
     return this.makeRequest(`/message/sendMedia/${instanceName}`, {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendAudioMessage(instanceName: string, remoteJid: string, audioUrl: string, options?: any): Promise<any> {
+    const payload = {
+      number: remoteJid,
+      audio: audioUrl,
+      ptt: options?.ptt || false,
+      delay: options?.delay || 0
+    };
+
+    return this.makeRequest(`/message/sendWhatsAppAudio/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendDocumentMessage(
+    instanceName: string, 
+    remoteJid: string, 
+    documentUrl: string, 
+    fileName: string,
+    options?: any
+  ): Promise<any> {
+    const payload = {
+      number: remoteJid,
+      document: documentUrl,
+      fileName,
+      caption: options?.caption,
+      delay: options?.delay || 0
+    };
+
+    return this.makeRequest(`/message/sendDocument/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendLocationMessage(
+    instanceName: string, 
+    remoteJid: string, 
+    latitude: number, 
+    longitude: number,
+    name?: string
+  ): Promise<any> {
+    const payload = {
+      number: remoteJid,
+      latitude,
+      longitude,
+      name
+    };
+
+    return this.makeRequest(`/message/sendLocation/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendContactMessage(
+    instanceName: string, 
+    remoteJid: string, 
+    contact: { fullName: string; wuid: string; phoneNumber: string }
+  ): Promise<any> {
+    const payload = {
+      number: remoteJid,
+      contact: [contact]
+    };
+
+    return this.makeRequest(`/message/sendContact/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendReactionMessage(
+    instanceName: string, 
+    messageKey: { remoteJid: string; fromMe: boolean; id: string },
+    reaction: string
+  ): Promise<any> {
+    const payload = {
+      reactionMessage: {
+        key: messageKey,
+        reaction
+      }
+    };
+
+    return this.makeRequest(`/message/sendReaction/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Group Management
+  async createGroup(instanceName: string, subject: string, participants: string[]): Promise<any> {
+    const payload = {
+      subject,
+      participants
+    };
+
+    return this.makeRequest(`/group/create/${instanceName}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getGroupInfo(instanceName: string, groupJid: string): Promise<any> {
+    return this.makeRequest(`/group/findGroup/${instanceName}?groupJid=${groupJid}`);
+  }
+
+  async addParticipants(instanceName: string, groupJid: string, participants: string[]): Promise<any> {
+    const payload = {
+      groupJid,
+      participants
+    };
+
+    return this.makeRequest(`/group/updateParticipant/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async removeParticipants(instanceName: string, groupJid: string, participants: string[]): Promise<any> {
+    const payload = {
+      groupJid,
+      participants,
+      action: 'remove'
+    };
+
+    return this.makeRequest(`/group/updateParticipant/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async promoteParticipants(instanceName: string, groupJid: string, participants: string[]): Promise<any> {
+    const payload = {
+      groupJid,
+      participants,
+      action: 'promote'
+    };
+
+    return this.makeRequest(`/group/updateParticipant/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async demoteParticipants(instanceName: string, groupJid: string, participants: string[]): Promise<any> {
+    const payload = {
+      groupJid,
+      participants,
+      action: 'demote'
+    };
+
+    return this.makeRequest(`/group/updateParticipant/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateGroupSubject(instanceName: string, groupJid: string, subject: string): Promise<any> {
+    const payload = {
+      groupJid,
+      subject
+    };
+
+    return this.makeRequest(`/group/updateGroupSubject/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateGroupDescription(instanceName: string, groupJid: string, description: string): Promise<any> {
+    const payload = {
+      groupJid,
+      description
+    };
+
+    return this.makeRequest(`/group/updateGroupDescription/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async leaveGroup(instanceName: string, groupJid: string): Promise<any> {
+    const payload = {
+      groupJid
+    };
+
+    return this.makeRequest(`/group/leaveGroup/${instanceName}`, {
+      method: 'DELETE',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Contact Management
+  async getContacts(instanceName: string): Promise<any> {
+    return this.makeRequest(`/chat/findContacts/${instanceName}`);
+  }
+
+  async getContactInfo(instanceName: string, number: string): Promise<any> {
+    return this.makeRequest(`/chat/whatsappNumbers/${instanceName}?numbers=${number}`);
+  }
+
+  async getProfilePicture(instanceName: string, number: string): Promise<any> {
+    return this.makeRequest(`/chat/getProfilePicture/${instanceName}?number=${number}`);
+  }
+
+  async getChats(instanceName: string): Promise<any> {
+    return this.makeRequest(`/chat/findChats/${instanceName}`);
+  }
+
+  async getChatMessages(instanceName: string, remoteJid: string, limit: number = 20): Promise<any> {
+    return this.makeRequest(`/chat/findMessages/${instanceName}?remoteJid=${remoteJid}&limit=${limit}`);
+  }
+
+  async markMessageAsRead(instanceName: string, remoteJid: string, messageIds: string[]): Promise<any> {
+    const payload = {
+      readMessages: messageIds.map(id => ({
+        remoteJid,
+        fromMe: false,
+        id
+      }))
+    };
+
+    return this.makeRequest(`/chat/markMessageAsRead/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async archiveChat(instanceName: string, remoteJid: string, archive: boolean = true): Promise<any> {
+    const payload = {
+      lastMessage: {
+        remoteJid,
+        archive
+      }
+    };
+
+    return this.makeRequest(`/chat/archiveChat/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteMessage(instanceName: string, remoteJid: string, messageId: string, deleteForEveryone: boolean = false): Promise<any> {
+    const payload = {
+      remoteJid,
+      fromMe: true,
+      id: messageId,
+      participant: deleteForEveryone ? undefined : remoteJid
+    };
+
+    return this.makeRequest(`/chat/deleteMessage/${instanceName}`, {
+      method: 'DELETE',
       body: JSON.stringify(payload),
     });
   }
@@ -190,6 +490,41 @@ export class EvolutionApiService {
 
     await this.makeRequest(`/webhook/set/${instanceName}`, {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async setPresence(instanceName: string, presence: 'available' | 'unavailable' | 'composing' | 'recording' | 'paused'): Promise<any> {
+    const payload = {
+      presence
+    };
+
+    return this.makeRequest(`/chat/updatePresence/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async blockContact(instanceName: string, number: string): Promise<any> {
+    const payload = {
+      number,
+      status: 'block'
+    };
+
+    return this.makeRequest(`/chat/updateContactStatus/${instanceName}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async unblockContact(instanceName: string, number: string): Promise<any> {
+    const payload = {
+      number,
+      status: 'unblock'
+    };
+
+    return this.makeRequest(`/chat/updateContactStatus/${instanceName}`, {
+      method: 'PUT',
       body: JSON.stringify(payload),
     });
   }
