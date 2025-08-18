@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-08-18T17:27:30.807Z",
+  "total_tables": 0,
+  "total_columns": 0,
+  "total_constraints": 0,
+  "total_migrations": 34,
+  "files_generated": [
+    "C:\\Users\\Administrator\\Desktop\\projetos\\convoflow\\database-schema\\schema-export-2025-08-18T17-27-30-193Z.json",
+    "C:\\Users\\Administrator\\Desktop\\projetos\\convoflow\\database-schema\\schema-ddl-2025-08-18T17-27-30-193Z.sql"
+  ]
+}

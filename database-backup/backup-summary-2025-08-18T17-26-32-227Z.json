@@ -1,0 +1,97 @@
+{
+  "timestamp": "2025-08-18T17:26:32.228Z",
+  "total_tables": 18,
+  "total_records": 3,
+  "tables_summary": [
+    {
+      "table": "profiles",
+      "records": 3,
+      "status": "success"
+    },
+    {
+      "table": "whatsapp_instances",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "conversations",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "messages",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "contacts",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "campaigns",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "chatbots",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "followups",
+      "records": 0,
+      "status": "error"
+    },
+    {
+      "table": "automation_flows",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "message_templates",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "notifications",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "stripe_config",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "stripe_transactions",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "tracking_events",
+      "records": 0,
+      "status": "success"
+    },
+    {
+      "table": "tracking_sessions",
+      "records": 0,
+      "status": "error"
+    },
+    {
+      "table": "tracking_conversions",
+      "records": 0,
+      "status": "error"
+    },
+    {
+      "table": "reports_data",
+      "records": 0,
+      "status": "error"
+    },
+    {
+      "table": "system_metrics",
+      "records": 0,
+      "status": "success"
+    }
+  ]
+}

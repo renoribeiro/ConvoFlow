@@ -1,0 +1,122 @@
+{
+  "timestamp": "2025-08-18T17:26:32.228Z",
+  "version": "1.0.0",
+  "database_url": "https://pqjkuwyshybxldzpfbbs.supabase.co",
+  "tables": {
+    "profiles": {
+      "count": 3,
+      "data": [
+        {
+          "id": "04f4962f-d727-4192-ac5a-6dfd97f5a14d",
+          "user_id": "6c799886-a4e1-44c9-ac9b-9d6f0fef889f",
+          "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+          "role": "tenant_user",
+          "first_name": "Erika",
+          "last_name": "Gomes",
+          "avatar_url": null,
+          "phone": null,
+          "is_active": true,
+          "permissions": {},
+          "created_at": "2025-08-06T00:37:37.803505+00:00",
+          "updated_at": "2025-08-06T00:37:37.803505+00:00"
+        },
+        {
+          "id": "bf416d72-e0e5-4f74-9395-bf1f5b8356ff",
+          "user_id": "86f333d7-1736-4aff-a339-50490b36cfec",
+          "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+          "role": "tenant_user",
+          "first_name": "Leonardo",
+          "last_name": "Nunes",
+          "avatar_url": null,
+          "phone": null,
+          "is_active": true,
+          "permissions": {},
+          "created_at": "2025-08-06T14:53:27.343397+00:00",
+          "updated_at": "2025-08-06T14:53:27.343397+00:00"
+        },
+        {
+          "id": "c122243a-58cb-4b93-996b-8e011d36d66f",
+          "user_id": "19626214-125e-4132-b9d8-a0e6b064f229",
+          "tenant_id": "55741cc1-8b57-4755-81d6-ebb90b81a2ca",
+          "role": "super_admin",
+          "first_name": "Reno",
+          "last_name": "Ribeiro",
+          "avatar_url": "",
+          "phone": "",
+          "is_active": true,
+          "permissions": {},
+          "created_at": "2025-08-04T21:32:41.678827+00:00",
+          "updated_at": "2025-08-16T08:55:36.158759+00:00"
+        }
+      ]
+    },
+    "whatsapp_instances": {
+      "count": 0,
+      "data": []
+    },
+    "conversations": {
+      "count": 0,
+      "data": []
+    },
+    "messages": {
+      "count": 0,
+      "data": []
+    },
+    "contacts": {
+      "count": 0,
+      "data": []
+    },
+    "campaigns": {
+      "count": 0,
+      "data": []
+    },
+    "chatbots": {
+      "count": 0,
+      "data": []
+    },
+    "followups": {
+      "error": "relation \"public.followups\" does not exist",
+      "data": []
+    },
+    "automation_flows": {
+      "count": 0,
+      "data": []
+    },
+    "message_templates": {
+      "count": 0,
+      "data": []
+    },
+    "notifications": {
+      "count": 0,
+      "data": []
+    },
+    "stripe_config": {
+      "count": 0,
+      "data": []
+    },
+    "stripe_transactions": {
+      "count": 0,
+      "data": []
+    },
+    "tracking_events": {
+      "count": 0,
+      "data": []
+    },
+    "tracking_sessions": {
+      "error": "relation \"public.tracking_sessions\" does not exist",
+      "data": []
+    },
+    "tracking_conversions": {
+      "error": "relation \"public.tracking_conversions\" does not exist",
+      "data": []
+    },
+    "reports_data": {
+      "error": "relation \"public.reports_data\" does not exist",
+      "data": []
+    },
+    "system_metrics": {
+      "count": 0,
+      "data": []
+    }
+  }
+}
