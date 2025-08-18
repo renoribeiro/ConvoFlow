@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DashboardCardSkeleton } from '@/components/shared/Skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
@@ -179,7 +180,9 @@ export default function Dashboard() {
         {/* Estatísticas principais */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {statsLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
+            Array.from({ length: 4 }).map((_, i) => (
+              <DashboardCardSkeleton key={i} />
+            ))
           ) : statsError ? (
             <div className="col-span-full">
               <Alert variant="destructive">
@@ -232,11 +235,11 @@ export default function Dashboard() {
               {activityLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-3 w-24" />
+                    <div key={i} className="p-4 border-b space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <DashboardCardSkeleton />
+                        </div>
                       </div>
                     </div>
                   ))}

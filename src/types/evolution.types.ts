@@ -20,6 +20,26 @@ export interface EvolutionInstance {
   lastActivity?: Date;
 }
 
+// Detailed instance information from Evolution API v2
+export interface DetailedEvolutionInstance {
+  instance: {
+    instanceName: string;
+    instanceId: string;
+    owner?: string;
+    profileName?: string;
+    profilePictureUrl?: string;
+    profileStatus?: string;
+    status: 'open' | 'close' | 'connecting' | 'qrcode';
+    serverUrl: string;
+    apikey: string;
+    integration?: {
+      integration?: string;
+      token?: string;
+      webhook_wa_business?: string;
+    };
+  };
+}
+
 export interface WebhookEvent {
   event: 'messages.upsert' | 'connection.update' | 'presence.update' | 'qrcode.updated';
   instance: string;

@@ -35,9 +35,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
+import { useMessages, useSendMessage, useMarkMessagesAsRead, getAllMessages } from '@/hooks/useMessages';
+import { useInView } from 'react-intersection-observer';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { useConversation, useMarkConversationAsRead } from '@/hooks/useConversations';
 
 interface Message {
   id: string;
@@ -56,7 +59,7 @@ interface Contact {
   phone: string;
   lead_source_id?: string;
   current_stage_id?: string;
-  funnel_stages?: {
+  stage?: {
     name: string;
   };
   lead_sources?: {
@@ -76,10 +79,6 @@ interface ChatWindowProps {
   conversationId?: string;
 }
 
-
-
-
-
 export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -96,45 +95,26 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { tenant } = useTenant();
 
-  // Query para buscar dados do contato (usando conversationId como contact_id)
-  const { data: contactData, isLoading: conversationLoading, error: conversationError } = useSupabaseQuery({
-    table: 'contacts',
-    select: `
-      id,
-      name,
-      phone,
-      lead_source_id,
-      current_stage_id,
-      funnel_stages:current_stage_id (
-        name
-      ),
-      lead_sources:lead_source_id (
-        name
-      )
-    `,
-    filters: conversationId ? [{ column: 'id', operator: 'eq', value: conversationId }] : [],
-    enabled: !!conversationId
+  // Buscar conversa por ID da conversa para obter contact_id e dados do contato
+  const { data: conversation, isLoading: conversationLoading, error: conversationError } = useConversation(conversationId || '');
+  const contact = conversation?.contacts;
+  const contactId = conversation?.contact_id;
+
+  // Query para buscar mensagens com paginação infinita (usando contact_id derivado da conversa)
+  const messagesQuery = useMessages({
+    contactId: contactId || '',
+    pageSize: 50,
+    enabled: !!contactId
   });
 
-  const contact = contactData?.[0];
+  const messages = getAllMessages(messagesQuery);
+  const messagesLoading = messagesQuery.isLoading;
+  const messagesError = messagesQuery.error;
 
-  // Query para buscar mensagens do contato
-  const { data: messages = [], isLoading: messagesLoading, error: messagesError } = useSupabaseQuery({
-    table: 'messages',
-    select: `
-      id,
-      content,
-      created_at,
-      direction,
-      status,
-      message_type,
-      media_url,
-      contact_id
-    `,
-    filters: conversationId ? [{ column: 'contact_id', operator: 'eq', value: conversationId }] : [],
-    orderBy: [{ column: 'created_at', ascending: true }],
-    limit: 100,
-    enabled: !!conversationId
+  // Hook para detectar quando carregar mais mensagens
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '100px 0px 0px 0px'
   });
 
   // Query para buscar lead sources
@@ -154,20 +134,13 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   });
 
   // Mutation para enviar mensagem
-  const sendMessageMutation = useSupabaseMutation({
-    table: 'messages',
-    operation: 'insert',
-    onSuccess: () => {
-      setMessage('');
-      setIsSending(false);
-      toast.success('Mensagem enviada com sucesso!');
-    },
-    onError: (error) => {
-      console.error('Erro ao enviar mensagem:', error);
-      setIsSending(false);
-      toast.error('Erro ao enviar mensagem. Tente novamente.');
-    }
-  });
+  const sendMessageMutation = useSendMessage();
+  
+  // Mutation para marcar mensagens como lidas
+  const markAsReadMutation = useMarkMessagesAsRead();
+  
+  // Mutation para marcar conversa como lida
+  const markConversationAsReadMutation = useMarkConversationAsRead();
 
   // Mutation para atualizar contato
   const updateContactMutation = useSupabaseMutation({
@@ -183,21 +156,12 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     }
   });
 
-  // Mutation para marcar como lida (removido pois não há tabela conversations)
-  // const markAsReadMutation = useSupabaseMutation({
-  //   table: 'conversations',
-  //   operation: 'update'
-  // });
-
-  // Marcar como lida quando a conversa é aberta (removido pois não há tabela conversations)
-  // useEffect(() => {
-  //   if (conversationId && contact?.unread_count > 0) {
-  //     markAsReadMutation.mutate({
-  //       id: conversationId,
-  //       unread_count: 0
-  //     });
-  //   }
-  // }, [conversationId, contact?.unread_count]);
+  // Carregar mais mensagens quando o usuário rola para cima
+  useEffect(() => {
+    if (inView && messagesQuery.hasNextPage && !messagesQuery.isFetchingNextPage) {
+      messagesQuery.fetchNextPage();
+    }
+  }, [inView, messagesQuery.hasNextPage, messagesQuery.isFetchingNextPage]);
 
   // Scroll para o final quando novas mensagens chegam
   useEffect(() => {
@@ -218,6 +182,30 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     };
   }, [showEmojiPicker]);
 
+  // Marcar mensagens como lidas quando a conversa é aberta
+  useEffect(() => {
+    if (contactId && messages.length > 0) {
+      const unreadMessages = messages.filter(msg => 
+        msg.direction === 'inbound' && msg.status !== 'read'
+      );
+      
+      if (unreadMessages.length > 0) {
+        markAsReadMutation.mutate({
+          contactId: contactId,
+          messageIds: unreadMessages.map(msg => msg.id)
+        });
+      }
+    }
+  }, [contactId, messages.length]);
+
+  // Marcar conversa como lida quando a conversa é aberta
+  useEffect(() => {
+    if (conversationId && conversation?.unread_count && conversation.unread_count > 0) {
+      markConversationAsReadMutation.mutate(conversationId);
+    }
+  }, [conversationId, conversation?.unread_count]);
+
+  // Early returns APÓS todos os hooks serem chamados
   if (!conversationId) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -266,14 +254,13 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !conversationId || isSending || !tenant?.id) return;
+    if (!message.trim() || !contactId || isSending || !tenant?.id) return;
 
     setIsSending(true);
 
     try {
       await sendMessageMutation.mutateAsync({
-        tenant_id: tenant.id,
-        contact_id: conversationId,
+        contact_id: contactId,
         whatsapp_instance_id: tenant.whatsapp_instances?.[0]?.id, // Usar primeira instância disponível
         content: message.trim(),
         direction: 'outbound',
@@ -281,8 +268,12 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
         status: 'sent',
         is_from_bot: false
       });
+
+      setMessage('');
+      setIsSending(false);
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
+      setIsSending(false);
     }
   };
 
@@ -373,7 +364,7 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10">
             <AvatarFallback>
-              {contact?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'C'}
+              {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
             </AvatarFallback>
           </Avatar>
           <div>
@@ -384,9 +375,9 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
               <span className="text-sm text-muted-foreground">
                 {contact?.phone}
               </span>
-              {contact?.funnel_stages?.name && (
+              {contact?.stage?.name && (
                 <Badge variant="outline" className="text-xs">
-                  {contact.funnel_stages.name}
+                  {contact.stage.name}
                 </Badge>
               )}
             </div>

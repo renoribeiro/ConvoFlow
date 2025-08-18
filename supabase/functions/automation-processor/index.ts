@@ -425,7 +425,7 @@ async function changeFunnelStage(
     const { error } = await supabaseClient
       .from('contacts')
       .update({ 
-        funnel_stage_id: stepConfig.stage_id,
+        current_stage_id: stepConfig.stage_id,
         updated_at: new Date().toISOString()
       })
       .eq('id', contactId);

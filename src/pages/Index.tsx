@@ -32,6 +32,7 @@ const Index = () => {
           icon={<MessageSquare className="h-4 w-4" />}
           trend={{ value: 12, isPositive: true }}
           className="xl:col-span-1"
+          href="/dashboard/conversations"
         />
         
         <MetricCard
@@ -41,6 +42,7 @@ const Index = () => {
           icon={<Users className="h-4 w-4" />}
           trend={{ value: 8, isPositive: true }}
           className="xl:col-span-1"
+          href="/dashboard/contacts"
         />
         
         <MetricCard
@@ -50,6 +52,7 @@ const Index = () => {
           icon={<Target className="h-4 w-4" />}
           trend={{ value: 3, isPositive: true }}
           className="xl:col-span-1"
+          href="/dashboard/funnel"
         />
         
         <MetricCard
@@ -77,6 +80,7 @@ const Index = () => {
           icon={<TrendingUp className="h-4 w-4" />}
           trend={{ value: 22, isPositive: true }}
           className="xl:col-span-1"
+          href="/dashboard/reports"
         />
       </div>
 

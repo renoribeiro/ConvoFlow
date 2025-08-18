@@ -30,9 +30,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('[AuthContext] Initializing auth state listener');
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('[AuthContext] Auth state changed:', { event, hasSession: !!session, userId: session?.user?.id });
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
@@ -41,6 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[AuthContext] Initial session check:', { hasSession: !!session, userId: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
@@ -48,6 +52,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Debug log for current auth state
+  console.log('[AuthContext] Current state:', { 
+    hasUser: !!user, 
+    hasSession: !!session, 
+    isLoading, 
+    userId: user?.id 
+  });
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);

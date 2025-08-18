@@ -260,7 +260,7 @@ const mockEndpoints: ApiEndpoint[] = [
       type: 'api_key',
       required: true,
       location: 'header',
-      key_name: 'X-API-Key'
+      key_name: 'apikey'
     },
     rate_limit: {
       requests_per_minute: 60,

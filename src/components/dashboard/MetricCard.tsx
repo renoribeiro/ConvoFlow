@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +13,8 @@ interface MetricCardProps {
     isPositive: boolean;
   };
   className?: string;
+  href?: string;
+  onClick?: () => void;
 }
 
 export const MetricCard = ({ 
@@ -20,10 +23,31 @@ export const MetricCard = ({
   description, 
   icon, 
   trend,
-  className 
+  className,
+  href,
+  onClick
 }: MetricCardProps) => {
+  const navigate = useNavigate();
+  
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (href) {
+      navigate(href);
+    }
+  };
+  
+  const isClickable = href || onClick;
+  
   return (
-    <Card className={cn("hover:shadow-medium transition-all duration-200", className)}>
+    <Card 
+      className={cn(
+        "hover:shadow-medium transition-all duration-200", 
+        isClickable && "cursor-pointer hover:scale-105",
+        className
+      )}
+      onClick={handleClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

@@ -1,94 +1,104 @@
-import { Smartphone, Wifi, WifiOff, Settings } from 'lucide-react';
+import { Smartphone, Wifi, WifiOff, Loader2, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-interface WhatsAppInstance {
-  id: string;
-  name: string;
-  number: string;
-  status: 'connected' | 'disconnected' | 'connecting';
-  lastSeen: string;
-  messagesCount: number;
-}
-
-const mockInstances: WhatsAppInstance[] = [
-  {
-    id: '1',
-    name: 'Vendas Principal',
-    number: '+55 11 99999-9999',
-    status: 'connected',
-    lastSeen: 'Online',
-    messagesCount: 47
-  },
-  {
-    id: '2',
-    name: 'Suporte Técnico',
-    number: '+55 11 99999-9998',
-    status: 'connected',
-    lastSeen: '2 min atrás',
-    messagesCount: 23
-  },
-  {
-    id: '3',
-    name: 'Marketing',
-    number: '+55 11 99999-9997',
-    status: 'disconnected',
-    lastSeen: '1h atrás',
-    messagesCount: 0
-  },
-];
-
-const statusConfig = {
-  connected: {
-    icon: Wifi,
-    color: 'bg-status-success text-white',
-    label: 'Conectado'
-  },
-  disconnected: {
-    icon: WifiOff,
-    color: 'bg-status-error text-white',
-    label: 'Desconectado'
-  },
-  connecting: {
-    icon: Wifi,
-    color: 'bg-status-warning text-white',
-    label: 'Conectando...'
-  }
-};
+import { Skeleton } from '@/components/ui/skeleton';
+import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 
 export const WhatsAppStatus = () => {
+  const navigate = useNavigate();
+  const { instances, isLoading, error } = useWhatsAppInstances();
+  
+  const handleManage = () => {
+    navigate('/dashboard/whatsapp-numbers');
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'connecting':
+        return <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />;
+      default:
+        return <WifiOff className="h-4 w-4 text-red-500" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500';
+      case 'connecting':
+        return 'bg-yellow-500';
+      default:
+        return 'bg-red-500';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return 'Conectado';
+      case 'connecting':
+        return 'Conectando';
+      default:
+        return 'Desconectado';
+    }
+  };
+  
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold">Status WhatsApp</CardTitle>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={handleManage}>
           <Settings className="h-4 w-4 mr-2" />
           Gerenciar
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {mockInstances.map((instance) => {
-          const StatusIcon = statusConfig[instance.status].icon;
-          
-          return (
-            <div
-              key={instance.id}
-              className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-            >
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-whatsapp-primary rounded-full flex items-center justify-center">
-                  <Smartphone className="h-5 w-5 text-white" />
+                <Skeleton className="h-4 w-4 rounded" />
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-5 w-20" />
+                  </div>
+                  <Skeleton className="h-3 w-40" />
+                  <Skeleton className="h-3 w-36" />
                 </div>
+              </div>
+              <div className="text-right space-y-1">
+                <Skeleton className="h-4 w-8" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))
+        ) : error ? (
+          <div className="text-center py-4 text-muted-foreground">
+            Erro ao carregar instâncias do WhatsApp
+          </div>
+        ) : instances.length === 0 ? (
+          <div className="text-center py-4 text-muted-foreground">
+            Nenhuma instância do WhatsApp configurada
+          </div>
+        ) : (
+          instances.map((instance) => (
+            <div key={instance.id} className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center space-x-3">
+                {getStatusIcon(instance.status)}
                 
                 <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h4 className="text-sm font-medium text-foreground">
-                      {instance.name}
-                    </h4>
-                    <Badge className={statusConfig[instance.status].color}>
-                      <StatusIcon className="h-3 w-3 mr-1" />
-                      {statusConfig[instance.status].label}
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-medium text-foreground">{instance.name}</h4>
+                    <Badge 
+                      variant="secondary" 
+                      className={`text-xs ${getStatusColor(instance.status)} text-white`}
+                    >
+                      {getStatusText(instance.status)}
                     </Badge>
                   </div>
                   
@@ -111,8 +121,8 @@ export const WhatsAppStatus = () => {
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))
+        )}
       </CardContent>
     </Card>
   );

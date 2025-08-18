@@ -4,6 +4,7 @@ import { DndContext, rectIntersection, KeyboardSensor, PointerSensor, useSensor,
 import { DroppableStage } from './DroppableStage';
 import { DragOverlay } from './DragOverlay';
 import { StageConfigModal } from './StageConfigModal';
+import { EditStageModal } from './EditStageModal';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
@@ -35,6 +36,7 @@ export const FunnelBoard = () => {
   const [overStageId, setOverStageId] = useState<string | null>(null);
   const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, string>>({});
   const [showStageConfig, setShowStageConfig] = useState(false);
+  const [editingStage, setEditingStage] = useState<{ id: string; name: string; color: string; order: number } | null>(null);
   const { toast } = useToast();
 
   // Buscar estágios do funil
@@ -157,11 +159,15 @@ export const FunnelBoard = () => {
   };
 
   const handleEditStage = (stageId: string) => {
-    // TODO: Implementar edição individual de estágio
-    toast({
-      title: "Em desenvolvimento",
-      description: "Funcionalidade de editar estágio será implementada em breve.",
-    });
+    const stage = stagesData.find(s => s.id === stageId);
+    if (stage) {
+      setEditingStage({
+        id: stage.id,
+        name: stage.name,
+        color: stage.color || 'blue',
+        order: stage.order
+      });
+    }
   };
 
   const handleDeleteStage = (stageId: string) => {
@@ -346,6 +352,16 @@ export const FunnelBoard = () => {
       <StageConfigModal 
         isOpen={showStageConfig} 
         onClose={() => setShowStageConfig(false)} 
+      />
+      
+      <EditStageModal
+        isOpen={!!editingStage}
+        onClose={() => setEditingStage(null)}
+        stage={editingStage}
+        onStageUpdated={() => {
+          // Força uma nova busca dos dados após atualização
+          window.location.reload();
+        }}
       />
     </DndContext>
   );

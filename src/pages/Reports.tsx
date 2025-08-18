@@ -8,10 +8,14 @@ import { ReportTemplates } from '@/components/reports/ReportTemplates';
 import { ScheduleList } from '@/components/reports/ScheduleList';
 import { DeliveryLog } from '@/components/reports/DeliveryLog';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
+import { ReportSettingsModal } from '@/components/reports/ReportSettingsModal';
+import { NewReportModal } from '@/components/reports/NewReportModal';
 import { FileText, Calendar, Send, Plus, Settings } from 'lucide-react';
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('templates');
+  const [showSettings, setShowSettings] = useState(false);
+  const [showNewReport, setShowNewReport] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -24,11 +28,11 @@ export default function Reports() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
               <Settings className="w-4 h-4 mr-2" />
               Configurações
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => setShowNewReport(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Relatório
             </Button>
@@ -72,6 +76,16 @@ export default function Reports() {
           <DeliveryLog />
         </TabsContent>
       </Tabs>
+      
+      <ReportSettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
+      
+      <NewReportModal 
+        isOpen={showNewReport} 
+        onClose={() => setShowNewReport(false)} 
+      />
     </div>
   );
 }

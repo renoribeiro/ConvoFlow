@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -142,30 +142,66 @@ const AdminDashboard = () => {
   });
 
   // Queries para buscar dados
-  const { data: affiliates = [], isLoading: affiliatesLoading, refetch: refetchAffiliates } = useSupabaseQuery({
+  const { data: affiliates = [], isLoading: affiliatesLoading, refetch: refetchAffiliates, error: affiliatesError } = useSupabaseQuery({
     table: 'affiliates',
     queryKey: ['affiliates'],
     select: '*',
     orderBy: [{ column: 'created_at', ascending: false }]
   });
 
-  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useSupabaseQuery({
-    table: 'profiles',
-    queryKey: ['admin-users'],
+  // Query para buscar usuários usando a view admin_users_view que já combina auth.users e profiles
+  const { data: usersWithEmails = [], isLoading: usersLoading, refetch: refetchUsers, error: usersError } = useSupabaseQuery({
+    table: 'admin_users_view',
+    queryKey: ['admin-users', isSuperAdmin],
     select: `
       id,
+      email,
       first_name,
       last_name,
-      email,
       role,
       is_active,
+      phone,
       created_at,
-      updated_at,
-      tenant_id,
-      tenants(name)
+      profile_updated_at,
+      tenant_id
     `,
-    orderBy: [{ column: 'created_at', ascending: false }]
+    orderBy: [{ column: 'created_at', ascending: false }],
+    enabled: isSuperAdmin // Só executa se for super admin
   });
+
+  // Debug logs para identificar problemas
+  console.log('AdminDashboard - Users loading:', usersLoading);
+  console.log('AdminDashboard - Users with emails:', usersWithEmails);
+  console.log('AdminDashboard - Users error:', usersError);
+  console.log('AdminDashboard - Affiliates loading:', affiliatesLoading);
+  console.log('AdminDashboard - Affiliates data:', affiliates);
+  console.log('AdminDashboard - Affiliates error:', affiliatesError);
+  console.log('AdminDashboard - Is super admin:', isSuperAdmin);
+
+  // Mostrar erro se não for super admin
+  React.useEffect(() => {
+    if (!isSuperAdmin && !usersLoading) {
+      toast.error('Acesso negado: Apenas super administradores podem acessar esta página');
+    }
+  }, [isSuperAdmin, usersLoading]);
+
+  // Mostrar erro se houver problema na query de usuários
+  React.useEffect(() => {
+    if (usersError) {
+      console.error('Erro na query de usuários:', usersError);
+      toast.error('Erro ao carregar usuários: ' + usersError.message);
+    }
+  }, [usersError]);
+
+
+
+  // Mostrar erro se houver problema na query de afiliados
+  React.useEffect(() => {
+    if (affiliatesError) {
+      console.error('Erro na query de afiliados:', affiliatesError);
+      toast.error('Erro ao carregar afiliados: ' + affiliatesError.message);
+    }
+  }, [affiliatesError]);
 
   // Mutations para CRUD de usuários
   const createUserMutation = useSupabaseMutation({
@@ -419,7 +455,7 @@ const AdminDashboard = () => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.length}</div>
+                <div className="text-2xl font-bold">{usersWithEmails.length}</div>
                 <p className="text-xs text-muted-foreground">
                   Últimos 30 dias
                 </p>
@@ -519,14 +555,14 @@ const AdminDashboard = () => {
                         Carregando usuários...
                       </TableCell>
                     </TableRow>
-                  ) : users.length === 0 ? (
+                  ) : usersWithEmails.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
-                    users.map((user: any) => (
+                    usersWithEmails.map((user: any) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
                           {user.first_name} {user.last_name}
@@ -561,7 +597,7 @@ const AdminDashboard = () => {
                                   lastLogin: '',
                                   createdAt: user.created_at,
                                   tenantId: user.tenant_id,
-                                  tenantName: user.tenants?.name,
+                                  tenantName: '', // Removido pois não temos mais o join com tenants
                                   phone: user.phone
                                 });
                                 setIsViewUserOpen(true);
@@ -582,7 +618,7 @@ const AdminDashboard = () => {
                                   lastLogin: '',
                                   createdAt: user.created_at,
                                   tenantId: user.tenant_id,
-                                  tenantName: user.tenants?.name,
+                                  tenantName: '', // Removido pois não temos mais o join com tenants
                                   phone: user.phone
                                 });
                                 setUserForm({

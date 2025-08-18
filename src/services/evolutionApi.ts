@@ -1,5 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
-import { EvolutionInstance, IncomingMessage, WebhookEvent } from '@/types/evolution.types';
+import type {
+  EvolutionInstance,
+  DetailedEvolutionInstance,
+  WebhookEvent,
+  IncomingMessage,
+  MessageTemplate,
+  EvolutionConfig
+} from '../types/evolution.types';
 import { logger } from '../lib/logger';
 import { ValidationSchemas, validateInput, UrlSanitizer } from '../lib/validation';
 
@@ -36,6 +43,11 @@ export class EvolutionApiService {
 
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': this.apiKey,
+      ...options.headers,
+    };
     
     // Log request (without sensitive data)
     logger.debug('Making Evolution API request', {
@@ -44,25 +56,49 @@ export class EvolutionApiService {
       hasBody: !!options.body
     });
     
+    console.log('🌐 MakeRequest - URL:', url);
+    console.log('🔑 MakeRequest - Headers:', headers);
+    console.log('📋 MakeRequest - Body:', options.body);
+    
     try {
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': this.apiKey,
-          ...options.headers,
-        },
+        headers,
       });
 
+      console.log('📊 MakeRequest - Status:', response.status, response.statusText);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        const error = new Error(`HTTP ${response.status}: ${errorText}`);
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('❌ MakeRequest - Erro completo:', errorData);
+        } catch {
+          const errorText = await response.text();
+          console.error('❌ MakeRequest - Erro completo:', errorText);
+          errorData = { message: errorText };
+        }
+        
+        // Tratamento específico para erros de chave estrangeira do Evolution API
+        if (response.status === 400 && JSON.stringify(errorData).includes('Foreign key constraint failed')) {
+          console.warn('⚠️ Erro de chave estrangeira detectado - possível problema de sincronização com Evolution API');
+          logger.warn('Evolution API foreign key constraint error', {
+            endpoint,
+            status: response.status,
+            error: errorData
+          });
+          
+          // Para erros de chave estrangeira, retornamos um erro mais amigável
+          throw new Error('Erro de sincronização com o servidor WhatsApp. Tente novamente em alguns instantes.');
+        }
+        
+        const error = new Error(`HTTP ${response.status}: ${response.statusText} - ${JSON.stringify(errorData)}`);
         
         logger.error('Evolution API request failed', {
           endpoint,
           status: response.status,
           statusText: response.statusText,
-          error: errorText
+          error: errorData
         }, error);
         
         throw error;
@@ -89,46 +125,38 @@ export class EvolutionApiService {
   }
 
   // Instance Management
-  async createInstance(instanceName: string, webhookUrl?: string, settings?: any): Promise<EvolutionInstance> {
-    const payload = {
+  public createInstance = async (params: { instanceName: string; webhookUrl?: string; settings?: any; }) => {
+    console.log('🚀 [evolutionApi.ts] Chamando createInstance com params:', params);
+
+    // Garantir que instanceName seja uma string simples
+    const instanceName = typeof params.instanceName === 'string' 
+      ? params.instanceName 
+      : params.instanceName?.instanceName || params.instanceName;
+    
+    console.log('🔍 [evolutionApi.ts] instanceName extraído:', instanceName, 'tipo:', typeof instanceName);
+
+    // Payload seguindo o modelo oficial da Evolution API V2
+    const body = {
+      integration: "WHATSAPP-BAILEYS",
       instanceName,
-      token: instanceName, // Use instance name as token for simplicity
       qrcode: true,
-      number: false,
-      webhook: webhookUrl,
-      webhook_by_events: true,
-      webhook_base64: false,
-      events: [
-        'APPLICATION_STARTUP',
-        'QRCODE_UPDATED',
-        'CONNECTION_UPDATE',
-        'MESSAGES_UPSERT',
-        'MESSAGES_UPDATE',
-        'MESSAGES_DELETE',
-        'SEND_MESSAGE',
-        'CONTACTS_SET',
-        'CONTACTS_UPSERT',
-        'CONTACTS_UPDATE',
-        'PRESENCE_UPDATE',
-        'CHATS_SET',
-        'CHATS_UPSERT',
-        'CHATS_UPDATE',
-        'CHATS_DELETE',
-        'GROUPS_UPSERT',
-        'GROUP_UPDATE',
-        'GROUP_PARTICIPANTS_UPDATE',
-        'NEW_JWT_TOKEN'
-      ],
-      reject_call: false,
-      msg_retry_count: 3,
-      ...settings
+      rejectCall: true,
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: true
     };
 
-    return this.makeRequest<EvolutionInstance>('/instance/create', {
+    console.log('📤 [evolutionApi.ts] Payload final para a API:', JSON.stringify(body, null, 2));
+    console.log('🔗 [evolutionApi.ts] URL da requisição:', `${this.baseUrl}/instance/create`);
+    console.log('🔑 [evolutionApi.ts] API Key:', this.apiKey);
+
+    return this.makeRequest('/instance/create', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body)
     });
-  }
+  };
 
   async deleteInstance(instanceName: string): Promise<void> {
     await this.makeRequest(`/instance/delete/${instanceName}`, {
@@ -136,8 +164,14 @@ export class EvolutionApiService {
     });
   }
 
-  async getInstanceInfo(instanceName: string): Promise<EvolutionInstance> {
-    return this.makeRequest<EvolutionInstance>(`/instance/fetchInstances/${instanceName}`);
+  /**
+   * Get detailed information about a specific instance from Evolution API v2
+   * Returns comprehensive instance data including owner, profile info, and integration details
+   * @param instanceName - The name of the instance to get detailed info for
+   * @returns Promise<DetailedEvolutionInstance> - Detailed instance information
+   */
+  async getDetailedInstanceInfo(instanceName: string): Promise<DetailedEvolutionInstance> {
+    return this.makeRequest<DetailedEvolutionInstance>(`/instance/fetchInstances/${instanceName}`);
   }
 
   async getAllInstances(): Promise<EvolutionInstance[]> {
@@ -155,8 +189,8 @@ export class EvolutionApiService {
     return this.makeRequest<{ instance: { state: string } }>(`/instance/connectionState/${instanceName}`);
   }
 
-  async connectInstance(instanceName: string): Promise<{ qrcode?: string }> {
-    return this.makeRequest<{ qrcode?: string }>(`/instance/connect/${instanceName}`, {
+  async connectInstance(instanceName: string): Promise<{ pairingCode: string; code: string; count: number }> {
+    return this.makeRequest<{ pairingCode: string; code: string; count: number }>(`/instance/connect/${instanceName}`, {
       method: 'GET',
     });
   }
@@ -630,6 +664,42 @@ const processIncomingMessage = async (instanceName: string, messageData: Incomin
       last_interaction_at: new Date(messageTimestamp * 1000).toISOString(),
     })
     .eq('id', contact.id);
+
+  // Sync conversation unread count
+  const messageTime = new Date(messageTimestamp * 1000).toISOString();
+  
+  // Check if conversation exists
+  const { data: existingConversation } = await supabase
+    .from('conversations')
+    .select('id, unread_count')
+    .eq('contact_id', contact.id)
+    .eq('tenant_id', instance.tenant_id)
+    .single();
+
+  if (existingConversation) {
+    // Update existing conversation
+    await supabase
+      .from('conversations')
+      .update({
+        unread_count: (existingConversation.unread_count || 0) + 1,
+        last_message_at: messageTime,
+        updated_at: messageTime
+      })
+      .eq('id', existingConversation.id);
+  } else {
+    // Create new conversation
+    await supabase
+      .from('conversations')
+      .insert({
+        contact_id: contact.id,
+        tenant_id: instance.tenant_id,
+        whatsapp_instance_id: instance.id,
+        unread_count: 1,
+        last_message_at: messageTime,
+        created_at: messageTime,
+        updated_at: messageTime
+      });
+  }
 };
 
 const processConnectionUpdate = async (instanceName: string, connectionData: any): Promise<void> => {

@@ -11,10 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, BarChart3, PieChart, LineChart, TrendingUp, AlertCircle } from 'lucide-react';
-import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
-import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
+import { Plus, Trash2, BarChart3, PieChart, LineChart, TrendingUp, AlertCircle, X } from 'lucide-react';
+import { useReportTemplates, useCreateReportTemplate } from '@/hooks/useReports';
 import { useTenant } from '@/contexts/TenantContext';
+import { Separator } from '@/components/ui/separator';
 
 const availableMetrics = [
   { id: 'leads', name: 'Total de Leads', category: 'Volume' },
@@ -52,40 +52,20 @@ export const ReportBuilder = () => {
   const { toast } = useToast();
   const { tenant } = useTenant();
 
-  // Buscar relatórios salvos
-  const { data: savedReports = [], isLoading: reportsLoading } = useSupabaseQuery({
-    table: 'reports',
-    select: '*',
-    filters: tenant?.id ? [{ column: 'tenant_id', operator: 'eq', value: tenant.id }] : [],
-    orderBy: [{ column: 'created_at', ascending: false }],
-    enabled: !!tenant?.id
-  });
+  // Buscar templates de relatórios salvos
+  const { data: savedReports = [], isLoading: reportsLoading } = useReportTemplates();
 
-  // Mutation para salvar relatório
-  const saveReportMutation = useSupabaseMutation(
-    'reports',
-    'insert',
-    {
-      onSuccess: () => {
-        toast({
-          title: 'Sucesso',
-          description: 'Relatório salvo com sucesso!'
-        });
-        // Limpar formulário
-        setReportName('');
-        setReportDescription('');
-        setReportCategory('');
-        setSections([{ id: '1', title: 'Visão Geral', metrics: [], chartType: 'metric' }]);
-      },
-      onError: (error: any) => {
-        toast({
-          title: 'Erro',
-          description: error.message || 'Erro ao salvar relatório',
-          variant: 'destructive'
-        });
-      }
-    }
-  );
+  // Mutation para salvar template de relatório
+  const saveReportMutation = useCreateReportTemplate();
+
+  // Adicionar callback de sucesso personalizado
+  const handleSaveSuccess = () => {
+    // Limpar formulário
+    setReportName('');
+    setReportDescription('');
+    setReportCategory('');
+    setSections([{ id: '1', title: 'Visão Geral', metrics: [], chartType: 'metric' }]);
+  };
 
   const addSection = () => {
     const newSection = {
@@ -153,13 +133,18 @@ export const ReportBuilder = () => {
       name: reportName,
       description: reportDescription,
       category: reportCategory,
-      sections: sections,
-      metrics: selectedMetrics,
-      status: 'draft',
+      type: 'dashboard' as const,
+      config: {
+        sections: sections,
+        metrics: selectedMetrics
+      },
+      is_public: false,
       tenant_id: tenant?.id
     };
 
-    saveReportMutation.mutate(reportData);
+    saveReportMutation.mutate(reportData, {
+      onSuccess: handleSaveSuccess
+    });
   };
 
   return (

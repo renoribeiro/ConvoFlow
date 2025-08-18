@@ -1,46 +1,12 @@
 import { MessageCircle, Clock, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useRecentConversations } from '@/hooks/useRecentConversations';
 
-interface Conversation {
-  id: string;
-  contactName: string;
-  lastMessage: string;
-  timestamp: string;
-  status: 'new' | 'in_progress' | 'waiting' | 'closed';
-  assignedTo?: string;
-  whatsappNumber: string;
-}
 
-const mockConversations: Conversation[] = [
-  {
-    id: '1',
-    contactName: 'Maria Silva',
-    lastMessage: 'Gostaria de saber mais sobre o produto...',
-    timestamp: '2 min atrás',
-    status: 'new',
-    whatsappNumber: '+55 11 99999-9999'
-  },
-  {
-    id: '2',
-    contactName: 'João Santos',
-    lastMessage: 'Quando posso agendar uma reunião?',
-    timestamp: '15 min atrás',
-    status: 'in_progress',
-    assignedTo: 'Ana Costa',
-    whatsappNumber: '+55 11 99999-9998'
-  },
-  {
-    id: '3',
-    contactName: 'Pedro Oliveira',
-    lastMessage: 'Obrigado pelas informações!',
-    timestamp: '1h atrás',
-    status: 'waiting',
-    assignedTo: 'Carlos Lima',
-    whatsappNumber: '+55 11 99999-9997'
-  },
-];
 
 const statusColors = {
   new: 'bg-status-info text-white',
@@ -57,19 +23,54 @@ const statusLabels = {
 };
 
 export const RecentConversations = () => {
+  const navigate = useNavigate();
+  const { conversations, isLoading } = useRecentConversations(5);
+  
+  const handleViewAll = () => {
+    navigate('/dashboard/conversations');
+  };
+  
+  const handleConversationClick = (conversationId: string) => {
+    navigate(`/dashboard/conversations?selected=${conversationId}`);
+  };
+  
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold">Conversas Recentes</CardTitle>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={handleViewAll}>
           Ver todas
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {mockConversations.map((conversation) => (
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center space-x-3 p-3">
+              <Skeleton className="w-10 h-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))
+        ) : conversations.length === 0 ? (
+          <div className="text-center py-8">
+            <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Nenhuma conversa recente</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Suas conversas aparecerão aqui
+            </p>
+          </div>
+        ) : (
+          conversations.map((conversation) => (
           <div
             key={conversation.id}
             className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors cursor-pointer"
+            onClick={() => handleConversationClick(conversation.id)}
           >
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
@@ -111,7 +112,8 @@ export const RecentConversations = () => {
               </p>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </CardContent>
     </Card>
   );

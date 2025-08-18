@@ -385,7 +385,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
   UPDATE contacts
   SET 
-    funnel_stage_id = (step_config->>'stage_id')::UUID,
+    current_stage_id = (step_config->>'stage_id')::UUID,
     updated_at = NOW()
   WHERE id = contact_id;
   

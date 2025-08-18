@@ -1,24 +1,22 @@
 
-import { useState } from 'react';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FollowupsList } from '@/components/followups/FollowupsList';
-import { FollowupScheduler } from '@/components/followups/FollowupScheduler';
-import { FollowupCalendarModal } from '@/components/followups/FollowupCalendarModal';
-import { Plus, Clock, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState } from 'react'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { FollowupsList } from '@/components/followups/FollowupsList'
+import { FollowupScheduler } from '@/components/followups/FollowupScheduler'
+import { FollowupCalendarModal } from '@/components/followups/FollowupCalendarModal'
+import { Plus, Clock, CheckCircle, AlertCircle, Calendar } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
+import { useFollowups } from '@/hooks/useFollowups'
 
 export default function Followups() {
-  const [showScheduler, setShowScheduler] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const { stats, loading } = useFollowups()
 
-  const stats = {
-    totalFollowups: 24,
-    pendingFollowups: 8,
-    completedToday: 5,
-    overdue: 3
-  };
+  // Calculate completed today from stats
+  const completedToday = stats.completed // This could be enhanced to filter by today's date
 
   return (
     <div className="space-y-6">
@@ -54,7 +52,11 @@ export default function Followups() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total de Follow-ups</p>
-                <p className="text-2xl font-bold">{stats.totalFollowups}</p>
+                {loading ? (
+                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl font-bold">{stats.total}</p>
+                )}
               </div>
               <Clock className="h-8 w-8 text-blue-500" />
             </div>
@@ -66,7 +68,11 @@ export default function Followups() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.pendingFollowups}</p>
+                {loading ? (
+                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
+                )}
               </div>
               <AlertCircle className="h-8 w-8 text-orange-500" />
             </div>
@@ -77,8 +83,12 @@ export default function Followups() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Concluídos Hoje</p>
-                <p className="text-2xl font-bold text-green-600">{stats.completedToday}</p>
+                <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
+                {loading ? (
+                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
+                )}
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -90,7 +100,11 @@ export default function Followups() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Em Atraso</p>
-                <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
+                {loading ? (
+                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
+                )}
               </div>
               <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -132,5 +146,5 @@ export default function Followups() {
         onClose={() => setShowCalendar(false)} 
       />
     </div>
-  );
+  )
 }

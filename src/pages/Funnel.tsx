@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FunnelBoard } from '@/components/funnel/FunnelBoard';
 import { FunnelMetrics } from '@/components/funnel/FunnelMetrics';
 import { StageConfigModal } from '@/components/funnel/StageConfigModal';
+import { NewLeadModal } from '@/components/funnel/NewLeadModal';
 import { Plus, Settings, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 export default function Funnel() {
   const [showMetrics, setShowMetrics] = useState(false);
   const [showStageConfig, setShowStageConfig] = useState(false);
+  const [showNewLead, setShowNewLead] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -39,7 +41,7 @@ export default function Funnel() {
               <Settings className="w-4 h-4 mr-2" />
               Configurar Estágios
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => setShowNewLead(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Lead
             </Button>
@@ -66,6 +68,11 @@ export default function Funnel() {
       <StageConfigModal 
         isOpen={showStageConfig} 
         onClose={() => setShowStageConfig(false)} 
+      />
+      
+      <NewLeadModal 
+        isOpen={showNewLead} 
+        onClose={() => setShowNewLead(false)} 
       />
     </div>
   );

@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, Skeleton } from '@/components/shared/Skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MoreHorizontal, MessageCircle, Edit, Trash2, AlertCircle, Users } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -12,7 +12,11 @@ import { ptBR } from 'date-fns/locale';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { Link } from 'react-router-dom';
-import React from 'react';
+import React, { useState, useMemo } from 'react';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { Pagination } from '@/components/shared/Pagination';
+import { usePagination } from '@/hooks/usePagination';
+import { logger } from '@/lib/logger';
 
 interface Contact {
   id: string;
@@ -25,7 +29,7 @@ interface Contact {
   created_at: string;
   updated_at: string;
   is_blocked?: boolean;
-  funnel_stages?: {
+  stage?: {
     name: string;
     color: string;
   };
@@ -53,33 +57,20 @@ interface ContactsTableProps {
 }
 
 
-const TableSkeleton = () => (
-  <div className="space-y-4">
-    {Array.from({ length: 5 }).map((_, i) => (
-      <div key={i} className="flex items-center space-x-4 p-4">
-        <Skeleton className="h-8 w-8 rounded-full" />
-        <div className="space-y-2 flex-1">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-        <Skeleton className="h-6 w-16" />
-        <Skeleton className="h-6 w-20" />
-        <Skeleton className="h-6 w-24" />
-        <Skeleton className="h-6 w-16" />
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-8 w-8" />
-      </div>
-    ))}
-  </div>
-);
+
 
 export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    contactId: string | null;
+    contactName: string;
+  }>({ isOpen: false, contactId: null, contactName: '' });
   // Construir query dinâmica baseada nos filtros
   const buildQuery = () => {
     let query = {
       select: `
         *,
-        funnel_stages:current_stage_id (
+        stage:funnel_stages!contacts_current_stage_id_fkey (
           name,
           color
         ),
@@ -129,7 +120,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
   });
 
   // Aplicar filtros de busca e tags no lado do cliente
-  const contacts = React.useMemo(() => {
+  const filteredContacts = useMemo(() => {
     let filteredContacts = allContacts;
     
     // Filtro por tags
@@ -153,6 +144,19 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
     );
   }, [allContacts, filters.search, filters.tags]);
 
+  // Configurar paginação
+  const pagination = usePagination({
+    totalItems: filteredContacts.length,
+    initialItemsPerPage: 10
+  });
+
+  // Aplicar paginação aos contatos filtrados
+  const paginatedContacts = useMemo(() => {
+    const startIndex = pagination.startIndex;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return filteredContacts.slice(startIndex, endIndex);
+  }, [filteredContacts, pagination.startIndex, pagination.itemsPerPage]);
+
   const deleteMutation = useSupabaseMutation({
     table: 'contacts',
     operation: 'delete',
@@ -161,15 +165,54 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
     errorMessage: 'Erro ao excluir contato. Tente novamente.'
   });
 
-  const handleDelete = (contactId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este contato?')) {
-      deleteMutation.mutate({
+  const handleDeleteClick = (contactId: string, contactName: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      contactId,
+      contactName
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.contactId) return;
+
+    try {
+      logger.info('Iniciando exclusão de contato', {
+        category: 'contact_management',
+        action: 'delete_contact',
+        contactId: deleteConfirmation.contactId,
+        contactName: deleteConfirmation.contactName
+      });
+
+      await deleteMutation.mutateAsync({
         data: {},
         options: {
-          filter: { column: 'id', operator: 'eq', value: contactId }
+          filter: { column: 'id', operator: 'eq', value: deleteConfirmation.contactId }
         }
       });
+
+      logger.info('Contato excluído com sucesso', {
+        category: 'contact_management',
+        action: 'delete_contact',
+        contactId: deleteConfirmation.contactId,
+        contactName: deleteConfirmation.contactName,
+        status: 'success'
+      });
+
+      setDeleteConfirmation({ isOpen: false, contactId: null, contactName: '' });
+    } catch (error) {
+      logger.error('Erro ao excluir contato', {
+        category: 'contact_management',
+        action: 'delete_contact',
+        contactId: deleteConfirmation.contactId,
+        contactName: deleteConfirmation.contactName,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation({ isOpen: false, contactId: null, contactName: '' });
   };
 
   if (isLoading) {
@@ -209,11 +252,11 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Contatos</h3>
-            <p className="text-sm text-muted-foreground">{contacts.length} contatos encontrados</p>
+            <p className="text-sm text-muted-foreground">{filteredContacts.length} contatos encontrados</p>
           </div>
         </div>
 
-        {contacts.length === 0 ? (
+        {filteredContacts.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Nenhum contato encontrado</p>
@@ -237,7 +280,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contacts.map((contact) => (
+              {paginatedContacts.map((contact) => (
                 <TableRow key={contact.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -331,7 +374,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link to={`/conversations?contact=${contact.id}`}>
+                          <Link to={`/dashboard/conversations?contact=${contact.id}`}>
                             <MessageCircle className="mr-2 h-4 w-4" />
                             Conversar
                           </Link>
@@ -341,7 +384,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleDelete(contact.id)}
+                          onClick={() => handleDeleteClick(contact.id, contact.name)}
                           className="text-red-600"
                           disabled={deleteMutation.isPending}
                         >
@@ -356,7 +399,36 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
             </TableBody>
           </Table>
         )}
+        
+        {/* Paginação */}
+        {filteredContacts.length > 0 && (
+          <div className="mt-4 border-t pt-4">
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={filteredContacts.length}
+              itemsPerPage={pagination.itemsPerPage}
+              onPageChange={pagination.goToPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              showItemsPerPage={true}
+              itemsPerPageOptions={[5, 10, 20, 50]}
+            />
+          </div>
+        )}
       </div>
+      
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Contato"
+        description={`Tem certeza que deseja excluir o contato "${deleteConfirmation.contactName}"? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        icon={<Trash2 className="h-5 w-5 text-red-500" />}
+      />
     </div>
   );
 };

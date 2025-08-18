@@ -9,9 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
-import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
-import { X, Users, MessageSquare, Send, Calendar, Target, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
+import { X, Users, MessageSquare, Send, Calendar, Target, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { CampaignSchema, CampaignCreateSchema, CampaignUpdateSchema } from '@/lib/validations/campaign';
+import { z } from 'zod';
+import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
 
 interface CampaignWizardProps {
   onClose: () => void;
@@ -24,7 +28,7 @@ interface CampaignData {
   message: string;
   whatsapp_instance_id: string;
   target_type: 'all' | 'segment' | 'funnel_stage';
-  funnel_stage_id?: string;
+  current_stage_id?: string;
   scheduled_at?: string;
   status: 'draft' | 'scheduled' | 'active';
 }
@@ -39,8 +43,82 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
     target_type: 'all',
     status: 'draft'
   });
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isValidating, setIsValidating] = useState(false);
   
-  const { toast } = useToast();
+  const { toast: useToastHook } = useToast();
+  
+  // Função para obter schema de validação baseado na operação
+  const getValidationSchema = () => {
+    return campaignId ? CampaignUpdateSchema : CampaignCreateSchema;
+  };
+  
+  // Função para validar campo individual
+  const validateField = async (field: string, value: any) => {
+    try {
+      setIsValidating(true);
+      const schema = getValidationSchema();
+      const fieldSchema = schema.shape[field as keyof typeof schema.shape];
+      
+      if (fieldSchema) {
+        await fieldSchema.parseAsync(value);
+        setValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errorMessage = error.errors[0]?.message || 'Erro de validação';
+        setValidationErrors(prev => ({ ...prev, [field]: errorMessage }));
+        
+        logger.warn('Erro de validação de campo', {
+          category: 'validation',
+          field,
+          error: errorMessage,
+          value: typeof value === 'string' ? value.substring(0, 100) : value
+        });
+      }
+    } finally {
+      setIsValidating(false);
+    }
+  };
+  
+  // Função para validar formulário completo
+  const validateForm = async (data: any) => {
+    try {
+      setIsValidating(true);
+      const schema = getValidationSchema();
+      await schema.parseAsync(data);
+      setValidationErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          const field = err.path.join('.');
+          errors[field] = err.message;
+        });
+        setValidationErrors(errors);
+        
+        logger.error('Erro de validação do formulário de campanha', {
+          category: 'validation',
+          errors: error.errors,
+          formData: {
+            name: data.name,
+            target_type: data.target_type,
+            hasMessage: !!data.message
+          }
+        });
+        
+        toast.error('Por favor, corrija os erros no formulário');
+      }
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
   
   // Query para buscar instâncias do WhatsApp
   const { data: instances = [] } = useSupabaseQuery({
@@ -61,20 +139,37 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
   // Query para contar contatos por segmento
   const { data: contactsCount } = useSupabaseQuery({
     table: 'contacts',
-    queryKey: ['contacts-count', campaignData.target_type, campaignData.funnel_stage_id],
+    queryKey: ['contacts-count', campaignData.target_type, campaignData.current_stage_id],
     select: 'id',
-    filters: campaignData.target_type === 'funnel_stage' && campaignData.funnel_stage_id 
-      ? [{ column: 'funnel_stage_id', operator: 'eq', value: campaignData.funnel_stage_id }]
+    filters: campaignData.target_type === 'funnel_stage' && campaignData.current_stage_id 
+      ? [{ column: 'current_stage_id', operator: 'eq', value: campaignData.current_stage_id }]
       : [],
     enabled: true
   });
   
   // Mutation para criar/atualizar campanha
-  const saveMutation = useSupabaseMutation({
+  const saveMutation = useEnhancedSupabaseMutation({
     table: 'campaigns',
     operation: campaignId ? 'update' : 'insert',
+    inputSchema: getValidationSchema(),
     invalidateQueries: [['campaigns']],
-    successMessage: campaignId ? 'Campanha atualizada com sucesso!' : 'Campanha criada com sucesso!'
+    enableLogging: true,
+    enableToast: true,
+    onSuccess: (data) => {
+      logger.info('Campanha salva com sucesso', {
+        category: 'campaign',
+        operation: campaignId ? 'update' : 'create',
+        campaignId: data.id,
+        campaignName: data.name
+      });
+    },
+    onError: (error) => {
+      logger.error('Erro ao salvar campanha', {
+        category: 'campaign',
+        operation: campaignId ? 'update' : 'create',
+        error: error.message
+      });
+    }
   });
   
   const steps = [
@@ -100,8 +195,15 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
     try {
       const dataToSave = {
         ...campaignData,
-        scheduled_at: campaignData.scheduled_at || null
+        scheduled_at: campaignData.scheduled_at || null,
+        message_content: campaignData.message // Mapear message para message_content
       };
+      
+      // Validar dados antes de enviar
+      const isValid = await validateForm(dataToSave);
+      if (!isValid) {
+        return;
+      }
       
       if (campaignId) {
         await saveMutation.mutateAsync({
@@ -112,9 +214,16 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
         await saveMutation.mutateAsync(dataToSave);
       }
       
+      // Resetar formulário e fechar
+      resetForm();
       onClose();
     } catch (error) {
-      toast({
+      logger.error('Erro inesperado ao salvar campanha', {
+        category: 'campaign',
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+      
+      useToastHook({
         title: 'Erro',
         description: 'Erro ao salvar campanha. Tente novamente.',
         variant: 'destructive'
@@ -122,11 +231,31 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
     }
   };
   
+  // Função para resetar formulário
+  const resetForm = () => {
+    setCampaignData({
+      name: '',
+      description: '',
+      message: '',
+      whatsapp_instance_id: '',
+      target_type: 'all',
+      status: 'draft'
+    });
+    setValidationErrors({});
+    setCurrentStep(1);
+  };
+  
+  // Função para fechar modal
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+  
   const getEstimatedReach = () => {
     if (campaignData.target_type === 'all') {
       return contactsCount?.length || 0;
     }
-    if (campaignData.target_type === 'funnel_stage' && campaignData.funnel_stage_id) {
+    if (campaignData.target_type === 'funnel_stage' && campaignData.current_stage_id) {
       return contactsCount?.length || 0;
     }
     return 0;
@@ -137,7 +266,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
       case 1:
         return campaignData.name && campaignData.message && campaignData.whatsapp_instance_id;
       case 2:
-        return campaignData.target_type && (campaignData.target_type !== 'funnel_stage' || campaignData.funnel_stage_id);
+        return campaignData.target_type && (campaignData.target_type !== 'funnel_stage' || campaignData.current_stage_id);
       case 3:
         return true; // Agendamento é opcional
       case 4:
@@ -160,7 +289,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
               Etapa {currentStep} de {steps.length}: {steps[currentStep - 1].title}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={handleClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -193,9 +322,20 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
               <Input
                 id="name"
                 value={campaignData.name}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCampaignData(prev => ({ ...prev, name: value }));
+                  if (value) validateField('name', value);
+                }}
+                onBlur={() => {
+                  if (campaignData.name) validateField('name', campaignData.name);
+                }}
                 placeholder="Ex: Promoção Black Friday"
+                className={validationErrors.name ? 'border-red-500' : ''}
               />
+              {validationErrors.name && (
+                <p className="text-sm text-red-500 mt-1">{validationErrors.name}</p>
+              )}
             </div>
             
             <div>
@@ -230,10 +370,21 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
               <Textarea
                 id="message"
                 value={campaignData.message}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, message: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCampaignData(prev => ({ ...prev, message: value }));
+                  if (value) validateField('message_content', value);
+                }}
+                onBlur={() => {
+                  if (campaignData.message) validateField('message_content', campaignData.message);
+                }}
                 placeholder="Digite a mensagem que será enviada..."
                 rows={6}
+                className={validationErrors.message_content ? 'border-red-500' : ''}
               />
+              {validationErrors.message_content && (
+                <p className="text-sm text-red-500 mt-1">{validationErrors.message_content}</p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
                 Você pode usar variáveis como {'{name}'}, {'{phone}'}, {'{email}'}
               </p>
@@ -251,7 +402,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
                   className={`cursor-pointer transition-all hover:shadow-md ${
                     campaignData.target_type === 'all' ? 'ring-2 ring-primary' : ''
                   }`}
-                  onClick={() => setCampaignData(prev => ({ ...prev, target_type: 'all', funnel_stage_id: undefined }))}
+                  onClick={() => setCampaignData(prev => ({ ...prev, target_type: 'all', current_stage_id: undefined }))}
                 >
                   <CardContent className="p-4 text-center">
                     <Users className="h-8 w-8 mx-auto mb-2 text-primary" />
@@ -292,7 +443,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
             {campaignData.target_type === 'funnel_stage' && (
               <div>
                 <Label>Estágio do Funil</Label>
-                <Select value={campaignData.funnel_stage_id} onValueChange={(value) => setCampaignData(prev => ({ ...prev, funnel_stage_id: value }))}>
+                <Select value={campaignData.current_stage_id} onValueChange={(value) => setCampaignData(prev => ({ ...prev, current_stage_id: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um estágio" />
                   </SelectTrigger>
@@ -403,7 +554,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
                       )}
                       {campaignData.target_type === 'funnel_stage' && (
                         <Badge variant="secondary">
-                          Estágio: {funnelStages.find(s => s.id === campaignData.funnel_stage_id)?.name}
+                          Estágio: {funnelStages.find(s => s.id === campaignData.current_stage_id)?.name}
                         </Badge>
                       )}
                       <span className="text-sm text-muted-foreground">({getEstimatedReach()} contatos)</span>
@@ -441,7 +592,7 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
           <Button 
             variant="outline" 
             onClick={handlePrevious}
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || saveMutation.isPending || isValidating}
           >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Anterior
@@ -451,17 +602,33 @@ export const CampaignWizard = ({ onClose, campaignId }: CampaignWizardProps) => 
             {currentStep < steps.length ? (
               <Button 
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || isValidating || Object.keys(validationErrors).length > 0}
               >
-                Próximo
-                <ChevronRight className="h-4 w-4 ml-2" />
+                {isValidating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Validando...
+                  </>
+                ) : (
+                  <>
+                    Próximo
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             ) : (
               <Button 
                 onClick={handleSave}
-                disabled={!canProceed() || saveMutation.isPending}
+                disabled={!canProceed() || saveMutation.isPending || isValidating || Object.keys(validationErrors).length > 0}
               >
-                {saveMutation.isPending ? 'Salvando...' : (campaignId ? 'Atualizar Campanha' : 'Criar Campanha')}
+                {saveMutation.isPending || isValidating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isValidating ? 'Validando...' : 'Salvando...'}
+                  </>
+                ) : (
+                  campaignId ? 'Atualizar Campanha' : 'Criar Campanha'
+                )}
               </Button>
             )}
           </div>

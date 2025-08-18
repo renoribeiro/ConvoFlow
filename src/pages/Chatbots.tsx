@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Plus, Activity, Settings, BarChart3, Play, Pause, Edit, Trash2 } from 'lucide-react';
+import { Bot, Plus, Activity, Settings, BarChart3, Play, Pause, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,21 +13,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { ChatbotSchema, ChatbotCreateSchema, ChatbotUpdateSchema } from '@/lib/validations/chatbot';
+import { z } from 'zod';
+import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
+import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
 
 interface Chatbot {
   id: string;
   name: string;
-  description: string;
-  trigger_type: 'keyword' | 'all';
-  trigger_phrases: string[];
-  response_type: 'text' | 'image' | 'document';
+  description: string | null;
+  trigger_type: string;
+  trigger_phrases: string[] | null;
+  response_type: string | null;
   response_message: string;
-  media_url?: string;
-  priority: number;
-  is_active: boolean;
-  whatsapp_instance_id?: string;
+  media_url?: string | null;
+  priority: number | null;
+  is_active: boolean | null;
+  whatsapp_instance_id?: string | null;
   created_at: string;
   updated_at: string;
+  variables?: any;
+  conditions?: any;
+  whatsapp_instance?: {
+    name: string;
+    status: string;
+  };
 }
 
 interface WhatsAppInstance {
@@ -59,10 +71,95 @@ const Chatbots = () => {
     whatsapp_instance_id: ''
   });
   const [triggerInput, setTriggerInput] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isValidating, setIsValidating] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    chatbot: Chatbot | null;
+  }>({ isOpen: false, chatbot: null });
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Função para obter schema de validação baseado na operação
+  const getValidationSchema = () => {
+    return editingChatbot ? ChatbotUpdateSchema : ChatbotCreateSchema;
+  };
+  
+  // Função para validar campo individual
+  const validateField = async (field: string, value: any) => {
+    try {
+      setIsValidating(true);
+      const schema = getValidationSchema();
+      const fieldSchema = schema.shape[field as keyof typeof schema.shape];
+      
+      if (fieldSchema) {
+        await fieldSchema.parseAsync(value);
+        setValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errorMessage = error.errors[0]?.message || 'Erro de validação';
+        setValidationErrors(prev => ({ ...prev, [field]: errorMessage }));
+        
+        logger.warn('Erro de validação de campo', {
+          category: 'validation',
+          field,
+          error: errorMessage,
+          value: typeof value === 'string' ? value.substring(0, 100) : value
+        });
+      }
+    } finally {
+      setIsValidating(false);
+    }
+  };
+  
+  // Função para validar formulário completo
+  const validateForm = async (data: any) => {
+    try {
+      setIsValidating(true);
+      const schema = getValidationSchema();
+      await schema.parseAsync(data);
+      setValidationErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          const field = err.path.join('.');
+          errors[field] = err.message;
+        });
+        setValidationErrors(errors);
+        
+        logger.error('Erro de validação do formulário de chatbot', {
+          category: 'validation',
+          errors: error.errors,
+          formData: {
+            name: data.name,
+            trigger_type: data.trigger_type,
+            hasResponse: !!data.response_message
+          }
+        });
+        
+        toast.error('Por favor, corrija os erros no formulário');
+      }
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+
 
   useEffect(() => {
     loadData();
   }, []);
+
+
+
+
 
   const loadData = async () => {
     try {
@@ -101,6 +198,7 @@ const Chatbots = () => {
       whatsapp_instance_id: ''
     });
     setTriggerInput('');
+    setValidationErrors({});
     setEditingChatbot(null);
   };
 
@@ -123,24 +221,6 @@ const Chatbots = () => {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.name.trim() || !formData.response_message.trim()) {
-        toast({
-          title: "Campos obrigatórios",
-          description: "Nome e mensagem de resposta são obrigatórios",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (formData.trigger_type === 'keyword' && formData.trigger_phrases.length === 0) {
-        toast({
-          title: "Palavras-chave necessárias",
-          description: "Adicione pelo menos uma palavra-chave gatilho",
-          variant: "destructive",
-        });
-        return;
-      }
-
       // Get current user's tenant_id (this would come from auth context in real app)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
@@ -158,6 +238,12 @@ const Chatbots = () => {
         tenant_id: profile.tenant_id,
         whatsapp_instance_id: formData.whatsapp_instance_id || null
       };
+
+      // Validar dados antes de enviar
+      const isValid = await validateForm(chatbotData);
+      if (!isValid) {
+        return;
+      }
 
       let response;
       if (editingChatbot) {
@@ -177,6 +263,13 @@ const Chatbots = () => {
 
       if (response.error) throw response.error;
 
+      logger.info('Chatbot salvo com sucesso', {
+        category: 'chatbot',
+        operation: editingChatbot ? 'update' : 'create',
+        chatbotId: response.data.id,
+        chatbotName: response.data.name
+      });
+
       toast({
         title: editingChatbot ? "Chatbot atualizado" : "Chatbot criado",
         description: `${formData.name} foi ${editingChatbot ? 'atualizado' : 'criado'} com sucesso`,
@@ -186,6 +279,12 @@ const Chatbots = () => {
       resetForm();
       loadData();
     } catch (error: any) {
+      logger.error('Erro ao salvar chatbot', {
+        category: 'chatbot',
+        operation: editingChatbot ? 'update' : 'create',
+        error: error.message
+      });
+      
       toast({
         title: "Erro ao salvar chatbot",
         description: error.message,
@@ -195,20 +294,47 @@ const Chatbots = () => {
   };
 
   const handleEdit = (chatbot: Chatbot) => {
-    setFormData({
-      name: chatbot.name,
-      description: chatbot.description || '',
-      trigger_type: chatbot.trigger_type,
-      trigger_phrases: chatbot.trigger_phrases || [],
-      response_type: chatbot.response_type,
-      response_message: chatbot.response_message,
-      media_url: chatbot.media_url || '',
-      priority: chatbot.priority,
-      is_active: chatbot.is_active,
-      whatsapp_instance_id: chatbot.whatsapp_instance_id || ''
-    });
-    setEditingChatbot(chatbot);
-    setShowCreateModal(true);
+    try {
+      console.log('🔧 handleEdit chamado:', { chatbot, showCreateModal });
+      setEditingChatbot(chatbot);
+      
+      const editFormData = {
+        name: chatbot.name || '',
+        description: chatbot.description || '',
+        trigger_type: chatbot.trigger_type || 'keyword',
+        trigger_phrases: chatbot.trigger_phrases || [],
+        response_type: chatbot.response_type || 'text',
+        response_message: chatbot.response_message || '',
+        media_url: chatbot.media_url || '',
+        priority: chatbot.priority || 0,
+        is_active: chatbot.is_active ?? true,
+        whatsapp_instance_id: chatbot.whatsapp_instance_id || ''
+      };
+      
+      setFormData(editFormData);
+      setShowCreateModal(true);
+      console.log('🔧 Modal de edição aberto:', { editFormData, showCreateModal: true });
+      
+      logger.info('Abrindo modal de edição de chatbot', {
+        category: 'chatbot_management',
+        action: 'edit_chatbot',
+        chatbotId: chatbot.id,
+        chatbotName: chatbot.name
+      });
+    } catch (error: any) {
+      logger.error('Erro ao abrir modal de edição', {
+        category: 'chatbot_management',
+        action: 'edit_chatbot',
+        chatbotId: chatbot.id,
+        error: error.message
+      });
+      
+      toast({
+        title: "Erro ao editar chatbot",
+        description: "Não foi possível abrir o formulário de edição",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleToggleActive = async (chatbot: Chatbot) => {
@@ -235,32 +361,69 @@ const Chatbots = () => {
     }
   };
 
-  const handleDelete = async (chatbot: Chatbot) => {
-    if (!confirm(`Tem certeza que deseja excluir o chatbot "${chatbot.name}"?`)) {
-      return;
-    }
+  const handleDeleteClick = (chatbot: Chatbot) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      chatbot
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.chatbot) return;
 
     try {
+      setIsDeleting(true);
+      
+      logger.info('Iniciando exclusão de chatbot', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbot.id,
+        chatbotName: deleteConfirmation.chatbot.name
+      });
+
       const { error } = await supabase
         .from('chatbots')
         .delete()
-        .eq('id', chatbot.id);
+        .eq('id', deleteConfirmation.chatbot.id);
 
       if (error) throw error;
 
-      toast({
-        title: "Chatbot excluído",
-        description: `${chatbot.name} foi excluído com sucesso`,
+      logger.info('Chatbot excluído com sucesso', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbot.id,
+        chatbotName: deleteConfirmation.chatbot.name,
+        status: 'success'
       });
 
+      toast({
+        title: "Chatbot excluído",
+        description: `${deleteConfirmation.chatbot.name} foi excluído com sucesso`,
+      });
+
+      setDeleteConfirmation({ isOpen: false, chatbot: null });
       loadData();
     } catch (error: any) {
+      logger.error('Erro ao excluir chatbot', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbot?.id,
+        chatbotName: deleteConfirmation.chatbot?.name,
+        error: error.message
+      });
+
       toast({
         title: "Erro ao excluir chatbot",
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation({ isOpen: false, chatbot: null });
   };
 
   const stats = {
@@ -286,6 +449,10 @@ const Chatbots = () => {
     );
   }
 
+  console.log('🎨 Renderizando componente Chatbots - showCreateModal:', showCreateModal);
+  console.log('📊 Total de chatbots:', chatbots.length);
+  console.log('✏️ Chatbot sendo editado:', editingChatbot);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <PageHeader
@@ -296,195 +463,17 @@ const Chatbots = () => {
           { label: "Chatbots" }
         ]}
         actions={
-          <Button onClick={() => { resetForm(); setShowCreateModal(true); }}>
+          <Button onClick={() => { 
+            console.log('🆕 Botão Novo Chatbot clicado - Estado atual:', { showCreateModal });
+            resetForm(); 
+            setShowCreateModal(true);
+            console.log('🆕 Modal deve estar aberto agora:', { showCreateModal: true });
+          }}>
             <Plus className="h-4 w-4 mr-2" />
             Novo Chatbot
           </Button>
         }
       />
-
-      {/* Modal de Criação/Edição de Chatbot */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingChatbot ? 'Editar Chatbot' : 'Criar Novo Chatbot'}
-                </DialogTitle>
-                <DialogDescription>
-                  Configure um chatbot para responder automaticamente às mensagens do WhatsApp
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Nome do chatbot"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Prioridade</Label>
-                    <Input
-                      id="priority"
-                      type="number"
-                      value={formData.priority}
-                      onChange={(e) => setFormData(prev => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descrição</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Descrição do chatbot"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="trigger_type">Tipo de Gatilho</Label>
-                    <Select
-                      value={formData.trigger_type}
-                      onValueChange={(value: 'keyword' | 'all') => 
-                        setFormData(prev => ({ ...prev, trigger_type: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="keyword">Palavras-chave</SelectItem>
-                        <SelectItem value="all">Todas as mensagens</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp_instance">Instância WhatsApp</Label>
-                    <Select
-                      value={formData.whatsapp_instance_id}
-                      onValueChange={(value) => 
-                        setFormData(prev => ({ ...prev, whatsapp_instance_id: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas as instâncias" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Todas as instâncias</SelectItem>
-                        {whatsappInstances.map(instance => (
-                          <SelectItem key={instance.id} value={instance.id}>
-                            {instance.name} ({instance.status})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {formData.trigger_type === 'keyword' && (
-                  <div className="space-y-2">
-                    <Label>Palavras-chave Gatilho *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={triggerInput}
-                        onChange={(e) => setTriggerInput(e.target.value)}
-                        placeholder="Digite uma palavra-chave"
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddTrigger()}
-                      />
-                      <Button type="button" onClick={handleAddTrigger}>
-                        Adicionar
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.trigger_phrases.map((trigger, index) => (
-                        <Badge
-                          key={index}
-                          variant="secondary"
-                          className="cursor-pointer"
-                          onClick={() => handleRemoveTrigger(trigger)}
-                        >
-                          {trigger} ×
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="response_type">Tipo de Resposta</Label>
-                  <Select
-                    value={formData.response_type}
-                    onValueChange={(value: 'text' | 'image' | 'document') => 
-                      setFormData(prev => ({ ...prev, response_type: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Texto</SelectItem>
-                      <SelectItem value="image">Imagem</SelectItem>
-                      <SelectItem value="document">Documento</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="response_message">Mensagem de Resposta *</Label>
-                  <Textarea
-                    id="response_message"
-                    value={formData.response_message}
-                    onChange={(e) => setFormData(prev => ({ ...prev, response_message: e.target.value }))}
-                    placeholder="Olá {name}! Como posso ajudar você hoje?"
-                    rows={4}
-                  />
-                  <div className="text-sm text-muted-foreground">
-                    Variáveis disponíveis: {'{name}'}, {'{phone}'}, {'{first_name}'}, {'{incoming_message}'}, {'{time}'}, {'{date}'}, {'{datetime}'}
-                  </div>
-                </div>
-
-                {formData.response_type !== 'text' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="media_url">URL da Mídia</Label>
-                    <Input
-                      id="media_url"
-                      value={formData.media_url}
-                      onChange={(e) => setFormData(prev => ({ ...prev, media_url: e.target.value }))}
-                      placeholder="https://exemplo.com/imagem.jpg"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="is_active"
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({ ...prev, is_active: checked }))
-                    }
-                  />
-                  <Label htmlFor="is_active">Ativo</Label>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSubmit}>
-                  {editingChatbot ? 'Atualizar' : 'Criar'} Chatbot
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -539,7 +528,12 @@ const Chatbots = () => {
               <p className="text-muted-foreground text-center mb-4">
                 Crie seu primeiro chatbot para começar a responder automaticamente às mensagens do WhatsApp
               </p>
-              <Button onClick={() => setShowCreateModal(true)}>
+              <Button onClick={() => {
+                console.log('🎯 Botão Criar Primeiro Chatbot clicado - Estado atual:', { showCreateModal });
+                resetForm();
+                setShowCreateModal(true);
+                console.log('🎯 Modal deve estar aberto agora:', { showCreateModal: true });
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Chatbot
               </Button>
@@ -585,7 +579,7 @@ const Chatbots = () => {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => handleDelete(chatbot)}
+                      onClick={() => handleDeleteClick(chatbot)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -624,6 +618,214 @@ const Chatbots = () => {
           ))
         )}
       </div>
+
+      {/* Confirmation Dialog for Delete */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        title="Excluir Chatbot"
+        description={`Tem certeza que deseja excluir o chatbot "${deleteConfirmation.chatbot?.name}"? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+        isLoading={isDeleting}
+      />
+
+      {/* Modal de Criação/Edição de Chatbot */}
+      <Dialog 
+         open={showCreateModal} 
+         onOpenChange={setShowCreateModal}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+            <DialogTitle>
+              {editingChatbot ? 'Editar Chatbot' : 'Criar Novo Chatbot'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure um chatbot para responder automaticamente às mensagens do WhatsApp
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData(prev => ({ ...prev, name: value }));
+                    if (value) validateField('name', value);
+                  }}
+                  onBlur={() => {
+                    if (formData.name) validateField('name', formData.name);
+                  }}
+                  placeholder="Nome do chatbot"
+                  className={validationErrors.name ? 'border-red-500' : ''}
+                />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">{validationErrors.name}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="priority">Prioridade</Label>
+                <Input
+                  id="priority"
+                  type="number"
+                  value={formData.priority}
+                  onChange={(e) => setFormData(prev => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descrição do chatbot"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="trigger_type">Tipo de Gatilho</Label>
+                <Select
+                  value={formData.trigger_type}
+                  onValueChange={(value: 'keyword' | 'all') => 
+                    setFormData(prev => ({ ...prev, trigger_type: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keyword">Palavras-chave</SelectItem>
+                    <SelectItem value="all">Todas as mensagens</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp_instance">Instância WhatsApp</Label>
+                <Select
+                  value={whatsappInstances.some(i => i.id === formData.whatsapp_instance_id) ? formData.whatsapp_instance_id : ''}
+                  onValueChange={(value) => 
+                    setFormData(prev => ({ ...prev, whatsapp_instance_id: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas as instâncias" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {whatsappInstances.map(instance => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.name} ({instance.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {formData.trigger_type === 'keyword' && (
+              <div className="space-y-2">
+                <Label>Palavras-chave Gatilho *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={triggerInput}
+                    onChange={(e) => setTriggerInput(e.target.value)}
+                    placeholder="Digite uma palavra-chave"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTrigger()}
+                  />
+                  <Button type="button" onClick={handleAddTrigger}>
+                    Adicionar
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {formData.trigger_phrases.map((trigger, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="cursor-pointer"
+                      onClick={() => handleRemoveTrigger(trigger)}
+                    >
+                      {trigger} ×
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="response_type">Tipo de Resposta</Label>
+              <Select
+                value={formData.response_type}
+                onValueChange={(value: 'text' | 'image' | 'document') => 
+                  setFormData(prev => ({ ...prev, response_type: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Texto</SelectItem>
+                  <SelectItem value="image">Imagem</SelectItem>
+                  <SelectItem value="document">Documento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="response_message">Mensagem de Resposta *</Label>
+              <Textarea
+                id="response_message"
+                value={formData.response_message}
+                onChange={(e) => setFormData(prev => ({ ...prev, response_message: e.target.value }))}
+                placeholder="Olá {name}! Como posso ajudar você hoje?"
+                rows={4}
+              />
+              <div className="text-sm text-muted-foreground">
+                Variáveis disponíveis: {'{name}'}, {'{phone}'}, {'{first_name}'}, {'{incoming_message}'}, {'{time}'}, {'{date}'}, {'{datetime}'}
+              </div>
+            </div>
+
+            {formData.response_type !== 'text' && (
+              <div className="space-y-2">
+                <Label htmlFor="media_url">URL da Mídia</Label>
+                <Input
+                  id="media_url"
+                  value={formData.media_url}
+                  onChange={(e) => setFormData(prev => ({ ...prev, media_url: e.target.value }))}
+                  placeholder="https://exemplo.com/imagem.jpg"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, is_active: checked }))
+                }
+              />
+              <Label htmlFor="is_active">Ativo</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit}>
+              {editingChatbot ? 'Atualizar' : 'Criar'} Chatbot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

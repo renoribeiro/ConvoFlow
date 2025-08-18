@@ -11,17 +11,38 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Schedule {
   id?: string;
   reportName: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  frequency: 'daily' | 'weekly' | 'monthly';
   dayOfWeek?: string;
   dayOfMonth?: number;
   time: string;
   deliveryMethods: ('email' | 'whatsapp' | 'dashboard')[];
   recipients: string[];
   isActive: boolean;
+}
+
+// Interface para dados do banco
+interface DatabaseSchedule {
+  id?: string;
+  name: string;
+  template_id: string;
+  cron_expression: string;
+  recipients: string[];
+  parameters?: any;
+  is_active: boolean;
+  last_run?: string;
+  next_run?: string;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  report_templates?: {
+    name: string;
+    type: string;
+  };
 }
 
 interface ScheduleModalProps {
@@ -51,6 +72,7 @@ const daysOfWeek = [
 ];
 
 export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: ScheduleModalProps) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<Schedule>({
     reportName: '',
     frequency: 'weekly',
@@ -61,9 +83,47 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
   });
   const [newRecipient, setNewRecipient] = useState('');
 
+  // Função para converter cron expression para formato do modal
+  const parseCronExpression = (cronExpr: string) => {
+    // Formato básico: "0 9 * * 1" (todo segunda às 9h)
+    // Para simplificar, vamos assumir alguns padrões comuns
+    const parts = cronExpr.split(' ');
+    if (parts.length >= 5) {
+      const hour = parseInt(parts[1]) || 9;
+      const minute = parseInt(parts[0]) || 0;
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      
+      // Detectar frequência baseada no padrão
+      if (parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+        return { frequency: 'daily' as const, time };
+      } else if (parts[2] === '*' && parts[3] === '*' && parts[4] !== '*') {
+        return { frequency: 'weekly' as const, time, dayOfWeek: parts[4] };
+      } else if (parts[2] !== '*' && parts[3] === '*' && parts[4] === '*') {
+        return { frequency: 'monthly' as const, time, dayOfMonth: parseInt(parts[2]) };
+      }
+    }
+    return { frequency: 'weekly' as const, time: '09:00' };
+  };
+
   useEffect(() => {
     if (schedule) {
-      setFormData(schedule);
+      // Se é um agendamento do banco de dados, converter para o formato do modal
+      if ('cron_expression' in schedule) {
+        const dbSchedule = schedule as any as DatabaseSchedule;
+        const cronData = parseCronExpression(dbSchedule.cron_expression);
+        setFormData({
+          reportName: dbSchedule.report_templates?.name || dbSchedule.name,
+          frequency: cronData.frequency,
+          time: cronData.time,
+          dayOfWeek: cronData.dayOfWeek,
+          dayOfMonth: cronData.dayOfMonth,
+          deliveryMethods: dbSchedule.parameters?.deliveryMethods || ['email'],
+          recipients: dbSchedule.recipients || [],
+          isActive: dbSchedule.is_active,
+        });
+      } else {
+        setFormData(schedule);
+      }
     } else {
       setFormData({
         reportName: '',
@@ -107,11 +167,112 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
     });
   };
 
-  const handleSave = () => {
-    if (!formData.reportName || !formData.time || formData.deliveryMethods.length === 0) {
+  // Função para gerar cron expression baseada na frequência
+  const generateCronExpression = () => {
+    const [hour, minute] = formData.time.split(':').map(Number);
+    
+    switch (formData.frequency) {
+      case 'daily':
+        return `${minute} ${hour} * * *`;
+      case 'weekly':
+        const dayOfWeek = formData.dayOfWeek || '1'; // Segunda-feira por padrão
+        return `${minute} ${hour} * * ${dayOfWeek}`;
+      case 'monthly':
+        const dayOfMonth = formData.dayOfMonth || 1;
+        return `${minute} ${hour} ${dayOfMonth} * *`;
+      default:
+        return `${minute} ${hour} * * 1`; // Segunda-feira por padrão
+    }
+  };
+
+  const handleSave = async () => {
+    // Validação dos campos obrigatórios
+    if (!formData.reportName) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, selecione um relatório.',
+        variant: 'destructive',
+      });
       return;
     }
-    onSave(formData);
+
+    if (!formData.time) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, defina um horário.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.deliveryMethods.length === 0) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, selecione pelo menos um método de entrega.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.recipients.length === 0) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, adicione pelo menos um destinatário.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validação específica para frequência semanal
+    if (formData.frequency === 'weekly' && !formData.dayOfWeek) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, selecione o dia da semana.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validação específica para frequência mensal
+    if (formData.frequency === 'monthly' && !formData.dayOfMonth) {
+      toast({
+        title: 'Erro de Validação',
+        description: 'Por favor, selecione o dia do mês.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Converter dados do modal para formato do banco
+      const scheduleData = {
+        name: formData.reportName,
+        template_id: 'template_1', // Por enquanto usando um ID fixo
+        cron_expression: generateCronExpression(),
+        recipients: formData.recipients,
+        parameters: {
+          deliveryMethods: formData.deliveryMethods,
+          frequency: formData.frequency,
+          dayOfWeek: formData.dayOfWeek,
+          dayOfMonth: formData.dayOfMonth,
+        },
+        is_active: formData.isActive,
+      };
+      
+      console.log('Salvando agendamento:', scheduleData);
+      await onSave(scheduleData as any);
+      console.log('Agendamento salvo com sucesso');
+      
+      // Fechar o modal após salvar com sucesso
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Erro ao salvar agendamento:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar agendamento. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -166,7 +327,6 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
                     <SelectItem value="daily">Diário</SelectItem>
                     <SelectItem value="weekly">Semanal</SelectItem>
                     <SelectItem value="monthly">Mensal</SelectItem>
-                    <SelectItem value="quarterly">Trimestral</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

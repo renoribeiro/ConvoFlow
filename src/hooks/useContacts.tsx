@@ -42,7 +42,7 @@ export function useContacts() {
         .from('contacts')
         .select(`
           *,
-          stage:funnel_stages(name, color),
+          stage:funnel_stages!contacts_current_stage_id_fkey(name, color),
           source:lead_sources(name, type),
           tags:contact_tags(
             tag:tags(id, name, color)

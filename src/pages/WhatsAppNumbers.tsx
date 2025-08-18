@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
@@ -13,6 +14,8 @@ import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
 import { WebhookConfigModal } from '@/components/whatsapp/WebhookConfigModal';
+import { EnvironmentDebug } from '@/components/debug/EnvironmentDebug';
+import { SupabaseDebug } from '@/components/debug/SupabaseDebug';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -41,6 +44,7 @@ export default function WhatsAppNumbers() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [refreshingInstance, setRefreshingInstance] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('instances');
   
   const { tenant } = useTenant();
   const { toast } = useToast();
@@ -293,15 +297,44 @@ export default function WhatsAppNumbers() {
           { label: 'Números WhatsApp' }
         ]}
         actions={
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Adicionar Número
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                refetch();
+                toast({
+                  title: "Cache atualizado",
+                  description: "Os dados foram recarregados do servidor"
+                });
+              }}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Número
+            </Button>
+          </div>
         }
       />
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="instances" className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4" />
+            Instâncias
+          </TabsTrigger>
+          <TabsTrigger value="debug" className="flex items-center gap-2">
+            <Bug className="h-4 w-4" />
+            Configurações Técnicas
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="instances" className="space-y-6">
 
-      {/* Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Métricas */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -339,8 +372,8 @@ export default function WhatsAppNumbers() {
         </Card>
       </div>
 
-      {/* Lista de Instâncias */}
-      <Card>
+          {/* Lista de Instâncias */}
+          <Card>
         <CardHeader>
           <CardTitle>Instâncias WhatsApp</CardTitle>
         </CardHeader>
@@ -458,7 +491,26 @@ export default function WhatsAppNumbers() {
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="debug" className="space-y-6">
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Configurações Técnicas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <EnvironmentDebug />
+                <SupabaseDebug />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Modais */}
       <CreateInstanceModal

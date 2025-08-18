@@ -1,18 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
+import { useSupabaseQuerySingle } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { toast } from 'sonner';
 import { Camera, Save } from 'lucide-react';
 
 export function ProfileSettings() {
   const { user } = useAuth();
+  const { refreshTenant } = useTenant();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,12 +23,12 @@ export function ProfileSettings() {
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
-  // Buscar dados do perfil
-  const { data: profile, isLoading } = useSupabaseQuery({
+  // Buscar dados do perfil (um único registro) somente quando houver usuário
+  const { data: profile, isLoading, refetch } = useSupabaseQuerySingle({
     table: 'profiles',
     select: '*',
     filters: [{ column: 'user_id', operator: 'eq', value: user?.id }],
-    single: true
+    enabled: !!user?.id,
   });
 
   // Mutação para atualizar perfil
@@ -34,6 +37,9 @@ export function ProfileSettings() {
     operation: 'update',
     onSuccess: () => {
       toast.success('Perfil atualizado com sucesso!');
+      // Recarregar dados do formulário e do cabeçalho
+      refetch();
+      refreshTenant();
     },
     onError: (error) => {
       toast.error('Erro ao atualizar perfil: ' + error.message);
@@ -45,29 +51,67 @@ export function ProfileSettings() {
     if (profile) {
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
-      setEmail(profile.email || '');
+      // Email vem do Auth e é somente leitura aqui
+      setEmail(user?.email || '');
       setPhone(profile.phone || '');
-      setBio(profile.bio || '');
+      // Bio não existe na tabela profiles por enquanto
+      setBio('');
       setAvatarUrl(profile.avatar_url || '');
     }
-  }, [profile]);
+  }, [profile, user?.email]);
 
   const handleSave = () => {
     if (!user?.id) return;
 
     updateProfileMutation.mutate({
-      user_id: user.id,
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      phone: phone,
-      bio: bio,
-      avatar_url: avatarUrl
+      // Enviar somente campos existentes na tabela profiles
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone,
+        avatar_url: avatarUrl,
+      },
+      // Atualizar apenas o registro do usuário logado
+      options: {
+        filter: { column: 'user_id', operator: 'eq', value: user.id }
+      }
     });
   };
 
   const getInitials = () => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    const f = firstName?.trim()?.charAt(0) || '';
+    const l = lastName?.trim()?.charAt(0) || '';
+    const initials = `${f}${l}`.toUpperCase();
+    return initials || 'U';
+  };
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validar tamanho do arquivo (máximo 1MB)
+      if (file.size > 1024 * 1024) {
+        toast.error('Arquivo muito grande. Máximo 1MB.');
+        return;
+      }
+
+      // Validar tipo do arquivo
+      if (!file.type.startsWith('image/')) {
+        toast.error('Por favor, selecione uma imagem válida.');
+        return;
+      }
+
+      // Criar URL temporária para preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarUrl(e.target?.result as string);
+        toast.success('Imagem carregada! Clique em "Salvar Alterações" para confirmar.');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
   };
 
   if (isLoading) {
@@ -95,11 +139,18 @@ export function ProfileSettings() {
           <Avatar className="h-20 w-20">
             <AvatarImage src={avatarUrl} alt="Avatar" />
             <AvatarFallback className="text-lg">
-              {getInitials() || 'U'}
+              {getInitials()}
             </AvatarFallback>
           </Avatar>
           <div className="space-y-2">
-            <Button variant="outline" size="sm">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+            <Button variant="outline" size="sm" onClick={handleAvatarClick}>
               <Camera className="h-4 w-4 mr-2" />
               Alterar Foto
             </Button>
@@ -139,6 +190,7 @@ export function ProfileSettings() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="seu@email.com"
+            disabled
           />
         </div>
 
@@ -160,6 +212,7 @@ export function ProfileSettings() {
             onChange={(e) => setBio(e.target.value)}
             placeholder="Conte um pouco sobre você..."
             rows={3}
+            disabled
           />
         </div>
 

@@ -8,10 +8,64 @@ import { TrafficSourceConfig } from '@/components/tracking/TrafficSourceConfig';
 import { TrackingDashboard } from '@/components/tracking/TrackingDashboard';
 import { TrackingFilters } from '@/components/tracking/TrackingFilters';
 import { PredictiveAnalytics } from '@/components/tracking/PredictiveAnalytics';
+import { AdvancedFilters, AnalyticsFilters } from '@/components/analytics/AdvancedFilters';
+import { RealTimeMetrics } from '@/components/analytics/RealTimeMetrics';
+import { AdvancedCharts } from '@/components/analytics/AdvancedCharts';
+import RealTimeStatus from '@/components/analytics/RealTimeStatus';
+import ExportReports from '@/components/analytics/ExportReports';
+import { useRealTimeAnalytics } from '@/hooks/useRealTimeAnalytics';
 import { Settings, Plus, TrendingUp, BarChart3, Target, Zap } from 'lucide-react';
+import { toast } from 'sonner';
+import { DateRange } from 'react-day-picker';
 
 export default function Tracking() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState('Todos');
+  const [analyticsFilters, setAnalyticsFilters] = useState<AnalyticsFilters>({
+    quickDate: '30d',
+    sources: [],
+    status: [],
+    conversionStatus: 'all',
+    revenueRange: {},
+    leadScore: {},
+    campaigns: [],
+    utmSources: [],
+    utmMediums: [],
+    devices: [],
+    locations: [],
+    assignedTo: [],
+    tags: [],
+    customFields: {},
+    segmentation: { type: 'none' }
+  });
+
+  // Hook para atualizações em tempo real
+  const {
+    isConnected,
+    isLoading: realTimeLoading,
+    error: realTimeError,
+    lastUpdate,
+    forceRefresh,
+    pauseUpdates,
+    resumeUpdates,
+    isPaused
+  } = useRealTimeAnalytics({
+    filters: analyticsFilters,
+    updateInterval: 30000,
+    enableWebSocket: true,
+    enablePolling: true
+  });
+
+  const handleOpenSettings = () => {
+    toast.info('Configurações de rastreamento em desenvolvimento');
+  };
+
+  const handleCreateNewSource = () => {
+    setActiveTab('sources');
+    toast.success('Redirecionado para configuração de fontes');
+  };
 
   return (
     <div className="space-y-6">
@@ -24,11 +78,11 @@ export default function Tracking() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleOpenSettings}>
               <Settings className="w-4 h-4 mr-2" />
               Configurações
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={handleCreateNewSource}>
               <Plus className="w-4 h-4 mr-2" />
               Nova Fonte
             </Button>
@@ -57,8 +111,19 @@ export default function Tracking() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
-          <TrackingFilters />
-          <TrackingDashboard />
+          <TrackingFilters 
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            selectedSources={selectedSources}
+            onSourcesChange={setSelectedSources}
+            selectedStatus={selectedStatus}
+            onStatusChange={setSelectedStatus}
+          />
+          <TrackingDashboard 
+            dateRange={dateRange}
+            selectedSources={selectedSources}
+            selectedStatus={selectedStatus}
+          />
         </TabsContent>
 
         <TabsContent value="sources" className="space-y-6">
@@ -66,16 +131,30 @@ export default function Tracking() {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Análise Detalhada</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Análises avançadas de performance por fonte de tráfego em desenvolvimento...
-              </p>
-            </CardContent>
-          </Card>
+           <div className="flex items-center justify-between">
+             <AdvancedFilters 
+               onFiltersChange={(filters) => {
+                 setAnalyticsFilters(filters);
+               }}
+             />
+             <div className="flex items-center gap-4">
+               <ExportReports 
+                 filters={analyticsFilters}
+               />
+               <RealTimeStatus 
+                 isConnected={isConnected}
+                 isLoading={realTimeLoading}
+                 error={realTimeError}
+                 lastUpdate={lastUpdate}
+                 onRefresh={forceRefresh}
+                 onPause={pauseUpdates}
+                 onResume={resumeUpdates}
+                 isPaused={isPaused}
+               />
+             </div>
+           </div>
+          <RealTimeMetrics filters={analyticsFilters} />
+          <AdvancedCharts filters={analyticsFilters} />
         </TabsContent>
 
         <TabsContent value="predictions" className="space-y-6">

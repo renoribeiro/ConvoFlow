@@ -31,24 +31,36 @@ const statusOptions = [
   'Perdidos'
 ];
 
-export const TrackingFilters = () => {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState('Todos');
+interface TrackingFiltersProps {
+  dateRange?: DateRange;
+  onDateRangeChange: (dateRange: DateRange | undefined) => void;
+  selectedSources: string[];
+  onSourcesChange: (sources: string[]) => void;
+  selectedStatus: string;
+  onStatusChange: (status: string) => void;
+}
+
+export const TrackingFilters = ({
+  dateRange,
+  onDateRangeChange,
+  selectedSources,
+  onSourcesChange,
+  selectedStatus,
+  onStatusChange
+}: TrackingFiltersProps) => {
   const [quickDate, setQuickDate] = useState('30d');
 
   const handleSourceToggle = (source: string) => {
-    setSelectedSources(prev => 
-      prev.includes(source) 
-        ? prev.filter(s => s !== source)
-        : [...prev, source]
-    );
+    const newSources = selectedSources.includes(source) 
+      ? selectedSources.filter(s => s !== source)
+      : [...selectedSources, source];
+    onSourcesChange(newSources);
   };
 
   const clearAllFilters = () => {
-    setDateRange(undefined);
-    setSelectedSources([]);
-    setSelectedStatus('Todos');
+    onDateRangeChange(undefined);
+    onSourcesChange([]);
+    onStatusChange('Todos');
     setQuickDate('30d');
   };
 
@@ -70,7 +82,35 @@ export const TrackingFilters = () => {
           </div>
 
           {/* Filtro de Data Rápido */}
-          <Select value={quickDate} onValueChange={setQuickDate}>
+          <Select value={quickDate} onValueChange={(value) => {
+            setQuickDate(value);
+            if (value !== 'custom') {
+              // Calculate date range based on quick selection
+              const now = new Date();
+              let from: Date | undefined;
+              
+              switch (value) {
+                case 'today':
+                  from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  onDateRangeChange({ from, to: now });
+                  break;
+                case '7d':
+                  from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                  onDateRangeChange({ from, to: now });
+                  break;
+                case '30d':
+                  from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                  onDateRangeChange({ from, to: now });
+                  break;
+                case '90d':
+                  from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                  onDateRangeChange({ from, to: now });
+                  break;
+                default:
+                  onDateRangeChange(undefined);
+              }
+            }
+          }}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
@@ -115,7 +155,7 @@ export const TrackingFilters = () => {
                   mode="range"
                   defaultMonth={dateRange?.from}
                   selected={dateRange}
-                  onSelect={setDateRange}
+                  onSelect={onDateRangeChange}
                   numberOfMonths={2}
                   className="p-3 pointer-events-auto"
                 />
@@ -124,7 +164,7 @@ export const TrackingFilters = () => {
           )}
 
           {/* Filtro de Status */}
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <Select value={selectedStatus} onValueChange={onStatusChange}>
             <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
@@ -195,7 +235,7 @@ export const TrackingFilters = () => {
             {selectedStatus !== 'Todos' && (
               <Badge variant="secondary" className="flex items-center gap-1">
                 {selectedStatus}
-                <button onClick={() => setSelectedStatus('Todos')}>
+                <button onClick={() => onStatusChange('Todos')}>
                   <X className="w-3 h-3" />
                 </button>
               </Badge>

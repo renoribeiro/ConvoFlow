@@ -162,8 +162,39 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
       
       // Aplicar filtros
       if (options.filters) {
-        options.filters.forEach(filter => {
-          query = query[filter.operator](filter.column, filter.value);
+        options.filters.forEach(({ column, operator, value }) => {
+          switch (operator) {
+            case 'eq':
+              query = query.eq(column, value);
+              break;
+            case 'neq':
+              query = query.neq(column, value);
+              break;
+            case 'gt':
+              query = query.gt(column, value);
+              break;
+            case 'gte':
+              query = query.gte(column, value);
+              break;
+            case 'lt':
+              query = query.lt(column, value);
+              break;
+            case 'lte':
+              query = query.lte(column, value);
+              break;
+            case 'like':
+              query = query.like(column, value);
+              break;
+            case 'ilike':
+              query = query.ilike(column, value);
+              break;
+            case 'in':
+              query = query.in(column, value);
+              break;
+            case 'is':
+              query = query.is(column, value);
+              break;
+          }
         });
       }
       
@@ -185,8 +216,13 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
 }
 
 // Hook para contar registros
-export function useSupabaseCount(table: string, filters?: QueryFilter[]) {
+export function useSupabaseCount(
+  table: string, 
+  filters?: QueryFilter[], 
+  options?: { enabled?: boolean; refetchInterval?: number; staleTime?: number }
+) {
   const { tenant } = useTenant();
+  const { toast } = useToast();
   
   return useQuery({
     queryKey: ['count', table, filters, tenant?.id],
@@ -202,14 +238,46 @@ export function useSupabaseCount(table: string, filters?: QueryFilter[]) {
       
       // Aplicar filtros adicionais
       if (filters) {
-        filters.forEach(filter => {
-          query = query[filter.operator](filter.column, filter.value);
+        filters.forEach(({ column, operator, value }) => {
+          switch (operator) {
+            case 'eq':
+              query = query.eq(column, value);
+              break;
+            case 'neq':
+              query = query.neq(column, value);
+              break;
+            case 'gt':
+              query = query.gt(column, value);
+              break;
+            case 'gte':
+              query = query.gte(column, value);
+              break;
+            case 'lt':
+              query = query.lt(column, value);
+              break;
+            case 'lte':
+              query = query.lte(column, value);
+              break;
+            case 'like':
+              query = query.like(column, value);
+              break;
+            case 'ilike':
+              query = query.ilike(column, value);
+              break;
+            case 'in':
+              query = query.in(column, value);
+              break;
+            case 'is':
+              query = query.is(column, value);
+              break;
+          }
         });
       }
       
       const { count, error } = await query;
       
       if (error) {
+        console.error(`Erro ao contar registros na tabela ${table}:`, error);
         toast({
           title: 'Erro ao contar registros',
           description: error.message,
@@ -220,5 +288,8 @@ export function useSupabaseCount(table: string, filters?: QueryFilter[]) {
       
       return count || 0;
     },
+    enabled: options?.enabled ?? !!tenant?.id,
+    refetchInterval: options?.refetchInterval,
+    staleTime: options?.staleTime,
   });
 }

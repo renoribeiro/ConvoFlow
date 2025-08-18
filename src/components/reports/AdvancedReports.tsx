@@ -67,6 +67,16 @@ import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
+import { 
+  useReportTemplates, 
+  useReportData, 
+  useGenerateReport,
+  useCreateReportTemplate,
+  useUpdateReportTemplate,
+  useDeleteReportTemplate,
+  useReportStatistics
+} from '@/hooks/useReports';
+import { DashboardCardSkeleton } from '@/components/shared/Skeleton';
 
 interface ReportTemplate {
   id: string;
@@ -118,10 +128,10 @@ interface ReportData {
   };
 }
 
-// Templates de relatório predefinidos
-const reportTemplates: ReportTemplate[] = [
+// Templates padrão para fallback quando não há dados
+const defaultTemplates: ReportTemplate[] = [
   {
-    id: '1',
+    id: 'default-1',
     name: 'Conversões por Canal',
     description: 'Análise de conversões por canal de comunicação',
     category: 'Conversões',
@@ -135,14 +145,14 @@ const reportTemplates: ReportTemplate[] = [
       time_range: { type: 'relative', value: '30d' },
       grouping: 'day'
     },
-    created_at: '2024-01-01T10:00:00Z',
-    updated_at: '2024-01-03T10:00:00Z',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
     created_by: 'Sistema',
     is_public: true,
-    usage_count: 156
+    usage_count: 0
   },
   {
-    id: '2',
+    id: 'default-2',
     name: 'Performance de Campanhas',
     description: 'Métricas de performance das campanhas de marketing',
     category: 'Campanhas',
@@ -155,52 +165,11 @@ const reportTemplates: ReportTemplate[] = [
       time_range: { type: 'relative', value: '7d' },
       grouping: 'day'
     },
-    created_at: '2024-01-02T14:00:00Z',
-    updated_at: '2024-01-03T08:00:00Z',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
     created_by: 'Sistema',
     is_public: true,
-    usage_count: 89
-  },
-  {
-    id: '3',
-    name: 'Funil de Vendas',
-    description: 'Análise do funil de vendas e pontos de abandono',
-    category: 'Vendas',
-    type: 'chart',
-    config: {
-      data_source: 'leads',
-      metrics: ['count', 'conversion_rate'],
-      dimensions: ['stage'],
-      filters: [],
-      chart_type: 'pie',
-      time_range: { type: 'relative', value: '30d' }
-    },
-    created_at: '2024-01-01T16:00:00Z',
-    updated_at: '2024-01-02T12:00:00Z',
-    created_by: 'Sistema',
-    is_public: true,
-    usage_count: 234
-  },
-  {
-    id: '4',
-    name: 'Engajamento por Horário',
-    description: 'Análise de engajamento por horário do dia',
-    category: 'Engajamento',
-    type: 'chart',
-    config: {
-      data_source: 'messages',
-      metrics: ['message_count', 'response_rate'],
-      dimensions: ['hour'],
-      filters: [],
-      chart_type: 'line',
-      time_range: { type: 'relative', value: '7d' },
-      grouping: 'day'
-    },
-    created_at: '2024-01-03T09:00:00Z',
-    updated_at: '2024-01-03T09:00:00Z',
-    created_by: 'Sistema',
-    is_public: true,
-    usage_count: 67
+    usage_count: 0
   }
 ];
 
@@ -552,6 +521,7 @@ const ReportFilters = ({ config, onConfigChange }: {
 };
 
 const ReportBuilder = ({ onSave }: { onSave: (template: Partial<ReportTemplate>) => void }) => {
+  const createTemplateMutation = useCreateReportTemplate();
   const [config, setConfig] = useState<ReportConfig>({
     data_source: 'conversations',
     metrics: ['count'],
@@ -567,7 +537,7 @@ const ReportBuilder = ({ onSave }: { onSave: (template: Partial<ReportTemplate>)
   const [category, setCategory] = useState('');
   const { toast } = useToast();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({
         title: "Erro",
@@ -577,19 +547,25 @@ const ReportBuilder = ({ onSave }: { onSave: (template: Partial<ReportTemplate>)
       return;
     }
 
-    onSave({
-      name,
-      description,
-      category: category || 'Personalizado',
-      type: 'chart',
-      config,
-      is_public: false
-    });
+    try {
+      const template = {
+        name,
+        description,
+        category: category || 'Personalizado',
+        type: 'chart' as const,
+        config,
+        is_public: false
+      };
 
-    toast({
-      title: "Relatório salvo",
-      description: "Seu relatório personalizado foi criado com sucesso"
-    });
+      await createTemplateMutation.mutateAsync(template);
+      onSave(template);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar relatório",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -651,9 +627,12 @@ const ReportBuilder = ({ onSave }: { onSave: (template: Partial<ReportTemplate>)
         <Button variant="outline">
           Cancelar
         </Button>
-        <Button onClick={handleSave}>
+        <Button 
+          onClick={handleSave}
+          disabled={createTemplateMutation.isPending}
+        >
           <Save className="h-4 w-4 mr-2" />
-          Salvar Relatório
+          {createTemplateMutation.isPending ? 'Salvando...' : 'Salvar Relatório'}
         </Button>
       </div>
     </div>
@@ -747,25 +726,45 @@ const ReportTemplateCard = ({ template, onUse, onEdit, onDelete }: {
 };
 
 const ReportsList = () => {
-  const [templates, setTemplates] = useState<ReportTemplate[]>(reportTemplates);
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
-
-  const categories = Array.from(new Set(templates.map(t => t.category)));
   
-  const filteredTemplates = templates.filter(template => {
+  // Buscar templates do Supabase
+  const { data: templates, isLoading: templatesLoading, error: templatesError } = useReportTemplates({
+    includePublic: true
+  });
+  
+  // Mutations para gerenciar templates
+  const deleteTemplateMutation = useDeleteReportTemplate();
+  const generateReportMutation = useGenerateReport();
+  
+  // Usar templates padrão se não houver dados
+  const displayTemplates = templates && templates.length > 0 ? templates : defaultTemplates;
+
+  const categories = Array.from(new Set(displayTemplates.map(t => t.category)));
+  
+  const filteredTemplates = displayTemplates.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          template.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filter === 'all' || template.category === filter;
     return matchesSearch && matchesCategory;
   });
 
-  const handleUse = (template: ReportTemplate) => {
-    toast({
-      title: "Gerando relatório",
-      description: `Carregando ${template.name}...`
-    });
+  const handleUse = async (template: ReportTemplate) => {
+    try {
+      await generateReportMutation.mutateAsync({
+        templateId: template.id,
+        config: template.config,
+        name: `${template.name} - ${new Date().toLocaleDateString()}`
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao gerar relatório",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleEdit = (template: ReportTemplate) => {
@@ -775,12 +774,16 @@ const ReportsList = () => {
     });
   };
 
-  const handleDelete = (id: string) => {
-    setTemplates(prev => prev.filter(t => t.id !== id));
-    toast({
-      title: "Relatório removido",
-      description: "O relatório foi removido com sucesso"
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTemplateMutation.mutateAsync(id);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao remover relatório",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -812,17 +815,32 @@ const ReportsList = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredTemplates.map((template) => (
-          <ReportTemplateCard
-            key={template.id}
-            template={template}
-            onUse={handleUse}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
+      {templatesLoading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <DashboardCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : templatesError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Erro ao carregar templates: {templatesError.message}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredTemplates.map((template) => (
+            <ReportTemplateCard
+              key={template.id}
+              template={template}
+              onUse={handleUse}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
 
       {filteredTemplates.length === 0 && (
         <Card>
@@ -841,22 +859,53 @@ const ReportsList = () => {
 
 const ReportViewer = ({ template }: { template: ReportTemplate }) => {
   const [config, setConfig] = useState<ReportConfig>(template.config);
-  const [isLoading, setIsLoading] = useState(false);
-
+  const { toast } = useToast();
+  
+  // Buscar dados do relatório do Supabase
+  const { data: reportData, isLoading, error, refetch } = useReportData({
+    templateId: template.id,
+    limit: 1
+  });
+  
+  const generateReportMutation = useGenerateReport();
+  
+  // Usar dados mockados como fallback
   const getReportData = () => {
-    // Simular busca de dados baseada no template
-    switch (template.id) {
-      case '1': return mockReportData.conversions_by_channel;
-      case '2': return mockReportData.campaign_performance;
-      case '3': return mockReportData.sales_funnel;
-      case '4': return mockReportData.engagement_by_hour;
+    if (reportData && reportData.length > 0) {
+      return reportData[0].data;
+    }
+    
+    // Fallback para dados mockados
+    switch (template.category) {
+      case 'Conversões': return mockReportData.conversions_by_channel;
+      case 'Campanhas': return mockReportData.campaign_performance;
+      case 'Vendas': return mockReportData.sales_funnel;
+      case 'Engajamento': return mockReportData.engagement_by_hour;
       default: return mockReportData.conversions_by_channel;
     }
   };
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 2000);
+  const handleRefresh = async () => {
+    try {
+      if (reportData && reportData.length > 0) {
+        // Se já existe dados, apenas refetch
+        await refetch();
+      } else {
+        // Se não existe dados, gerar novo relatório
+        await generateReportMutation.mutateAsync({
+          templateId: template.id,
+          config: config,
+          name: `${template.name} - ${new Date().toLocaleDateString()}`
+        });
+        await refetch();
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar relatório",
+        variant: "destructive"
+      });
+    }
   };
 
   const data = getReportData();
@@ -869,8 +918,12 @@ const ReportViewer = ({ template }: { template: ReportTemplate }) => {
           <p className="text-muted-foreground">{template.description}</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh} 
+            disabled={isLoading || generateReportMutation.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${(isLoading || generateReportMutation.isPending) ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
           <Button variant="outline">

@@ -1,4 +1,5 @@
 
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,9 +12,9 @@ import {
   Play, 
   Pause, 
   MessageSquare,
+  TestTube,
   Eye,
   MoreHorizontal,
-  TestTube,
   Download,
   Upload
 } from 'lucide-react';
@@ -25,8 +26,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { Pagination } from '@/components/shared/Pagination';
+import { usePagination } from '@/hooks/usePagination';
+import { ChatbotCardSkeleton } from '@/components/shared/Skeleton';
 import { useChatbot } from '@/contexts/ChatbotContext';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 
 interface ChatbotsListProps {
   onEdit: (botId: string) => void;
@@ -35,8 +41,27 @@ interface ChatbotsListProps {
 }
 
 export const ChatbotsList = ({ onEdit, onTest }: ChatbotsListProps) => {
-  const { chatbots, toggleChatbot, deleteChatbot, duplicateChatbot, exportChatbot } = useChatbot();
+  const { chatbots, loading, toggleChatbot, deleteChatbot, duplicateChatbot, exportChatbot } = useChatbot();
   const { toast } = useToast();
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    chatbotId: string | null;
+    chatbotName: string;
+  }>({ isOpen: false, chatbotId: null, chatbotName: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Configurar paginação
+  const pagination = usePagination({
+    totalItems: chatbots.length,
+    initialItemsPerPage: 9
+  });
+
+  // Aplicar paginação aos chatbots
+  const paginatedChatbots = useMemo(() => {
+    const startIndex = pagination.startIndex;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return chatbots.slice(startIndex, endIndex);
+  }, [chatbots, pagination.startIndex, pagination.itemsPerPage]);
 
   const handleExport = async (botId: string) => {
     try {
@@ -59,11 +84,64 @@ export const ChatbotsList = ({ onEdit, onTest }: ChatbotsListProps) => {
     }
   };
 
-  const handleDelete = async (botId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este chatbot?')) {
-      await deleteChatbot(botId);
+  const handleDeleteClick = (botId: string, botName: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      chatbotId: botId,
+      chatbotName: botName
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.chatbotId) return;
+
+    try {
+      setIsDeleting(true);
+      
+      logger.info('Iniciando exclusão de chatbot', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbotId,
+        chatbotName: deleteConfirmation.chatbotName
+      });
+
+      await deleteChatbot(deleteConfirmation.chatbotId);
+
+      logger.info('Chatbot excluído com sucesso', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbotId,
+        chatbotName: deleteConfirmation.chatbotName,
+        status: 'success'
+      });
+
+      setDeleteConfirmation({ isOpen: false, chatbotId: null, chatbotName: '' });
+    } catch (error) {
+      logger.error('Erro ao excluir chatbot', {
+        category: 'chatbot_management',
+        action: 'delete_chatbot',
+        chatbotId: deleteConfirmation.chatbotId,
+        chatbotName: deleteConfirmation.chatbotName,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation({ isOpen: false, chatbotId: null, chatbotName: '' });
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <ChatbotCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
 
   if (chatbots.length === 0) {
     return (
@@ -80,8 +158,9 @@ export const ChatbotsList = ({ onEdit, onTest }: ChatbotsListProps) => {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-      {chatbots.map((bot) => (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {paginatedChatbots.map((bot) => (
         <Card key={bot.id} className="relative group hover:shadow-lg transition-shadow">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
@@ -131,8 +210,9 @@ export const ChatbotsList = ({ onEdit, onTest }: ChatbotsListProps) => {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
-                    onClick={() => handleDelete(bot.id)}
+                    onClick={() => handleDeleteClick(bot.id, bot.name)}
                     className="text-red-600"
+                    disabled={isDeleting}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Excluir
@@ -210,7 +290,37 @@ export const ChatbotsList = ({ onEdit, onTest }: ChatbotsListProps) => {
             </div>
           </CardContent>
         </Card>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      {/* Paginação */}
+      {chatbots.length > 0 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            totalItems={chatbots.length}
+            itemsPerPage={pagination.itemsPerPage}
+            onPageChange={pagination.goToPage}
+            onItemsPerPageChange={pagination.setItemsPerPage}
+            showItemsPerPage={true}
+            itemsPerPageOptions={[6, 9, 12, 18]}
+          />
+        </div>
+      )}
+      
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Chatbot"
+        description={`Tem certeza que deseja excluir o chatbot "${deleteConfirmation.chatbotName}"? Esta ação não pode ser desfeita e todas as configurações e estatísticas serão perdidas.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+        isLoading={isDeleting}
+        icon={<Trash2 className="h-5 w-5 text-red-500" />}
+      />
+    </>
   );
 };

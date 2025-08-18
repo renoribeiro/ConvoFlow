@@ -320,11 +320,22 @@ export const IntegrationSettings = () => {
                               size="sm" 
                               variant={integration.status === 'connected' ? 'outline' : 'default'}
                               className="flex-1"
-                              disabled
+                              onClick={() => {
+                                toast({
+                                  title: 'Integração em desenvolvimento',
+                                  description: `A integração com ${integration.name} estará disponível em breve.`
+                                });
+                              }}
                             >
                               {integration.status === 'connected' ? 'Configurar' : 'Conectar'}
                             </Button>
-                            <Button size="sm" variant="ghost" disabled>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => {
+                                window.open(`https://www.${integration.id}.com`, '_blank');
+                              }}
+                            >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
                           </div>
@@ -343,10 +354,25 @@ export const IntegrationSettings = () => {
                 Entre em contato conosco para solicitar novas integrações ou use nossa API para criar integrações personalizadas.
               </p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    toast({
+                      title: 'Solicitação enviada',
+                      description: 'Entraremos em contato em breve para discutir sua solicitação de integração.'
+                    });
+                  }}
+                >
                   Solicitar Integração
                 </Button>
-                <Button size="sm" variant="outline" disabled>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    window.open('https://docs.convoflow.com/api', '_blank');
+                  }}
+                >
                   Ver Documentação da API
                 </Button>
               </div>
@@ -535,7 +561,13 @@ export const IntegrationSettings = () => {
               <p className="text-sm text-muted-foreground mb-3">
                 Os webhooks enviam dados em formato JSON via POST. Consulte nossa documentação para detalhes sobre o formato dos payloads.
               </p>
-              <Button size="sm" variant="outline" disabled>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => {
+                  window.open('https://docs.convoflow.com/webhooks', '_blank');
+                }}
+              >
                 Ver Documentação
               </Button>
             </div>

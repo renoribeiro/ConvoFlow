@@ -1,12 +1,42 @@
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 
 export const NotificationSettings = () => {
+  const [newMessages, setNewMessages] = useState(true);
+  const [followups, setFollowups] = useState(true);
+  const [campaigns, setCampaigns] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    
+    try {
+      // Simular salvamento das preferências
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Aqui você salvaria as preferências no backend
+      const preferences = {
+        newMessages,
+        followups,
+        campaigns
+      };
+      
+      console.log('Salvando preferências:', preferences);
+      toast.success('Preferências de notificação salvas com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao salvar preferências. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -20,7 +50,11 @@ export const NotificationSettings = () => {
               Receber notificações quando chegarem novas mensagens
             </p>
           </div>
-          <Switch id="newMessages" defaultChecked />
+          <Switch 
+            id="newMessages" 
+            checked={newMessages}
+            onCheckedChange={setNewMessages}
+          />
         </div>
         
         <Separator />
@@ -32,7 +66,11 @@ export const NotificationSettings = () => {
               Lembrar sobre tarefas de follow-up pendentes
             </p>
           </div>
-          <Switch id="followups" defaultChecked />
+          <Switch 
+            id="followups" 
+            checked={followups}
+            onCheckedChange={setFollowups}
+          />
         </div>
         
         <Separator />
@@ -44,12 +82,16 @@ export const NotificationSettings = () => {
               Notificações sobre status de campanhas
             </p>
           </div>
-          <Switch id="campaigns" />
+          <Switch 
+            id="campaigns" 
+            checked={campaigns}
+            onCheckedChange={setCampaigns}
+          />
         </div>
 
-        <Button>
+        <Button onClick={handleSave} disabled={isSaving}>
           <Save className="w-4 h-4 mr-2" />
-          Salvar Preferências
+          {isSaving ? 'Salvando...' : 'Salvar Preferências'}
         </Button>
       </CardContent>
     </Card>

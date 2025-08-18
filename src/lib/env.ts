@@ -8,6 +8,8 @@ interface EnvConfig {
   SUPABASE_ANON_KEY: string;
   EVOLUTION_API_URL?: string;
   EVOLUTION_API_KEY?: string;
+  EVOLUTION_WEBHOOK_SECRET?: string;
+  EVOLUTION_X_API_KEY?: string;
   APP_NAME: string;
   APP_VERSION: string;
   ENVIRONMENT: 'development' | 'staging' | 'production';
@@ -16,12 +18,20 @@ interface EnvConfig {
   TRACKING_DOMAIN: string;
 }
 
-class EnvironmentManager {
+export class EnvironmentManager {
+  private static instance: EnvironmentManager;
   private config: EnvConfig;
 
-  constructor() {
+  private constructor() {
     this.config = this.loadConfig();
     this.validateConfig();
+  }
+
+  static getInstance(): EnvironmentManager {
+    if (!EnvironmentManager.instance) {
+      EnvironmentManager.instance = new EnvironmentManager();
+    }
+    return EnvironmentManager.instance;
   }
 
   private loadConfig(): EnvConfig {
@@ -30,6 +40,8 @@ class EnvironmentManager {
       SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxamt1d3lzaHlieGxkenBmYmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxMzQxMzAsImV4cCI6MjA2OTcxMDEzMH0.xeS8OdwOHpby2NHf942Z7i240LW1a5kT5oR-aH35sD0',
       EVOLUTION_API_URL: import.meta.env.VITE_EVOLUTION_API_URL,
       EVOLUTION_API_KEY: import.meta.env.VITE_EVOLUTION_API_KEY,
+      EVOLUTION_WEBHOOK_SECRET: import.meta.env.VITE_EVOLUTION_WEBHOOK_SECRET,
+      EVOLUTION_X_API_KEY: import.meta.env.VITE_EVOLUTION_X_API_KEY,
       APP_NAME: import.meta.env.VITE_APP_NAME || 'ConvoFlow',
       APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
       ENVIRONMENT: (import.meta.env.VITE_ENVIRONMENT as EnvConfig['ENVIRONMENT']) || 'development',
@@ -72,6 +84,14 @@ class EnvironmentManager {
     return Object.freeze({ ...this.config });
   }
 
+  getConfig(): EnvConfig {
+    return { ...this.config };
+  }
+
+  getNodeEnv(): string {
+    return import.meta.env.MODE || 'development';
+  }
+
   isDevelopment(): boolean {
     return this.config.ENVIRONMENT === 'development';
   }
@@ -90,7 +110,7 @@ class EnvironmentManager {
 }
 
 // Singleton instance
-export const env = new EnvironmentManager();
+export const env = EnvironmentManager.getInstance();
 
 // Export types for external use
 export type { EnvConfig };

@@ -12,6 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Loader2, X, Plus } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
+import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
+import { ContactSchema, ContactCreateSchema, ContactUpdateSchema } from '@/lib/validations/contact';
+import { z } from 'zod';
+import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -26,7 +31,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     name: '',
     phone: '',
     email: '',
-    funnel_stage_id: '',
+    current_stage_id: '',
     lead_source_id: '',
     assigned_to: '',
     notes: ''
@@ -34,17 +39,91 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isValidating, setIsValidating] = useState(false);
+
+  // Schema de validação baseado no contexto (criar vs editar)
+  const getValidationSchema = () => {
+    return contactId ? ContactUpdateSchema : ContactCreateSchema;
+  };
+
+  // Função para validar um campo específico
+  const validateField = (fieldName: string, value: any) => {
+    try {
+      const schema = getValidationSchema();
+      const fieldSchema = schema.shape[fieldName as keyof typeof schema.shape];
+      if (fieldSchema) {
+        fieldSchema.parse(value);
+        setValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[fieldName];
+          return newErrors;
+        });
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        setValidationErrors(prev => ({
+          ...prev,
+          [fieldName]: error.errors[0]?.message || 'Campo inválido'
+        }));
+      }
+    }
+  };
+
+  // Função para validar todo o formulário
+  const validateForm = () => {
+    try {
+      setIsValidating(true);
+      const schema = getValidationSchema();
+      
+      // Preparar dados para validação
+      const dataToValidate = {
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        current_stage_id: formData.current_stage_id || undefined,
+        lead_source_id: formData.lead_source_id || undefined,
+        assigned_to: formData.assigned_to || undefined,
+        notes: formData.notes || undefined,
+      };
+
+      schema.parse(dataToValidate);
+      setValidationErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path.length > 0) {
+            errors[err.path[0] as string] = err.message;
+          }
+        });
+        setValidationErrors(errors);
+        
+        // Log do erro de validação
+        logger.warn('Erro de validação no formulário de contato', {
+          errors: errors,
+          formData: dataToValidate,
+          operation: contactId ? 'update' : 'create'
+        });
+        
+        toast.error('Por favor, corrija os erros no formulário');
+      }
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   // Query para buscar dados do contato (se editando)
   const { data: contactData, isLoading: contactLoading, error: contactError } = useSupabaseQuery({
     table: 'contacts',
     select: `
       *,
-      funnel_stages(name),
-      users(name),
+      stage:funnel_stages!contacts_current_stage_id_fkey (id, name, color),
       contact_tags(
         tag_id,
-        tags(
+        tags:tag_id(
           id,
           name,
           color
@@ -93,14 +172,33 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     enabled: isOpen,
   });
 
-  // Mutation para criar/atualizar contato
-  const saveMutation = useSupabaseMutation({
+  // Mutation para criar/atualizar contato com validação enhanced
+  const saveMutation = useEnhancedSupabaseMutation({
     table: 'contacts',
     operation: contactId ? 'update' : 'insert',
     invalidateQueries: [['contacts'], ['contact', contactId]],
     successMessage: contactId ? 'Contato atualizado com sucesso!' : 'Contato criado com sucesso!',
     errorMessage: contactId ? 'Erro ao atualizar contato' : 'Erro ao criar contato',
-    onSuccess: () => onClose()
+    inputSchema: getValidationSchema(),
+    enableLogging: true,
+    showSuccessToast: true,
+    showErrorToast: true,
+    onSuccess: (data) => {
+      logger.info('Contato salvo com sucesso', {
+        contactId: contactId || data?.id,
+        operation: contactId ? 'update' : 'create',
+        tagsCount: selectedTags.length
+      });
+      onClose();
+    },
+    onError: (error) => {
+      logger.error('Erro ao salvar contato', {
+        error,
+        contactId,
+        operation: contactId ? 'update' : 'create',
+        formData: formData
+      });
+    }
   });
 
   // Mutation para criar nova tag
@@ -126,7 +224,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
         name: contact.name || '',
         phone: contact.phone || '',
         email: contact.email || '',
-        funnel_stage_id: contact.funnel_stage_id?.toString() || '',
+        current_stage_id: contact.current_stage_id?.toString() || '',
         lead_source_id: contact.lead_source_id || '',
         assigned_to: contact.assigned_to?.toString() || '',
         notes: contact.notes || ''
@@ -140,7 +238,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
         name: '',
         phone: '',
         email: '',
-        funnel_stage_id: '',
+        current_stage_id: '',
         lead_source_id: '',
         assigned_to: '',
         notes: ''
@@ -204,39 +302,69 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validar formulário antes de enviar
+    if (!validateForm()) {
+      return;
+    }
+    
     const contactData = {
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || null,
-      funnel_stage_id: formData.funnel_stage_id ? parseInt(formData.funnel_stage_id) : null,
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email?.trim() || null,
+      current_stage_id: formData.current_stage_id || null,
       lead_source_id: formData.lead_source_id || null,
-      assigned_to: formData.assigned_to ? parseInt(formData.assigned_to) : null,
-      notes: formData.notes || null,
+      assigned_to: formData.assigned_to || null,
+      notes: formData.notes?.trim() || null,
     };
 
-    if (contactId) {
-      saveMutation.mutate({
-        data: contactData,
-        options: {
-          filter: { column: 'id', operator: 'eq', value: contactId }
-        }
-      });
-      // Gerenciar tags após salvar
-      manageTags(contactId);
-    } else {
-      saveMutation.mutate({ 
-        data: contactData,
-        onSuccess: (result) => {
-          // Gerenciar tags após criar o contato
-          if (result?.data?.[0]?.id) {
-            manageTags(result.data[0].id);
+    try {
+      if (contactId) {
+        await saveMutation.mutateAsync({
+          data: contactData,
+          options: {
+            filter: { column: 'id', operator: 'eq', value: contactId }
           }
+        });
+        // Gerenciar tags após salvar
+        await manageTags(contactId);
+      } else {
+        const result = await saveMutation.mutateAsync({ 
+          data: contactData
+        });
+        // Gerenciar tags após criar o contato
+        if (result?.data?.[0]?.id) {
+          await manageTags(result.data[0].id);
         }
-      });
+      }
+    } catch (error) {
+      // Erro já tratado pela mutation enhanced
+      logger.error('Erro no handleSubmit', { error, contactData });
     }
+  };
+
+  // Função para limpar formulário e erros
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      phone: '',
+      email: '',
+      current_stage_id: '',
+      lead_source_id: '',
+      assigned_to: '',
+      notes: ''
+    });
+    setSelectedTags([]);
+    setNewTagName('');
+    setValidationErrors({});
+  };
+
+  // Função personalizada para fechar modal
+  const handleClose = () => {
+    resetForm();
+    onClose();
   };
 
   const isLoading = saveMutation.isPending;
@@ -258,7 +386,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
@@ -295,20 +423,39 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({ ...formData, name: value });
+                    validateField('name', value);
+                  }}
+                  onBlur={() => validateField('name', formData.name)}
                   required
                   disabled={isLoading}
+                  className={validationErrors.name ? 'border-red-500' : ''}
                 />
+                {validationErrors.name && (
+                  <p className="text-sm text-red-500 mt-1">{validationErrors.name}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="phone">Telefone *</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({ ...formData, phone: value });
+                    validateField('phone', value);
+                  }}
+                  onBlur={() => validateField('phone', formData.phone)}
                   required
                   disabled={isLoading}
+                  className={validationErrors.phone ? 'border-red-500' : ''}
+                  placeholder="(11) 99999-9999"
                 />
+                {validationErrors.phone && (
+                  <p className="text-sm text-red-500 mt-1">{validationErrors.phone}</p>
+                )}
               </div>
             </div>
 
@@ -318,9 +465,21 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData({ ...formData, email: value });
+                  if (value) validateField('email', value);
+                }}
+                onBlur={() => {
+                  if (formData.email) validateField('email', formData.email);
+                }}
                 disabled={isLoading}
+                className={validationErrors.email ? 'border-red-500' : ''}
+                placeholder="exemplo@email.com"
               />
+              {validationErrors.email && (
+                <p className="text-sm text-red-500 mt-1">{validationErrors.email}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -330,8 +489,8 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                   <Skeleton className="h-10 w-full" />
                 ) : (
                   <Select 
-                    value={formData.funnel_stage_id} 
-                    onValueChange={(value) => setFormData({ ...formData, funnel_stage_id: value })}
+                    value={formData.current_stage_id} 
+                    onValueChange={(value) => setFormData({ ...formData, current_stage_id: value })}
                     disabled={isLoading}
                   >
                     <SelectTrigger>
@@ -340,7 +499,10 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                     <SelectContent>
                       {stages.map((stage) => (
                         <SelectItem key={stage.id} value={stage.id.toString()}>
-                          {stage.name}
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                            {stage.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -498,14 +660,17 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading || isValidating}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
+              <Button 
+                type="submit" 
+                disabled={isLoading || isValidating || Object.keys(validationErrors).length > 0}
+              >
+                {isLoading || isValidating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {contactId ? 'Salvando...' : 'Criando...'}
+                    {isValidating ? 'Validando...' : (contactId ? 'Salvando...' : 'Criando...')}
                   </>
                 ) : (
                   contactId ? 'Salvar' : 'Criar'

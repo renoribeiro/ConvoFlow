@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,15 @@ import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CampaignWizard } from './CampaignWizardNew';
 import { CampaignReportsModal } from './CampaignReportsModal';
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
+import { Pagination } from '@/components/shared/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Send, Edit, Pause, Play, Trash2, Clock, Users } from 'lucide-react';
+import { Send, Edit, Pause, Play, Trash2, Clock, Users, MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { CampaignCardSkeleton } from '@/components/shared/Skeleton';
+import { logger } from '@/lib/logger';
 
 interface Campaign {
   id: string;
@@ -33,7 +39,26 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    campaignId: string | null;
+    campaignName: string;
+  }>({ isOpen: false, campaignId: null, campaignName: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+
+  // Configurar paginação
+  const pagination = usePagination({
+    totalItems: campaigns.length,
+    initialItemsPerPage: 6
+  });
+
+  // Aplicar paginação às campanhas
+  const paginatedCampaigns = useMemo(() => {
+    const startIndex = pagination.startIndex;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return campaigns.slice(startIndex, endIndex);
+  }, [campaigns, pagination.startIndex, pagination.itemsPerPage]);
 
   useEffect(() => {
     loadCampaigns();
@@ -99,16 +124,77 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
     return `${Math.floor(diffDays / 30)} meses atrás`;
   };
 
+  const handleDeleteClick = (campaignId: string, campaignName: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      campaignId,
+      campaignName
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.campaignId) return;
+
+    try {
+      setIsDeleting(true);
+      
+      logger.info('Iniciando exclusão de campanha', {
+        category: 'campaign_management',
+        action: 'delete_campaign',
+        campaignId: deleteConfirmation.campaignId,
+        campaignName: deleteConfirmation.campaignName
+      });
+
+      const { error } = await supabase
+        .from('mass_message_campaigns')
+        .delete()
+        .eq('id', deleteConfirmation.campaignId);
+
+      if (error) throw error;
+
+      logger.info('Campanha excluída com sucesso', {
+        category: 'campaign_management',
+        action: 'delete_campaign',
+        campaignId: deleteConfirmation.campaignId,
+        campaignName: deleteConfirmation.campaignName,
+        status: 'success'
+      });
+
+      toast({
+        title: 'Campanha excluída',
+        description: 'A campanha foi excluída com sucesso.',
+      });
+
+      setDeleteConfirmation({ isOpen: false, campaignId: null, campaignName: '' });
+      await loadCampaigns();
+    } catch (error) {
+      logger.error('Erro ao excluir campanha', {
+        category: 'campaign_management',
+        action: 'delete_campaign',
+        campaignId: deleteConfirmation.campaignId,
+        campaignName: deleteConfirmation.campaignName,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+
+      toast({
+        title: 'Erro ao excluir campanha',
+        description: 'Ocorreu um erro ao excluir a campanha. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation({ isOpen: false, campaignId: null, campaignName: '' });
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-6">
-              <div className="h-4 bg-muted rounded w-1/4 mb-2"></div>
-              <div className="h-3 bg-muted rounded w-1/2"></div>
-            </CardContent>
-          </Card>
+          <CampaignCardSkeleton key={i} />
         ))}
       </div>
     );
@@ -139,7 +225,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   return (
     <>
       <div className="space-y-4">
-        {campaigns.map((campaign) => (
+        {paginatedCampaigns.map((campaign) => (
           <Card key={campaign.id} className="cursor-pointer hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -153,9 +239,27 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
                   <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'}>
                     {campaign.status}
                   </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(campaign.id)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(campaign.id)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteClick(campaign.id, campaign.name)}
+                        className="text-red-600"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -197,6 +301,22 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
         ))}
       </div>
 
+      {/* Paginação */}
+      {campaigns.length > 0 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            totalItems={campaigns.length}
+            itemsPerPage={pagination.itemsPerPage}
+            onPageChange={pagination.goToPage}
+            onItemsPerPageChange={pagination.setItemsPerPage}
+            showItemsPerPage={true}
+            itemsPerPageOptions={[3, 6, 12, 24]}
+          />
+        </div>
+      )}
+
       {showWizard && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <CampaignWizard 
@@ -205,6 +325,19 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
           />
         </div>
       )}
+      
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Campanha"
+        description={`Tem certeza que deseja excluir a campanha "${deleteConfirmation.campaignName}"? Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+        isLoading={isDeleting}
+        icon={<Trash2 className="h-5 w-5 text-red-500" />}
+      />
     </>
   );
 };

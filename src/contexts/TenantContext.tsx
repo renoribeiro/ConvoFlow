@@ -79,12 +79,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
-      console.error('Erro ao carregar dados do tenant:', err);
-      toast({
-        title: 'Erro',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      setTenant(null);
+      setProfile(null);
     } finally {
       setLoading(false);
     }

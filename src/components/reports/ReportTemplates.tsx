@@ -3,85 +3,164 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, BarChart3, TrendingUp, DollarSign, Users, Download, Eye, Settings } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { FileText, BarChart3, TrendingUp, DollarSign, Users, Download, Eye, Settings, AlertCircle, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { useReportTemplates, useGenerateReport, useDeleteReportTemplate } from '@/hooks/useReports';
+import { useToast } from '@/hooks/use-toast';
+import { useTenant } from '@/contexts/TenantContext';
+import { ViewTemplateModal } from './ViewTemplateModal';
+import { EditTemplateModal } from './EditTemplateModal';
+import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 
-const templates = [
-  {
-    id: '1',
-    name: 'Relatório de Performance Geral',
-    description: 'Visão completa das métricas de leads, conversões e receita',
-    icon: BarChart3,
-    category: 'Geral',
-    frequency: 'Semanal',
-    lastGenerated: '2 horas atrás',
-    metrics: ['Leads', 'Conversões', 'ROI', 'Taxa de Conversão'],
-    color: 'bg-blue-500'
-  },
-  {
-    id: '2',
-    name: 'Análise de Fontes de Tráfego',
-    description: 'Detalhamento da performance por canal de aquisição',
-    icon: TrendingUp,
-    category: 'Tráfego',
-    frequency: 'Diário',
-    lastGenerated: '1 dia atrás',
-    metrics: ['Fontes', 'Volume', 'Qualidade', 'Custo por Lead'],
-    color: 'bg-green-500'
-  },
-  {
-    id: '3',
-    name: 'Relatório Financeiro',
-    description: 'Análise de receita, custos e rentabilidade por fonte',
-    icon: DollarSign,
-    category: 'Financeiro',
-    frequency: 'Mensal',
-    lastGenerated: '3 dias atrás',
-    metrics: ['Receita', 'CAC', 'LTV', 'ROI'],
-    color: 'bg-purple-500'
-  },
-  {
-    id: '4',
-    name: 'Funil de Conversão',
-    description: 'Análise detalhada do funil de vendas e pontos de perda',
-    icon: Users,
-    category: 'Conversão',
-    frequency: 'Semanal',
-    lastGenerated: '5 horas atrás',
-    metrics: ['Etapas', 'Taxa de Conversão', 'Tempo Médio', 'Perdas'],
-    color: 'bg-orange-500'
-  },
-  {
-    id: '5',
-    name: 'Relatório Executivo',
-    description: 'Resumo executivo com principais KPIs e insights',
-    icon: FileText,
-    category: 'Executivo',
-    frequency: 'Mensal',
-    lastGenerated: '1 semana atrás',
-    metrics: ['KPIs', 'Tendências', 'Insights', 'Recomendações'],
-    color: 'bg-red-500'
-  },
-  {
-    id: '6',
-    name: 'Performance de Campanhas',
-    description: 'Análise específica de campanhas pagas e orgânicas',
-    icon: TrendingUp,
-    category: 'Campanhas',
-    frequency: 'Diário',
-    lastGenerated: '6 horas atrás',
-    metrics: ['CPC', 'CTR', 'Conversões', 'ROAS'],
-    color: 'bg-indigo-500'
+// Mapeamento de ícones por tipo de relatório
+const getIconByType = (type: string) => {
+  switch (type) {
+    case 'chart': return BarChart3;
+    case 'table': return FileText;
+    case 'metric': return TrendingUp;
+    case 'dashboard': return Users;
+    default: return FileText;
   }
-];
+};
+
+// Mapeamento de cores por categoria
+const getColorByCategory = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case 'performance': return 'bg-blue-500';
+    case 'financial': return 'bg-purple-500';
+    case 'traffic': return 'bg-green-500';
+    case 'conversion': return 'bg-orange-500';
+    case 'marketing': return 'bg-pink-500';
+    case 'analytics': return 'bg-indigo-500';
+    case 'crm': return 'bg-teal-500';
+    default: return 'bg-gray-500';
+  }
+};
+
+// Função para traduzir categorias para português
+const translateCategory = (category: string) => {
+  const translations: Record<string, string> = {
+    'performance': 'Performance',
+    'financial': 'Financeiro',
+    'traffic': 'Tráfego',
+    'conversion': 'Conversão',
+    'marketing': 'Marketing',
+    'analytics': 'Analytics',
+    'crm': 'CRM'
+  };
+  return translations[category?.toLowerCase()] || category || 'Geral';
+};
 
 export const ReportTemplates = () => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const { toast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   
-  const categories = ['Todos', 'Geral', 'Tráfego', 'Financeiro', 'Conversão', 'Executivo', 'Campanhas'];
+  // Buscar todos os templates incluindo públicos
+  const { data: templates = [], isLoading, error } = useReportTemplates({
+    includePublic: true
+  });
+  
+  // Considerar tanto o loading do tenant quanto dos templates
+  const isLoadingData = tenantLoading || isLoading;
+  
+  // Mutations
+  const generateReportMutation = useGenerateReport();
+  const deleteTemplateMutation = useDeleteReportTemplate();
+  
+  // Categorias disponíveis
+  const categories = ['Todos', 'Performance', 'Financeiro', 'Marketing', 'Tráfego', 'Conversão'];
+  
+  // Mapeamento de categorias para filtros no banco
+  const categoryMapping: Record<string, string> = {
+    'Todos': 'all',
+    'Performance': 'performance',
+    'Financeiro': 'financial',
+    'Marketing': 'marketing',
+    'Tráfego': 'traffic',
+    'Conversão': 'conversion'
+  };
   
   const filteredTemplates = selectedCategory === 'Todos' 
     ? templates 
-    : templates.filter(t => t.category === selectedCategory);
+    : templates.filter(t => t.category === categoryMapping[selectedCategory]);
+
+  const handleGenerateReport = (templateId: string) => {
+    generateReportMutation.mutate({
+      templateId,
+      config: {
+        type: 'dashboard',
+        dataSource: 'conversations',
+        timeRange: {
+          start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          end: new Date().toISOString()
+        }
+      }
+    });
+  };
+
+  const handleViewTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    setViewModalOpen(true);
+  };
+
+  const handleEditTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveTemplate = (updatedTemplate: any) => {
+    // TODO: Implementar lógica de salvamento real
+    console.log('Template atualizado:', updatedTemplate);
+    // Aqui você faria a chamada para a API para salvar as alterações
+    // e depois atualizaria a lista de templates
+  };
+
+  const handleDeleteTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!selectedTemplate) return;
+    
+    return new Promise<void>((resolve, reject) => {
+      deleteTemplateMutation.mutate(selectedTemplate.id, {
+        onSuccess: () => {
+          toast({
+            title: "Template excluído",
+            description: `O template "${selectedTemplate.name}" foi excluído com sucesso.`,
+          });
+          resolve();
+        },
+        onError: (error) => {
+          toast({
+            title: "Erro ao excluir",
+            description: "Não foi possível excluir o template.",
+            variant: "destructive",
+          });
+          reject(error);
+        }
+      });
+    });
+  };
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Erro ao carregar templates: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -99,68 +178,194 @@ export const ReportTemplates = () => {
         ))}
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template) => (
-          <Card key={template.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
+      {/* Loading State */}
+      {isLoadingData && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${template.color} rounded-lg flex items-center justify-center`}>
-                    <template.icon className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <Badge variant="outline" className="mt-1">
-                      {template.category}
-                    </Badge>
+                  <Skeleton className="w-10 h-10 rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {template.description}
-              </p>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Frequência:</span>
-                  <span className="font-medium">{template.frequency}</span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-14" />
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Último relatório:</span>
-                  <span className="font-medium">{template.lastGenerated}</span>
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 flex-1" />
+                  <Skeleton className="h-8 w-10" />
+                  <Skeleton className="h-8 w-10" />
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Métricas incluídas:</p>
-                <div className="flex flex-wrap gap-1">
-                  {template.metrics.map((metric, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {metric}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+      {/* Templates Grid */}
+      {!isLoadingData && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTemplates.map((template) => {
+            const IconComponent = getIconByType(template.type);
+            const colorClass = getColorByCategory(template.category);
+            
+            return (
+              <Card key={template.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${colorClass} rounded-lg flex items-center justify-center`}>
+                        <IconComponent className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{template.name}</CardTitle>
+                        <Badge variant="outline" className="mt-1">
+                          {translateCategory(template.category)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    {template.description || 'Sem descrição disponível'}
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Tipo:</span>
+                      <span className="font-medium capitalize">{template.type}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Criado em:</span>
+                      <span className="font-medium">
+                        {new Date(template.created_at).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Usos:</span>
+                      <span className="font-medium">{template.usage_count || 0}</span>
+                    </div>
+                  </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button size="sm" className="flex-1">
-                  <Eye className="w-4 h-4 mr-2" />
-                  Visualizar
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+                  {template.config?.sections && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Seções configuradas:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {template.config.sections.slice(0, 3).map((section: any, index: number) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {section.title}
+                          </Badge>
+                        ))}
+                        {template.config.sections.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{template.config.sections.length - 3} mais
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleGenerateReport(template.id)}
+                      disabled={generateReportMutation.isPending}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {generateReportMutation.isPending ? 'Gerando...' : 'Gerar'}
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          disabled={deleteTemplateMutation.isPending}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewTemplate(template)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Visualizar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditTemplate(template)}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteTemplate(template)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoadingData && filteredTemplates.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum template encontrado</h3>
+            <p className="text-muted-foreground mb-4">
+              {selectedCategory === 'Todos' 
+                ? 'Não há templates de relatórios criados ainda.' 
+                : `Não há templates na categoria "${selectedCategory}".`
+              }
+            </p>
+            <Button onClick={() => setSelectedCategory('Todos')}>
+              Ver todos os templates
+            </Button>
+          </CardContent>
+        </Card>
+       )}
+ 
+       {/* View Template Modal */}
+       <ViewTemplateModal
+        isOpen={viewModalOpen}
+        onClose={() => setViewModalOpen(false)}
+        template={selectedTemplate}
+      />
+      
+      <EditTemplateModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        template={selectedTemplate}
+        onSave={handleSaveTemplate}
+      />
+      
+      <DeleteConfirmationModal
+         isOpen={deleteModalOpen}
+         onClose={() => setDeleteModalOpen(false)}
+         onConfirm={confirmDeleteTemplate}
+         template={selectedTemplate}
+       />
+     </div>
   );
 };

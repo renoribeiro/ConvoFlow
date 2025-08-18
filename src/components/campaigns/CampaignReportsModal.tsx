@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Send, Users, CheckCircle, XCircle, Download } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface CampaignReportsModalProps {
   isOpen: boolean;
@@ -12,6 +14,9 @@ interface CampaignReportsModalProps {
 }
 
 export const CampaignReportsModal = ({ isOpen, onClose }: CampaignReportsModalProps) => {
+  const [selectedPeriod, setSelectedPeriod] = useState('30days');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  
   const metrics = {
     totalSent: 2847,
     delivered: 2654,
@@ -43,6 +48,49 @@ export const CampaignReportsModal = ({ isOpen, onClose }: CampaignReportsModalPr
     return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
   };
 
+  const handleExport = () => {
+    try {
+      // Criar dados CSV
+      const csvData = [
+        ['Campanha', 'Status', 'Enviadas', 'Entregues', 'Taxa Entrega (%)', 'Abertas', 'Taxa Abertura (%)', 'Respostas', 'Taxa Conversão (%)'],
+        ...campaignPerformance.map(campaign => [
+          campaign.name,
+          campaign.status === 'active' ? 'Ativa' : 
+          campaign.status === 'completed' ? 'Concluída' : 
+          campaign.status === 'paused' ? 'Pausada' : campaign.status,
+          campaign.sent.toString(),
+          campaign.delivered.toString(),
+          calculateRate(campaign.delivered, campaign.sent),
+          campaign.opened.toString(),
+          calculateRate(campaign.opened, campaign.delivered),
+          campaign.responded.toString(),
+          calculateRate(campaign.responded, campaign.sent)
+        ])
+      ];
+
+      // Converter para CSV
+      const csvContent = csvData.map(row => 
+        row.map(field => `"${field}"`).join(',')
+      ).join('\n');
+
+      // Criar e baixar arquivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `relatorio-campanhas-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Relatório exportado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao exportar relatório:', error);
+      toast.error('Erro ao exportar relatório. Tente novamente.');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
@@ -53,7 +101,7 @@ export const CampaignReportsModal = ({ isOpen, onClose }: CampaignReportsModalPr
         <div className="space-y-6">
           {/* Filtros */}
           <div className="flex items-center gap-4">
-            <Select defaultValue="30days">
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -63,7 +111,7 @@ export const CampaignReportsModal = ({ isOpen, onClose }: CampaignReportsModalPr
                 <SelectItem value="90days">Últimos 90 dias</SelectItem>
               </SelectContent>
             </Select>
-            <Select defaultValue="all">
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -74,7 +122,7 @@ export const CampaignReportsModal = ({ isOpen, onClose }: CampaignReportsModalPr
                 <SelectItem value="draft">Rascunhos</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Exportar
             </Button>

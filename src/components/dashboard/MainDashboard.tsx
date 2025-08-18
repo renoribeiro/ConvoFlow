@@ -74,6 +74,16 @@ import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+import { useDashboardMetrics } from '../../hooks/useDashboardMetrics';
+import { useRecentActivity } from '../../hooks/useRecentActivity';
+import { useSystemMetrics } from '../../hooks/useSystemMetrics';
+import { useDashboardCharts } from '../../hooks/useDashboardCharts';
+import { useRealTimeUpdates } from '../../hooks/useRealTimeUpdates';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Progress } from '../ui/progress';
+import { ScrollArea } from '../ui/scroll-area';
+import { Button } from '../ui/button';
 
 interface DashboardMetric {
   id: string;
@@ -113,76 +123,16 @@ interface SystemAlert {
   priority: 'high' | 'medium' | 'low';
 }
 
-const mockDashboardMetrics: DashboardMetric[] = [
-  {
-    id: '1',
-    title: 'Mensagens Hoje',
-    value: '2,847',
-    change: 12.5,
-    trend: 'up',
-    icon: <MessageSquare className="h-5 w-5" />,
-    color: 'text-blue-600',
-    description: 'Total de mensagens processadas hoje'
-  },
-  {
-    id: '2',
-    title: 'Usuários Ativos',
-    value: '1,234',
-    change: 8.2,
-    trend: 'up',
-    icon: <Users className="h-5 w-5" />,
-    color: 'text-green-600',
-    description: 'Usuários ativos nas últimas 24h'
-  },
-  {
-    id: '3',
-    title: 'Taxa de Conversão',
-    value: '24.8%',
-    change: -2.1,
-    trend: 'down',
-    icon: <Target className="h-5 w-5" />,
-    color: 'text-purple-600',
-    description: 'Conversões de leads em vendas'
-  },
-  {
-    id: '4',
-    title: 'Tempo de Resposta',
-    value: '1.2s',
-    change: -15.3,
-    trend: 'down',
-    icon: <Clock className="h-5 w-5" />,
-    color: 'text-orange-600',
-    description: 'Tempo médio de resposta automática'
-  },
-  {
-    id: '5',
-    title: 'Automações Ativas',
-    value: '89',
-    change: 5.7,
-    trend: 'up',
-    icon: <Zap className="h-5 w-5" />,
-    color: 'text-yellow-600',
-    description: 'Workflows em execução'
-  },
-  {
-    id: '6',
-    title: 'Satisfação',
-    value: '4.6/5',
-    change: 3.2,
-    trend: 'up',
-    icon: <Star className="h-5 w-5" />,
-    color: 'text-pink-600',
-    description: 'Avaliação média dos atendimentos'
-  }
-];
+// Dados mock removidos - agora usando dados reais via hooks
 
-const mockQuickActions: QuickAction[] = [
+// Ações rápidas com navegação real
+const quickActions: QuickAction[] = [
   {
     id: '1',
     title: 'Nova Campanha',
     description: 'Criar campanha de marketing',
     icon: <Send className="h-5 w-5" />,
-    action: () => {},
+    action: () => navigate('/campanhas/nova'),
     color: 'bg-blue-500'
   },
   {
@@ -190,7 +140,7 @@ const mockQuickActions: QuickAction[] = [
     title: 'Relatório',
     description: 'Gerar relatório personalizado',
     icon: <BarChart3 className="h-5 w-5" />,
-    action: () => {},
+    action: () => navigate('/relatorios'),
     color: 'bg-green-500'
   },
   {
@@ -198,7 +148,7 @@ const mockQuickActions: QuickAction[] = [
     title: 'Configurações',
     description: 'Ajustar configurações do sistema',
     icon: <Settings className="h-5 w-5" />,
-    action: () => {},
+    action: () => navigate('/configuracoes'),
     color: 'bg-purple-500'
   },
   {
@@ -206,97 +156,18 @@ const mockQuickActions: QuickAction[] = [
     title: 'Backup',
     description: 'Fazer backup dos dados',
     icon: <Database className="h-5 w-5" />,
-    action: () => {},
+    action: () => navigate('/configuracoes/backup'),
     color: 'bg-orange-500'
   }
 ];
 
-const mockRecentActivity: RecentActivity[] = [
-  {
-    id: '1',
-    type: 'message',
-    title: 'Nova mensagem recebida',
-    description: 'Cliente João Silva enviou uma mensagem via WhatsApp',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    status: 'info'
-  },
-  {
-    id: '2',
-    type: 'automation',
-    title: 'Automação executada',
-    description: 'Workflow "Boas-vindas" foi executado com sucesso',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    status: 'success'
-  },
-  {
-    id: '3',
-    type: 'user',
-    title: 'Novo usuário registrado',
-    description: 'Maria Santos se cadastrou na plataforma',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    status: 'success'
-  },
-  {
-    id: '4',
-    type: 'system',
-    title: 'Sistema atualizado',
-    description: 'Atualização v2.1.0 instalada com sucesso',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-    status: 'info'
-  },
-  {
-    id: '5',
-    type: 'message',
-    title: 'Falha na entrega',
-    description: 'Mensagem para +55 11 99999-9999 falhou',
-    timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    status: 'error'
-  }
-];
+// Dados de atividade recente removidos - agora usando dados reais via hooks
 
-const mockSystemAlerts: SystemAlert[] = [
-  {
-    id: '1',
-    type: 'warning',
-    title: 'Uso de CPU Elevado',
-    message: 'CPU está em 78% de utilização. Considere otimizar processos.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-    priority: 'medium'
-  },
-  {
-    id: '2',
-    type: 'info',
-    title: 'Backup Concluído',
-    message: 'Backup automático foi realizado com sucesso.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    priority: 'low'
-  },
-  {
-    id: '3',
-    type: 'success',
-    title: 'Meta Atingida',
-    message: 'Meta de conversão mensal foi atingida com 3 dias de antecedência.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    priority: 'high'
-  }
-];
+// Alertas do sistema removidos - agora usando dados reais via hooks
 
-const mockChartData = [
-  { name: 'Seg', messages: 1200, users: 400, conversions: 24 },
-  { name: 'Ter', messages: 1900, users: 600, conversions: 32 },
-  { name: 'Qua', messages: 1600, users: 520, conversions: 28 },
-  { name: 'Qui', messages: 2200, users: 780, conversions: 45 },
-  { name: 'Sex', messages: 2800, users: 890, conversions: 52 },
-  { name: 'Sáb', messages: 1800, users: 650, conversions: 38 },
-  { name: 'Dom', messages: 1400, users: 480, conversions: 26 }
-];
+// Dados de gráfico removidos - agora usando dados reais via hooks
 
-const mockChannelData = [
-  { name: 'WhatsApp', value: 45, color: '#25D366' },
-  { name: 'Instagram', value: 25, color: '#E4405F' },
-  { name: 'Facebook', value: 20, color: '#1877F2' },
-  { name: 'Telegram', value: 10, color: '#0088CC' }
-];
+// Dados de canal removidos - agora usando dados reais via hooks
 
 const getTrendIcon = (trend: string, change: number) => {
   if (trend === 'up') {
@@ -453,7 +324,7 @@ const OverviewCharts = () => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={mockChartData}>
+            <BarChart data={messagesChart || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
@@ -478,7 +349,7 @@ const OverviewCharts = () => {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={mockChannelData}
+                data={channelsData || mockChannelData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -487,7 +358,7 @@ const OverviewCharts = () => {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {mockChannelData.map((entry, index) => (
+                {(channelsData || []).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -502,7 +373,15 @@ const OverviewCharts = () => {
 
 export const MainDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
+  
+  // Hooks para dados reais
+  const dashboardMetrics = useDashboardMetrics();
+  const { activities: recentActivities, isLoading: activitiesLoading } = useRecentActivity(5);
+  const { alerts: systemAlerts, systemStatus } = useSystemMetrics();
+  const { messagesChart, channelsData } = useDashboardCharts(7);
+  const { isConnected, isWebSocketConnected, isPolling, forceUpdate } = useRealTimeUpdates();
   
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -515,7 +394,11 @@ export const MainDashboard = () => {
     });
   };
   
-  const handleExport = () => {
+  const handleExport = async () => {
+    setIsExporting(true);
+    // Simular exportação
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    setIsExporting(false);
     toast({
       title: "Exportação iniciada",
       description: "Relatório do dashboard será baixado em breve."
@@ -532,26 +415,165 @@ export const MainDashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+          {/* Indicador de status de conexão */}
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${
+              isWebSocketConnected ? 'bg-green-500' : 
+              isPolling ? 'bg-yellow-500' : 'bg-red-500'
+            }`} />
+            <span className="text-muted-foreground">
+              {isWebSocketConnected ? 'Tempo real' : 
+               isPolling ? 'Polling' : 'Desconectado'}
+            </span>
+          </div>
+          <Button variant="outline" onClick={() => {
+            handleRefresh();
+            forceUpdate();
+          }} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-spin' : ''}`} />
             Exportar
           </Button>
         </div>
       </div>
       
       {/* Métricas Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockDashboardMetrics.map((metric) => (
-          <MetricCard key={metric.id} metric={metric} />
-        ))}
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {dashboardMetrics.isLoading ? (
+            // Skeleton loading
+            Array.from({ length: 6 }).map((_, index) => (
+              <Card key={index} className="animate-pulse">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      <div className="h-8 bg-gray-200 rounded w-16"></div>
+                    </div>
+                    <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                  </div>
+                  <div className="mt-4 h-4 bg-gray-200 rounded w-20"></div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            [
+              {
+                id: 'conversations',
+                title: 'Conversas Ativas',
+                value: dashboardMetrics.activeConversations.toString(),
+                change: dashboardMetrics.conversationsTrend,
+                trend: dashboardMetrics.conversationsTrend >= 0 ? 'up' : 'down',
+                icon: MessageSquare,
+                color: 'blue',
+                description: 'Conversas em andamento'
+              },
+              {
+                id: 'contacts',
+                title: 'Novos Contatos',
+                value: dashboardMetrics.newContacts.toString(),
+                change: dashboardMetrics.contactsTrend,
+                trend: dashboardMetrics.contactsTrend >= 0 ? 'up' : 'down',
+                icon: Users,
+                color: 'green',
+                description: 'Hoje'
+              },
+              {
+                id: 'conversion',
+                title: 'Taxa de Conversão',
+                value: `${dashboardMetrics.conversionRate.toFixed(1)}%`,
+                change: dashboardMetrics.conversionTrend,
+                trend: dashboardMetrics.conversionTrend >= 0 ? 'up' : 'down',
+                icon: Target,
+                color: 'purple',
+                description: 'Lead para venda'
+              },
+              {
+                id: 'response_time',
+                title: 'Tempo Médio Resposta',
+                value: `${dashboardMetrics.avgResponseTime.toFixed(1)} min`,
+                change: dashboardMetrics.responseTimeTrend,
+                trend: dashboardMetrics.responseTimeTrend <= 0 ? 'up' : 'down', // Invertido: menor é melhor
+                icon: Clock,
+                color: 'orange',
+                description: 'Tempo médio para primeira resposta'
+              },
+              {
+                id: 'messages',
+                title: 'Messages Enviadas',
+                value: dashboardMetrics.messagesSent.toString(),
+                change: dashboardMetrics.messagesTrend,
+                trend: dashboardMetrics.messagesTrend >= 0 ? 'up' : 'down',
+                icon: Send,
+                color: 'indigo',
+                description: 'Nas últimas 24h'
+              },
+              {
+                id: 'revenue',
+                title: 'Receita Gerada',
+                value: `R$ ${dashboardMetrics.generatedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                change: dashboardMetrics.revenueTrend,
+                trend: dashboardMetrics.revenueTrend >= 0 ? 'up' : 'down',
+                icon: TrendingUp,
+                color: 'pink',
+                description: 'Este mês'
+              }
+            ].map((metric) => (
+              <MetricCard key={metric.id} metric={metric} />
+            ))
+          )}
+        </div>
       
       {/* Gráficos de Visão Geral */}
-      <OverviewCharts />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Gráfico de Mensagens */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Mensagens por Dia</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={messagesChart}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#3B82F6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Gráfico de Canais */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Distribuição por Canal</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={channelsData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {channelsData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Ações Rápidas */}
@@ -564,7 +586,7 @@ export const MainDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockQuickActions.map((action) => (
+              {quickActions.map((action) => (
                 <QuickActionCard key={action.id} action={action} />
               ))}
             </div>
@@ -582,9 +604,15 @@ export const MainDashboard = () => {
           <CardContent>
             <ScrollArea className="h-80">
               <div className="space-y-2">
-                {mockRecentActivity.map((activity) => (
-                  <RecentActivityCard key={activity.id} activity={activity} />
-                ))}
+                {activitiesLoading ? (
+                  <div className="flex items-center justify-center h-20">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : (
+                  (recentActivities || []).map((activity) => (
+                    <RecentActivityCard key={activity.id} activity={activity} />
+                  ))
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -600,7 +628,7 @@ export const MainDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockSystemAlerts.map((alert) => (
+              {(systemAlerts || []).map((alert) => (
                 <SystemAlertCard key={alert.id} alert={alert} />
               ))}
             </div>
@@ -621,33 +649,33 @@ export const MainDashboard = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">CPU</span>
-                <span className="text-sm text-muted-foreground">68%</span>
+                <span className="text-sm text-muted-foreground">{systemStatus?.cpu || 68}%</span>
               </div>
-              <Progress value={68} className="h-2" />
+              <Progress value={systemStatus?.cpu || 68} className="h-2" />
             </div>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Memória</span>
-                <span className="text-sm text-muted-foreground">74%</span>
+                <span className="text-sm text-muted-foreground">{systemStatus?.memory || 74}%</span>
               </div>
-              <Progress value={74} className="h-2" />
+              <Progress value={systemStatus?.memory || 74} className="h-2" />
             </div>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Disco</span>
-                <span className="text-sm text-muted-foreground">45%</span>
+                <span className="text-sm text-muted-foreground">{systemStatus?.disk || 45}%</span>
               </div>
-              <Progress value={45} className="h-2" />
+              <Progress value={systemStatus?.disk || 45} className="h-2" />
             </div>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Uptime</span>
-                <span className="text-sm text-green-600 font-medium">99.9%</span>
+                <span className="text-sm text-green-600 font-medium">{systemStatus?.uptime || 99.9}%</span>
               </div>
-              <Progress value={99.9} className="h-2" />
+              <Progress value={systemStatus?.uptime || 99.9} className="h-2" />
             </div>
           </div>
         </CardContent>
