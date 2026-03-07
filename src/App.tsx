@@ -33,7 +33,7 @@ const Campaigns = React.lazy(() => import("./pages/Campaigns"));
 const Followups = React.lazy(() => import("./pages/Followups"));
 const Automation = React.lazy(() => import("./pages/Automation"));
 const Settings = React.lazy(() => import("./pages/Settings"));
-const ProfileSettings = React.lazy(() => import("@/components/settings/profilesettings").then(module => ({ default: module.ProfileSettings })));
+const ProfileSettings = React.lazy(() => import("@/components/settings/ProfileSettings").then(module => ({ default: module.ProfileSettings })));
 const Notifications = React.lazy(() => import("./pages/Notifications"));
 const AdminDashboard = React.lazy(() => import("./pages/dashboard/AdminDashboard"));
 const WhatsAppNumbers = React.lazy(() => import("./pages/WhatsAppNumbers"));
