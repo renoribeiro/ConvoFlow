@@ -121,7 +121,7 @@ interface PerformanceMetrics {
   startTime: number;
   endTime?: number;
   duration?: number;
-  memoryUsage?: NodeJS.MemoryUsage;
+  memoryUsage?: { usedJSHeapSize?: number; totalJSHeapSize?: number } | null;
 }
 
 // Circuit breaker para operações críticas
@@ -129,12 +129,12 @@ class CircuitBreaker {
   private failures = 0;
   private lastFailureTime = 0;
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
-  
+
   constructor(
     private threshold: number = 5,
     private timeout: number = 60000
-  ) {}
-  
+  ) { }
+
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     if (this.state === 'OPEN') {
       if (Date.now() - this.lastFailureTime > this.timeout) {
@@ -143,7 +143,7 @@ class CircuitBreaker {
         throw new Error('Circuit breaker is OPEN');
       }
     }
-    
+
     try {
       const result = await operation();
       this.onSuccess();
@@ -153,16 +153,16 @@ class CircuitBreaker {
       throw error;
     }
   }
-  
+
   private onSuccess(): void {
     this.failures = 0;
     this.state = 'CLOSED';
   }
-  
+
   private onFailure(): void {
     this.failures++;
     this.lastFailureTime = Date.now();
-    
+
     if (this.failures >= this.threshold) {
       this.state = 'OPEN';
     }
@@ -206,63 +206,65 @@ export class WebhookHandler {
   async processWebhookEvent(event: WebhookEvent): Promise<void> {
     const metrics: PerformanceMetrics = {
       startTime: Date.now(),
-      memoryUsage: process.memoryUsage()
+      memoryUsage: typeof performance !== 'undefined' && (performance as any).memory
+        ? { usedJSHeapSize: (performance as any).memory.usedJSHeapSize, totalJSHeapSize: (performance as any).memory.totalJSHeapSize }
+        : null
     };
-    
+
     try {
       // Validar evento antes do processamento
       this.validateEvent(event);
-      
+
       // Log inicial do evento
       await this.logWebhookEvent(event, metrics);
-      
+
       // Processar evento com circuit breaker e retry
       await this.circuitBreaker.execute(async () => {
         await this.retryOperation(async () => {
           await this.processEventByType(event);
         });
       });
-      
+
       // Calcular métricas finais
       metrics.endTime = Date.now();
       metrics.duration = metrics.endTime - metrics.startTime;
-      
+
       // Log de sucesso
       if (env.isDebugEnabled()) {
         console.log(`[WebhookHandler] Event ${event.event} processed successfully in ${metrics.duration}ms`);
       }
-      
+
     } catch (error) {
       metrics.endTime = Date.now();
       metrics.duration = metrics.endTime - metrics.startTime;
-      
+
       const enhancedError = this.enhanceError(error, event, metrics);
       console.error(`[WebhookHandler] Error processing event ${event.event}:`, enhancedError);
-      
+
       await this.logWebhookError(event, enhancedError, metrics);
       throw enhancedError;
     }
   }
-  
+
   private validateEvent(event: WebhookEvent): void {
     if (!event) {
       throw new Error('Event is null or undefined');
     }
-    
+
     if (!event.event || typeof event.event !== 'string') {
       throw new Error('Event type is missing or invalid');
     }
-    
+
     if (!event.instance || typeof event.instance !== 'string') {
       throw new Error('Instance name is missing or invalid');
     }
-    
+
     // Validações específicas por tipo de evento
     switch (event.event) {
       case 'messages.upsert':
       case 'messages.update':
-        if (!event.data || !Array.isArray(event.data)) {
-          throw new Error('Message event data must be an array');
+        if (!event.data) {
+          throw new Error('Message event data is missing');
         }
         break;
       case 'contacts.upsert':
@@ -273,7 +275,7 @@ export class WebhookHandler {
         break;
     }
   }
-  
+
   private async processEventByType(event: WebhookEvent): Promise<void> {
     const handler = this.eventHandlers.get(event.event);
     if (handler) {
@@ -282,41 +284,41 @@ export class WebhookHandler {
       console.warn(`[WebhookHandler] No handler found for event: ${event.event}`);
     }
   }
-  
+
   private async retryOperation<T>(
     operation: () => Promise<T>,
     config: RetryConfig = this.retryConfig
   ): Promise<T> {
     let lastError: Error;
-    
+
     for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
       try {
         return await operation();
       } catch (error) {
         lastError = error as Error;
-        
+
         if (attempt === config.maxAttempts) {
           break;
         }
-        
+
         // Verificar se o erro é recuperável
         if (!this.isRetryableError(error)) {
           throw error;
         }
-        
+
         const delay = Math.min(
           config.baseDelay * Math.pow(config.backoffMultiplier, attempt - 1),
           config.maxDelay
         );
-        
+
         console.warn(`[WebhookHandler] Attempt ${attempt} failed, retrying in ${delay}ms:`, error);
         await this.sleep(delay);
       }
     }
-    
+
     throw new Error(`Operation failed after ${config.maxAttempts} attempts. Last error: ${lastError.message}`);
   }
-  
+
   private isRetryableError(error: any): boolean {
     // Erros de rede e temporários são recuperáveis
     const retryableErrors = [
@@ -327,20 +329,20 @@ export class WebhookHandler {
       'NETWORK_ERROR',
       'TIMEOUT'
     ];
-    
+
     const errorCode = error.code || error.name || '';
     const errorMessage = error.message || '';
-    
-    return retryableErrors.some(code => 
+
+    return retryableErrors.some(code =>
       errorCode.includes(code) || errorMessage.includes(code)
     ) || (error.status >= 500 && error.status < 600);
   }
-  
+
   private enhanceError(error: any, event: WebhookEvent, metrics: PerformanceMetrics): Error {
     const enhancedError = new Error(error.message || 'Unknown error');
     enhancedError.name = error.name || 'WebhookProcessingError';
     enhancedError.stack = error.stack;
-    
+
     // Adicionar contexto adicional
     (enhancedError as any).context = {
       eventType: event.event,
@@ -350,21 +352,21 @@ export class WebhookHandler {
       timestamp: new Date().toISOString(),
       circuitBreakerState: (this.circuitBreaker as any).state
     };
-    
+
     return enhancedError;
   }
-  
+
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private async handleMessageUpsert(event: WebhookEvent): Promise<void> {
     const messageData = event.data as MessageEvent;
-    
+
     // Extrair texto da mensagem
     const messageText = this.extractMessageText(messageData.message);
     const messageType = this.getMessageType(messageData.message);
-    
+
     // Salvar mensagem no Supabase
     const { error } = await supabase
       .from('messages')
@@ -403,7 +405,7 @@ export class WebhookHandler {
 
   private async handleMessageUpdate(event: WebhookEvent): Promise<void> {
     const messageData = event.data as MessageEvent;
-    
+
     const { error } = await supabase
       .from('messages')
       .update({
@@ -419,7 +421,7 @@ export class WebhookHandler {
 
   private async handleMessageDelete(event: WebhookEvent): Promise<void> {
     const messageData = event.data as MessageEvent;
-    
+
     const { error } = await supabase
       .from('messages')
       .update({
@@ -435,10 +437,10 @@ export class WebhookHandler {
 
   private async handleConnectionUpdate(event: WebhookEvent): Promise<void> {
     const connectionData = event.data as ConnectionEvent;
-    
-    const status = connectionData.state === 'open' ? 'connected' : 
-                  connectionData.state === 'connecting' ? 'connecting' : 'disconnected';
-    
+
+    const status = connectionData.state === 'open' ? 'connected' :
+      connectionData.state === 'connecting' ? 'connecting' : 'disconnected';
+
     const { error } = await supabase
       .from('whatsapp_instances')
       .update({
@@ -454,7 +456,7 @@ export class WebhookHandler {
 
   private async handleQRCodeUpdate(event: WebhookEvent): Promise<void> {
     const qrData = event.data as QRCodeEvent;
-    
+
     const { error } = await supabase
       .from('whatsapp_instances')
       .update({
@@ -471,7 +473,7 @@ export class WebhookHandler {
 
   private async handlePresenceUpdate(event: WebhookEvent): Promise<void> {
     const presenceData = event.data as PresenceEvent;
-    
+
     // Atualizar presença dos contatos
     for (const [jid, presence] of Object.entries(presenceData.presences)) {
       await supabase
@@ -490,7 +492,7 @@ export class WebhookHandler {
 
   private async handleGroupUpsert(event: WebhookEvent): Promise<void> {
     const groupData = event.data as GroupEvent;
-    
+
     const { error } = await supabase
       .from('groups')
       .upsert({
@@ -520,7 +522,7 @@ export class WebhookHandler {
 
   private async handleGroupUpdate(event: WebhookEvent): Promise<void> {
     const groupData = event.data as GroupEvent;
-    
+
     const updateData: any = {
       updated_at: new Date()
     };
@@ -530,7 +532,7 @@ export class WebhookHandler {
     if (groupData.participants) updateData.participants = groupData.participants;
     if (groupData.restrict !== undefined) updateData.restrict = groupData.restrict;
     if (groupData.announce !== undefined) updateData.announce = groupData.announce;
-    
+
     const { error } = await supabase
       .from('groups')
       .update(updateData)
@@ -544,7 +546,7 @@ export class WebhookHandler {
 
   private async handleContactUpsert(event: WebhookEvent): Promise<void> {
     const contactData = event.data;
-    
+
     if (Array.isArray(contactData)) {
       for (const contact of contactData) {
         await this.upsertContact(event.instance, contact);
@@ -560,7 +562,7 @@ export class WebhookHandler {
 
   private async handleChatUpsert(event: WebhookEvent): Promise<void> {
     const chatData = event.data;
-    
+
     if (Array.isArray(chatData)) {
       for (const chat of chatData) {
         await this.upsertChat(event.instance, chat);
@@ -576,7 +578,7 @@ export class WebhookHandler {
 
   private async handleChatDelete(event: WebhookEvent): Promise<void> {
     const chatData = event.data;
-    
+
     const { error } = await supabase
       .from('chats')
       .update({
@@ -781,40 +783,40 @@ export class WebhookHandler {
 
       // Mensagens de texto
       if (message.conversation || message.extendedTextMessage) return 'text';
-      
+
       // Mídia
       if (message.imageMessage) return 'image';
       if (message.videoMessage) return 'video';
       if (message.audioMessage) return 'audio';
       if (message.documentMessage) return 'document';
       if (message.stickerMessage) return 'sticker';
-      
+
       // Contatos e localização
       if (message.contactMessage) return 'contact';
       if (message.locationMessage) return 'location';
-      
+
       // Interações
       if (message.reactionMessage) return 'reaction';
-      
+
       // Mensagens interativas
       if (message.buttonsMessage) return 'buttons';
       if (message.listMessage) return 'list';
       if (message.templateMessage) return 'template';
-      
+
       // Mensagens de sistema
       if (message.protocolMessage) return 'protocol';
       if (message.groupInviteMessage) return 'group_invite';
       if (message.call) return 'call';
-      
+
       // Mensagens de negócio
       if (message.productMessage) return 'product';
-      
+
       // Fallback baseado na primeira chave
       const messageKeys = Object.keys(message);
       if (messageKeys.length > 0) {
         return messageKeys[0].replace('Message', '').toLowerCase();
       }
-      
+
       return 'unknown';
     } catch (error) {
       console.error('[WebhookHandler] Error determining message type:', error);
@@ -828,7 +830,7 @@ export class WebhookHandler {
       if (!env.isDevelopment() && !env.isDebugEnabled()) {
         return;
       }
-      
+
       const logData = {
         instance_name: event.instance,
         event_type: event.event,
@@ -841,7 +843,7 @@ export class WebhookHandler {
         processed_at: new Date(),
         created_at: new Date()
       };
-      
+
       const { error } = await supabase
         .from('webhook_logs')
         .insert(logData);
@@ -872,7 +874,7 @@ export class WebhookHandler {
         retry_count: (error as any).retryCount || 0,
         created_at: new Date()
       };
-      
+
       const { error: logError } = await supabase
         .from('webhook_errors')
         .insert(errorData);
@@ -893,10 +895,10 @@ export class WebhookHandler {
       });
     }
   }
-  
+
   private sanitizeEventData(data: any): any {
     if (!data) return data;
-    
+
     try {
       // Limitar o tamanho dos dados para evitar logs muito grandes
       const jsonString = JSON.stringify(data);
@@ -935,7 +937,7 @@ export class WebhookHandler {
 
       // Extrair número de telefone do JID
       const phone = messageData.key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
-      
+
       // Buscar ou criar contato
       let { data: contact } = await supabase
         .from('contacts')
@@ -956,7 +958,7 @@ export class WebhookHandler {
           })
           .select('id')
           .single();
-        
+
         contact = newContact;
       }
 
@@ -978,7 +980,7 @@ export class WebhookHandler {
       if (existingConversation) {
         // Atualizar conversa existente - incrementar unread_count apenas para mensagens recebidas
         const newUnreadCount = existingConversation.unread_count + 1;
-        
+
         const { error: updateError } = await supabase
           .from('conversations')
           .update({
@@ -1044,7 +1046,7 @@ export class WebhookHandler {
 
       // Extrair número de telefone do JID do chat
       const phone = chatData.id.replace('@s.whatsapp.net', '').replace('@g.us', '');
-      
+
       // Buscar contato relacionado
       const { data: contact } = await supabase
         .from('contacts')
@@ -1068,8 +1070,8 @@ export class WebhookHandler {
         .single();
 
       const now = new Date().toISOString();
-      const lastMessageTime = chatData.conversationTimestamp 
-        ? new Date(chatData.conversationTimestamp * 1000).toISOString() 
+      const lastMessageTime = chatData.conversationTimestamp
+        ? new Date(chatData.conversationTimestamp * 1000).toISOString()
         : now;
 
       if (existingConversation) {

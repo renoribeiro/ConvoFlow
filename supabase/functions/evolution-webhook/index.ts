@@ -1,56 +1,77 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createLogger } from '../_shared/logger.ts'
-import { 
-  validatePhoneNumber, 
-  validateInstanceName, 
+import {
+  validatePhoneNumber,
+  validateInstanceName,
   validateMessageContent,
   DataSanitizer,
   SecureError,
-  createErrorResponse,
   corsHeaders
 } from '../_shared/validation.ts'
-
-interface WebhookEvent {
-  event: 'messages.upsert' | 'connection.update' | 'presence.update' | 'qrcode.updated' | string;
-  instance: string;
-  data: any;
-  server_url: string;
-  apikey: string;
-}
+import {
+  WebhookEvent,
+  MessageData,
+  ConnectionUpdateData,
+  QrCodeUpdateData,
+  ContactData,
+  ChatData,
+  GroupData,
+  PresenceData,
+  EvolutionWebhookPayload
+} from '../_shared/types.ts'
+import {
+  checkRateLimit,
+  getRateLimitIdentifier,
+  getRateLimitHeaders,
+  createRateLimitResponse,
+  RATE_LIMIT_PRESETS
+} from '../_shared/rateLimit.ts'
 
 serve(async (req) => {
   const logger = createLogger(req);
-  
-  // Handle CORS preflight requests
+  const startTime = Date.now();
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
-  try {
-    logger.info('Evolution webhook request received', {
-      method: req.method,
-      url: req.url,
-      userAgent: req.headers.get('user-agent')
-    });
+  // Apply rate limiting
+  const clientId = getRateLimitIdentifier(req);
+  const rateLimitResult = checkRateLimit(clientId, {
+    ...RATE_LIMIT_PRESETS.webhook,
+    keyPrefix: 'evolution-webhook'
+  });
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  if (!rateLimitResult.allowed) {
+    logger.warn('Rate limit exceeded', { clientId, retryAfter: rateLimitResult.retryAfter });
+    return createRateLimitResponse(
+      rateLimitResult.retryAfter!,
+      { ...corsHeaders, ...getRateLimitHeaders(rateLimitResult.remaining, rateLimitResult.resetAt, RATE_LIMIT_PRESETS.webhook.maxRequests) }
+    );
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      logger.error('Missing Supabase configuration');
+      throw new SecureError('Configuration Error', 'CONFIG_ERROR', 500);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     if (req.method !== 'POST') {
       throw new SecureError('Method not allowed', 'METHOD_NOT_ALLOWED', 405)
     }
 
-    // Validate Content-Type
     const contentType = req.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       throw new SecureError('Invalid content type', 'INVALID_CONTENT_TYPE', 400)
     }
 
-    // Parse and validate webhook event
-    let webhookEvent: WebhookEvent
+    let webhookEvent: EvolutionWebhookPayload
     try {
       webhookEvent = await req.json()
     } catch (error) {
@@ -58,374 +79,500 @@ serve(async (req) => {
       throw new SecureError('Invalid JSON payload', 'INVALID_JSON', 400)
     }
 
-    // Validate required fields
     if (!webhookEvent.event || !webhookEvent.instance) {
       throw new SecureError('Missing required fields: event, instance', 'MISSING_FIELDS', 400)
     }
 
-    // Validate instance name
-    const instanceValidation = validateInstanceName(webhookEvent.instance)
-    if (!instanceValidation.success) {
-      throw new SecureError(instanceValidation.error!, 'INVALID_INSTANCE', 400)
+    const { event: eventType, instance: instanceName, data: eventData, sender, apikey: webhookApiKey } = webhookEvent
+
+    // Security Check: Verify the instance exists in our DB
+    const { data: instance, error: instanceError } = await supabase
+      .from('whatsapp_instances')
+      .select('id, tenant_id, instance_key')
+      .eq('instance_key', instanceName)
+      .single()
+
+    if (instanceError || !instance) {
+      logger.warn(`Webhook received for unknown instance: ${instanceName}`)
+      return new Response(JSON.stringify({ success: false, error: 'Instance not found' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
     }
 
     logger.info('Processing webhook event', {
-      event: webhookEvent.event,
-      instance: webhookEvent.instance,
-      hasData: !!webhookEvent.data
+      event: eventType,
+      instance: instanceName,
+      tenantId: instance.tenant_id,
+      hasSender: !!sender,
+      hasData: !!eventData
     })
 
-    const { event: eventType, instance: instanceName, data: eventData } = webhookEvent
-
-    // Handle different event types
+    // Handle all Evolution API V2 event types
     switch (eventType) {
       case 'messages.upsert':
-        await processIncomingMessage(supabase, instanceName, eventData, logger)
+        await processIncomingMessage(supabase, instance, instanceName, eventData as MessageData, sender, logger)
         break
-        
+
+      case 'messages.update':
+        await processMessageUpdate(supabase, instanceName, eventData, logger)
+        break
+
+      case 'messages.delete':
+        await processMessageDelete(supabase, instanceName, eventData, logger)
+        break
+
+      case 'send.message':
+        await processSentMessage(supabase, instance, instanceName, eventData as MessageData, logger)
+        break
+
       case 'connection.update':
-        await processConnectionUpdate(supabase, instanceName, eventData, logger)
+        await processConnectionUpdate(supabase, instanceName, eventData as ConnectionUpdateData, logger)
         break
-        
+
       case 'qrcode.updated':
-        await processQRCodeUpdate(supabase, instanceName, eventData, logger)
+        await processQRCodeUpdate(supabase, instanceName, eventData as QrCodeUpdateData, logger)
         break
-        
+
+      case 'contacts.set':
+      case 'contacts.upsert':
+      case 'contacts.update':
+        await processContactEvent(supabase, instance, instanceName, eventType, eventData, logger)
+        break
+
+      case 'chats.set':
+      case 'chats.upsert':
+      case 'chats.update':
+      case 'chats.delete':
+        await processChatEvent(supabase, instance, instanceName, eventType, eventData, logger)
+        break
+
+      case 'groups.upsert':
+      case 'groups.update':
+        await processGroupEvent(supabase, instance, instanceName, eventType, eventData, logger)
+        break
+
+      case 'group.participants.update':
+        await processGroupParticipantsUpdate(supabase, instance, instanceName, eventData, logger)
+        break
+
       case 'presence.update':
-        console.log('Presence update received:', { instanceName, eventData })
-        // Handle presence updates if needed
+        await processPresenceUpdate(supabase, instanceName, eventData, logger)
         break
-        
+
+      case 'call':
+        logger.info('Call event received', { instanceName, data: eventData })
+        break
+
+      case 'application.startup':
+        logger.info('Application startup event', { instanceName })
+        break
+
       default:
-        console.log(`Unhandled webhook event: ${eventType}`)
+        logger.info(`Received event: ${eventType}`, { instanceName })
     }
 
-    // Use the database function to handle webhook processing
-    await supabase.rpc('handle_evolution_webhook', {
-      instance_name: instanceName,
-      event_type: eventType,
-      event_data: eventData
-    })
+    // Forward event to RPC for custom business logic (only if exists)
+    try {
+      await supabase.rpc('handle_evolution_webhook', {
+        instance_name: instanceName,
+        event_type: eventType,
+        event_data: eventData
+      })
+    } catch (rpcError: any) {
+      // Don't fail the webhook if RPC doesn't exist or fails
+      logger.warn('RPC handle_evolution_webhook failed (might not exist)', { error: rpcError.message })
+    }
 
-    logger.info('Webhook processed successfully', {
-      event: eventType,
-      instance: instanceName
-    });
+    const processingTime = Date.now() - startTime;
+    const responseBody = {
+      success: true,
+      processed_at: new Date().toISOString(),
+      processing_time_ms: processingTime,
+      event: eventType
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify(responseBody), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
 
-  } catch (error) {
-    // Handle SecureError instances
-    if (error instanceof SecureError) {
-      logger.warn('Webhook validation error', {
-        code: error.code,
-        message: error.message
-      }, error);
-      return createErrorResponse(error, logger.getRequestId());
-    }
-    
-    // Handle unexpected errors
-    logger.error('Unexpected webhook processing error', {
-      error: error.message,
-      stack: error.stack
-    }, error as Error);
-    
-    const secureError = new SecureError(
-      'Internal server error', 
-      'INTERNAL_ERROR', 
-      500
-    );
-    
-    return createErrorResponse(secureError, logger.getRequestId());
+  } catch (error: any) {
+    logger.error('Error processing webhook', { error: error.message });
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    })
   }
 })
 
-async function processIncomingMessage(supabase: any, instanceName: string, messageData: any, logger: any) {
+// ============================================
+// Message Handlers
+// ============================================
+
+async function processIncomingMessage(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string; instance_key: string },
+  instanceName: string,
+  messageData: MessageData,
+  sender: string | undefined,
+  logger: any
+) {
   const { key, message, messageTimestamp, pushName } = messageData
-  
-  if (key.fromMe) return // Ignore messages sent by us
 
-  logger.debug('Processing incoming message', {
-    hasKey: !!key,
-    hasMessage: !!message,
-    messageType: message?.messageType
-  });
-  
-  if (!key?.id || !message?.conversation) {
-    logger.warn('Skipping message: missing required fields', {
-      hasKeyId: !!key?.id,
-      hasConversation: !!message?.conversation
-    });
-    return
+  if (key.fromMe) return
+
+  if (!key?.id) return
+
+  // Determine message content and type
+  const { content: rawMessageContent, messageType } = extractMessageContent(message)
+
+  // Handle LID resolution: Use sender field to resolve real phone numbers
+  // In V2, remoteJid can be a LID (Link ID) instead of the real phone number
+  let rawPhone: string;
+  if (sender && !sender.includes('@lid')) {
+    // Use sender field if it's a real phone number
+    rawPhone = sender.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  } else {
+    rawPhone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
   }
 
-  // Get WhatsApp instance from database
-  const { data: instance, error: instanceError } = await supabase
-    .from('whatsapp_instances')
-    .select('id, tenant_id')
-    .eq('instance_key', instanceName)
-    .single()
+  const phone = DataSanitizer.sanitizePhoneNumber(rawPhone)
+  if (!phone) return;
 
-  if (instanceError || !instance) {
-    console.error(`WhatsApp instance not found: ${instanceName}`, instanceError)
-    return
+  // Check if it's a group message
+  const isGroup = key.remoteJid.includes('@g.us');
+  if (isGroup) {
+    // For group messages, we can log but skip contact creation for now
+    logger.info('Group message received', { group: key.remoteJid, messageType })
+    return;
   }
 
-  // Extract and validate message content
-  const rawMessageContent = message.conversation || message.extendedTextMessage?.text || ''
-  const rawPhone = key.remoteJid.replace('@s.whatsapp.net', '')
-
-  // Validate phone number
-  const phoneValidation = validatePhoneNumber(rawPhone)
-  if (!phoneValidation.success) {
-    logger.warn('Invalid phone number in message', {
-      rawPhone: DataSanitizer.sanitizePhoneNumber(rawPhone),
-      error: phoneValidation.error
-    });
-    return
-  }
-  
-  const phone = phoneValidation.data!
-
-  // Validate message content
-  const contentValidation = validateMessageContent(rawMessageContent)
-  if (!contentValidation.success) {
-    logger.warn('Invalid message content', {
-      phone: DataSanitizer.sanitizePhoneNumber(phone),
-      error: contentValidation.error
-    });
-    return
-  }
-  
-  const messageContent = contentValidation.data!
-
-  logger.info('Processing valid message', {
-    phone: DataSanitizer.sanitizePhoneNumber(phone),
-    contentLength: messageContent.length,
-    pushName: pushName || 'Unknown'
-  })
-  
-  // Get or create contact
-  logger.debug('Looking up contact', {
-    phone: DataSanitizer.sanitizePhoneNumber(phone),
-    tenantId: instance.tenant_id
-  });
-  
-  let { data: contact, error: contactLookupError } = await supabase
+  // Find or Create Contact
+  let { data: contact } = await supabase
     .from('contacts')
     .select('id')
     .eq('phone', phone)
     .eq('tenant_id', instance.tenant_id)
     .maybeSingle()
 
-  if (contactLookupError) {
-    logger.error('Failed to lookup contact', {
-      phone: DataSanitizer.sanitizePhoneNumber(phone),
-      tenantId: instance.tenant_id,
-      error: contactLookupError.message
-    }, contactLookupError);
-    return
+  if (!contact) {
+    const { data: newContact } = await supabase.from('contacts').insert({
+      phone,
+      name: pushName || phone,
+      tenant_id: instance.tenant_id,
+      whatsapp_instance_id: instance.id
+    }).select('id').single();
+    contact = newContact;
   }
 
-  if (!contact) {
-    logger.info('Creating new contact', {
-      phone: DataSanitizer.sanitizePhoneNumber(phone),
-      name: pushName || 'Unknown',
-      tenantId: instance.tenant_id
-    });
-    
-    const { data: newContact, error: contactError } = await supabase
-      .from('contacts')
-      .insert({
-        phone,
-        name: pushName || phone,
-        tenant_id: instance.tenant_id,
-        whatsapp_instance_id: instance.id,
-        last_interaction_at: new Date(messageTimestamp * 1000).toISOString(),
-      })
-      .select('id')
-      .single()
-    
-    if (contactError) {
-      logger.error('Failed to create contact', {
-        phone: DataSanitizer.sanitizePhoneNumber(phone),
-        tenantId: instance.tenant_id,
-        error: contactError.message
-      }, contactError);
-      return
-    }
-    
-    contact = newContact
-    logger.info('Contact created successfully', {
-      contactId: contact.id,
-      phone: DataSanitizer.sanitizePhoneNumber(phone)
-    });
-  }
-
-  if (!contact) {
-    logger.error('Failed to create or get contact - contact is null');
-    return
-  }
+  if (!contact) return;
 
   // Save message to database
-  logger.debug('Saving message to database', {
-    contactId: contact.id,
-    messageLength: messageContent.length,
-    evolutionMessageId: key.id
-  });
-  
-  const { error: messageError } = await supabase.from('messages').insert({
+  await supabase.from('messages').insert({
     contact_id: contact.id,
     tenant_id: instance.tenant_id,
     whatsapp_instance_id: instance.id,
     direction: 'inbound',
-    message_type: 'text',
-    content: messageContent,
+    message_type: messageType,
+    content: rawMessageContent,
     evolution_message_id: key.id,
     status: 'received',
   })
 
-  if (messageError) {
-    logger.error('Failed to save message', {
-      contactId: contact.id,
-      evolutionMessageId: key.id,
-      error: messageError.message
-    }, messageError);
-    return
-  }
-
-  logger.info('Message saved successfully', {
-    contactId: contact.id,
-    evolutionMessageId: key.id
-  });
-
-  // Update contact last interaction
-  const { error: updateError } = await supabase
-    .from('contacts')
-    .update({
-      last_interaction_at: new Date(messageTimestamp * 1000).toISOString(),
-    })
-    .eq('id', contact.id)
-
-  if (updateError) {
-    logger.warn('Failed to update contact last interaction', {
-      contactId: contact.id,
-      error: updateError.message
-    }, updateError);
-  }
-
-  // Process chatbot triggers using our database function
-  logger.debug('Processing chatbot triggers', {
-    contactId: contact.id,
-    phone: DataSanitizer.sanitizePhoneNumber(phone)
-  });
-  
-  const { data: result, error: chatbotError } = await supabase
-    .rpc('process_incoming_message', {
+  // Trigger automation via RPC
+  try {
+    await supabase.rpc('process_incoming_message', {
       p_phone: phone,
-      p_message_content: messageContent,
+      p_message_content: rawMessageContent,
       p_whatsapp_instance_id: instance.id,
       p_evolution_message_id: key.id
     });
-
-  if (chatbotError) {
-    logger.error('Chatbot processing error', {
-      contactId: contact.id,
-      phone: DataSanitizer.sanitizePhoneNumber(phone),
-      error: chatbotError.message
-    }, chatbotError);
-  } else {
-    logger.info('Chatbot processing completed', {
-      contactId: contact.id,
-      result: result ? 'success' : 'no_action'
-    });
-  }
-
-  logger.info('Message processed successfully', {
-    contactId: contact.id,
-    phone: DataSanitizer.sanitizePhoneNumber(phone)
-  });
-}
-
-async function processConnectionUpdate(supabase: any, instanceName: string, connectionData: any, logger: any) {
-  const { state, qr } = connectionData
-
-  logger.info('Processing connection update', {
-    instance: instanceName,
-    state: state,
-    hasQr: !!qr
-  });
-
-  // Validate instance name
-  const instanceValidation = validateInstanceName(instanceName);
-  if (!instanceValidation.success) {
-    logger.warn('Invalid instance name in connection update', {
-      instanceName,
-      error: instanceValidation.error
-    });
-    return;
-  }
-
-  const { error } = await supabase
-    .from('whatsapp_instances')
-    .update({
-      status: state,
-      qr_code: qr || null,
-      last_connected_at: state === 'open' ? new Date().toISOString() : null,
-    })
-    .eq('instance_key', instanceName)
-
-  if (error) {
-    logger.error('Failed to update connection status', {
-      instance: instanceName,
-      state: state,
-      error: error.message
-    }, error);
-  } else {
-    logger.info('Connection status updated successfully', {
-      instance: instanceName,
-      state: state
-    });
+  } catch (error: any) {
+    logger.warn('RPC process_incoming_message not available', { error: error.message });
   }
 }
 
-async function processQRCodeUpdate(supabase: any, instanceName: string, qrData: any, logger: any) {
-  const { qr } = qrData
+/**
+ * Extract text content and determine type from various message formats
+ */
+function extractMessageContent(message: any): { content: string; messageType: string } {
+  if (message.conversation) {
+    return { content: message.conversation, messageType: 'text' };
+  }
+  if (message.extendedTextMessage?.text) {
+    return { content: message.extendedTextMessage.text, messageType: 'text' };
+  }
+  if (message.imageMessage) {
+    return { content: message.imageMessage.caption || '[Imagem]', messageType: 'image' };
+  }
+  if (message.videoMessage) {
+    return { content: message.videoMessage.caption || '[Vídeo]', messageType: 'video' };
+  }
+  if (message.audioMessage) {
+    return { content: message.audioMessage.ptt ? '[Áudio]' : '[Arquivo de Áudio]', messageType: 'audio' };
+  }
+  if (message.documentMessage) {
+    return { content: message.documentMessage.fileName || message.documentMessage.title || '[Documento]', messageType: 'document' };
+  }
+  if (message.locationMessage) {
+    const loc = message.locationMessage;
+    return { content: loc.name || `Lat: ${loc.degreesLatitude}, Lng: ${loc.degreesLongitude}`, messageType: 'location' };
+  }
+  if (message.contactMessage) {
+    return { content: message.contactMessage.displayName || '[Contato]', messageType: 'contact' };
+  }
+  if (message.stickerMessage) {
+    return { content: '[Figurinha]', messageType: 'sticker' };
+  }
+  if (message.reactionMessage) {
+    return { content: message.reactionMessage.text || '', messageType: 'reaction' };
+  }
+  if (message.buttonsResponseMessage) {
+    return { content: message.buttonsResponseMessage.selectedDisplayText || '', messageType: 'buttons_response' };
+  }
+  if (message.listResponseMessage) {
+    return { content: message.listResponseMessage.title || '', messageType: 'list_response' };
+  }
+  if (message.protocolMessage) {
+    return { content: '', messageType: 'protocol' };
+  }
+  return { content: '[Mensagem não suportada]', messageType: 'unknown' };
+}
 
-  logger.info('Processing QR code update', {
-    instance: instanceName,
-    hasQr: !!qr
-  });
+async function processMessageUpdate(supabase: SupabaseClient, instanceName: string, updateData: any, logger: any) {
+  const updates = Array.isArray(updateData) ? updateData : [updateData];
 
-  // Validate instance name
-  const instanceValidation = validateInstanceName(instanceName);
-  if (!instanceValidation.success) {
-    logger.warn('Invalid instance name in QR code update', {
-      instanceName,
-      error: instanceValidation.error
-    });
+  for (const updateItem of updates) {
+    const { key, update } = updateItem;
+    if (!key?.id) continue;
+
+    let status = 'sent';
+    if (update?.status) {
+      switch (update.status) {
+        case 'SERVER_ACK': status = 'sent'; break;
+        case 'DELIVERY_ACK': status = 'delivered'; break;
+        case 'READ': status = 'read'; break;
+        case 'PLAYED': status = 'read'; break;
+        case 'ERROR': status = 'failed'; break;
+        default: status = 'sent';
+      }
+    }
+
+    await supabase.from('messages')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('evolution_message_id', key.id);
+
+    logger.info('Updated message status', { id: key.id, status });
+  }
+}
+
+async function processMessageDelete(supabase: SupabaseClient, instanceName: string, deleteData: any, logger: any) {
+  const key = deleteData?.key || deleteData;
+  if (!key?.id) {
+    logger.warn('messages.delete event missing key.id', { instanceName });
     return;
   }
 
-  const { error } = await supabase
-    .from('whatsapp_instances')
+  await supabase.from('messages')
     .update({
-      qr_code: qr,
-      status: 'qrcode',
+      status: 'deleted',
+      content: '[Mensagem apagada]',
+      updated_at: new Date().toISOString()
     })
+    .eq('evolution_message_id', key.id);
+
+  logger.info('Message marked as deleted', { id: key.id, instanceName });
+}
+
+async function processSentMessage(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string; instance_key: string },
+  instanceName: string,
+  messageData: MessageData,
+  logger: any
+) {
+  const { key, message, messageTimestamp } = messageData;
+
+  if (!key?.id || !key.fromMe) return;
+
+  const { content, messageType } = extractMessageContent(message);
+  const rawPhone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+  const phone = DataSanitizer.sanitizePhoneNumber(rawPhone);
+
+  if (!phone) return;
+
+  // Find the contact
+  const { data: contact } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('phone', phone)
+    .eq('tenant_id', instance.tenant_id)
+    .maybeSingle();
+
+  if (!contact) return;
+
+  // Check if message already exists (avoid duplicates)
+  const { data: existingMsg } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('evolution_message_id', key.id)
+    .maybeSingle();
+
+  if (existingMsg) return;
+
+  await supabase.from('messages').insert({
+    contact_id: contact.id,
+    tenant_id: instance.tenant_id,
+    whatsapp_instance_id: instance.id,
+    direction: 'outbound',
+    message_type: messageType,
+    content,
+    evolution_message_id: key.id,
+    status: 'sent',
+  });
+
+  logger.info('Sent message recorded', { id: key.id, messageType });
+}
+
+// ============================================
+// Connection & QR Code Handlers
+// ============================================
+
+async function processConnectionUpdate(supabase: SupabaseClient, instanceName: string, connectionData: ConnectionUpdateData, logger: any) {
+  const { state, statusReason } = connectionData
+
+  logger.info('Processing connection update', { instance: instanceName, state, statusReason });
+
+  const updatePayload: Record<string, any> = {
+    status: state,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (state === 'open') {
+    updatePayload.last_connected_at = new Date().toISOString();
+    updatePayload.qr_code = null; // Clear QR code when connected
+  } else if (state === 'close') {
+    updatePayload.qr_code = null;
+  }
+
+  await supabase
+    .from('whatsapp_instances')
+    .update(updatePayload)
+    .eq('instance_key', instanceName)
+}
+
+async function processQRCodeUpdate(supabase: SupabaseClient, instanceName: string, qrData: QrCodeUpdateData, logger: any) {
+  // V2 sends QR code in different formats
+  const qrCode = qrData?.qrcode?.base64 || qrData?.qrcode?.code || qrData?.qr || null;
+
+  await supabase
+    .from('whatsapp_instances')
+    .update({ qr_code: qrCode, status: 'qrcode', updated_at: new Date().toISOString() })
     .eq('instance_key', instanceName)
 
-  if (error) {
-    logger.error('Failed to update QR code', {
-      instance: instanceName,
-      error: error.message
-    }, error);
-  } else {
-    logger.info('QR code updated successfully', {
-      instance: instanceName
-    });
+  logger.info('QR Code updated', { instanceName, hasQr: !!qrCode });
+}
+
+// ============================================
+// Contact & Chat & Group Handlers
+// ============================================
+
+async function processContactEvent(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string },
+  instanceName: string,
+  eventType: string,
+  contactData: any,
+  logger: any
+) {
+  const contacts = Array.isArray(contactData) ? contactData : [contactData];
+
+  for (const contact of contacts) {
+    if (!contact?.id) continue;
+
+    const phone = contact.id.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    if (!phone || phone.includes('@g.us')) continue;
+
+    const sanitizedPhone = DataSanitizer.sanitizePhoneNumber(phone);
+    if (!sanitizedPhone) continue;
+
+    // Upsert the contact
+    const { error } = await supabase
+      .from('contacts')
+      .upsert({
+        phone: sanitizedPhone,
+        name: contact.name || contact.pushName || sanitizedPhone,
+        tenant_id: instance.tenant_id,
+        whatsapp_instance_id: instance.id,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'phone,tenant_id' });
+
+    if (error) {
+      logger.warn('Failed to upsert contact', { phone: sanitizedPhone, error: error.message });
+    }
   }
+
+  logger.info(`Processed ${eventType}`, { instanceName, count: contacts.length });
+}
+
+async function processChatEvent(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string },
+  instanceName: string,
+  eventType: string,
+  chatData: any,
+  logger: any
+) {
+  // Chat events are informational - log for monitoring
+  const chats = Array.isArray(chatData) ? chatData : [chatData];
+  logger.info(`Chat event ${eventType}`, { instanceName, count: chats.length });
+}
+
+async function processGroupEvent(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string },
+  instanceName: string,
+  eventType: string,
+  groupData: any,
+  logger: any
+) {
+  if (!groupData?.id) {
+    logger.warn('Group event missing group ID', { instanceName, eventType });
+    return;
+  }
+
+  logger.info(`Group event ${eventType}`, {
+    instanceName,
+    groupId: groupData.id,
+    subject: groupData.subject
+  });
+}
+
+async function processGroupParticipantsUpdate(
+  supabase: SupabaseClient,
+  instance: { id: string; tenant_id: string },
+  instanceName: string,
+  eventData: any,
+  logger: any
+) {
+  logger.info('Group participants updated', {
+    instanceName,
+    action: eventData?.action,
+    participants: eventData?.participants?.length || 0
+  });
+}
+
+async function processPresenceUpdate(
+  supabase: SupabaseClient,
+  instanceName: string,
+  presenceData: any,
+  logger: any
+) {
+  // Presence updates are frequent - only log at debug level
+  logger.info('Presence update received', {
+    instanceName,
+    id: presenceData?.id,
+    presences: presenceData?.presences ? Object.keys(presenceData.presences) : []
+  });
 }

@@ -49,9 +49,11 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useIsSuperAdmin } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import CommissionPayments from '@/components/CommissionPayments';
 import StripeConfiguration from '@/components/StripeConfiguration';
+import { BillingDashboard } from '@/components/admin/billing/BillingDashboard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -98,6 +100,7 @@ interface Affiliate {
 }
 
 const AdminDashboard = () => {
+  const { user, isLoading: authLoading } = useAuth();
   const isSuperAdmin = useIsSuperAdmin();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,7 +149,8 @@ const AdminDashboard = () => {
     table: 'affiliates',
     queryKey: ['affiliates'],
     select: '*',
-    orderBy: [{ column: 'created_at', ascending: false }]
+    orderBy: [{ column: 'created_at', ascending: false }],
+    enabled: !!user && !authLoading && isSuperAdmin // Só executa se estiver autenticado e for super admin
   });
 
   // Query para buscar usuários usando a view admin_users_view que já combina auth.users e profiles
@@ -166,10 +170,12 @@ const AdminDashboard = () => {
       tenant_id
     `,
     orderBy: [{ column: 'created_at', ascending: false }],
-    enabled: isSuperAdmin // Só executa se for super admin
+    enabled: !!user && !authLoading && isSuperAdmin // Só executa se estiver autenticado e for super admin
   });
 
   // Debug logs para identificar problemas
+  console.log('AdminDashboard - Auth loading:', authLoading);
+  console.log('AdminDashboard - User:', user);
   console.log('AdminDashboard - Users loading:', usersLoading);
   console.log('AdminDashboard - Users with emails:', usersWithEmails);
   console.log('AdminDashboard - Users error:', usersError);
@@ -178,12 +184,25 @@ const AdminDashboard = () => {
   console.log('AdminDashboard - Affiliates error:', affiliatesError);
   console.log('AdminDashboard - Is super admin:', isSuperAdmin);
 
+  // Verificar se o usuário está autenticado
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   // Mostrar erro se não for super admin
   React.useEffect(() => {
-    if (!isSuperAdmin && !usersLoading) {
+    if (!isSuperAdmin && !usersLoading && !authLoading) {
       toast.error('Acesso negado: Apenas super administradores podem acessar esta página');
     }
-  }, [isSuperAdmin, usersLoading]);
+  }, [isSuperAdmin, usersLoading, authLoading]);
 
   // Mostrar erro se houver problema na query de usuários
   React.useEffect(() => {
@@ -669,22 +688,7 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Faturamento</CardTitle>
-              <CardDescription>
-                Visão geral do faturamento da plataforma
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <h3 className="text-lg font-semibold mb-2">Em Desenvolvimento</h3>
-                <p className="text-muted-foreground">
-                  Funcionalidades de faturamento em breve
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <BillingDashboard />
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-4">

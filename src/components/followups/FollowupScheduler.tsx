@@ -11,10 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
-import { CalendarIcon, Clock, Phone, Mail, MessageSquare, User, Repeat } from 'lucide-react';
+import { CalendarIcon, Clock, Phone, Mail, MessageSquare, User, Repeat, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useFollowups } from '@/hooks/useFollowups';
+import { useContacts } from '@/hooks/useContacts';
+import { toast } from 'sonner';
 
 interface FollowupSchedulerProps {
   onClose: () => void;
@@ -35,14 +38,12 @@ const taskTemplates = [
   'Solicitar feedback sobre atendimento'
 ];
 
-const contacts = [
-  { id: '1', name: 'Ana Silva', phone: '+55 11 99999-1111' },
-  { id: '2', name: 'Carlos Santos', phone: '+55 11 99999-2222' },
-  { id: '3', name: 'Maria Oliveira', phone: '+55 11 99999-3333' },
-  { id: '4', name: 'João Pereira', phone: '+55 11 99999-4444' }
-];
+// Contacts will be loaded from useContacts hook
 
 export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
+  const { createFollowup, loading: followupLoading } = useFollowups();
+  const { contacts, loading: contactsLoading } = useContacts();
+  
   const [formData, setFormData] = useState({
     contactId: '',
     task: '',
@@ -53,14 +54,54 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
     notes: '',
     recurring: false,
     recurringType: 'weekly',
-    recurringCount: 1
+    recurringCount: 1,
+    whatsappInstanceId: ''
   });
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSave = () => {
-    console.log('Scheduling followup:', formData);
-    onClose();
+  const handleSave = async () => {
+    if (!validateForm()) {
+      toast.error('Por favor, corrija os erros no formulário');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrors({});
+    
+    try {
+      // Combine date and time into ISO string
+      const dueDateTime = new Date(formData.date!);
+      const [hours, minutes] = formData.time.split(':');
+      dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      
+      const followupData = {
+        contact_id: formData.contactId,
+        task: formData.task,
+        type: formData.type,
+        priority: formData.priority,
+        due_date: dueDateTime.toISOString(),
+        notes: formData.notes || undefined,
+        recurring: formData.recurring,
+        recurring_type: formData.recurring ? formData.recurringType : undefined,
+        recurring_count: formData.recurring ? formData.recurringCount : undefined,
+        whatsapp_instance_id: formData.whatsappInstanceId || undefined
+      };
+
+      const result = await createFollowup(followupData);
+      
+      if (result) {
+        toast.success('Follow-up agendado com sucesso!');
+        onClose();
+      }
+    } catch (error) {
+      console.error('Erro ao agendar follow-up:', error);
+      toast.error('Erro ao agendar follow-up. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const fillTemplate = (template: string) => {
@@ -70,7 +111,56 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
   const selectedContact = contacts.find(c => c.id === formData.contactId);
   const selectedType = followupTypes.find(t => t.id === formData.type);
 
-  const canSave = formData.contactId && formData.task && formData.type && formData.date && formData.time;
+ // Validation function
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.contactId) {
+      newErrors.contactId = 'Selecione um contato';
+    }
+    
+    if (!formData.task.trim()) {
+      newErrors.task = 'Descrição da tarefa é obrigatória';
+    }
+    
+    if (!formData.type) {
+      newErrors.type = 'Selecione o tipo de follow-up';
+    }
+    
+    if (!formData.date) {
+      newErrors.date = 'Selecione uma data';
+    }
+    
+    if (!formData.time) {
+      newErrors.time = 'Selecione um horário';
+    } else {
+      // Validate time format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(formData.time)) {
+        newErrors.time = 'Formato de horário inválido (HH:MM)';
+      }
+    }
+    
+    // Validate date is not in the past
+    if (formData.date && formData.time) {
+      const selectedDateTime = new Date(formData.date);
+      const [hours, minutes] = formData.time.split(':');
+      selectedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      
+      if (selectedDateTime < new Date()) {
+        newErrors.date = 'Data e horário não podem ser no passado';
+      }
+    }
+    
+    if (formData.recurring && formData.recurringCount < 1) {
+      newErrors.recurringCount = 'Número de repetições deve ser maior que 0';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const canSave = formData.contactId && formData.task.trim() && formData.type && formData.priority && formData.date && formData.time;
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -81,26 +171,49 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
 
         <div className="space-y-6">
           {/* Seleção de contato */}
-          <div>
-            <Label htmlFor="contact">Contato</Label>
-            <Select value={formData.contactId} onValueChange={(value) => setFormData({...formData, contactId: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um contato" />
+          <div className="space-y-2">
+            <Label htmlFor="contact">Contato *</Label>
+            <Select 
+              value={formData.contactId} 
+              onValueChange={(value) => {
+                setFormData(prev => ({ ...prev, contactId: value }));
+                if (errors.contactId) {
+                  setErrors(prev => ({ ...prev, contactId: '' }));
+                }
+              }}
+              disabled={contactsLoading}
+            >
+              <SelectTrigger className={errors.contactId ? 'border-red-500' : ''}>
+                <SelectValue placeholder={contactsLoading ? "Carregando contatos..." : "Selecione um contato"} />
               </SelectTrigger>
               <SelectContent>
-                {contacts.map((contact) => (
-                  <SelectItem key={contact.id} value={contact.id}>
+                {contactsLoading ? (
+                  <SelectItem value="loading" disabled>
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      <div>
-                        <div className="font-medium">{contact.name}</div>
-                        <div className="text-xs text-muted-foreground">{contact.phone}</div>
-                      </div>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Carregando contatos...</span>
                     </div>
                   </SelectItem>
-                ))}
+                ) : contacts && contacts.length > 0 ? (
+                  contacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <span>{contact.name}</span>
+                        <span className="text-muted-foreground text-sm">({contact.phone})</span>
+                      </div>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-contacts" disabled>
+                    <span className="text-muted-foreground">Nenhum contato encontrado</span>
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {errors.contactId && (
+              <p className="text-sm text-red-500 mt-1">{errors.contactId}</p>
+            )}
           </div>
 
           {/* Tipo de follow-up */}
@@ -114,8 +227,13 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                     key={type.id}
                     className={`cursor-pointer transition-all hover:shadow-md ${
                       formData.type === type.id ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => setFormData({...formData, type: type.id})}
+                    } ${errors.type ? 'border-red-500' : ''}`}
+                    onClick={() => {
+                      setFormData({...formData, type: type.id});
+                      if (errors.type) {
+                        setErrors(prev => ({ ...prev, type: '' }));
+                      }
+                    }}
                   >
                     <CardContent className="p-4 text-center">
                       <Icon className="w-6 h-6 mx-auto mb-2 text-primary" />
@@ -134,9 +252,18 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
             <Textarea
               id="task"
               value={formData.task}
-              onChange={(e) => setFormData({...formData, task: e.target.value})}
+              onChange={(e) => {
+                setFormData({...formData, task: e.target.value});
+                if (errors.task) {
+                  setErrors(prev => ({ ...prev, task: '' }));
+                }
+              }}
               placeholder="Descreva o que deve ser feito..."
+              className={errors.task ? 'border-red-500' : ''}
             />
+            {errors.task && (
+              <p className="text-sm text-red-500 mt-1">{errors.task}</p>
+            )}
             <div className="mt-2">
               <p className="text-sm text-muted-foreground mb-2">Templates sugeridos:</p>
               <div className="flex flex-wrap gap-1">
@@ -164,7 +291,8 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.date && "text-muted-foreground"
+                      !formData.date && "text-muted-foreground",
+                      errors.date && "border-red-500"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -178,6 +306,9 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                     onSelect={(date) => {
                       setFormData({...formData, date});
                       setIsDatePickerOpen(false);
+                      if (errors.date) {
+                        setErrors(prev => ({ ...prev, date: '' }));
+                      }
                     }}
                     disabled={(date) => date < new Date()}
                     initialFocus
@@ -185,6 +316,9 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                   />
                 </PopoverContent>
               </Popover>
+              {errors.date && (
+                <p className="text-sm text-red-500 mt-1">{errors.date}</p>
+              )}
             </div>
 
             <div>
@@ -195,10 +329,18 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                   id="time"
                   type="time"
                   value={formData.time}
-                  onChange={(e) => setFormData({...formData, time: e.target.value})}
-                  className="pl-10"
+                  onChange={(e) => {
+                    setFormData({...formData, time: e.target.value});
+                    if (errors.time) {
+                      setErrors(prev => ({ ...prev, time: '' }));
+                    }
+                  }}
+                  className={`pl-10 ${errors.time ? 'border-red-500' : ''}`}
                 />
               </div>
+              {errors.time && (
+                <p className="text-sm text-red-500 mt-1">{errors.time}</p>
+              )}
             </div>
           </div>
 
@@ -253,10 +395,19 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                       id="recurringCount"
                       type="number"
                       min="1"
-                      max="12"
+                      max="365"
                       value={formData.recurringCount}
-                      onChange={(e) => setFormData({...formData, recurringCount: parseInt(e.target.value)})}
+                      onChange={(e) => {
+                        setFormData({...formData, recurringCount: parseInt(e.target.value) || 1});
+                        if (errors.recurringCount) {
+                          setErrors(prev => ({ ...prev, recurringCount: '' }));
+                        }
+                      }}
+                      className={errors.recurringCount ? 'border-red-500' : ''}
                     />
+                    {errors.recurringCount && (
+                      <p className="text-sm text-red-500 mt-1">{errors.recurringCount}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -306,12 +457,22 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
             </Card>
           )}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={!canSave}>
-              Agendar Follow-up
+            <Button 
+              onClick={handleSave} 
+              disabled={!canSave || isSubmitting || contactsLoading}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Agendando...
+                </>
+              ) : (
+                'Agendar Follow-up'
+              )}
             </Button>
           </div>
         </div>

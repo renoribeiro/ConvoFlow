@@ -16,6 +16,7 @@ interface EnvConfig {
   ENABLE_DEBUG_LOGS: boolean;
   ENABLE_CONSOLE_LOGS: boolean;
   TRACKING_DOMAIN: string;
+  STRIPE_PAYMENT_LINK: string;
 }
 
 export class EnvironmentManager {
@@ -35,9 +36,24 @@ export class EnvironmentManager {
   }
 
   private loadConfig(): EnvConfig {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    // Validate required environment variables at startup
+    if (!supabaseUrl) {
+      throw new Error(
+        'VITE_SUPABASE_URL is required. Please add it to your .env file.'
+      );
+    }
+    if (!supabaseAnonKey) {
+      throw new Error(
+        'VITE_SUPABASE_ANON_KEY is required. Please add it to your .env file.'
+      );
+    }
+
     return {
-      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'https://pqjkuwyshybxldzpfbbs.supabase.co',
-      SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxamt1d3lzaHlieGxkenBmYmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxMzQxMzAsImV4cCI6MjA2OTcxMDEzMH0.xeS8OdwOHpby2NHf942Z7i240LW1a5kT5oR-aH35sD0',
+      SUPABASE_URL: supabaseUrl,
+      SUPABASE_ANON_KEY: supabaseAnonKey,
       EVOLUTION_API_URL: import.meta.env.VITE_EVOLUTION_API_URL,
       EVOLUTION_API_KEY: import.meta.env.VITE_EVOLUTION_API_KEY,
       EVOLUTION_WEBHOOK_SECRET: import.meta.env.VITE_EVOLUTION_WEBHOOK_SECRET,
@@ -48,6 +64,7 @@ export class EnvironmentManager {
       ENABLE_DEBUG_LOGS: import.meta.env.VITE_ENABLE_DEBUG_LOGS === 'true',
       ENABLE_CONSOLE_LOGS: import.meta.env.VITE_ENABLE_CONSOLE_LOGS === 'true' || import.meta.env.DEV,
       TRACKING_DOMAIN: import.meta.env.VITE_TRACKING_DOMAIN || 'track.convoflow.com',
+      STRIPE_PAYMENT_LINK: import.meta.env.VITE_STRIPE_PAYMENT_LINK || '',
     };
   }
 

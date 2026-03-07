@@ -21,7 +21,7 @@ import { InstanceManager } from './InstanceManager';
 import { WebhookConfig } from './WebhookConfig';
 import { MessageTemplates } from './MessageTemplates';
 import { SetupWizard } from './SetupWizard';
-import { EvolutionApiSettings } from './EvolutionApiSettings';
+import { WhatsAppApiSettings } from './WhatsAppApiSettings';
 
 export const WhatsAppSettings: React.FC = () => {
   const [showSetupWizard, setShowSetupWizard] = useState(false);
@@ -180,7 +180,7 @@ export const WhatsAppSettings: React.FC = () => {
         </TabsList>
 
         <TabsContent value="evolution">
-          <EvolutionApiSettings />
+          <WhatsAppApiSettings />
         </TabsContent>
 
         <TabsContent value="instances">

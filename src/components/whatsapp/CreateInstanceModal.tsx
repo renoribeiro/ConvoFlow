@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
-import { Loader2, QrCode } from 'lucide-react';
+import { Loader2, QrCode, Webhook, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { env } from '@/lib/env';
 import { QRCodeModal } from './QRCodeModal';
 
@@ -27,9 +30,16 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
   const [showQRModal, setShowQRModal] = useState(false);
   const [createdInstanceName, setCreatedInstanceName] = useState('');
   
+  // Webhook automation states
+  const [enableWebhookAutomation, setEnableWebhookAutomation] = useState(true);
+  const [webhookStatus, setWebhookStatus] = useState<'idle' | 'configuring' | 'success' | 'error'>('idle');
+  const [webhookError, setWebhookError] = useState<string | null>(null);
+  const [retryAttempts, setRetryAttempts] = useState(3);
+  const [retryDelay, setRetryDelay] = useState(2000);
+  
   const { tenant } = useTenant();
   const { toast } = useToast();
-  const { createInstance, getQRCode } = useEvolutionApi();
+  const { createInstance, getQRCode, getDefaultWebhookUrl } = useEvolutionApi();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,10 +65,13 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
     console.log('🚀 [CreateInstanceModal] Iniciando criação de instância:', {
       name: formData.name,
       instance_key: formData.instance_key,
-      tenant_id: tenant?.id
+      tenant_id: tenant?.id,
+      enableWebhookAutomation
     });
 
     setLoading(true);
+    setWebhookStatus('idle');
+    setWebhookError(null);
 
     try {
       // Verificar se o serviço Evolution API está disponível
@@ -69,18 +82,37 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
 
       console.log('📡 [CreateInstanceModal] Criando instância na Evolution API e salvando no banco...');
       
-      // Usar apenas a função createInstance do hook que já faz tudo:
-      // 1. Cria na Evolution API
-      // 2. Salva no banco de dados
-      // 3. Atualiza a lista de instâncias
-      await createInstance(formData.instance_key, env.VITE_EVOLUTION_WEBHOOK_URL);
+      if (enableWebhookAutomation) {
+        setWebhookStatus('configuring');
+        console.log('🔗 [CreateInstanceModal] Configuração automática de webhook habilitada');
+      }
+      
+      // Usar a função createInstance com configurações de webhook
+      await createInstance(
+        formData.instance_key, 
+        import.meta.env.VITE_EVOLUTION_WEBHOOK_URL,
+        {
+          enableWebhookAutomation,
+          retryAttempts,
+          retryDelay
+        }
+      );
+      
+      if (enableWebhookAutomation) {
+        setWebhookStatus('success');
+        console.log('✅ [CreateInstanceModal] Webhook configurado automaticamente!');
+      }
       
       console.log('✅ [CreateInstanceModal] Instância criada com sucesso!');
 
       // Show success message
+      const successMessage = enableWebhookAutomation 
+        ? "Instância criada com sucesso! Webhook configurado automaticamente. Conecte seu WhatsApp."
+        : "Instância criada com sucesso! Conecte seu WhatsApp.";
+        
       toast({
         title: "Sucesso",
-        description: "Instância criada com sucesso! Conecte seu WhatsApp."
+        description: successMessage
       });
       
       // Store the created instance name and show QR modal
@@ -105,6 +137,11 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
         status: error?.response?.status
       });
       
+      if (enableWebhookAutomation && error?.message?.includes('webhook')) {
+        setWebhookStatus('error');
+        setWebhookError(error.message);
+      }
+      
       let errorMessage = 'Erro ao criar instância';
       
       // Identificar tipos específicos de erro
@@ -116,6 +153,8 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
         errorMessage = 'Erro interno do servidor Evolution API. Tente novamente.';
       } else if (error?.message?.includes('conexão')) {
         errorMessage = 'Erro de conexão com a Evolution API. Verifique se o serviço está rodando.';
+      } else if (error?.message?.includes('webhook')) {
+        errorMessage = `Instância criada, mas erro na configuração do webhook: ${error.message}`;
       } else if (error?.message) {
         errorMessage = error.message;
       }
@@ -187,17 +226,122 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
                 </p>
               </div>
 
-              {showQrCode && qrCode && (
-                <div className="space-y-2 text-center">
-                  <Label>QR Code para Conexão</Label>
-                  <div className="flex justify-center p-4 bg-white rounded-lg">
-                    <img src={qrCode} alt="QR Code" className="max-w-[200px] max-h-[200px]" />
+              {/* Webhook Automation Section */}
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Webhook className="h-4 w-4 text-blue-600" />
+                      <CardTitle className="text-sm">Configuração Automática de Webhook</CardTitle>
+                    </div>
+                    <Switch
+                      checked={enableWebhookAutomation}
+                      onCheckedChange={setEnableWebhookAutomation}
+                      disabled={loading}
+                    />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Escaneie este QR Code com o WhatsApp para conectar sua instância
-                  </p>
-                </div>
-              )}
+                  <CardDescription className="text-xs">
+                    Configura automaticamente o webhook para receber eventos do WhatsApp
+                  </CardDescription>
+                </CardHeader>
+                
+                {enableWebhookAutomation && (
+                  <CardContent className="pt-0 space-y-3">
+                    {/* Webhook Status */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-medium">Status:</Label>
+                      {webhookStatus === 'idle' && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Aguardando
+                        </Badge>
+                      )}
+                      {webhookStatus === 'configuring' && (
+                        <Badge variant="default" className="text-xs">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Configurando
+                        </Badge>
+                      )}
+                      {webhookStatus === 'success' && (
+                        <Badge variant="default" className="text-xs bg-green-600">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Configurado
+                        </Badge>
+                      )}
+                      {webhookStatus === 'error' && (
+                        <Badge variant="destructive" className="text-xs">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Erro
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Webhook URL */}
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">URL do Webhook:</Label>
+                      <div className="bg-white border rounded px-2 py-1">
+                        <code className="text-xs text-gray-600">
+                          {getDefaultWebhookUrl ? getDefaultWebhookUrl() : env.VITE_EVOLUTION_WEBHOOK_URL}
+                        </code>
+                      </div>
+                    </div>
+
+                    {/* Error Message */}
+                    {webhookError && (
+                      <div className="bg-red-50 border border-red-200 rounded p-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-red-800">Erro na configuração:</p>
+                            <p className="text-xs text-red-700 mt-1">{webhookError}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Advanced Settings */}
+                    <details className="group">
+                      <summary className="text-xs font-medium cursor-pointer text-blue-600 hover:text-blue-800">
+                        Configurações Avançadas
+                      </summary>
+                      <div className="mt-2 space-y-2 pl-4 border-l-2 border-blue-200">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">Tentativas:</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={retryAttempts}
+                              onChange={(e) => setRetryAttempts(parseInt(e.target.value) || 3)}
+                              className="h-7 text-xs"
+                              disabled={loading}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Delay (ms):</Label>
+                            <Input
+                              type="number"
+                              min="1000"
+                              max="10000"
+                              step="500"
+                              value={retryDelay}
+                              onChange={(e) => setRetryDelay(parseInt(e.target.value) || 2000)}
+                              className="h-7 text-xs"
+                              disabled={loading}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Eventos configurados: QRCODE_UPDATED, CONNECTION_UPDATE, MESSAGES_UPSERT, MESSAGES_UPDATE, SEND_MESSAGE
+                        </p>
+                      </div>
+                    </details>
+                  </CardContent>
+                )}
+              </Card>
+
+
             </div>
 
             <DialogFooter>

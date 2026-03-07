@@ -1,33 +1,53 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createLogger } from '../_shared/logger.ts'
+import { corsHeaders, DataSanitizer } from '../_shared/validation.ts'
+import { ProviderFactory } from '../_shared/provider-factory.ts'
 
 interface Job {
   id: string
   tenant_id: string
-  job_type: string
-  job_data: any
+  job_type: 'send_message' | 'campaign_message' | 'follow_up_message' | 'chatbot_response' | string
+  job_data: JobData
   current_attempts: number
 }
 
+interface JobData {
+  instanceName: string;
+  phone?: string;
+  message?: string;
+  contactId?: string;
+  campaignId?: string;
+  messageText?: string;
+  messageIndex?: number;
+  randomDelay?: number;
+  sequenceId?: string;
+  stepId?: string;
+  chatbotId?: string;
+  incomingMessage?: string;
+  [key: string]: unknown;
+}
+
 serve(async (req) => {
+  const logger = createLogger(req);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+        throw new Error("Missing Supabase configuration");
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🔄 Job worker started...')
+    logger.info('Job worker started...')
 
-    // Process jobs for a limited time (9 minutes to stay under 10min limit)
     const maxProcessingTime = 9 * 60 * 1000 // 9 minutes
     const startTime = Date.now()
 
@@ -37,42 +57,39 @@ serve(async (req) => {
 
     while (Date.now() - startTime < maxProcessingTime) {
       try {
-        // Get next job from queue
         const { data: jobs, error: dequeueError } = await supabase.rpc('dequeue_next_job', {
           p_job_types: ['send_message', 'campaign_message', 'follow_up_message', 'chatbot_response']
         })
 
         if (dequeueError) {
-          console.error('Error dequeuing job:', dequeueError)
-          await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5s before retry
+          logger.error('Error dequeuing job', { error: dequeueError })
+          await new Promise(resolve => setTimeout(resolve, 5000)) 
           continue
         }
 
         if (!jobs || jobs.length === 0) {
-          console.log('No jobs in queue, waiting...')
-          await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10s for new jobs
+          logger.debug('No jobs in queue, waiting...')
+          await new Promise(resolve => setTimeout(resolve, 10000))
           continue
         }
 
         const job: Job = jobs[0]
-        console.log(`📋 Processing job ${job.id} (${job.job_type}) - Attempt ${job.current_attempts}`)
+        logger.info(`Processing job ${job.id} (${job.job_type}) - Attempt ${job.current_attempts}`, { jobId: job.id, type: job.job_type })
 
         try {
-          await processJob(supabase, job)
+          await processJob(supabase, job, logger)
           
-          // Mark job as completed
           await supabase.rpc('complete_job', {
             p_job_id: job.id,
             p_success: true
           })
 
           successCount++
-          console.log(`✅ Job ${job.id} completed successfully`)
+          logger.info(`Job ${job.id} completed successfully`, { jobId: job.id })
 
         } catch (jobError: any) {
-          console.error(`❌ Job ${job.id} failed:`, jobError.message)
+          logger.error(`Job ${job.id} failed`, { jobId: job.id, error: jobError.message })
           
-          // Mark job as failed
           await supabase.rpc('complete_job', {
             p_job_id: job.id,
             p_success: false,
@@ -83,17 +100,15 @@ serve(async (req) => {
         }
 
         jobsProcessed++
-
-        // Small delay between jobs to prevent overwhelming
         await new Promise(resolve => setTimeout(resolve, 1000))
 
       } catch (error: any) {
-        console.error('Error in job processing loop:', error.message)
+        logger.error('Error in job processing loop', { error: error.message })
         await new Promise(resolve => setTimeout(resolve, 5000))
       }
     }
 
-    console.log(`🏁 Job worker finished. Processed: ${jobsProcessed}, Success: ${successCount}, Errors: ${errorCount}`)
+    logger.info(`Job worker finished`, { jobsProcessed, successCount, errorCount })
 
     return new Response(JSON.stringify({
       success: true,
@@ -107,7 +122,7 @@ serve(async (req) => {
     })
 
   } catch (error: any) {
-    console.error('Job worker error:', error.message)
+    logger.error('Job worker error', { error: error.message })
     
     return new Response(JSON.stringify({ 
       error: error.message,
@@ -119,24 +134,24 @@ serve(async (req) => {
   }
 })
 
-async function processJob(supabase: any, job: Job) {
+async function processJob(supabase: SupabaseClient, job: Job, logger: any) {
   const { job_type, job_data, tenant_id } = job
 
   switch (job_type) {
     case 'send_message':
-      await processSendMessage(supabase, job_data, tenant_id)
+      await processSendMessage(supabase, job_data, tenant_id, logger)
       break
       
     case 'campaign_message':
-      await processCampaignMessage(supabase, job_data, tenant_id)
+      await processCampaignMessage(supabase, job_data, tenant_id, logger)
       break
       
     case 'follow_up_message':
-      await processFollowUpMessage(supabase, job_data, tenant_id)
+      await processFollowUpMessage(supabase, job_data, tenant_id, logger)
       break
       
     case 'chatbot_response':
-      await processChatbotResponse(supabase, job_data, tenant_id)
+      await processChatbotResponse(supabase, job_data, tenant_id, logger)
       break
       
     default:
@@ -144,72 +159,60 @@ async function processJob(supabase: any, job: Job) {
   }
 }
 
-async function processSendMessage(supabase: any, jobData: any, tenantId: string) {
+async function processSendMessage(supabase: SupabaseClient, jobData: JobData, tenantId: string, logger: any) {
   const { instanceName, phone, message, contactId } = jobData
 
-  // Get Evolution API settings for tenant
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('settings')
-    .eq('id', tenantId)
+  if (!phone || !message) {
+      throw new Error("Missing phone or message in job data");
+  }
+
+  // 1. Fetch Instance Configuration (Provider Agnostic)
+  const { data: instance, error: instanceError } = await supabase
+    .from('whatsapp_instances')
+    .select('*')
+    .eq('instance_key', instanceName)
+    .eq('tenant_id', tenantId)
     .single()
 
-  if (!tenant?.settings?.evolutionApi) {
-    throw new Error('Evolution API not configured for tenant')
+  if (instanceError || !instance) {
+    throw new Error(`Instance not found: ${instanceName} (Tenant: ${tenantId})`);
   }
+  
+  // 2. Instantiate Provider
+  const provider = ProviderFactory.getProvider(instance);
 
-  const { serverUrl, apiKey } = tenant.settings.evolutionApi
+  // 3. Send Message
+  const result = await provider.sendMessage(phone, message);
 
-  // Send message via Evolution API
-  const response = await fetch(`${serverUrl}/message/sendText/${instanceName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': apiKey,
-    },
-    body: JSON.stringify({
-      number: phone,
-      text: message,
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Evolution API Error: ${errorText}`)
-  }
-
-  const result = await response.json()
-
-  // Save message to database
+  // 4. Save to Database
   if (contactId) {
-    const { data: instance } = await supabase
-      .from('whatsapp_instances')
-      .select('id')
-      .eq('instance_key', instanceName)
-      .eq('tenant_id', tenantId)
-      .single()
+    // Note: 'result.key.id' works for Evolution. Waha might return different structure.
+    // Ideally we normalize result in the provider too. For now we use best effort.
+    const messageId = result.key?.id || result.id || result.messageId || 'unknown';
 
-    if (instance) {
-      await supabase.from('messages').insert({
-        contact_id: contactId,
-        tenant_id: tenantId,
-        whatsapp_instance_id: instance.id,
-        direction: 'outbound',
-        message_type: 'text',
-        content: message,
-        evolution_message_id: result.key?.id,
-        status: 'sent',
-      })
-    }
+    await supabase.from('messages').insert({
+      contact_id: contactId,
+      tenant_id: tenantId,
+      whatsapp_instance_id: instance.id,
+      direction: 'outbound',
+      message_type: 'text',
+      content: message,
+      evolution_message_id: messageId,
+      status: 'sent',
+    })
   }
 
-  console.log(`📤 Message sent to ${phone} via ${instanceName}`)
+  logger.info(`Message sent via ${instanceName} (${instance.provider || 'evolution'})`, { phone: DataSanitizer.sanitizePhoneNumber(phone) })
 }
 
-async function processCampaignMessage(supabase: any, jobData: any, tenantId: string) {
-  const { campaignId, contactId, messageText, instanceName } = jobData
 
-  // Get contact info
+async function processCampaignMessage(supabase: SupabaseClient, jobData: JobData, tenantId: string, logger: any) {
+  const { campaignId, contactId, messageText, instanceName, messageIndex, randomDelay } = jobData
+
+  if (!contactId || !campaignId || !messageText) {
+      throw new Error("Missing required fields for campaign message");
+  }
+
   const { data: contact } = await supabase
     .from('contacts')
     .select('phone, name')
@@ -220,22 +223,47 @@ async function processCampaignMessage(supabase: any, jobData: any, tenantId: str
     throw new Error('Contact not found')
   }
 
-  // Process spintax variations in message
-  const finalMessage = processSpintax(messageText, {
+  const { data: campaign } = await supabase
+    .from('mass_message_campaigns')
+    .select('enable_message_randomization, message_templates, message_template')
+    .eq('id', campaignId)
+    .single()
+
+  if (!campaign) {
+    throw new Error('Campaign not found')
+  }
+
+  let selectedMessage = messageText
+  
+  if (campaign.enable_message_randomization && campaign.message_templates && campaign.message_templates.length > 0) {
+    if (messageIndex !== undefined && messageIndex < campaign.message_templates.length) {
+      selectedMessage = campaign.message_templates[messageIndex]
+    } else {
+      const randomIndex = Math.floor(Math.random() * campaign.message_templates.length)
+      selectedMessage = campaign.message_templates[randomIndex]
+    }
+  } else {
+    selectedMessage = campaign.message_template || messageText
+  }
+
+  const finalMessage = processSpintax(selectedMessage, {
     nome: contact.name || contact.phone,
     telefone: contact.phone,
   })
 
+  if (randomDelay && randomDelay > 0) {
+    logger.debug(`Applying random delay for campaign message`, { delay: randomDelay, phone: DataSanitizer.sanitizePhoneNumber(contact.phone) })
+    await new Promise(resolve => setTimeout(resolve, randomDelay))
+  }
+
   try {
-    // Send the message
     await processSendMessage(supabase, {
       instanceName,
       phone: contact.phone,
       message: finalMessage,
       contactId,
-    }, tenantId)
+    }, tenantId, logger)
 
-    // Update campaign execution status
     await supabase
       .from('campaign_executions')
       .update({
@@ -245,13 +273,13 @@ async function processCampaignMessage(supabase: any, jobData: any, tenantId: str
       .eq('campaign_id', campaignId)
       .eq('contact_id', contactId)
 
-    // Update campaign stats
     await supabase.rpc('increment_campaign_sent_count', {
       p_campaign_id: campaignId
     })
 
-  } catch (error) {
-    // Update campaign execution status
+    logger.info(`Campaign message sent`, { phone: DataSanitizer.sanitizePhoneNumber(contact.phone), delay: randomDelay || 0 })
+
+  } catch (error: any) {
     await supabase
       .from('campaign_executions')
       .update({
@@ -266,10 +294,11 @@ async function processCampaignMessage(supabase: any, jobData: any, tenantId: str
   }
 }
 
-async function processFollowUpMessage(supabase: any, jobData: any, tenantId: string) {
+async function processFollowUpMessage(supabase: SupabaseClient, jobData: JobData, tenantId: string, logger: any) {
   const { sequenceId, stepId, contactId, instanceName } = jobData
 
-  // Get follow-up step details
+  if (!stepId || !contactId) throw new Error("Missing stepId or contactId");
+
   const { data: step } = await supabase
     .from('follow_up_steps')
     .select('message_text, message_type, media_url')
@@ -280,7 +309,6 @@ async function processFollowUpMessage(supabase: any, jobData: any, tenantId: str
     throw new Error('Follow-up step not found')
   }
 
-  // Get contact info
   const { data: contact } = await supabase
     .from('contacts')
     .select('phone, name')
@@ -291,28 +319,25 @@ async function processFollowUpMessage(supabase: any, jobData: any, tenantId: str
     throw new Error('Contact not found')
   }
 
-  // Process message with variables
   const finalMessage = processSpintax(step.message_text, {
     nome: contact.name || contact.phone,
     telefone: contact.phone,
   })
 
-  // Send the message
   await processSendMessage(supabase, {
     instanceName,
     phone: contact.phone,
     message: finalMessage,
     contactId,
-  }, tenantId)
+  }, tenantId, logger)
 
-  console.log(`📨 Follow-up message sent to ${contact.phone}`)
+  logger.info(`Follow-up message sent`, { phone: DataSanitizer.sanitizePhoneNumber(contact.phone) })
 }
 
-async function processChatbotResponse(supabase: any, jobData: any, tenantId: string) {
-  console.log('Processing chatbot response:', jobData);
+async function processChatbotResponse(supabase: SupabaseClient, jobData: JobData, tenantId: string, logger: any) {
+  logger.debug('Processing chatbot response', { jobData });
   
   try {
-    // Get chatbot details
     const { data: chatbot, error: chatbotError } = await supabase
       .from('chatbots')
       .select('*')
@@ -323,7 +348,6 @@ async function processChatbotResponse(supabase: any, jobData: any, tenantId: str
       throw new Error(`Chatbot not found: ${chatbotError?.message}`);
     }
 
-    // Get contact details
     const { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
@@ -334,7 +358,6 @@ async function processChatbotResponse(supabase: any, jobData: any, tenantId: str
       throw new Error(`Contact not found: ${contactError?.message}`);
     }
 
-    // Process variables in the message template
     const { data: processedMessage, error: processError } = await supabase
       .rpc('process_chatbot_variables', {
         p_message_template: chatbot.response_message,
@@ -346,24 +369,20 @@ async function processChatbotResponse(supabase: any, jobData: any, tenantId: str
       throw new Error(`Variable processing failed: ${processError.message}`);
     }
 
-    // Process spintax in the processed message
     const finalMessage = processSpintax(processedMessage || chatbot.response_message);
 
-    console.log('Sending chatbot response:', {
+    logger.info('Sending chatbot response', {
       chatbotName: chatbot.name,
-      contactPhone: contact.phone,
-      message: finalMessage
+      contactPhone: DataSanitizer.sanitizePhoneNumber(contact.phone)
     });
 
-    // Send message using processSendMessage
     await processSendMessage(supabase, {
       instanceName: jobData.instanceName,
       phone: contact.phone,
       message: finalMessage,
       contactId: contact.id
-    }, tenantId);
+    }, tenantId, logger);
 
-    // Mark message as sent by bot in database
     const { data: instance } = await supabase
       .from('whatsapp_instances')
       .select('id')
@@ -385,24 +404,21 @@ async function processChatbotResponse(supabase: any, jobData: any, tenantId: str
         });
     }
 
-    console.log(`🤖 Chatbot response sent to ${contact.phone}`);
+    logger.info(`Chatbot response sent successfully`, { phone: DataSanitizer.sanitizePhoneNumber(contact.phone) });
 
   } catch (error) {
-    console.error('Error processing chatbot response:', error);
+    logger.error('Error processing chatbot response', { error });
     throw error;
   }
 }
 
-// Simple spintax processor for message variations
 function processSpintax(text: string, variables: Record<string, string> = {}): string {
   let result = text
 
-  // Replace variables first
   for (const [key, value] of Object.entries(variables)) {
     result = result.replace(new RegExp(`{{${key}}}`, 'g'), value)
   }
 
-  // Process spintax {option1|option2|option3}
   const spintaxRegex = /{([^}]+)}/g
   result = result.replace(spintaxRegex, (match, options) => {
     const choices = options.split('|')

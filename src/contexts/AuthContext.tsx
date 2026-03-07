@@ -31,11 +31,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     console.log('[AuthContext] Initializing auth state listener');
-    
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('[AuthContext] Auth state changed:', { event, hasSession: !!session, userId: session?.user?.id });
+
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
@@ -53,13 +54,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Debug log for current auth state
-  console.log('[AuthContext] Current state:', { 
-    hasUser: !!user, 
-    hasSession: !!session, 
-    isLoading, 
-    userId: user?.id 
-  });
+  // Debug log for current auth state - only in development
+  if (import.meta.env.DEV) {
+    console.log('[AuthContext] Current state:', {
+      hasUser: !!user,
+      hasSession: !!session,
+      isLoading,
+      userId: user?.id
+    });
+  }
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -94,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const redirectUrl = `${window.location.origin}/`;
-      
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -132,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         toast({
           title: "Erro ao sair",

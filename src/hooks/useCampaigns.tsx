@@ -12,6 +12,10 @@ export interface Campaign {
   target_tags: string[] | null;
   target_stages: string[] | null;
   delay_between_messages: number | null;
+  enable_message_randomization: boolean | null;
+  min_delay_seconds: number | null;
+  max_delay_seconds: number | null;
+  message_templates: string[] | null;
   total_recipients: number | null;
   sent_count: number | null;
   failed_count: number | null;
@@ -66,6 +70,10 @@ export function useCampaigns() {
     target_tags?: string[];
     target_stages?: string[];
     delay_between_messages?: number;
+    enable_message_randomization?: boolean;
+    min_delay_seconds?: number;
+    max_delay_seconds?: number;
+    message_templates?: string[];
   }) => {
     try {
       const { data, error } = await supabase

@@ -1,14 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createLogger } from '../_shared/logger.ts';
+import { corsHeaders } from '../_shared/validation.ts';
 
 interface AutomationTrigger {
   type: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   contact_id?: string;
   message_id?: string;
 }
@@ -18,8 +15,8 @@ interface AutomationFlow {
   name: string;
   active: boolean;
   trigger_type: string;
-  trigger_config: Record<string, any>;
-  steps: any[];
+  trigger_config: Record<string, unknown>;
+  steps: any[]; // Kept as any for flexibility, but could be strictly typed if schema is known
 }
 
 interface AutomationExecution {
@@ -28,24 +25,54 @@ interface AutomationExecution {
   contact_id: string;
   status: string;
   current_step: number;
-  execution_data: Record<string, any>;
+  execution_data: Record<string, unknown>;
+  automation_flows: AutomationFlow;
+}
+
+interface StepConfig {
+  type?: string;
+  message_template_id?: string;
+  custom_message?: string;
+  stage_id?: string;
+  delay_hours?: number;
+  followup_type?: string;
+  message?: string;
+  tag_name?: string;
+  keywords?: string[];
+  exact_match?: boolean;
+  from_stage?: string;
+  to_stage?: string;
+  source?: string;
+  [key: string]: unknown;
+}
+
+interface AutomationStep {
+  id: string;
+  type: string;
+  config: StepConfig;
 }
 
 serve(async (req) => {
+  const logger = createLogger(req);
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Missing Supabase configuration');
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
     const { trigger }: { trigger: AutomationTrigger } = await req.json();
 
-    console.log('Processing automation trigger:', trigger);
+    logger.info('Processing automation trigger', { triggerType: trigger.type });
 
     // Buscar fluxos ativos com o tipo de gatilho correspondente
     const { data: flows, error: flowsError } = await supabaseClient
@@ -59,7 +86,7 @@ serve(async (req) => {
     }
 
     if (!flows || flows.length === 0) {
-      console.log('No active flows found for trigger type:', trigger.type);
+      logger.info('No active flows found for trigger type', { type: trigger.type });
       return new Response(
         JSON.stringify({ message: 'No active flows found', triggered_flows: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -72,8 +99,8 @@ serve(async (req) => {
     for (const flow of flows) {
       try {
         // Verificar se o gatilho deve ser executado baseado na configuração
-        if (await shouldExecuteTrigger(flow.trigger_config, trigger.data)) {
-          console.log(`Triggering flow: ${flow.name} (${flow.id})`);
+        if (await shouldExecuteTrigger(flow.trigger_config, trigger.data, logger)) {
+          logger.info('Triggering flow', { flowName: flow.name, flowId: flow.id });
 
           // Criar nova execução
           const { data: execution, error: executionError } = await supabaseClient
@@ -90,7 +117,7 @@ serve(async (req) => {
             .single();
 
           if (executionError) {
-            console.error(`Error creating execution for flow ${flow.id}:`, executionError);
+            logger.error(`Error creating execution for flow ${flow.id}`, { error: executionError });
             continue;
           }
 
@@ -101,10 +128,10 @@ serve(async (req) => {
           });
 
           // Iniciar execução do primeiro step
-          await executeNextStep(supabaseClient, execution.id);
+          await executeNextStep(supabaseClient, execution.id, logger);
         }
-      } catch (error) {
-        console.error(`Error processing flow ${flow.id}:`, error);
+      } catch (error: any) {
+        logger.error(`Error processing flow ${flow.id}`, { error: error.message });
       }
     }
 
@@ -117,8 +144,8 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Error processing automation trigger:', error);
+  } catch (error: any) {
+    logger.error('Error processing automation trigger', { error: error.message });
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
@@ -131,8 +158,9 @@ serve(async (req) => {
 
 // Função para verificar se um gatilho deve ser executado
 async function shouldExecuteTrigger(
-  triggerConfig: Record<string, any>,
-  triggerData: Record<string, any>
+  triggerConfig: StepConfig,
+  triggerData: Record<string, any>,
+  logger: any
 ): Promise<boolean> {
   try {
     // Para gatilho de mensagem recebida
@@ -180,16 +208,17 @@ async function shouldExecuteTrigger(
     
     // Para outros tipos de gatilho, executar sempre por padrão
     return true;
-  } catch (error) {
-    console.error('Error evaluating trigger condition:', error);
+  } catch (error: any) {
+    logger.error('Error evaluating trigger condition', { error: error.message });
     return false;
   }
 }
 
 // Função para executar o próximo step de uma automação
 async function executeNextStep(
-  supabaseClient: any,
-  executionId: string
+  supabaseClient: SupabaseClient,
+  executionId: string,
+  logger: any
 ): Promise<boolean> {
   try {
     // Buscar dados da execução
@@ -204,18 +233,20 @@ async function executeNextStep(
       .single();
 
     if (executionError || !execution) {
-      console.error('Execution not found or not in valid state:', executionError);
+      logger.error('Execution not found or not in valid state', { executionId, error: executionError });
       return false;
     }
 
+    const executionData = execution as unknown as AutomationExecution;
+
     // Parsear steps
-    let steps;
+    let steps: AutomationStep[];
     try {
-      steps = typeof execution.automation_flows.steps === 'string' 
-        ? JSON.parse(execution.automation_flows.steps)
-        : execution.automation_flows.steps;
-    } catch (error) {
-      console.error('Error parsing steps:', error);
+      steps = typeof executionData.automation_flows.steps === 'string' 
+        ? JSON.parse(executionData.automation_flows.steps)
+        : executionData.automation_flows.steps;
+    } catch (error: any) {
+      logger.error('Error parsing steps', { error: error.message });
       await supabaseClient
         .from('automation_executions')
         .update({ 
@@ -227,7 +258,7 @@ async function executeNextStep(
     }
 
     // Verificar se há mais steps para executar
-    if (execution.current_step >= steps.length) {
+    if (executionData.current_step >= steps.length) {
       await supabaseClient
         .from('automation_executions')
         .update({ 
@@ -239,7 +270,7 @@ async function executeNextStep(
     }
 
     // Obter step atual
-    const currentStep = steps[execution.current_step];
+    const currentStep = steps[executionData.current_step];
     
     // Criar log do step
     const { data: stepLog, error: stepLogError } = await supabaseClient
@@ -250,13 +281,13 @@ async function executeNextStep(
         step_type: currentStep.type,
         step_config: currentStep.config,
         status: 'running',
-        input_data: execution.execution_data
+        input_data: executionData.execution_data
       })
       .select()
       .single();
 
     if (stepLogError) {
-      console.error('Error creating step log:', stepLogError);
+      logger.error('Error creating step log', { error: stepLogError });
     }
 
     // Atualizar status da execução
@@ -270,8 +301,9 @@ async function executeNextStep(
       supabaseClient,
       currentStep.config.type || currentStep.type,
       currentStep.config,
-      execution.contact_id,
-      execution.execution_data
+      executionData.contact_id,
+      executionData.execution_data,
+      logger
     );
 
     // Atualizar log do step
@@ -290,11 +322,11 @@ async function executeNextStep(
       // Avançar para próximo step
       await supabaseClient
         .from('automation_executions')
-        .update({ current_step: execution.current_step + 1 })
+        .update({ current_step: executionData.current_step + 1 })
         .eq('id', executionId);
 
       // Executar próximo step recursivamente (com delay para evitar stack overflow)
-      setTimeout(() => executeNextStep(supabaseClient, executionId), 1000);
+      setTimeout(() => executeNextStep(supabaseClient, executionId, logger), 1000);
     } else {
       // Marcar execução como falha
       await supabaseClient
@@ -307,8 +339,8 @@ async function executeNextStep(
     }
 
     return stepResult;
-  } catch (error) {
-    console.error('Error executing step:', error);
+  } catch (error: any) {
+    logger.error('Error executing step', { error: error.message });
     
     // Marcar execução como falha
     await supabaseClient
@@ -325,48 +357,50 @@ async function executeNextStep(
 
 // Função para executar steps por tipo
 async function executeStepByType(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stepType: string,
-  stepConfig: Record<string, any>,
+  stepConfig: StepConfig,
   contactId: string,
-  executionData: Record<string, any>
+  executionData: Record<string, unknown>,
+  logger: any
 ): Promise<boolean> {
   try {
-    console.log(`Executing step type: ${stepType}`, stepConfig);
+    logger.info(`Executing step type: ${stepType}`, { config: stepConfig });
 
     switch (stepType) {
       case 'send_message':
-        return await scheduleSendMessage(supabaseClient, stepConfig, contactId);
+        return await scheduleSendMessage(supabaseClient, stepConfig, contactId, logger);
       
       case 'change_funnel_stage':
-        return await changeFunnelStage(supabaseClient, stepConfig, contactId);
+        return await changeFunnelStage(supabaseClient, stepConfig, contactId, logger);
       
       case 'schedule_followup':
-        return await scheduleFollowup(supabaseClient, stepConfig, contactId);
+        return await scheduleFollowup(supabaseClient, stepConfig, contactId, logger);
       
       case 'add_tag':
-        return await addContactTag(supabaseClient, stepConfig, contactId);
+        return await addContactTag(supabaseClient, stepConfig, contactId, logger);
       
       case 'delay':
         // Para delays, apenas retornar true (implementação real precisaria de agendamento)
-        console.log('Delay step executed (simulated)');
+        logger.info('Delay step executed (simulated)');
         return true;
       
       default:
-        console.error('Unknown step type:', stepType);
+        logger.error('Unknown step type', { stepType });
         return false;
     }
-  } catch (error) {
-    console.error(`Error executing step type ${stepType}:`, error);
+  } catch (error: any) {
+    logger.error(`Error executing step type ${stepType}`, { error: error.message });
     return false;
   }
 }
 
 // Função para agendar envio de mensagem
 async function scheduleSendMessage(
-  supabaseClient: any,
-  stepConfig: Record<string, any>,
-  contactId: string
+  supabaseClient: SupabaseClient,
+  stepConfig: StepConfig,
+  contactId: string,
+  logger: any
 ): Promise<boolean> {
   try {
     let messageContent = '';
@@ -387,7 +421,7 @@ async function scheduleSendMessage(
     }
     
     if (!messageContent) {
-      console.error('No message content found');
+      logger.error('No message content found');
       return false;
     }
     
@@ -403,23 +437,24 @@ async function scheduleSendMessage(
       });
     
     if (error) {
-      console.error('Error scheduling message:', error);
+      logger.error('Error scheduling message', { error });
       return false;
     }
     
-    console.log('Message scheduled successfully');
+    logger.info('Message scheduled successfully');
     return true;
-  } catch (error) {
-    console.error('Error in scheduleSendMessage:', error);
+  } catch (error: any) {
+    logger.error('Error in scheduleSendMessage', { error: error.message });
     return false;
   }
 }
 
 // Função para alterar estágio do funil
 async function changeFunnelStage(
-  supabaseClient: any,
-  stepConfig: Record<string, any>,
-  contactId: string
+  supabaseClient: SupabaseClient,
+  stepConfig: StepConfig,
+  contactId: string,
+  logger: any
 ): Promise<boolean> {
   try {
     const { error } = await supabaseClient
@@ -431,23 +466,24 @@ async function changeFunnelStage(
       .eq('id', contactId);
     
     if (error) {
-      console.error('Error changing funnel stage:', error);
+      logger.error('Error changing funnel stage', { error });
       return false;
     }
     
-    console.log('Funnel stage changed successfully');
+    logger.info('Funnel stage changed successfully');
     return true;
-  } catch (error) {
-    console.error('Error in changeFunnelStage:', error);
+  } catch (error: any) {
+    logger.error('Error in changeFunnelStage', { error: error.message });
     return false;
   }
 }
 
 // Função para agendar follow-up
 async function scheduleFollowup(
-  supabaseClient: any,
-  stepConfig: Record<string, any>,
-  contactId: string
+  supabaseClient: SupabaseClient,
+  stepConfig: StepConfig,
+  contactId: string,
+  logger: any
 ): Promise<boolean> {
   try {
     const delayHours = stepConfig.delay_hours || 24;
@@ -469,29 +505,30 @@ async function scheduleFollowup(
       });
     
     if (error) {
-      console.error('Error scheduling followup:', error);
+      logger.error('Error scheduling followup', { error });
       return false;
     }
     
-    console.log('Followup scheduled successfully');
+    logger.info('Followup scheduled successfully');
     return true;
-  } catch (error) {
-    console.error('Error in scheduleFollowup:', error);
+  } catch (error: any) {
+    logger.error('Error in scheduleFollowup', { error: error.message });
     return false;
   }
 }
 
 // Função para adicionar tag ao contato
 async function addContactTag(
-  supabaseClient: any,
-  stepConfig: Record<string, any>,
-  contactId: string
+  supabaseClient: SupabaseClient,
+  stepConfig: StepConfig,
+  contactId: string,
+  logger: any
 ): Promise<boolean> {
   try {
     const tagName = stepConfig.tag_name;
     
     if (!tagName) {
-      console.error('No tag name provided');
+      logger.error('No tag name provided');
       return false;
     }
     
@@ -503,7 +540,7 @@ async function addContactTag(
       .single();
     
     if (!contact) {
-      console.error('Contact not found');
+      logger.error('Contact not found');
       return false;
     }
     
@@ -520,17 +557,15 @@ async function addContactTag(
         .eq('id', contactId);
       
       if (error) {
-        console.error('Error adding tag:', error);
+        logger.error('Error adding tag', { error });
         return false;
       }
     }
     
-    console.log('Tag added successfully');
+    logger.info('Tag added successfully');
     return true;
-  } catch (error) {
-    console.error('Error in addContactTag:', error);
+  } catch (error: any) {
+    logger.error('Error in addContactTag', { error: error.message });
     return false;
   }
 }
-
-console.log('Automation processor function started');

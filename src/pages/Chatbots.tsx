@@ -78,19 +78,19 @@ const Chatbots = () => {
     chatbot: Chatbot | null;
   }>({ isOpen: false, chatbot: null });
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Função para obter schema de validação baseado na operação
   const getValidationSchema = () => {
     return editingChatbot ? ChatbotUpdateSchema : ChatbotCreateSchema;
   };
-  
+
   // Função para validar campo individual
   const validateField = async (field: string, value: any) => {
     try {
       setIsValidating(true);
       const schema = getValidationSchema();
       const fieldSchema = schema.shape[field as keyof typeof schema.shape];
-      
+
       if (fieldSchema) {
         await fieldSchema.parseAsync(value);
         setValidationErrors(prev => {
@@ -103,7 +103,7 @@ const Chatbots = () => {
       if (error instanceof z.ZodError) {
         const errorMessage = error.errors[0]?.message || 'Erro de validação';
         setValidationErrors(prev => ({ ...prev, [field]: errorMessage }));
-        
+
         logger.warn('Erro de validação de campo', {
           category: 'validation',
           field,
@@ -115,7 +115,7 @@ const Chatbots = () => {
       setIsValidating(false);
     }
   };
-  
+
   // Função para validar formulário completo
   const validateForm = async (data: any) => {
     try {
@@ -132,7 +132,7 @@ const Chatbots = () => {
           errors[field] = err.message;
         });
         setValidationErrors(errors);
-        
+
         logger.error('Erro de validação do formulário de chatbot', {
           category: 'validation',
           errors: error.errors,
@@ -142,7 +142,7 @@ const Chatbots = () => {
             hasResponse: !!data.response_message
           }
         });
-        
+
         toast.error('Por favor, corrija os erros no formulário');
       }
       return false;
@@ -284,7 +284,7 @@ const Chatbots = () => {
         operation: editingChatbot ? 'update' : 'create',
         error: error.message
       });
-      
+
       toast({
         title: "Erro ao salvar chatbot",
         description: error.message,
@@ -297,7 +297,7 @@ const Chatbots = () => {
     try {
       console.log('🔧 handleEdit chamado:', { chatbot, showCreateModal });
       setEditingChatbot(chatbot);
-      
+
       const editFormData = {
         name: chatbot.name || '',
         description: chatbot.description || '',
@@ -310,11 +310,11 @@ const Chatbots = () => {
         is_active: chatbot.is_active ?? true,
         whatsapp_instance_id: chatbot.whatsapp_instance_id || ''
       };
-      
+
       setFormData(editFormData);
       setShowCreateModal(true);
       console.log('🔧 Modal de edição aberto:', { editFormData, showCreateModal: true });
-      
+
       logger.info('Abrindo modal de edição de chatbot', {
         category: 'chatbot_management',
         action: 'edit_chatbot',
@@ -328,7 +328,7 @@ const Chatbots = () => {
         chatbotId: chatbot.id,
         error: error.message
       });
-      
+
       toast({
         title: "Erro ao editar chatbot",
         description: "Não foi possível abrir o formulário de edição",
@@ -373,7 +373,7 @@ const Chatbots = () => {
 
     try {
       setIsDeleting(true);
-      
+
       logger.info('Iniciando exclusão de chatbot', {
         category: 'chatbot_management',
         action: 'delete_chatbot',
@@ -449,9 +449,7 @@ const Chatbots = () => {
     );
   }
 
-  console.log('🎨 Renderizando componente Chatbots - showCreateModal:', showCreateModal);
-  console.log('📊 Total de chatbots:', chatbots.length);
-  console.log('✏️ Chatbot sendo editado:', editingChatbot);
+
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -463,11 +461,9 @@ const Chatbots = () => {
           { label: "Chatbots" }
         ]}
         actions={
-          <Button onClick={() => { 
-            console.log('🆕 Botão Novo Chatbot clicado - Estado atual:', { showCreateModal });
-            resetForm(); 
+          <Button onClick={() => {
+            resetForm();
             setShowCreateModal(true);
-            console.log('🆕 Modal deve estar aberto agora:', { showCreateModal: true });
           }}>
             <Plus className="h-4 w-4 mr-2" />
             Novo Chatbot
@@ -529,10 +525,8 @@ const Chatbots = () => {
                 Crie seu primeiro chatbot para começar a responder automaticamente às mensagens do WhatsApp
               </p>
               <Button onClick={() => {
-                console.log('🎯 Botão Criar Primeiro Chatbot clicado - Estado atual:', { showCreateModal });
                 resetForm();
                 setShowCreateModal(true);
-                console.log('🎯 Modal deve estar aberto agora:', { showCreateModal: true });
               }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Chatbot
@@ -599,7 +593,7 @@ const Chatbots = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div>
                   <h4 className="font-medium mb-2">Resposta ({chatbot.response_type}):</h4>
                   <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
@@ -633,12 +627,12 @@ const Chatbots = () => {
       />
 
       {/* Modal de Criação/Edição de Chatbot */}
-      <Dialog 
-         open={showCreateModal} 
-         onOpenChange={setShowCreateModal}
+      <Dialog
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
       >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogHeader>
             <DialogTitle>
               {editingChatbot ? 'Editar Chatbot' : 'Criar Novo Chatbot'}
             </DialogTitle>
@@ -695,7 +689,7 @@ const Chatbots = () => {
                 <Label htmlFor="trigger_type">Tipo de Gatilho</Label>
                 <Select
                   value={formData.trigger_type}
-                  onValueChange={(value: 'keyword' | 'all') => 
+                  onValueChange={(value: 'keyword' | 'all') =>
                     setFormData(prev => ({ ...prev, trigger_type: value }))
                   }
                 >
@@ -712,7 +706,7 @@ const Chatbots = () => {
                 <Label htmlFor="whatsapp_instance">Instância WhatsApp</Label>
                 <Select
                   value={whatsappInstances.some(i => i.id === formData.whatsapp_instance_id) ? formData.whatsapp_instance_id : ''}
-                  onValueChange={(value) => 
+                  onValueChange={(value) =>
                     setFormData(prev => ({ ...prev, whatsapp_instance_id: value }))
                   }
                 >
@@ -763,7 +757,7 @@ const Chatbots = () => {
               <Label htmlFor="response_type">Tipo de Resposta</Label>
               <Select
                 value={formData.response_type}
-                onValueChange={(value: 'text' | 'image' | 'document') => 
+                onValueChange={(value: 'text' | 'image' | 'document') =>
                   setFormData(prev => ({ ...prev, response_type: value }))
                 }
               >
@@ -808,7 +802,7 @@ const Chatbots = () => {
               <Switch
                 id="is_active"
                 checked={formData.is_active}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setFormData(prev => ({ ...prev, is_active: checked }))
                 }
               />

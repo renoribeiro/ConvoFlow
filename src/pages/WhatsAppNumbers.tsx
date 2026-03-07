@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
 import { WebhookConfigModal } from '@/components/whatsapp/WebhookConfigModal';
+import { WebhookDashboard } from '@/components/webhook/WebhookDashboard';
 import { EnvironmentDebug } from '@/components/debug/EnvironmentDebug';
 import { SupabaseDebug } from '@/components/debug/SupabaseDebug';
 import { format } from 'date-fns';
@@ -320,10 +321,14 @@ export default function WhatsAppNumbers() {
       />
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="instances" className="flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
             Instâncias
+          </TabsTrigger>
+          <TabsTrigger value="monitoring" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Monitoramento
           </TabsTrigger>
           <TabsTrigger value="debug" className="flex items-center gap-2">
             <Bug className="h-4 w-4" />
@@ -494,6 +499,10 @@ export default function WhatsAppNumbers() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="monitoring" className="space-y-6">
+          <WebhookDashboard />
+        </TabsContent>
+        
         <TabsContent value="debug" className="space-y-6">
           <div className="grid gap-6">
             <Card>
@@ -504,8 +513,8 @@ export default function WhatsAppNumbers() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <EnvironmentDebug />
-                <SupabaseDebug />
+                {/* <EnvironmentDebug /> */}
+                {/* <SupabaseDebug /> */}
               </CardContent>
             </Card>
           </div>

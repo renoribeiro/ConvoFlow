@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw, Home, Bug } from 'lucide-react';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { captureError, addBreadcrumb } from '@/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -28,8 +29,8 @@ class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(error: Error): State {
     // Gerar ID único para o erro
     const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    return { 
-      hasError: true, 
+    return {
+      hasError: true,
       error,
       errorId
     };
@@ -37,7 +38,13 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const { onError, level = 'component' } = this.props;
-    
+
+    // Add breadcrumb for debugging
+    addBreadcrumb('Error boundary triggered', 'error', {
+      level,
+      errorId: this.state.errorId,
+    });
+
     // Log do erro
     console.error('Error caught by boundary:', {
       error: error.message,
@@ -47,51 +54,35 @@ class ErrorBoundary extends Component<Props, State> {
       timestamp: new Date().toISOString(),
       errorId: this.state.errorId
     });
-    
+
     // Callback personalizado
     if (onError) {
       onError(error, errorInfo);
     }
-    
-    // Enviar erro para serviço de monitoramento em produção
+
+    // Report error to Sentry (in production)
     if (import.meta.env.PROD) {
       this.reportError(error, errorInfo);
     }
-    
+
     this.setState({ errorInfo });
   }
 
-  private reportError = async (error: Error, errorInfo: ErrorInfo) => {
-    try {
-      // Aqui você pode integrar com Sentry, LogRocket, ou outro serviço
-      const errorReport = {
-        message: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack,
-        userAgent: navigator.userAgent,
-        url: window.location.href,
-        timestamp: new Date().toISOString(),
-        errorId: this.state.errorId,
-        level: this.props.level
-      };
-      
-      // Enviar para endpoint de logging
-      await fetch('/api/errors', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(errorReport)
-      });
-    } catch (reportingError) {
-      console.error('Failed to report error:', reportingError);
-    }
+  private reportError = (error: Error, errorInfo: ErrorInfo) => {
+    // Use Sentry for error reporting
+    captureError(error, {
+      componentStack: errorInfo.componentStack,
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      errorId: this.state.errorId,
+      level: this.props.level,
+    });
   };
 
   handleReset = () => {
-    this.setState({ 
-      hasError: false, 
-      error: undefined, 
+    this.setState({
+      hasError: false,
+      error: undefined,
       errorInfo: undefined,
       errorId: undefined
     });
@@ -109,7 +100,7 @@ class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       const { fallback, showDetails = false, level = 'component' } = this.props;
       const { error, errorInfo, errorId } = this.state;
-      
+
       // Usar fallback customizado se fornecido
       if (fallback) {
         return fallback;
@@ -132,7 +123,7 @@ class ErrorBoundary extends Component<Props, State> {
                 <p className="text-gray-600 text-center">
                   Encontramos um erro inesperado. Nossa equipe foi notificada e está trabalhando para resolver o problema.
                 </p>
-                
+
                 {showDetails && error && (
                   <Alert variant="destructive">
                     <Bug className="h-4 w-4" />
@@ -147,9 +138,9 @@ class ErrorBoundary extends Component<Props, State> {
                     </AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button 
+                  <Button
                     onClick={this.handleReload}
                     className="flex-1"
                     variant="default"
@@ -157,7 +148,7 @@ class ErrorBoundary extends Component<Props, State> {
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Recarregar Página
                   </Button>
-                  <Button 
+                  <Button
                     onClick={this.handleGoHome}
                     variant="outline"
                     className="flex-1"
@@ -181,15 +172,15 @@ class ErrorBoundary extends Component<Props, State> {
               <AlertDescription className="mt-2">
                 <div className="space-y-3">
                   <p>Esta página encontrou um problema e não pode ser carregada.</p>
-                  
+
                   {showDetails && error && (
                     <div className="p-2 bg-gray-100 rounded text-xs font-mono">
                       {error.message}
                     </div>
                   )}
-                  
+
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={this.handleReset}
                       variant="outline"
                       size="sm"
@@ -198,7 +189,7 @@ class ErrorBoundary extends Component<Props, State> {
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Tentar Novamente
                     </Button>
-                    <Button 
+                    <Button
                       onClick={this.handleGoHome}
                       variant="outline"
                       size="sm"
@@ -223,7 +214,7 @@ class ErrorBoundary extends Component<Props, State> {
             <AlertDescription className="ml-2">
               <div className="flex items-center justify-between">
                 <span>Componente indisponível temporariamente</span>
-                <Button 
+                <Button
                   onClick={this.handleReset}
                   variant="ghost"
                   size="sm"
@@ -253,15 +244,15 @@ export const withErrorBoundary = <P extends object>(
       <Component {...props} />
     </ErrorBoundary>
   );
-  
+
   WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;
-  
+
   return WrappedComponent;
 };
 
 // Error Boundary específico para formulários
 export const FormErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
-  <ErrorBoundary 
+  <ErrorBoundary
     level="component"
     fallback={
       <Alert variant="destructive">
@@ -278,7 +269,7 @@ export const FormErrorBoundary: React.FC<{ children: ReactNode }> = ({ children 
 
 // Error Boundary específico para listas/tabelas
 export const ListErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
-  <ErrorBoundary 
+  <ErrorBoundary
     level="component"
     fallback={
       <div className="text-center py-8">

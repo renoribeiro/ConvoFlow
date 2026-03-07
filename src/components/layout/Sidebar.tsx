@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsSuperAdmin } from '@/contexts/TenantContext';
+import { useModules } from '@/hooks/useModules';
 import { 
   MessageSquare, 
   BarChart3, 
@@ -20,7 +21,8 @@ import {
   LogOut,
   Workflow,
   Shield,
-  Smartphone
+  Smartphone,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,35 +32,60 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const baseNavigationItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-  { name: 'Conversas', href: '/dashboard/conversations', icon: MessageSquare },
-  { name: 'Contatos', href: '/dashboard/contacts', icon: Users },
-  { name: 'Funil de Vendas', href: '/dashboard/funnel', icon: Target },
-  { name: 'Rastreamento', href: '/dashboard/tracking', icon: TrendingUp },
-  { name: 'Relatórios', href: '/dashboard/reports', icon: FileText },
-  { name: 'Chatbots', href: '/dashboard/chatbots', icon: Bot },
-  { name: 'Campanhas', href: '/dashboard/campaigns', icon: Megaphone },
-  { name: 'Follow-ups', href: '/dashboard/followups', icon: UserCheck },
-  { name: 'Automação', href: '/dashboard/automation', icon: Workflow },
-  { name: 'Números WhatsApp', href: '/dashboard/whatsapp-numbers', icon: Smartphone },
-  { name: 'Configurações', href: '/dashboard/settings', icon: Settings },
+const allNavigationItems = [
+  { name: 'Dashboard', href: '/dashboard', icon: BarChart3, moduleName: null }, // Dashboard sempre visível
+  { name: 'Conversas', href: '/dashboard/conversations', icon: MessageSquare, moduleName: 'conversations' },
+  { name: 'Contatos', href: '/dashboard/contacts', icon: Users, moduleName: 'contacts' },
+  { name: 'Funil de Vendas', href: '/dashboard/funnel', icon: Target, moduleName: 'funnel' },
+  { name: 'Rastreamento', href: '/dashboard/tracking', icon: TrendingUp, moduleName: 'tracking' },
+  { name: 'Relatórios', href: '/dashboard/reports', icon: FileText, moduleName: 'reports' },
+  { name: 'Chatbots', href: '/dashboard/chatbots', icon: Bot, moduleName: 'chatbots' },
+  { name: 'Campanhas', href: '/dashboard/campaigns', icon: Megaphone, moduleName: 'campaigns' },
+  { name: 'Follow-ups', href: '/dashboard/followups', icon: UserCheck, moduleName: 'followups' },
+  { name: 'Automação', href: '/dashboard/automation', icon: Workflow, moduleName: 'automation' },
+  { name: 'Números WhatsApp', href: '/dashboard/whatsapp-numbers', icon: Smartphone, moduleName: 'whatsapp-numbers' },
+  { name: 'Configurações', href: '/dashboard/settings', icon: Settings, moduleName: null }, // Configurações sempre visível
 ];
 
-const adminNavigationItem = {
-  name: 'Administração',
-  href: '/dashboard/admin',
-  icon: Shield
-};
+const adminNavigationItems = [
+  {
+    name: 'Administração',
+    href: '/dashboard/admin',
+    icon: Shield
+  }
+];
 
 export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
   const { logout } = useAuth();
   const isSuperAdmin = useIsSuperAdmin();
+  const { visibleModules, isLoading } = useModules();
   
-  // Construir lista de navegação baseada no role do usuário
-  const navigationItems = isSuperAdmin 
-    ? [...baseNavigationItems, adminNavigationItem]
-    : baseNavigationItems;
+  // Construir lista de navegação baseada nos módulos visíveis
+  const getVisibleNavigationItems = () => {
+    if (isLoading) return allNavigationItems; // Mostrar todos enquanto carrega
+    
+    const visibleItems = allNavigationItems.filter(item => {
+      // Itens sem moduleName (Dashboard, Configurações) sempre visíveis
+      if (!item.moduleName) return true;
+      
+      // Super admin vê todos os módulos
+      if (isSuperAdmin) return true;
+      
+      // Usuários normais veem apenas módulos habilitados
+      return visibleModules.some(module => 
+        module.module_name === item.moduleName && module.is_enabled
+      );
+    });
+    
+    // Adicionar itens de administração para super admins
+    if (isSuperAdmin) {
+      visibleItems.push(...adminNavigationItems);
+    }
+    
+    return visibleItems;
+  };
+  
+  const navigationItems = getVisibleNavigationItems();
   
   return (
     <div className={cn(

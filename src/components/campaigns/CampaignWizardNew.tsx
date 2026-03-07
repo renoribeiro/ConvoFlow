@@ -66,6 +66,10 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
     scheduled_at: null as Date | null,
     delay_between_messages: 30,
     media_url: '',
+    enable_message_randomization: false,
+    min_delay_seconds: 0,
+    max_delay_seconds: 15,
+    message_templates: [] as string[]
   });
 
   const [previewData, setPreviewData] = useState({
@@ -228,10 +232,10 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
       if (!profile) throw new Error('Perfil não encontrado');
 
       // Create campaign
-      const { data: campaign, error: campaignError } = await supabase
+      const { data: campaign, error } = await supabase
         .from('mass_message_campaigns')
         .insert({
-          tenant_id: profile.tenant_id,
+          tenant_id: user.user_metadata.tenant_id,
           name: campaignData.name,
           description: campaignData.description,
           message_template: campaignData.message_template,
@@ -241,12 +245,15 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
           scheduled_at: campaignData.scheduled_at?.toISOString(),
           delay_between_messages: campaignData.delay_between_messages,
           media_url: campaignData.media_url || null,
-          status: 'draft',
+          enable_message_randomization: campaignData.enable_message_randomization,
+          min_delay_seconds: campaignData.min_delay_seconds,
+          max_delay_seconds: campaignData.max_delay_seconds,
+          message_templates: campaignData.message_templates.filter(t => t.trim() !== '')
         })
         .select()
         .single();
 
-      if (campaignError) throw campaignError;
+      if (error) throw error;
 
       // Schedule campaign messages
       const { data: scheduledCount, error: scheduleError } = await supabase
@@ -391,6 +398,113 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
                 Recomendado: 30-60 segundos para evitar bloqueios
               </p>
             </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="randomization"
+                  checked={campaignData.enable_message_randomization}
+                  onChange={(e) => setCampaignData(prev => ({
+                    ...prev,
+                    enable_message_randomization: e.target.checked
+                  }))}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="randomization" className="text-sm font-medium">
+                  Ativar randomização para evitar bloqueios
+                </Label>
+              </div>
+              
+              {campaignData.enable_message_randomization && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="min-delay">Delay mínimo (segundos)</Label>
+                      <Input
+                        id="min-delay"
+                        type="number"
+                        min="0"
+                        max="15"
+                        value={campaignData.min_delay_seconds}
+                        onChange={(e) => setCampaignData(prev => ({
+                          ...prev,
+                          min_delay_seconds: parseInt(e.target.value) || 0
+                        }))}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-delay">Delay máximo (segundos)</Label>
+                      <Input
+                        id="max-delay"
+                        type="number"
+                        min="0"
+                        max="15"
+                        value={campaignData.max_delay_seconds}
+                        onChange={(e) => setCampaignData(prev => ({
+                          ...prev,
+                          max_delay_seconds: parseInt(e.target.value) || 15
+                        }))}
+                        placeholder="15"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Delay randômico de {campaignData.min_delay_seconds}-{campaignData.max_delay_seconds} segundos será aplicado antes de cada envio
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <Label>Mensagens alternativas (opcional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Adicione diferentes versões da mensagem para alternar aleatoriamente
+                    </p>
+                    {campaignData.message_templates.map((template, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          value={template}
+                          onChange={(e) => {
+                            const newTemplates = [...campaignData.message_templates];
+                            newTemplates[index] = e.target.value;
+                            setCampaignData(prev => ({
+                              ...prev,
+                              message_templates: newTemplates
+                            }));
+                          }}
+                          placeholder={`Mensagem alternativa ${index + 1}`}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newTemplates = campaignData.message_templates.filter((_, i) => i !== index);
+                            setCampaignData(prev => ({
+                              ...prev,
+                              message_templates: newTemplates
+                            }));
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCampaignData(prev => ({
+                          ...prev,
+                          message_templates: [...prev.message_templates, '']
+                        }));
+                      }}
+                      className="w-full"
+                    >
+                      + Adicionar mensagem alternativa
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -522,6 +636,15 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
                 <div><strong>Público:</strong> {previewData.estimatedContacts} contatos</div>
                 <div><strong>Duração:</strong> {previewData.estimatedDuration}</div>
                 <div><strong>Agendamento:</strong> {campaignData.scheduled_at ? format(campaignData.scheduled_at, 'dd/MM/yyyy') : 'Envio imediato'}</div>
+                {campaignData.enable_message_randomization && (
+                  <>
+                    <div><strong>Randomização:</strong> Ativada</div>
+                    <div><strong>Delay randômico:</strong> {campaignData.min_delay_seconds}-{campaignData.max_delay_seconds} segundos</div>
+                    {campaignData.message_templates.length > 0 && (
+                      <div><strong>Mensagens alternativas:</strong> {campaignData.message_templates.filter(t => t.trim() !== '').length} variações</div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

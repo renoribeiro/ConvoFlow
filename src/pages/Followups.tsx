@@ -4,7 +4,8 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { FollowupsList } from '@/components/followups/FollowupsList'
 import { FollowupScheduler } from '@/components/followups/FollowupScheduler'
 import { FollowupCalendarModal } from '@/components/followups/FollowupCalendarModal'
-import { Plus, Clock, CheckCircle, AlertCircle, Calendar } from 'lucide-react'
+import { FollowupFilters } from '@/components/followups/FollowupFilters'
+import { Plus, Clock, CheckCircle, AlertCircle, Calendar, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +14,16 @@ import { useFollowups } from '@/hooks/useFollowups'
 export default function Followups() {
   const [showScheduler, setShowScheduler] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({
+    search: '',
+    type: '',
+    priority: '',
+    status: '',
+    contactId: '',
+    dateFrom: undefined as Date | undefined,
+    dateTo: undefined as Date | undefined
+  })
   const { stats, loading } = useFollowups()
 
   // Calculate completed today from stats
@@ -29,6 +40,14 @@ export default function Followups() {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filtros
+            </Button>
             <Button 
               variant="outline" 
               size="sm"
@@ -112,6 +131,14 @@ export default function Followups() {
         </Card>
       </div>
 
+      {/* Filtros */}
+      {showFilters && (
+        <FollowupFilters 
+          filters={filters} 
+          onFiltersChange={setFilters} 
+        />
+      )}
+
       <Tabs defaultValue="pending" className="space-y-6">
         <TabsList>
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
@@ -121,19 +148,19 @@ export default function Followups() {
         </TabsList>
 
         <TabsContent value="pending">
-          <FollowupsList status="pending" />
+          <FollowupsList status="pending" filters={filters} />
         </TabsContent>
 
         <TabsContent value="today">
-          <FollowupsList status="today" />
+          <FollowupsList status="today" filters={filters} />
         </TabsContent>
 
         <TabsContent value="completed">
-          <FollowupsList status="completed" />
+          <FollowupsList status="completed" filters={filters} />
         </TabsContent>
 
         <TabsContent value="overdue">
-          <FollowupsList status="overdue" />
+          <FollowupsList status="overdue" filters={filters} />
         </TabsContent>
       </Tabs>
 

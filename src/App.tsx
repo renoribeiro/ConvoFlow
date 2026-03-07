@@ -8,7 +8,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ChatbotProvider } from "@/contexts/ChatbotContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
-import { AuthGuard } from "@/components/auth/AuthGuard";
+import { AuthGuard } from '@/components/auth/AuthGuard';
+import { ModuleGuard } from '@/components/auth/ModuleGuard';
 import { DashboardCardSkeleton } from "@/components/shared/Skeleton";
 
 // Landing Page (carregamento imediato)
@@ -37,34 +38,9 @@ const Notifications = React.lazy(() => import("./pages/Notifications"));
 const AdminDashboard = React.lazy(() => import("./pages/dashboard/AdminDashboard"));
 const WhatsAppNumbers = React.lazy(() => import("./pages/WhatsAppNumbers"));
 
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Cache por 5 minutos por padrão
-      staleTime: 5 * 60 * 1000,
-      // Manter dados em cache por 10 minutos
-      gcTime: 10 * 60 * 1000,
-      // Retry automático em caso de erro
-      retry: (failureCount, error: any) => {
-        // Não retry em erros 4xx
-        if (error?.status >= 400 && error?.status < 500) {
-          return false;
-        }
-        // Máximo 3 tentativas
-        return failureCount < 3;
-      },
-      // Refetch quando a janela ganha foco
-      refetchOnWindowFocus: true,
-      // Refetch quando reconecta à internet
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      // Retry automático para mutations
-      retry: 1,
-    },
-  },
-});
+// Use optimized query client configuration
+import { createQueryClient } from '@/lib/queryClient';
+const queryClient = createQueryClient();
 
 // Componente de loading para páginas
 const PageLoadingSkeleton = () => (
@@ -93,100 +69,121 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/terms-of-service" element={<TermsOfService />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              
-              {/* Protected Dashboard Routes */}
-              <Route path="/dashboard" element={
-                <AuthGuard>
-                  <DashboardLayout />
-                </AuthGuard>
-              }>
-                <Route index element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Index />
-                  </Suspense>
-                } />
-                <Route path="conversations" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Conversations />
-                  </Suspense>
-                } />
-                <Route path="contacts" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Contacts />
-                  </Suspense>
-                } />
-                <Route path="funnel" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Funnel />
-                  </Suspense>
-                } />
-                <Route path="tracking" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Tracking />
-                  </Suspense>
-                } />
-                <Route path="reports" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Reports />
-                  </Suspense>
-                } />
-                <Route path="chatbots" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Chatbots />
-                  </Suspense>
-                } />
-                <Route path="campaigns" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Campaigns />
-                  </Suspense>
-                } />
-                <Route path="followups" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Followups />
-                  </Suspense>
-                } />
-                <Route path="automation" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Automation />
-                  </Suspense>
-                } />
-                <Route path="whatsapp-numbers" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <WhatsAppNumbers />
-                  </Suspense>
-                } />
-                <Route path="settings" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Settings />
-                  </Suspense>
-                } />
-                <Route path="admin" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <AdminDashboard />
-                  </Suspense>
-                } />
-                <Route path="profile" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <ProfileSettings />
-                  </Suspense>
-                } />
-                <Route path="notifications" element={
-                  <Suspense fallback={<PageLoadingSkeleton />}>
-                    <Notifications />
-                  </Suspense>
-                } />
-              </Route>
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/terms-of-service" element={<TermsOfService />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+
+                {/* Protected Dashboard Routes */}
+                <Route path="/dashboard" element={
+                  <AuthGuard>
+                    <DashboardLayout />
+                  </AuthGuard>
+                }>
+                  <Route index element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Index />
+                    </Suspense>
+                  } />
+                  <Route path="conversations" element={
+                    <ModuleGuard moduleName="conversations">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Conversations />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="contacts" element={
+                    <ModuleGuard moduleName="contacts">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Contacts />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="funnel" element={
+                    <ModuleGuard moduleName="funnel">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Funnel />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="tracking" element={
+                    <ModuleGuard moduleName="tracking">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Tracking />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="reports" element={
+                    <ModuleGuard moduleName="reports">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Reports />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="chatbots" element={
+                    <ModuleGuard moduleName="chatbots">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Chatbots />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="campaigns" element={
+                    <ModuleGuard moduleName="campaigns">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Campaigns />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="followups" element={
+                    <ModuleGuard moduleName="followups">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Followups />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="automation" element={
+                    <ModuleGuard moduleName="automation">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <Automation />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="whatsapp-numbers" element={
+                    <ModuleGuard moduleName="whatsapp-numbers">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <WhatsAppNumbers />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="settings" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Settings />
+                    </Suspense>
+                  } />
+                  <Route path="admin" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <AdminDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="profile" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <ProfileSettings />
+                    </Suspense>
+                  } />
+                  <Route path="notifications" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Notifications />
+                    </Suspense>
+                  } />
+
+                </Route>
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
             </BrowserRouter>
           </ChatbotProvider>
         </TenantProvider>

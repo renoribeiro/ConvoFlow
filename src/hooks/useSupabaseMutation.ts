@@ -9,8 +9,8 @@ interface UseSupabaseMutationOptions {
   invalidateQueries?: string[][];
   successMessage?: string;
   errorMessage?: string;
-  onSuccess?: (data: any) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (data: any, variables?: any, context?: any) => void;
+  onError?: (error: any, variables?: any, context?: any) => void;
 }
 
 interface MutationFilter {
@@ -54,7 +54,7 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
           query = supabase.from(table).insert(insertData);
           break;
         case 'update':
-          query = supabase.from(table).update(data);
+          query = supabase.from(table).update(data).select();
           if (mutationOptions?.filter) {
             const { column, operator, value } = mutationOptions.filter;
             switch (operator) {
@@ -151,7 +151,7 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
 
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables, context) => {
       // Invalidar queries relacionadas
       invalidateQueries.forEach((queryKey) => {
         queryClient.invalidateQueries({ queryKey });
@@ -167,10 +167,10 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
 
       // Callback personalizado
       if (onSuccess) {
-        onSuccess(data);
+        onSuccess(data, variables, context);
       }
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
       // Mostrar mensagem de erro
       const message = errorMessage || 'Ocorreu um erro inesperado';
       toast({
@@ -181,7 +181,7 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
 
       // Callback personalizado
       if (onError) {
-        onError(error);
+        onError(error, variables, context);
       }
 
       console.error('Erro na mutação:', error);

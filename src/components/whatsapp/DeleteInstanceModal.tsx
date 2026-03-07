@@ -47,18 +47,8 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
     setLoading(true);
 
     try {
-      // Primeiro, tentar deletar da Evolution API
-      try {
-        await deleteInstance(instance.instance_key);
-      } catch (evolutionError) {
-        console.warn('Erro ao deletar da Evolution API (continuando):', evolutionError);
-        // Continua mesmo se falhar na Evolution API
-      }
-
-      // Deletar do banco de dados
-      await deleteInstanceMutation.mutateAsync({
-        id: instance.id
-      });
+      // Deletar instância (gerenciado pelo hook useEvolutionApi - tenta deletar da API e depois do Banco)
+      await deleteInstance(instance.instance_key);
 
       toast({
         title: "Sucesso",

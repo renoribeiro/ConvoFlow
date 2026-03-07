@@ -1,11 +1,11 @@
 
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { CheckCircle, Clock, Phone, Mail, MessageSquare, Calendar, Edit, Trash2 } from 'lucide-react'
+import { CheckCircle, Clock, Phone, Mail, MessageSquare, Calendar, Edit, Trash2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useFollowups } from '@/hooks/useFollowups'
 import { FollowupEditModal } from '@/components/FollowupEditModal'
 import type { IndividualFollowup } from '@/integrations/supabase/types'
@@ -13,39 +13,123 @@ import { toast } from 'sonner'
 
 interface FollowupsListProps {
   status: 'pending' | 'today' | 'completed' | 'overdue'
+  filters?: {
+    search: string;
+    type: string;
+    priority: string;
+    status: string;
+    contactId: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }
 }
 
 
 
-export const FollowupsList = ({ status }: FollowupsListProps) => {
+export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
   const { followups, loading, updateFollowup, deleteFollowup, completeFollowup, getFollowupsByStatus, getOverdueFollowups } = useFollowups()
   const [selectedFollowup, setSelectedFollowup] = useState<IndividualFollowup | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [completingFollowupId, setCompletingFollowupId] = useState<string | null>(null)
+  const [editingFollowupId, setEditingFollowupId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
-  // Filter followups based on status
+  // Filter followups based on status and additional filters
   const getFilteredFollowups = (): IndividualFollowup[] => {
     const today = new Date()
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
 
+    let baseFollowups: IndividualFollowup[] = []
+
     switch (status) {
       case 'pending':
-        return getFollowupsByStatus('pending')
+        baseFollowups = getFollowupsByStatus('pending')
+        break
       case 'today':
-        return followups.filter(f => {
+        baseFollowups = followups.filter(f => {
           const dueDate = new Date(f.due_date)
           return dueDate >= todayStart && dueDate <= todayEnd && f.status !== 'completed'
         })
+        break
       case 'completed':
-        return getFollowupsByStatus('completed')
+        baseFollowups = getFollowupsByStatus('completed')
+        break
       case 'overdue':
-        return getOverdueFollowups()
+        baseFollowups = getOverdueFollowups()
+        break
       default:
-        return []
+        baseFollowups = []
     }
+
+    // Apply additional filters if provided
+    if (!filters) return baseFollowups
+
+    return baseFollowups.filter(followup => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase()
+        const matchesSearch = 
+          followup.task.toLowerCase().includes(searchTerm) ||
+          followup.description?.toLowerCase().includes(searchTerm) ||
+          followup.contact?.name?.toLowerCase().includes(searchTerm)
+        if (!matchesSearch) return false
+      }
+
+      // Type filter
+      if (filters.type && followup.type !== filters.type) {
+        return false
+      }
+
+      // Priority filter
+      if (filters.priority && followup.priority !== filters.priority) {
+        return false
+      }
+
+      // Status filter (additional to the main status)
+      if (filters.status && followup.status !== filters.status) {
+        return false
+      }
+
+      // Contact filter
+      if (filters.contactId && followup.contact_id !== filters.contactId) {
+        return false
+      }
+
+      // Date range filter
+      if (filters.dateFrom || filters.dateTo) {
+        const followupDate = new Date(followup.due_date)
+        
+        if (filters.dateFrom) {
+          const fromDate = new Date(filters.dateFrom)
+          fromDate.setHours(0, 0, 0, 0)
+          if (followupDate < fromDate) return false
+        }
+        
+        if (filters.dateTo) {
+          const toDate = new Date(filters.dateTo)
+          toDate.setHours(23, 59, 59, 999)
+          if (followupDate > toDate) return false
+        }
+      }
+
+      return true
+    })
   }
 
-  const filteredFollowups = getFilteredFollowups()
+  const filteredFollowups = useMemo(() => getFilteredFollowups(), [status, filters, followups])
+  
+  // Pagination logic
+  const totalPages = Math.ceil(filteredFollowups.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedFollowups = filteredFollowups.slice(startIndex, endIndex)
+  
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters])
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -118,20 +202,35 @@ export const FollowupsList = ({ status }: FollowupsListProps) => {
   }
 
   const handleEdit = (followup: IndividualFollowup) => {
+    if (editingFollowupId) return // Prevent multiple simultaneous edits
+    
+    setEditingFollowupId(followup.id)
     setSelectedFollowup(followup)
     setIsEditModalOpen(true)
   }
 
   const handleComplete = async (followup: IndividualFollowup) => {
-    const success = await completeFollowup(followup.id)
-    if (success) {
-      toast.success('Follow-up concluído com sucesso!')
+    if (completingFollowupId) return // Prevent multiple simultaneous completions
+    
+    setCompletingFollowupId(followup.id)
+    try {
+      const success = await completeFollowup(followup.id)
+      if (success) {
+        toast.success('Follow-up concluído com sucesso!')
+      } else {
+        toast.error('Erro ao concluir follow-up')
+      }
+    } catch (error) {
+      toast.error('Erro ao concluir follow-up')
+    } finally {
+      setCompletingFollowupId(null)
     }
   }
 
   const handleCloseModal = () => {
     setIsEditModalOpen(false)
     setSelectedFollowup(null)
+    setEditingFollowupId(null)
   }
 
   if (loading) {
@@ -177,7 +276,7 @@ export const FollowupsList = ({ status }: FollowupsListProps) => {
   return (
     <>
       <div className="space-y-4">
-        {filteredFollowups.map((followup) => (
+        {paginatedFollowups.map((followup) => (
         <Card key={followup.id} className={`border-l-4 ${getStatusColor(status)}`}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between mb-3">
@@ -223,24 +322,76 @@ export const FollowupsList = ({ status }: FollowupsListProps) => {
                   size="sm" 
                   variant="default"
                   onClick={() => handleComplete(followup)}
+                  disabled={completingFollowupId === followup.id || !!completingFollowupId}
                 >
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Concluir
+                  {completingFollowupId === followup.id ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                  )}
+                  {completingFollowupId === followup.id ? 'Concluindo...' : 'Concluir'}
                 </Button>
               )}
               <Button 
                 size="sm" 
                 variant="outline"
                 onClick={() => handleEdit(followup)}
+                disabled={editingFollowupId === followup.id || !!editingFollowupId}
               >
-                <Edit className="w-4 h-4 mr-1" />
-                Editar
+                {editingFollowupId === followup.id ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Edit className="w-4 h-4 mr-1" />
+                )}
+                {editingFollowupId === followup.id ? 'Abrindo...' : 'Editar'}
               </Button>
             </div>
           </CardContent>
         </Card>
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {startIndex + 1}-{Math.min(endIndex, filteredFollowups.length)} de {filteredFollowups.length} follow-ups
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </Button>
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className="w-8 h-8 p-0"
+                >
+                  {page}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Próxima
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <FollowupEditModal
         followup={selectedFollowup}

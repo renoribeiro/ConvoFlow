@@ -49,9 +49,9 @@ const Automation = () => {
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingFlow, setEditingFlow] = useState<string | null>(null);
-  
+
   const { toast } = useToast();
-  
+
   // Query para buscar fluxos de automação
   const { data: flows = [], isLoading } = useSupabaseQuery({
     table: 'automation_flows',
@@ -68,7 +68,7 @@ const Automation = () => {
       updated_at
     `
   });
-  
+
   // Mutation para deletar fluxo
   const deleteFlowMutation = useSupabaseMutation({
     table: 'automation_flows',
@@ -76,7 +76,7 @@ const Automation = () => {
     invalidateQueries: [['automation-flows']],
     successMessage: 'Fluxo deletado com sucesso!'
   });
-  
+
   // Mutation para ativar/desativar fluxo
   const toggleFlowMutation = useSupabaseMutation({
     table: 'automation_flows',
@@ -84,7 +84,7 @@ const Automation = () => {
     invalidateQueries: [['automation-flows']],
     successMessage: 'Status do fluxo atualizado!'
   });
-  
+
   // Mutation para duplicar fluxo
   const duplicateFlowMutation = useSupabaseMutation({
     table: 'automation_flows',
@@ -92,16 +92,16 @@ const Automation = () => {
     invalidateQueries: [['automation-flows']],
     successMessage: 'Fluxo duplicado com sucesso!'
   });
-  
+
   const filteredFlows = flows.filter(flow => {
     const matchesSearch = flow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         flow.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || 
-                         (filterStatus === 'active' && flow.active) ||
-                         (filterStatus === 'inactive' && !flow.active);
+      flow.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterStatus === 'all' ||
+      (filterStatus === 'active' && flow.active) ||
+      (filterStatus === 'inactive' && !flow.active);
     return matchesSearch && matchesFilter;
   });
-  
+
   const handleDeleteFlow = async (flowId: string) => {
     if (confirm('Tem certeza que deseja deletar este fluxo de automação?')) {
       try {
@@ -115,10 +115,10 @@ const Automation = () => {
       }
     }
   };
-  
+
   const handleToggleFlow = async (flowId: string, currentStatus: boolean) => {
     try {
-      await toggleFlowMutation.mutateAsync({        id: flowId,        data: { active: !currentStatus }      });
+      await toggleFlowMutation.mutateAsync({ id: flowId, data: { active: !currentStatus } });
     } catch (error) {
       toast({
         title: 'Erro',
@@ -127,7 +127,7 @@ const Automation = () => {
       });
     }
   };
-  
+
   const handleDuplicateFlow = async (flow: AutomationFlow) => {
     try {
       await duplicateFlowMutation.mutateAsync({
@@ -146,7 +146,7 @@ const Automation = () => {
       });
     }
   };
-  
+
   const getTriggerIcon = (triggerType: string) => {
     switch (triggerType) {
       case 'message_received':
@@ -161,7 +161,7 @@ const Automation = () => {
         return Settings;
     }
   };
-  
+
   const getTriggerName = (triggerType: string) => {
     switch (triggerType) {
       case 'message_received':
@@ -176,7 +176,7 @@ const Automation = () => {
         return 'Personalizado';
     }
   };
-  
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -186,7 +186,7 @@ const Automation = () => {
       minute: '2-digit'
     });
   };
-  
+
   const getStepsCount = (steps: any) => {
     try {
       const parsedSteps = typeof steps === 'string' ? JSON.parse(steps) : steps;
@@ -195,12 +195,21 @@ const Automation = () => {
       return 0;
     }
   };
-  
+
   // Estatísticas gerais
   const totalFlows = flows.length;
   const activeFlows = flows.filter(f => f.active).length;
   const inactiveFlows = totalFlows - activeFlows;
-  
+
+  // Calculate success rate from actual execution data
+  const calculateSuccessRate = (): string => {
+    const flowsWithExecutions = flows.filter(f => f.executions_count && f.executions_count > 0);
+    if (flowsWithExecutions.length === 0) return '--';
+    const totalRate = flowsWithExecutions.reduce((sum, f) => sum + (f.success_rate || 0), 0);
+    return `${Math.round(totalRate / flowsWithExecutions.length)}%`;
+  };
+  const successRate = calculateSuccessRate();
+
   if (showBuilder) {
     return (
       <AutomationBuilder
@@ -212,7 +221,7 @@ const Automation = () => {
       />
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -228,7 +237,7 @@ const Automation = () => {
           Novo Fluxo
         </Button>
       </div>
-      
+
       {/* Estatísticas */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -243,7 +252,7 @@ const Automation = () => {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Fluxos Ativos</CardTitle>
@@ -256,7 +265,7 @@ const Automation = () => {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Fluxos Inativos</CardTitle>
@@ -269,21 +278,21 @@ const Automation = () => {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Taxa de Sucesso</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">94%</div>
+            <div className="text-2xl font-bold text-blue-600">{successRate}</div>
             <p className="text-xs text-muted-foreground">
               Execuções bem-sucedidas
             </p>
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Filtros */}
       <Card>
         <CardContent className="p-4">
@@ -299,7 +308,7 @@ const Automation = () => {
                 />
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Button
@@ -327,7 +336,7 @@ const Automation = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Lista de Fluxos */}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -351,8 +360,8 @@ const Automation = () => {
           <CardContent className="p-12 text-center">
             <Workflow className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {searchTerm || filterStatus !== 'all' 
-                ? 'Nenhum fluxo encontrado' 
+              {searchTerm || filterStatus !== 'all'
+                ? 'Nenhum fluxo encontrado'
                 : 'Nenhum fluxo de automação criado'
               }
             </h3>
@@ -375,7 +384,7 @@ const Automation = () => {
           {filteredFlows.map((flow) => {
             const TriggerIcon = getTriggerIcon(flow.trigger_type);
             const stepsCount = getStepsCount(flow.steps);
-            
+
             return (
               <Card key={flow.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
@@ -393,7 +402,7 @@ const Automation = () => {
                     </div>
                   </div>
                 </CardHeader>
-                
+
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
@@ -402,14 +411,14 @@ const Automation = () => {
                         {getTriggerName(flow.trigger_type)}
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <span>{stepsCount} etapa{stepsCount !== 1 ? 's' : ''}</span>
                       <span>Criado em {formatDate(flow.created_at)}</span>
                     </div>
-                    
+
                     <Separator />
-                    
+
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
                         <Button
@@ -422,7 +431,7 @@ const Automation = () => {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -431,7 +440,7 @@ const Automation = () => {
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -441,7 +450,7 @@ const Automation = () => {
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                      
+
                       <Button
                         size="sm"
                         variant={flow.active ? 'secondary' : 'default'}

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Phone, Mail, Calendar, User } from 'lucide-react';
+import { MoreHorizontal, Edit, MessageCircle, Calendar, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ContactModal } from '@/components/contacts/ContactModal';
+import { FollowupModal } from '@/components/followups/FollowupModal';
+import { toast } from 'sonner';
 
 interface Lead {
   id: string;
@@ -40,9 +45,30 @@ export const SortableLeadCard = ({ lead }: SortableLeadCardProps) => {
     isOver,
   } = useSortable({ id: lead.id });
 
+  const navigate = useNavigate();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: transition || 'transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditModalOpen(true);
+  };
+
+  const handleChat = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Navegar para a página de conversas com o contato específico
+    navigate(`/dashboard/conversations?contact=${lead.id}`);
+    toast.success(`Abrindo conversa com ${lead.name}`);
+  };
+
+  const handleScheduleFollowup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsFollowupModalOpen(true);
   };
 
   return (
@@ -92,17 +118,17 @@ export const SortableLeadCard = ({ lead }: SortableLeadCardProps) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Phone className="mr-2 h-4 w-4" />
-                  Ligar
+                <DropdownMenuItem onClick={handleEdit}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Mail className="mr-2 h-4 w-4" />
-                  Enviar Email
+                <DropdownMenuItem onClick={handleChat}>
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Conversar
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleScheduleFollowup}>
                   <Calendar className="mr-2 h-4 w-4" />
-                  Agendar
+                  Agendar Follow-up
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -132,6 +158,21 @@ export const SortableLeadCard = ({ lead }: SortableLeadCardProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Edição */}
+      <ContactModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        contactId={lead.id}
+      />
+
+      {/* Modal de Follow-up */}
+      <FollowupModal
+        isOpen={isFollowupModalOpen}
+        onClose={() => setIsFollowupModalOpen(false)}
+        contactId={lead.id}
+        contactName={lead.name}
+      />
     </div>
   );
 };

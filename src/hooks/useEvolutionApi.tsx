@@ -18,6 +18,11 @@ interface UseEvolutionApiReturn {
   getDetailedInstanceInfo: (instanceName: string) => Promise<DetailedEvolutionInstance | null>;
   sendMessage: (instanceName: string, phone: string, message: string) => Promise<void>;
   refreshInstances: () => Promise<void>;
+  refreshInstanceStatus: (instanceName: string) => Promise<string | null | undefined>;
+  getWebhookStatus: (instanceName: string) => Promise<any>;
+  configureWebhook: (instanceName: string, webhookUrl?: string, events?: string[]) => Promise<boolean>;
+  getWebhookLogs: (instanceName: string, limit?: number) => Promise<any[]>;
+  getDefaultWebhookUrl: () => string | null;
 }
 
 export const useEvolutionApi = (): UseEvolutionApiReturn => {
@@ -30,7 +35,7 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
   useEffect(() => {
     const initializeServiceWithLogs = async () => {
       console.log('🔄 [useEvolutionApi] Iniciando inicialização do serviço...');
-      
+
       try {
         setLoading(true);
         setError(null);
@@ -39,12 +44,9 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
         // Get current user's tenant
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          console.error('❌ [useEvolutionApi] Usuário não autenticado');
           throw new Error('Usuário não autenticado');
         }
-        console.log('✅ [useEvolutionApi] Usuário autenticado:', user.id);
 
-        console.log('🔍 [useEvolutionApi] Buscando perfil do usuário...');
         const { data: profile } = await supabase
           .from('profiles')
           .select('tenant_id')
@@ -52,100 +54,144 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
           .single();
 
         if (!profile) {
-          console.error('❌ [useEvolutionApi] Perfil não encontrado para o usuário:', user.id);
           throw new Error('Perfil não encontrado');
         }
-        console.log('✅ [useEvolutionApi] Perfil encontrado, tenant_id:', profile.tenant_id);
 
         // Get tenant's Evolution API settings
-        console.log('🔍 [useEvolutionApi] Buscando configurações do tenant...');
         const { data: tenant } = await supabase
           .from('tenants')
           .select('settings')
           .eq('id', profile.tenant_id)
           .single();
 
-        console.log('📊 [useEvolutionApi] Dados do tenant:', tenant);
-        const settings = tenant?.settings as any;
-        console.log('📊 [useEvolutionApi] Settings do tenant:', settings);
-        
-        let serverUrl, apiKey;
-        
-        if (settings?.evolutionApi) {
-          // Use database settings if available
-          serverUrl = settings.evolutionApi.serverUrl;
-          apiKey = settings.evolutionApi.apiKey;
-          console.log('✅ [useEvolutionApi] Usando configurações do banco de dados');
-        } else {
-          // Fallback to environment variables
-        serverUrl = env.get('EVOLUTION_API_URL') || 'http://localhost:8081';
-        apiKey = env.get('EVOLUTION_API_KEY') || 'convoflow-evolution-api-key-2024';
-        console.log('⚠️ [useEvolutionApi] Configurações não encontradas no banco, usando variáveis de ambiente');
-        console.log('🔧 [useEvolutionApi] URL da API:', serverUrl);
-        console.log('🔧 [useEvolutionApi] API Key:', apiKey ? '***' + apiKey.slice(-4) : 'não definida');
-        }
-        
-        if (!serverUrl || !apiKey) {
-          const errorMsg = 'Configurações da Evolution API não encontradas nem no banco nem nas variáveis de ambiente';
-          console.error('❌ [useEvolutionApi]', errorMsg);
-          throw new Error(errorMsg);
-        }
-        console.log('✅ [useEvolutionApi] Configurações da Evolution API encontradas:', {
-          serverUrl,
-          apiKey: apiKey ? '***' + apiKey.slice(-4) : 'não definida'
-        });
-        
-        console.log('🚀 [useEvolutionApi] Criando serviço Evolution API...');
-        const evolutionService = createEvolutionApiService(serverUrl, apiKey);
-        setService(evolutionService);
-        console.log('✅ [useEvolutionApi] Serviço criado com sucesso');
+        const settings = tenant?.settings as { evolutionApi?: { serverUrl: string; apiKey: string } } | null;
 
-        // Load instances from Evolution API
-        console.log('📱 [useEvolutionApi] Carregando instâncias...');
-        await loadInstances(evolutionService);
-        console.log('🎉 [useEvolutionApi] Inicialização concluída com sucesso!');
+        let serverUrl = settings?.evolutionApi?.serverUrl;
+        let apiKey = settings?.evolutionApi?.apiKey;
+
+        if (!serverUrl || !apiKey) {
+          // Fallback seguro apenas para variáveis de ambiente, sem hardcoded localhost inseguro
+          serverUrl = env.get('EVOLUTION_API_URL');
+          apiKey = env.get('EVOLUTION_API_KEY');
+        }
+
+        // Se ainda assim não tiver configuração, logamos um aviso discreto mas permitimos carregar instâncias do banco
+        if (serverUrl && apiKey) {
+          const evolutionService = createEvolutionApiService(serverUrl, apiKey);
+          setService(evolutionService);
+        } else {
+          console.warn('[useEvolutionApi] API URL ou Key não configuradas. Operações de API estarão indisponíveis.');
+        }
+
+        // Load instances from SUPABASE (not API) to avoid blocking if API is down
+        await loadInstances();
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erro ao inicializar Evolution API';
-        console.error('💥 [useEvolutionApi] Erro durante inicialização:', err);
+        console.error('Error initializing Evolution API:', errorMessage);
         setError(errorMessage);
+        // Even on error, try to load instances from DB
+        await loadInstances();
       } finally {
         setLoading(false);
-        console.log('🏁 [useEvolutionApi] Processo de inicialização finalizado');
       }
     };
 
     initializeServiceWithLogs();
   }, []);
 
-  const loadInstances = async (evolutionService?: EvolutionApiService) => {
-    const serviceToUse = evolutionService || service;
-    if (!serviceToUse) return;
-
+  const loadInstances = async () => {
     try {
-      const apiInstances = await serviceToUse.getAllInstances();
-      setInstances(apiInstances);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) return;
+
+      const { data: dbInstances, error } = await supabase
+        .from('whatsapp_instances')
+        .select('*')
+        .eq('tenant_id', profile.tenant_id);
+
+      if (error) throw error;
+
+      // Map DB instances to EvolutionInstance type
+      const mappedInstances: EvolutionInstance[] = (dbInstances || []).map(inst => {
+        const config = inst.connection_config as any || {};
+        return {
+          instanceName: inst.instance_key,
+          status: (inst.status as 'open' | 'close' | 'connecting' | 'qrcode') || 'close',
+          serverUrl: config.baseUrl || inst.evolution_api_url || '',
+          apiKey: config.apiKey || inst.evolution_api_key || '',
+          qrcode: inst.qr_code || undefined,
+          webhookUrl: inst.webhook_url || undefined,
+          profilePicUrl: inst.profile_picture_url || undefined,
+          profileName: inst.profile_name || undefined,
+          settings: {
+            // Default settings or fetch from DB JSON if available
+            rejectCall: false,
+            msgCall: "",
+            groupsIgnore: false,
+            alwaysOnline: true,
+            readMessages: true,
+            readStatus: true
+          },
+          createdAt: new Date(inst.created_at),
+          lastActivity: inst.last_connected_at ? new Date(inst.last_connected_at) : undefined
+        };
+      });
+
+      setInstances(mappedInstances);
     } catch (err) {
-      console.error('Error loading instances:', err);
+      console.error('Error loading instances from DB:', err);
       toast({
         title: "Erro",
-        description: "Falha ao carregar instâncias do WhatsApp",
+        description: "Falha ao carregar instâncias do WhatsApp do banco de dados",
         variant: "destructive",
       });
     }
   };
 
-  const createInstance = async (name: string, webhookUrl?: string, retryCount = 0) => {
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 segundos
-    
+  const createInstance = async (name: string, webhookUrl?: string, options?: {
+    enableWebhookAutomation?: boolean;
+    retryAttempts?: number;
+    retryDelay?: number;
+  }) => {
+    const maxRetries = options?.retryAttempts || 3;
+    const retryDelay = options?.retryDelay || 2000;
+
     if (!service) throw new Error('Serviço Evolution API não inicializado');
 
     try {
       setLoading(true);
-      
-      // Create instance in Evolution API
-      const newInstance = await service.createInstance({ instanceName: name, webhookUrl });
-      
+      console.log('🚀 [useEvolutionApi] Iniciando criação da instância:', name);
+      console.log('🔗 [useEvolutionApi] Webhook URL:', webhookUrl);
+      console.log('⚙️ [useEvolutionApi] Options:', options);
+
+      let result;
+      const enableAutomation = options?.enableWebhookAutomation ?? true;
+
+      if (enableAutomation && service.createInstanceWithWebhook) {
+        // Use the new automated webhook method if available
+        console.log('🤖 [useEvolutionApi] Using automated webhook configuration');
+        result = await service.createInstanceWithWebhook({
+          instanceName: name,
+          webhookUrl,
+          retryAttempts: maxRetries,
+          retryDelay
+        });
+      } else {
+        // Use the traditional method
+        console.log('📝 [useEvolutionApi] Using traditional instance creation');
+        result = await service.createInstance({ instanceName: name, webhookUrl });
+      }
+
+      console.log('✅ [useEvolutionApi] Instância criada na Evolution API:', result);
+
       // Save to database
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase
@@ -154,31 +200,39 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
         .eq('user_id', user!.id)
         .single();
 
-      await supabase.from('whatsapp_instances').insert({
+      const instanceData = {
         instance_key: name,
         name,
         tenant_id: profile!.tenant_id,
-        status: newInstance.status || 'disconnected',
-        webhook_url: webhookUrl,
-      });
+        status: result?.status || 'disconnected',
+        webhook_url: result?.webhookUrl || webhookUrl,
+        webhook_configured: result?.webhookConfigured || false,
+        webhook_events: enableAutomation ? ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE'] : null,
+        // @ts-ignore
+        automation_enabled: enableAutomation
+      };
+
+      await supabase.from('whatsapp_instances').insert(instanceData);
 
       await refreshInstances();
-      
-      toast({
-        title: "Sucesso",
-        description: "Instância criada com sucesso",
-      });
+
+      if (result?.webhookConfigured) {
+        toast({
+          title: "Sucesso",
+          description: "Instância criada com webhook configurado automaticamente!",
+        });
+      } else {
+        toast({
+          title: "Sucesso",
+          description: "Instância criada com sucesso",
+        });
+      }
+
+      return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao criar instância';
-      
-      // Se for erro de sincronização e ainda temos tentativas, retry
-      if (errorMessage.includes('sincronização com o servidor WhatsApp') && retryCount < maxRetries) {
-        console.log(`🔄 Tentativa ${retryCount + 1}/${maxRetries + 1} - Aguardando ${retryDelay}ms antes de tentar novamente...`);
-        
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        return createInstance(name, webhookUrl, retryCount + 1);
-      }
-      
+      console.error('❌ [useEvolutionApi] Erro ao criar instância:', err);
+
       toast({
         title: "Erro",
         description: errorMessage,
@@ -191,14 +245,18 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
   };
 
   const deleteInstance = async (instanceName: string) => {
-    if (!service) throw new Error('Serviço Evolution API não inicializado');
-
+    // If service is available, delete from API. Else just DB.
     try {
       setLoading(true);
-      
-      // Delete from Evolution API
-      await service.deleteInstance(instanceName);
-      
+
+      if (service) {
+        try {
+          await service.deleteInstance(instanceName);
+        } catch (e) {
+          console.warn("Failed to delete from API, removing from DB anyway", e);
+        }
+      }
+
       // Delete from database
       await supabase
         .from('whatsapp_instances')
@@ -206,7 +264,7 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
         .eq('instance_key', instanceName);
 
       await refreshInstances();
-      
+
       toast({
         title: "Sucesso",
         description: "Instância removida com sucesso",
@@ -230,12 +288,12 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     try {
       const connectionData = await service.connectInstance(instanceName);
       await refreshInstances();
-      
+
       toast({
         title: "Conectando",
         description: "Iniciando conexão da instância...",
       });
-      
+
       return connectionData;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao conectar instância';
@@ -254,7 +312,7 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     try {
       await service.disconnectInstance(instanceName);
       await refreshInstances();
-      
+
       toast({
         title: "Sucesso",
         description: "Instância desconectada",
@@ -271,7 +329,11 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
   };
 
   const getQRCode = async (instanceName: string): Promise<string | null> => {
-    if (!service) throw new Error('Serviço Evolution API não inicializado');
+    // Return DB cached QR first if available, else try API
+    const instance = instances.find(i => i.instanceName === instanceName);
+    if (instance?.qrcode) return instance.qrcode;
+
+    if (!service) return null;
 
     try {
       const result = await service.getQRCode(instanceName);
@@ -290,11 +352,6 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
       return result;
     } catch (err) {
       console.error('Error getting detailed instance info:', err);
-      toast({
-        title: "Erro",
-        description: "Falha ao obter informações detalhadas da instância",
-        variant: "destructive",
-      });
       return null;
     }
   };
@@ -304,7 +361,7 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
 
     try {
       await service.sendMessage(instanceName, phone, message);
-      
+
       toast({
         title: "Sucesso",
         description: "Mensagem enviada",
@@ -324,6 +381,133 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     await loadInstances();
   };
 
+  // Webhook monitoring methods
+  const getWebhookStatus = async (instanceName: string) => {
+    try {
+      if (!service) throw new Error('Serviço Evolution API não inicializado');
+
+      const webhookConfig = await service.getWebhookConfig(instanceName);
+
+      return {
+        configured: !!webhookConfig?.url,
+        url: webhookConfig?.url || null,
+        events: webhookConfig?.events || [],
+        lastUpdate: null
+      };
+    } catch (error) {
+      console.error('❌ [useEvolutionApi] Erro ao verificar status do webhook:', error);
+      return {
+        configured: false,
+        url: null,
+        events: [],
+        lastUpdate: null,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      };
+    }
+  };
+
+  const configureWebhook = async (instanceName: string, webhookUrl?: string, events?: string[]) => {
+    try {
+      if (!service) throw new Error('Serviço Evolution API não inicializado');
+
+      const defaultEvents = [
+        'QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE',
+        'MESSAGES_DELETE', 'SEND_MESSAGE', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE',
+        'CHATS_UPSERT', 'CHATS_UPDATE', 'CHATS_DELETE', 'GROUPS_UPSERT',
+        'GROUPS_UPDATE', 'GROUP_PARTICIPANTS_UPDATE', 'PRESENCE_UPDATE'
+      ];
+      const webhookEvents = events || defaultEvents;
+
+      const finalWebhookUrl = webhookUrl || await getDefaultWebhookUrl();
+
+      if (!finalWebhookUrl) {
+        throw new Error('URL do webhook não fornecida e URL padrão não disponível');
+      }
+
+      await service.setWebhook(instanceName, finalWebhookUrl, webhookEvents);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+
+      await supabase
+        .from('whatsapp_instances')
+        .update({
+          webhook_url: finalWebhookUrl,
+          webhook_configured: true,
+          webhook_events: webhookEvents,
+          updated_at: new Date().toISOString()
+        })
+        .eq('instance_key', instanceName)
+        .eq('tenant_id', profile!.tenant_id);
+
+      await refreshInstances();
+
+      toast({
+        title: "Sucesso",
+        description: "Webhook configurado com sucesso",
+      });
+
+      return true;
+    } catch (error) {
+      console.error('❌ [useEvolutionApi] Erro ao configurar webhook:', error);
+      toast({
+        title: "Erro",
+        description: `Erro ao configurar webhook: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const getDefaultWebhookUrl = (): string | null => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (supabaseUrl) {
+        return `${supabaseUrl}/functions/v1/evolution-webhook`;
+      }
+      return null;
+    } catch (error) {
+      console.warn('Failed to get default webhook URL:', error);
+      return null;
+    }
+  };
+
+  const getWebhookLogs = async (instanceName: string, limit: number = 50) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .single();
+
+      const { data, error } = await supabase
+        .from('webhook_logs')
+        .select('*')
+        .eq('instance_name', instanceName)
+        .eq('tenant_id', profile!.tenant_id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ [useEvolutionApi] Erro ao buscar logs do webhook:', error);
+      return [];
+    }
+  };
+
   return {
     service,
     instances,
@@ -337,5 +521,19 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     getDetailedInstanceInfo,
     sendMessage,
     refreshInstances,
+    refreshInstanceStatus: async (instanceName: string) => {
+      if (!service) return null;
+      try {
+        const { instance } = await service.getInstanceStatus(instanceName);
+        return instance?.state;
+      } catch (error) {
+        console.error('Error refreshing instance status:', error);
+        return null;
+      }
+    },
+    getWebhookStatus,
+    configureWebhook,
+    getWebhookLogs,
+    getDefaultWebhookUrl,
   };
 };

@@ -9,45 +9,45 @@ import { z } from 'zod';
 export const ValidationSchemas = {
   // URL validation
   url: z.string().url('URL inválida').min(1, 'URL é obrigatória'),
-  
+
   // API Key validation
   apiKey: z.string()
     .min(10, 'Chave API deve ter pelo menos 10 caracteres')
     .max(500, 'Chave API muito longa')
     .regex(/^[a-zA-Z0-9_\-\.]+$/, 'Chave API contém caracteres inválidos'),
-  
+
   // Phone number validation
   phone: z.string()
     .regex(/^\+?[1-9]\d{1,14}$/, 'Número de telefone inválido')
     .min(8, 'Número muito curto')
     .max(15, 'Número muito longo'),
-  
+
   // Email validation
   email: z.string().email('Email inválido'),
-  
+
   // Password validation
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
     .max(128, 'Senha muito longa')
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Senha deve conter ao menos uma letra minúscula, maiúscula e um número'),
-  
+
   // Instance name validation
   instanceName: z.string()
     .min(3, 'Nome deve ter pelo menos 3 caracteres')
     .max(50, 'Nome muito longo')
     .regex(/^[a-zA-Z0-9_\-]+$/, 'Nome pode conter apenas letras, números, _ e -'),
-  
+
   // Message content validation
   messageContent: z.string()
     .min(1, 'Mensagem não pode estar vazia')
     .max(4096, 'Mensagem muito longa'),
-  
+
   // Webhook URL validation
   webhookUrl: z.string().url('URL do webhook inválida').optional(),
-  
+
   // Tenant ID validation
   tenantId: z.string().uuid('ID do tenant inválido'),
-  
+
   // Contact name validation
   contactName: z.string()
     .min(1, 'Nome é obrigatório')
@@ -179,14 +179,14 @@ export class UrlSanitizer {
 
     try {
       const parsed = new URL(url);
-      
+
       // Check protocol
       if (!this.ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
         return null;
       }
 
       // Check for dangerous domains
-      if (this.DANGEROUS_DOMAINS.some(domain => 
+      if (this.DANGEROUS_DOMAINS.some(domain =>
         parsed.hostname.toLowerCase().includes(domain)
       )) {
         return null;
@@ -196,6 +196,202 @@ export class UrlSanitizer {
     } catch {
       return null;
     }
+  }
+}
+
+// Media URL validation
+export class MediaValidator {
+  // Allowed MIME types for different media categories
+  private static readonly ALLOWED_IMAGE_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+  ];
+
+  private static readonly ALLOWED_VIDEO_TYPES = [
+    'video/mp4',
+    'video/webm',
+    'video/ogg',
+  ];
+
+  private static readonly ALLOWED_AUDIO_TYPES = [
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+    'audio/webm',
+  ];
+
+  private static readonly ALLOWED_DOCUMENT_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+  ];
+
+  // File extension to MIME type mapping
+  private static readonly EXTENSION_TO_MIME: Record<string, string[]> = {
+    jpg: ['image/jpeg'],
+    jpeg: ['image/jpeg'],
+    png: ['image/png'],
+    gif: ['image/gif'],
+    webp: ['image/webp'],
+    svg: ['image/svg+xml'],
+    mp4: ['video/mp4'],
+    webm: ['video/webm', 'audio/webm'],
+    ogg: ['video/ogg', 'audio/ogg'],
+    mp3: ['audio/mpeg'],
+    wav: ['audio/wav'],
+    pdf: ['application/pdf'],
+    doc: ['application/msword'],
+    docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    xls: ['application/vnd.ms-excel'],
+    xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    txt: ['text/plain'],
+  };
+
+  // Maximum file sizes in bytes
+  private static readonly MAX_FILE_SIZES = {
+    image: 10 * 1024 * 1024,    // 10MB
+    video: 100 * 1024 * 1024,   // 100MB
+    audio: 50 * 1024 * 1024,    // 50MB
+    document: 25 * 1024 * 1024, // 25MB
+  };
+
+  /**
+   * Validate if a URL is a valid media URL
+   */
+  static isValidMediaUrl(url: string): { valid: boolean; error?: string } {
+    if (!url || typeof url !== 'string') {
+      return { valid: false, error: 'URL não fornecida' };
+    }
+
+    // Check URL format
+    if (!UrlSanitizer.isValidUrl(url)) {
+      return { valid: false, error: 'URL inválida' };
+    }
+
+    // Check for dangerous URL schemes
+    if (!UrlSanitizer.sanitizeUrl(url)) {
+      return { valid: false, error: 'URL potencialmente perigosa' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Validate file extension from URL or filename
+   */
+  static getFileExtension(urlOrFilename: string): string | null {
+    try {
+      const url = new URL(urlOrFilename);
+      const pathname = url.pathname;
+      const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
+      return match ? match[1].toLowerCase() : null;
+    } catch {
+      // Not a URL, try as filename
+      const match = urlOrFilename.match(/\.([a-zA-Z0-9]+)$/);
+      return match ? match[1].toLowerCase() : null;
+    }
+  }
+
+  /**
+   * Check if file extension is allowed
+   */
+  static isAllowedExtension(extension: string, type?: 'image' | 'video' | 'audio' | 'document'): boolean {
+    const ext = extension.toLowerCase();
+    const mimes = this.EXTENSION_TO_MIME[ext];
+
+    if (!mimes) return false;
+
+    if (!type) return true;
+
+    const allowedMimes = {
+      image: this.ALLOWED_IMAGE_TYPES,
+      video: this.ALLOWED_VIDEO_TYPES,
+      audio: this.ALLOWED_AUDIO_TYPES,
+      document: this.ALLOWED_DOCUMENT_TYPES,
+    }[type];
+
+    return mimes.some(mime => allowedMimes.includes(mime));
+  }
+
+  /**
+   * Get media type from file extension
+   */
+  static getMediaType(extension: string): 'image' | 'video' | 'audio' | 'document' | null {
+    const ext = extension.toLowerCase();
+    const mimes = this.EXTENSION_TO_MIME[ext];
+
+    if (!mimes) return null;
+
+    const mime = mimes[0];
+    if (this.ALLOWED_IMAGE_TYPES.includes(mime)) return 'image';
+    if (this.ALLOWED_VIDEO_TYPES.includes(mime)) return 'video';
+    if (this.ALLOWED_AUDIO_TYPES.includes(mime)) return 'audio';
+    if (this.ALLOWED_DOCUMENT_TYPES.includes(mime)) return 'document';
+
+    return null;
+  }
+
+  /**
+   * Check if file size is within limits
+   */
+  static isFileSizeAllowed(sizeInBytes: number, type: 'image' | 'video' | 'audio' | 'document'): boolean {
+    return sizeInBytes <= this.MAX_FILE_SIZES[type];
+  }
+
+  /**
+   * Get maximum file size for a media type
+   */
+  static getMaxFileSize(type: 'image' | 'video' | 'audio' | 'document'): number {
+    return this.MAX_FILE_SIZES[type];
+  }
+
+  /**
+   * Validate a complete media input
+   */
+  static validateMedia(
+    url: string,
+    options?: {
+      type?: 'image' | 'video' | 'audio' | 'document';
+      maxSize?: number;
+    }
+  ): { valid: boolean; error?: string; mediaType?: string; extension?: string } {
+    // Validate URL
+    const urlValidation = this.isValidMediaUrl(url);
+    if (!urlValidation.valid) {
+      return urlValidation;
+    }
+
+    // Get and validate extension
+    const extension = this.getFileExtension(url);
+    if (!extension) {
+      return { valid: false, error: 'Não foi possível determinar o tipo de arquivo' };
+    }
+
+    // Check if extension is allowed
+    if (!this.isAllowedExtension(extension, options?.type)) {
+      return {
+        valid: false,
+        error: `Tipo de arquivo não permitido: .${extension}`
+      };
+    }
+
+    // Get media type
+    const mediaType = this.getMediaType(extension);
+    if (!mediaType) {
+      return { valid: false, error: 'Tipo de mídia não reconhecido' };
+    }
+
+    return {
+      valid: true,
+      mediaType,
+      extension
+    };
   }
 }
 

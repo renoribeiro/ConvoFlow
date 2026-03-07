@@ -16,7 +16,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "*"
+          "value": "${CORS_ORIGIN:-https://convoflow.vercel.app}"
         },
         {
           "key": "Access-Control-Allow-Methods",
@@ -24,7 +24,11 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
+          "value": "Content-Type, Authorization, X-Client-Info, apikey"
+        },
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
         }
       ]
     }

@@ -1422,10 +1422,14 @@ export type Database = {
           created_at: string
           delay_between_messages: number | null
           description: string | null
+          enable_message_randomization: boolean | null
           failed_count: number | null
           id: string
+          max_delay_seconds: number | null
           media_url: string | null
           message_template: string
+          message_templates: string[] | null
+          min_delay_seconds: number | null
           name: string
           scheduled_at: string | null
           sent_count: number | null
@@ -1443,10 +1447,14 @@ export type Database = {
           created_at?: string
           delay_between_messages?: number | null
           description?: string | null
+          enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
+          max_delay_seconds?: number | null
           media_url?: string | null
           message_template: string
+          message_templates?: string[] | null
+          min_delay_seconds?: number | null
           name: string
           scheduled_at?: string | null
           sent_count?: number | null
@@ -1464,10 +1472,14 @@ export type Database = {
           created_at?: string
           delay_between_messages?: number | null
           description?: string | null
+          enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
+          max_delay_seconds?: number | null
           media_url?: string | null
           message_template?: string
+          message_templates?: string[] | null
+          min_delay_seconds?: number | null
           name?: string
           scheduled_at?: string | null
           sent_count?: number | null
