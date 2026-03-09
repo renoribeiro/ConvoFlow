@@ -30,20 +30,20 @@ interface UseSupabaseQueryOptions {
 }
 
 export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
-  const { 
-    table, 
-    queryKey, 
-    select = '*', 
-    filter = [], 
-    filters = [], 
-    order, 
-    orderBy, 
-    limit, 
+  const {
+    table,
+    queryKey,
+    select = '*',
+    filter = [],
+    filters = [],
+    order,
+    orderBy,
+    limit,
     enabled = true,
     refetchInterval,
     staleTime
   } = options;
-  
+
   const { tenant } = useTenant();
   const { toast } = useToast();
 
@@ -57,7 +57,7 @@ export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
         let query = supabase.from(table).select(select);
 
         // Filtrar por tenant automaticamente se não for a tabela profiles, tenants ou affiliates
-        if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
+        if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates' && table !== 'admin_users_view') {
           query = query.eq('tenant_id', tenant.id);
         }
 
@@ -149,17 +149,17 @@ export function useSupabaseTable(tableName: string, options?: Partial<UseSupabas
 export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
   const { tenant } = useTenant();
   const { toast } = useToast();
-  
+
   return useQuery({
     queryKey: [options.table, 'single', options.filters, tenant?.id],
     queryFn: async () => {
       let query = supabase.from(options.table).select(options.select || '*');
-      
+
       // Filtrar por tenant automaticamente
-      if (tenant?.id && options.table !== 'profiles' && options.table !== 'tenants' && options.table !== 'affiliates') {
+      if (tenant?.id && options.table !== 'profiles' && options.table !== 'tenants' && options.table !== 'affiliates' && options.table !== 'admin_users_view') {
         query = query.eq('tenant_id', tenant.id);
       }
-      
+
       // Aplicar filtros
       if (options.filters) {
         options.filters.forEach(({ column, operator, value }) => {
@@ -197,9 +197,9 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
           }
         });
       }
-      
+
       const { data, error } = await query.single();
-      
+
       if (error) {
         toast({
           title: 'Erro ao buscar registro',
@@ -208,7 +208,7 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
         });
         throw error;
       }
-      
+
       return data;
     },
     enabled: options.enabled,
@@ -217,25 +217,25 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
 
 // Hook para contar registros
 export function useSupabaseCount(
-  table: string, 
-  filters?: QueryFilter[], 
+  table: string,
+  filters?: QueryFilter[],
   options?: { enabled?: boolean; refetchInterval?: number; staleTime?: number }
 ) {
   const { tenant } = useTenant();
   const { toast } = useToast();
-  
+
   return useQuery({
     queryKey: ['count', table, filters, tenant?.id],
     queryFn: async () => {
       let query = supabase
         .from(table)
         .select('*', { count: 'exact', head: true });
-      
+
       // Filtrar por tenant automaticamente
-      if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates') {
+      if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates' && table !== 'admin_users_view') {
         query = query.eq('tenant_id', tenant.id);
       }
-      
+
       // Aplicar filtros adicionais
       if (filters) {
         filters.forEach(({ column, operator, value }) => {
@@ -273,9 +273,9 @@ export function useSupabaseCount(
           }
         });
       }
-      
+
       const { count, error } = await query;
-      
+
       if (error) {
         console.error(`Erro ao contar registros na tabela ${table}:`, error);
         toast({
@@ -285,7 +285,7 @@ export function useSupabaseCount(
         });
         throw error;
       }
-      
+
       return count || 0;
     },
     enabled: options?.enabled ?? !!tenant?.id,

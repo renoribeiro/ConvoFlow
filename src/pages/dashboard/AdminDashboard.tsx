@@ -356,6 +356,7 @@ const AdminDashboard = () => {
           phone: userForm.phone || null,
           role: userForm.role,
           is_active: userForm.isActive,
+          tenant_id: userForm.tenantId || null,
         })
         .eq('user_id', authData.user.id);
 
@@ -388,6 +389,7 @@ const AdminDashboard = () => {
         phone: userForm.phone,
         role: userForm.role,
         is_active: userForm.isActive,
+        tenant_id: userForm.tenantId || null,
       },
       options: {
         filter: { column: 'user_id', operator: 'eq', value: selectedUser.id }
