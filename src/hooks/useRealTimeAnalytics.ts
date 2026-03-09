@@ -91,7 +91,7 @@ export const useRealTimeAnalytics = ({
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      
+
       abortControllerRef.current = new AbortController();
       const { signal } = abortControllerRef.current;
 
@@ -159,7 +159,7 @@ export const useRealTimeAnalytics = ({
       totalRevenue: rawData.metrics?.reduce((sum: number, item: any) => sum + (item.revenue || 0), 0) || 0,
       avgConversionRate: 0,
       avgTicket: 0,
-      activeVisitors: Math.floor(Math.random() * 50) + 10 // Mock para visitantes ativos
+      activeVisitors: 0
     };
 
     metrics.avgConversionRate = metrics.totalLeads > 0 ? (metrics.totalConversions / metrics.totalLeads) * 100 : 0;
@@ -211,10 +211,10 @@ export const useRealTimeAnalytics = ({
     if (!trendData || !Array.isArray(trendData) || trendData.length < 2) {
       return 'stable';
     }
-    
+
     const recent = trendData[trendData.length - 1];
     const previous = trendData[trendData.length - 2];
-    
+
     if (recent > previous * 1.05) return 'up';
     if (recent < previous * 0.95) return 'down';
     return 'stable';
@@ -228,18 +228,18 @@ export const useRealTimeAnalytics = ({
 
   // Função para obter dados padrão do funil
   const getDefaultFunnelData = (): FunnelStage[] => [
-    { name: 'Visitantes', value: 2450, percentage: 100, color: '#8884d8', change: 5.2 },
-    { name: 'Leads', value: 435, percentage: 17.8, color: '#82ca9d', change: 3.1 },
-    { name: 'Qualificados', value: 187, percentage: 7.6, color: '#ffc658', change: -1.2 },
-    { name: 'Propostas', value: 89, percentage: 3.6, color: '#ff7300', change: 2.8 },
-    { name: 'Conversões', value: 34, percentage: 1.4, color: '#8dd1e1', change: 4.5 }
+    { name: 'Visitantes', value: 0, percentage: 0, color: '#8884d8', change: 0 },
+    { name: 'Leads', value: 0, percentage: 0, color: '#82ca9d', change: 0 },
+    { name: 'Qualificados', value: 0, percentage: 0, color: '#ffc658', change: 0 },
+    { name: 'Propostas', value: 0, percentage: 0, color: '#ff7300', change: 0 },
+    { name: 'Conversões', value: 0, percentage: 0, color: '#8dd1e1', change: 0 }
   ];
 
   // Função para obter data baseada no filtro
   const getDateFromFilter = (quickDate: string): string => {
     const now = new Date();
     let daysAgo = 30;
-    
+
     switch (quickDate) {
       case 'today': daysAgo = 0; break;
       case '7d': daysAgo = 7; break;
@@ -249,7 +249,7 @@ export const useRealTimeAnalytics = ({
       case '1y': daysAgo = 365; break;
       default: daysAgo = 30;
     }
-    
+
     const date = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
     return date.toISOString().split('T')[0];
   };
@@ -257,11 +257,11 @@ export const useRealTimeAnalytics = ({
   // Função para atualizar dados
   const updateData = useCallback(async () => {
     if (isPaused) return;
-    
+
     try {
       setError(null);
       const newData = await fetchAnalyticsData();
-      
+
       if (newData) {
         setData(newData);
         setLastUpdate(new Date());
@@ -292,7 +292,7 @@ export const useRealTimeAnalytics = ({
       wsRef.current.onopen = () => {
         console.log('WebSocket conectado para análises');
         setIsConnected(true);
-        
+
         // Enviar filtros para o servidor
         if (wsRef.current) {
           wsRef.current.send(JSON.stringify({ type: 'subscribe', filters }));
@@ -302,7 +302,7 @@ export const useRealTimeAnalytics = ({
       wsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          
+
           if (message.type === 'analytics_update') {
             const processedData = processAnalyticsData(message.data);
             setData(processedData);
@@ -316,7 +316,7 @@ export const useRealTimeAnalytics = ({
       wsRef.current.onclose = () => {
         console.log('WebSocket desconectado');
         setIsConnected(false);
-        
+
         // Tentar reconectar após 5 segundos
         if (!isPaused) {
           setTimeout(setupWebSocket, 5000);
@@ -353,12 +353,12 @@ export const useRealTimeAnalytics = ({
 
   const pauseUpdates = useCallback(() => {
     setIsPaused(true);
-    
+
     // Fechar WebSocket
     if (wsRef.current) {
       wsRef.current.close();
     }
-    
+
     // Limpar polling
     if (intervalRef.current) {
       clearInterval(intervalRef.current);

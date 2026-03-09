@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, TrendingDown, AlertTriangle, Target, Brain, Zap } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { TrendingUp, TrendingDown, AlertTriangle, Target, Brain, Zap, Info } from 'lucide-react';
 
 const predictionData = [
   { month: 'Jan', actual: 435, predicted: 445 },
@@ -62,6 +63,14 @@ const insights = [
 export const PredictiveAnalytics = () => {
   return (
     <div className="space-y-6">
+      <Alert className="bg-blue-50/50 border-blue-200">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-800">Recurso em Desenvolvimento (Beta)</AlertTitle>
+        <AlertDescription className="text-blue-700">
+          As análises preditivas abaixo utilizam dados demonstrativos para ilustrar os recursos de Machine Learning focados em previsão de demanda e otimização, parte integrante da próxima grande atualização do sistema.
+        </AlertDescription>
+      </Alert>
+
       {/* Header Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -124,17 +133,17 @@ export const PredictiveAnalytics = () => {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="actual" 
-                  stroke="hsl(var(--primary))" 
+                <Line
+                  type="monotone"
+                  dataKey="actual"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   name="Real"
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="predicted" 
-                  stroke="hsl(var(--success))" 
+                <Line
+                  type="monotone"
+                  dataKey="predicted"
+                  stroke="hsl(var(--success))"
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   name="Previsto"
@@ -156,8 +165,8 @@ export const PredictiveAnalytics = () => {
                 <XAxis dataKey="day" />
                 <YAxis />
                 <Tooltip />
-                <Bar 
-                  dataKey="leads" 
+                <Bar
+                  dataKey="leads"
                   fill="hsl(var(--primary))"
                   name="Leads Médios"
                 />
@@ -182,8 +191,8 @@ export const PredictiveAnalytics = () => {
                     <h4 className="font-medium">{insight.title}</h4>
                   </div>
                   <Badge variant={
-                    insight.impact === 'Alto' ? 'destructive' : 
-                    insight.impact === 'Médio' ? 'default' : 'secondary'
+                    insight.impact === 'Alto' ? 'destructive' :
+                      insight.impact === 'Médio' ? 'default' : 'secondary'
                   }>
                     {insight.impact}
                   </Badge>

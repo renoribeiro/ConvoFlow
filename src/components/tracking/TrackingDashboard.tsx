@@ -1,4 +1,5 @@
 
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -7,12 +8,12 @@ import { ConversionFunnel } from './ConversionFunnel';
 import { SourceBreakdown } from './SourceBreakdown';
 import { DashboardCardSkeleton } from '@/components/shared/Skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  Target, 
-  DollarSign, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  Target,
+  DollarSign,
   Eye,
   Globe,
   Facebook,
@@ -20,11 +21,11 @@ import {
   Search,
   AlertCircle
 } from 'lucide-react';
-import { 
-  useTrackingMetrics, 
-  useTrafficSources, 
+import {
+  useTrackingMetrics,
+  useTrafficSources,
   useLeadTracking,
-  useCampaignPerformance 
+  useCampaignPerformance
 } from '@/hooks/useTracking';
 import { formatCurrency } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
@@ -68,13 +69,20 @@ interface TrackingDashboardProps {
 }
 
 export const TrackingDashboard = ({ dateRange, selectedSources, selectedStatus }: TrackingDashboardProps) => {
-  // Use provided dateRange or default to last 30 days
-  const defaultDateRange = (() => {
-    if (dateRange) return dateRange;
+  const defaultDateRange = useMemo(() => {
+    if (dateRange && dateRange.from && dateRange.to) {
+      return {
+        from: dateRange.from.toISOString(),
+        to: dateRange.to.toISOString()
+      };
+    }
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    return { from: thirtyDaysAgo, to: now };
-  })();
+    return {
+      from: thirtyDaysAgo.toISOString(),
+      to: now.toISOString()
+    };
+  }, [dateRange]);
 
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useTrackingMetrics(defaultDateRange);
   const { data: trafficSources, isLoading: sourcesLoading } = useTrafficSources();
@@ -96,16 +104,16 @@ export const TrackingDashboard = ({ dateRange, selectedSources, selectedStatus }
   }
 
   // Calcular métricas derivadas
-  const totalLeads = metrics?.total_leads || 0;
-  const totalConversions = metrics?.total_conversions || 0;
-  const totalRevenue = metrics?.total_revenue || 0;
-  const conversionRate = totalLeads > 0 ? (totalConversions / totalLeads) * 100 : 0;
+  const totalLeads = metrics?.totalLeads || 0;
+  const totalConversions = metrics?.totalConversions || 0;
+  const totalRevenue = metrics?.totalRevenue || 0;
+  const conversionRate = metrics?.conversionRate || 0;
 
   // Calcular tendências (comparação com período anterior)
-  const leadsGrowth = metrics?.leads_growth_rate || 0;
-  const conversionsGrowth = metrics?.conversions_growth_rate || 0;
-  const revenueGrowth = metrics?.revenue_growth_rate || 0;
-  const rateGrowth = metrics?.conversion_rate_growth || 0;
+  const leadsGrowth = metrics?.trends?.leads?.value || 0;
+  const conversionsGrowth = metrics?.trends?.conversions?.value || 0;
+  const revenueGrowth = metrics?.trends?.revenue?.value || 0;
+  const rateGrowth = metrics?.trends?.rate?.value || 0;
 
   return (
     <div className="space-y-6">
@@ -230,15 +238,15 @@ export const TrackingDashboard = ({ dateRange, selectedSources, selectedStatus }
 
       {/* Gráficos e Análises */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrafficChart />
-        <ConversionFunnel />
+        <TrafficChart data={metrics?.rawData} isLoading={isLoading} />
+        <ConversionFunnel metrics={metrics} isLoading={isLoading} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <SourceBreakdown />
+          <SourceBreakdown data={trafficSources} isLoading={isLoading} />
         </div>
-        
+
         {/* Performance por Fonte */}
         <Card>
           <CardHeader>
@@ -262,13 +270,16 @@ export const TrackingDashboard = ({ dateRange, selectedSources, selectedStatus }
               </div>
             ) : (
               <div className="space-y-4">
-                {trafficSources?.slice(0, 5).map((source) => {
-                  const IconComponent = getSourceIcon(source.source_type || 'organic');
-                  const colorClass = getSourceColor(source.source_type || 'organic');
-                  const conversionRate = source.total_leads > 0 
-                    ? ((source.total_conversions || 0) / source.total_leads) * 100 
+                {trafficSources?.slice(0, 5).map((source: any) => {
+                  const IconComponent = getSourceIcon(source.type || 'organic');
+                  const colorClass = getSourceColor(source.type || 'organic');
+                  // Assumindo que lead_tracking(count) retorna um array com objeto count
+                  const totalLeads = source.lead_tracking?.[0]?.count || 0;
+                  const totalConversions = source.total_conversions || 0; // Se houver coluna ou join de conversões na fonte
+                  const conversionRate = totalLeads > 0
+                    ? (totalConversions / totalLeads) * 100
                     : 0;
-                  
+
                   return (
                     <div key={source.id} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -278,7 +289,7 @@ export const TrackingDashboard = ({ dateRange, selectedSources, selectedStatus }
                         <div>
                           <p className="font-medium text-sm">{source.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {source.total_leads || 0} leads • {source.total_conversions || 0} conversões
+                            {totalLeads} leads • {totalConversions} conversões
                           </p>
                         </div>
                       </div>

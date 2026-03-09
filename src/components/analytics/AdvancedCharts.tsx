@@ -4,21 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
   Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   ScatterChart,
   Scatter,
@@ -26,11 +26,11 @@ import {
   Funnel,
   LabelList
 } from 'recharts';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  BarChart3, 
-  PieChart as PieChartIcon, 
+import {
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  PieChart as PieChartIcon,
   Activity,
   Target,
   Users,
@@ -81,84 +81,7 @@ interface SourceData {
   roi: number;
 }
 
-// Dados mockados para demonstração
-const generateMockData = (filters: AnalyticsFilters): ChartData[] => {
-  const days = 30;
-  const data: ChartData[] = [];
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      leads: Math.floor(Math.random() * 50) + 20,
-      conversions: Math.floor(Math.random() * 15) + 5,
-      revenue: Math.floor(Math.random() * 5000) + 1000,
-      visitors: Math.floor(Math.random() * 200) + 100,
-      conversionRate: Math.random() * 20 + 5,
-      avgTicket: Math.floor(Math.random() * 500) + 200
-    });
-  }
-  
-  return data;
-};
-
-const generateFunnelData = (): FunnelData[] => [
-  { name: 'Visitantes', value: 2450, percentage: 100, color: '#8884d8' },
-  { name: 'Leads', value: 435, percentage: 17.8, color: '#82ca9d' },
-  { name: 'Qualificados', value: 187, percentage: 7.6, color: '#ffc658' },
-  { name: 'Propostas', value: 89, percentage: 3.6, color: '#ff7300' },
-  { name: 'Conversões', value: 34, percentage: 1.4, color: '#8dd1e1' }
-];
-
-const generateSourceData = (): SourceData[] => [
-  {
-    source: 'Facebook Ads',
-    leads: 156,
-    conversions: 23,
-    revenue: 12500,
-    conversionRate: 14.7,
-    cost: 3200,
-    roi: 290
-  },
-  {
-    source: 'Google Ads',
-    leads: 134,
-    conversions: 31,
-    revenue: 18900,
-    conversionRate: 23.1,
-    cost: 4100,
-    roi: 361
-  },
-  {
-    source: 'Instagram',
-    leads: 89,
-    conversions: 12,
-    revenue: 7800,
-    conversionRate: 13.5,
-    cost: 1800,
-    roi: 333
-  },
-  {
-    source: 'Site Orgânico',
-    leads: 67,
-    conversions: 18,
-    revenue: 11200,
-    conversionRate: 26.9,
-    cost: 0,
-    roi: 0
-  },
-  {
-    source: 'Tráfego Direto',
-    leads: 45,
-    conversions: 8,
-    revenue: 5600,
-    conversionRate: 17.8,
-    cost: 0,
-    roi: 0
-  }
-];
+// Funções de mock removidas
 
 // Cores para os gráficos
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0', '#ffb347'];
@@ -172,10 +95,10 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
   // Usar hook de dados em tempo real
   const { chartData: realTimeChartData, sourceData: realTimeSourceData, funnelData: realTimeFunnelData, isLoading, error, refresh, lastUpdated } = useRealTimeChartData(filters);
 
-  // Dados processados com fallback para mock
-  const chartData = useMemo(() => realTimeChartData.length > 0 ? realTimeChartData : generateMockData(filters), [realTimeChartData, filters]);
-  const funnelData = useMemo(() => realTimeFunnelData.length > 0 ? realTimeFunnelData : generateFunnelData(), [realTimeFunnelData]);
-  const sourceData = useMemo(() => realTimeSourceData.length > 0 ? realTimeSourceData : generateSourceData(), [realTimeSourceData]);
+  // Dados processados (remoção de fallbacks mockados)
+  const chartData = useMemo(() => realTimeChartData, [realTimeChartData]);
+  const funnelData = useMemo(() => realTimeFunnelData, [realTimeFunnelData]);
+  const sourceData = useMemo(() => realTimeSourceData, [realTimeSourceData]);
 
   // Métricas calculadas
   const metrics = useMemo(() => {
@@ -183,7 +106,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
     const totalConversions = chartData.reduce((sum, item) => sum + item.conversions, 0);
     const totalRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
     const avgConversionRate = totalLeads > 0 ? (totalConversions / totalLeads) * 100 : 0;
-    
+
     return {
       totalLeads,
       totalConversions,
@@ -213,43 +136,43 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
   // Renderizar gráfico principal
   const renderMainChart = () => {
     const ChartComponent = chartType === 'line' ? LineChart : chartType === 'area' ? AreaChart : BarChart;
-    
+
     return (
       <ResponsiveContainer width="100%" height={400}>
         <ChartComponent data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-          <XAxis 
-            dataKey="date" 
+          <XAxis
+            dataKey="date"
             tick={{ fontSize: 12 }}
             tickFormatter={(value) => new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
           />
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
-          
+
           {chartType === 'line' && (
             <>
-              <Line 
-                type="monotone" 
-                dataKey={selectedMetric} 
-                stroke="#8884d8" 
+              <Line
+                type="monotone"
+                dataKey={selectedMetric}
+                stroke="#8884d8"
                 strokeWidth={2}
                 dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6 }}
               />
             </>
           )}
-          
+
           {chartType === 'area' && (
-            <Area 
-              type="monotone" 
-              dataKey={selectedMetric} 
-              stroke="#8884d8" 
+            <Area
+              type="monotone"
+              dataKey={selectedMetric}
+              stroke="#8884d8"
               fill="#8884d8"
               fillOpacity={0.3}
             />
           )}
-          
+
           {chartType === 'bar' && (
             <Bar dataKey={selectedMetric} fill="#8884d8" radius={[4, 4, 0, 0]} />
           )}
@@ -323,7 +246,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -335,7 +258,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -347,7 +270,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -359,7 +282,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -403,7 +326,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                       <SelectItem value="conversionRate">Taxa de Conversão</SelectItem>
                     </SelectContent>
                   </Select>
-                  
+
                   <Select value={chartType} onValueChange={(value: any) => setChartType(value)}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
@@ -414,7 +337,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                       <SelectItem value="bar">Barras</SelectItem>
                     </SelectContent>
                   </Select>
-                  
+
                   <Button variant="outline" size="sm">
                     <Download className="w-4 h-4 mr-1" />
                     Exportar
@@ -453,14 +376,14 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                     </FunnelChart>
                   </ResponsiveContainer>
                 </div>
-                
+
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">Detalhes do Funil</h3>
                   {funnelData.map((item, index) => (
                     <div key={item.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
+                        <div
+                          className="w-4 h-4 rounded-full"
                           style={{ backgroundColor: item.color }}
                         />
                         <span className="font-medium">{item.name}</span>
@@ -509,7 +432,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                
+
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg">Performance por Fonte</h3>
                   <div className="space-y-2">
@@ -517,8 +440,8 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                       <div key={source.source} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full" 
+                            <div
+                              className="w-3 h-3 rounded-full"
                               style={{ backgroundColor: COLORS[index % COLORS.length] }}
                             />
                             <span className="font-medium">{source.source}</span>
@@ -569,7 +492,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Evolução da Taxa de Conversão</CardTitle>
@@ -578,16 +501,16 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       tickFormatter={(value) => new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                     />
                     <YAxis />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="conversionRate" 
-                      stroke="#82ca9d" 
+                    <Line
+                      type="monotone"
+                      dataKey="conversionRate"
+                      stroke="#82ca9d"
                       strokeWidth={2}
                       dot={{ fill: '#82ca9d', strokeWidth: 2, r: 3 }}
                     />
