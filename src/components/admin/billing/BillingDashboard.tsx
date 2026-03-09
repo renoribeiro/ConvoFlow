@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -12,173 +12,91 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { 
-  CreditCard, 
-  DollarSign, 
-  TrendingUp, 
-  Activity, 
-  Search, 
-  Filter, 
-  Download, 
-  Plus, 
-  Edit, 
-  Trash2,
+  CreditCard,
+  DollarSign,
+  TrendingUp,
+  Activity,
+  Search,
+  Filter,
+  Download,
+  RefreshCw,
   AlertCircle,
-  CheckCircle2
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { stripeMcpService } from '@/services/stripeMcpService';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import StripeConfiguration from '@/components/StripeConfiguration';
 
-// Interfaces
-interface Transaction {
-  id: string;
-  customer: string;
-  amount: number;
-  currency: string;
-  status: 'succeeded' | 'pending' | 'failed';
-  date: string;
-  description: string;
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  interval: 'month' | 'year';
-  features: string[];
-  active: boolean;
-}
-
-interface BillingStats {
-  balance: number;
-  pendingBalance: number;
-  totalRevenue: number;
-  mrr: number;
-  activeSubscriptions: number;
-}
+const CONVOFLOW_PRO_PRODUCT_ID = 'prod_Tmg5IInlTr4hi3';
 
 export function BillingDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<BillingStats>({
-    balance: 0,
-    pendingBalance: 0,
-    totalRevenue: 0,
-    mrr: 0,
-    activeSubscriptions: 0
+
+  // Fetch real subscriptions
+  const { data: subscriptions = [], isLoading: subsLoading } = useQuery({
+    queryKey: ['admin-subscriptions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*, profiles(first_name, last_name, user_id)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
   });
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([
-    {
-      id: 'price_basic',
-      name: 'Basic',
-      price: 29.00,
-      currency: 'BRL',
-      interval: 'month',
-      features: ['1 Chatbot', '1000 Mensagens/mês', 'Suporte Básico'],
-      active: true
+
+  // Fetch real transactions
+  const { data: transactions = [], isLoading: txLoading } = useQuery({
+    queryKey: ['admin-stripe-transactions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stripe_transactions')
+        .select('*')
+        .order('processed_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
     },
-    {
-      id: 'price_pro',
-      name: 'Pro',
-      price: 97.00,
-      currency: 'BRL',
-      interval: 'month',
-      features: ['Chatbots Ilimitados', 'Mensagens Ilimitadas', 'Suporte Prioritário', 'API Access'],
-      active: true
-    },
-    {
-      id: 'price_enterprise',
-      name: 'Enterprise',
-      price: 297.00,
-      currency: 'BRL',
-      interval: 'month',
-      features: ['Tudo do Pro', 'Gerente de Conta Dedicado', 'SLA Garantido', 'Customização White-label'],
-      active: true
-    }
-  ]);
+  });
 
-  // Modal states
-  const [isEditPlanOpen, setIsEditPlanOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-
-  useEffect(() => {
-    loadBillingData();
-  }, []);
-
-  const loadBillingData = async () => {
-    setIsLoading(true);
-    try {
-      // In a real scenario, we would fetch this data from Stripe via the service
-      // For now, we'll try to fetch but fallback to mock data if not configured
-      
-      const isConfigured = await stripeMcpService.isConfigured();
-      
-      if (isConfigured) {
-        try {
-          // Attempt to fetch real data
-          // const balance = await stripeMcpService.getBalance();
-          // const transactions = await stripeMcpService.listPaymentIntents();
-          // ... process data
-        } catch (error) {
-          console.error("Error fetching real Stripe data:", error);
-        }
-      }
-
-      // Mock Data for demonstration
-      setStats({
-        balance: 12500.50,
-        pendingBalance: 1200.00,
-        totalRevenue: 145600.00,
-        mrr: 15400.00,
-        activeSubscriptions: 142
-      });
-
-      setTransactions([
-        { id: 'pi_1', customer: 'João Silva', amount: 97.00, currency: 'BRL', status: 'succeeded', date: '2023-10-25', description: 'Assinatura Pro' },
-        { id: 'pi_2', customer: 'Maria Santos', amount: 29.00, currency: 'BRL', status: 'succeeded', date: '2023-10-24', description: 'Assinatura Basic' },
-        { id: 'pi_3', customer: 'Empresa X', amount: 297.00, currency: 'BRL', status: 'succeeded', date: '2023-10-24', description: 'Assinatura Enterprise' },
-        { id: 'pi_4', customer: 'Carlos Oliveira', amount: 97.00, currency: 'BRL', status: 'failed', date: '2023-10-23', description: 'Assinatura Pro' },
-        { id: 'pi_5', customer: 'Ana Costa', amount: 97.00, currency: 'BRL', status: 'pending', date: '2023-10-23', description: 'Assinatura Pro' },
-      ]);
-
-    } catch (error) {
-      toast.error('Erro ao carregar dados de faturamento');
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
+  // Calculate real stats
+  const stats = {
+    activeSubscriptions: subscriptions.filter((s: any) => s.status === 'active').length,
+    mrr: subscriptions
+      .filter((s: any) => s.status === 'active')
+      .reduce((sum: number, s: any) => sum + (s.amount || 0) / 100, 0),
+    totalRevenue: transactions
+      .filter((t: any) => t.status === 'succeeded')
+      .reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
+    totalTransactions: transactions.length,
   };
 
-  const handleUpdatePlan = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPlan) return;
-
-    setPlans(prev => prev.map(p => p.id === selectedPlan.id ? selectedPlan : p));
-    toast.success('Plano atualizado com sucesso!');
-    setIsEditPlanOpen(false);
-  };
-
-  const formatCurrency = (amount: number, currency: string) => {
+  const formatCurrency = (amount: number, currency: string = 'BRL') => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: currency,
+      currency: currency.toUpperCase(),
     }).format(amount);
   };
+
+  const getStatusBadge = (status: string) => {
+    const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
+      active: { label: 'Ativo', variant: 'default' },
+      trialing: { label: 'Trial', variant: 'secondary' },
+      past_due: { label: 'Atrasado', variant: 'destructive' },
+      canceled: { label: 'Cancelado', variant: 'secondary' },
+      succeeded: { label: 'Pago', variant: 'default' },
+      failed: { label: 'Falhou', variant: 'destructive' },
+      pending: { label: 'Pendente', variant: 'secondary' },
+    };
+    const config = map[status] || { label: status, variant: 'secondary' as const };
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const isLoading = subsLoading || txLoading;
+  const hasData = subscriptions.length > 0 || transactions.length > 0;
 
   return (
     <div className="space-y-6">
@@ -186,13 +104,15 @@ export function BillingDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Disponível</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.balance, 'BRL')}</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : stats.activeSubscriptions}
+            </div>
             <p className="text-xs text-muted-foreground">
-              + {formatCurrency(stats.pendingBalance, 'BRL')} pendente
+              Total de {subscriptions.length} assinatura(s)
             </p>
           </CardContent>
         </Card>
@@ -202,21 +122,11 @@ export function BillingDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.mrr, 'BRL')}</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : formatCurrency(stats.mrr)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +2.5% em relação ao mês anterior
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeSubscriptions}</div>
-            <p className="text-xs text-muted-foreground">
-              +12 novos assinantes este mês
+              Receita recorrente mensal
             </p>
           </CardContent>
         </Card>
@@ -226,18 +136,50 @@ export function BillingDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue, 'BRL')}</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : formatCurrency(stats.totalRevenue)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Desde o início
+              De {stats.totalTransactions} transação(ões)
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Produto Stripe</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm font-bold text-primary">Convoflow Pro</div>
+            <p className="text-xs text-muted-foreground font-mono">
+              {CONVOFLOW_PRO_PRODUCT_ID}
             </p>
           </CardContent>
         </Card>
       </div>
 
+      {!hasData && !isLoading && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Nenhuma assinatura ou transação encontrada. Configure o Stripe e crie preços para o produto <strong>Convoflow Pro</strong> ({CONVOFLOW_PRO_PRODUCT_ID}) no{' '}
+            <a
+              href="https://dashboard.stripe.com/products"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline inline-flex items-center gap-1"
+            >
+              Dashboard do Stripe <ExternalLink className="h-3 w-3" />
+            </a>.
+            Depois configure a <strong>STRIPE_SECRET_KEY</strong> nas variáveis de ambiente do Supabase.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">Transações Recentes</TabsTrigger>
-          <TabsTrigger value="plans">Gerenciar Planos</TabsTrigger>
+          <TabsTrigger value="overview">Transações</TabsTrigger>
+          <TabsTrigger value="subscriptions">Assinaturas</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
         </TabsList>
 
@@ -247,61 +189,48 @@ export function BillingDashboard() {
               <div>
                 <CardTitle>Transações Recentes</CardTitle>
                 <CardDescription>
-                  Histórico de pagamentos e cobranças.
+                  Histórico de pagamentos do Stripe.
                 </CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filtrar
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
+                    <TableHead>ID</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">Carregando...</TableCell>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+                        Carregando...
+                      </TableCell>
                     </TableRow>
                   ) : transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">Nenhuma transação encontrada</TableCell>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Nenhuma transação encontrada
+                      </TableCell>
                     </TableRow>
                   ) : (
-                    transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.customer}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
-                        <TableCell>{formatCurrency(transaction.amount, transaction.currency)}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            transaction.status === 'succeeded' ? 'default' : 
-                            transaction.status === 'pending' ? 'secondary' : 'destructive'
-                          }>
-                            {transaction.status === 'succeeded' ? 'Pago' : 
-                             transaction.status === 'pending' ? 'Pendente' : 'Falhou'}
-                          </Badge>
+                    transactions.map((tx: any) => (
+                      <TableRow key={tx.id}>
+                        <TableCell className="font-mono text-xs">
+                          {tx.stripe_payment_intent_id?.slice(0, 20)}...
                         </TableCell>
-                        <TableCell>{new Date(transaction.date).toLocaleDateString('pt-BR')}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon">
-                            <Search className="h-4 w-4" />
-                          </Button>
+                        <TableCell>{tx.description || '-'}</TableCell>
+                        <TableCell>{formatCurrency(tx.amount, tx.currency)}</TableCell>
+                        <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                        <TableCell>
+                          {tx.processed_at
+                            ? new Date(tx.processed_at).toLocaleDateString('pt-BR')
+                            : '-'}
                         </TableCell>
                       </TableRow>
                     ))
@@ -312,125 +241,70 @@ export function BillingDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="plans" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium">Planos de Assinatura</h3>
-              <p className="text-sm text-muted-foreground">Gerencie os planos disponíveis para seus usuários.</p>
-            </div>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Plano
-            </Button>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {plans.map((plan) => (
-              <Card key={plan.id} className={!plan.active ? 'opacity-60' : ''}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle>{plan.name}</CardTitle>
-                    {plan.active ? (
-                      <Badge className="bg-green-500">Ativo</Badge>
-                    ) : (
-                      <Badge variant="secondary">Inativo</Badge>
-                    )}
-                  </div>
-                  <CardDescription>
-                    <span className="text-2xl font-bold text-primary">
-                      {formatCurrency(plan.price, plan.currency)}
-                    </span>
-                    <span className="text-muted-foreground">/{plan.interval === 'month' ? 'mês' : 'ano'}</span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm mb-4">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center">
-                        <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      setSelectedPlan(plan);
-                      setIsEditPlanOpen(true);
-                    }}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        <TabsContent value="subscriptions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Assinaturas</CardTitle>
+              <CardDescription>Todas as assinaturas ativas e históricas.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuário</TableHead>
+                    <TableHead>Plano</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Período Atual</TableHead>
+                    <TableHead>Criado em</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+                        Carregando...
+                      </TableCell>
+                    </TableRow>
+                  ) : subscriptions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Nenhuma assinatura encontrada
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    subscriptions.map((sub: any) => (
+                      <TableRow key={sub.id}>
+                        <TableCell className="font-medium">
+                          {sub.profiles
+                            ? `${sub.profiles.first_name || ''} ${sub.profiles.last_name || ''}`.trim() || 'N/A'
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell>{sub.plan_name}</TableCell>
+                        <TableCell>{formatCurrency((sub.amount || 0) / 100, sub.currency)}</TableCell>
+                        <TableCell>{getStatusBadge(sub.status)}</TableCell>
+                        <TableCell>
+                          {sub.current_period_end
+                            ? new Date(sub.current_period_end).toLocaleDateString('pt-BR')
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(sub.created_at).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
           <StripeConfiguration />
         </TabsContent>
       </Tabs>
-
-      {/* Edit Plan Modal */}
-      <Dialog open={isEditPlanOpen} onOpenChange={setIsEditPlanOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Plano</DialogTitle>
-            <DialogDescription>
-              Faça alterações no plano de assinatura.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedPlan && (
-            <form onSubmit={handleUpdatePlan} className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Nome
-                </Label>
-                <Input
-                  id="name"
-                  value={selectedPlan.name}
-                  onChange={(e) => setSelectedPlan({...selectedPlan, name: e.target.value})}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="price" className="text-right">
-                  Preço
-                </Label>
-                <Input
-                  id="price"
-                  type="number"
-                  value={selectedPlan.price}
-                  onChange={(e) => setSelectedPlan({...selectedPlan, price: Number(e.target.value)})}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="active" className="text-right">
-                  Status
-                </Label>
-                <div className="col-span-3 flex items-center space-x-2">
-                  <Switch
-                    id="active"
-                    checked={selectedPlan.active}
-                    onCheckedChange={(checked) => setSelectedPlan({...selectedPlan, active: checked})}
-                  />
-                  <Label htmlFor="active">{selectedPlan.active ? 'Ativo' : 'Inativo'}</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditPlanOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit">Salvar Alterações</Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
