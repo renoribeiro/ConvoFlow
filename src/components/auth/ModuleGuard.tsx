@@ -14,10 +14,10 @@ interface ModuleGuardProps {
 
 const PREMIUM_MODULES = ['chatbots', 'automation', 'campaigns', 'followups', 'reports', 'tracking', 'funnel'];
 
-export const ModuleGuard = ({ 
-  children, 
-  moduleName, 
-  fallbackPath = '/' 
+export const ModuleGuard = ({
+  children,
+  moduleName,
+  fallbackPath = '/'
 }: ModuleGuardProps) => {
   const { visibleModules, isLoading } = useModules();
   const isSuperAdmin = useIsSuperAdmin();
@@ -48,7 +48,7 @@ export const ModuleGuard = ({
     if (fallbackPath !== null) {
       return <Navigate to={fallbackPath} replace />;
     }
-    
+
     // Opção 2: Mostrar mensagem de acesso negado
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
@@ -67,32 +67,33 @@ export const ModuleGuard = ({
   const isPro = tenant?.plan_type === 'pro' && tenant?.subscription_status === 'active';
   const trialEnds = tenant?.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
   const isTrial = tenant?.status === 'trial' && (!trialEnds || trialEnds > new Date());
-  
-  const hasAccess = isPro || isTrial;
+  const hasManualAccess = tenant?.manual_access_granted === true;
+
+  const hasAccess = isPro || isTrial || hasManualAccess;
 
   if (isPremiumModule && !hasAccess) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center space-y-6 animate-in fade-in zoom-in duration-300">
-          <div className="bg-yellow-100 p-4 rounded-full">
-            <Lock className="h-12 w-12 text-yellow-600" />
-          </div>
-          <div className="max-w-md space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight">Recurso Premium</h2>
-            <p className="text-muted-foreground">
-              O módulo <strong>{moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}</strong> está disponível apenas no plano Pro.
-              Atualize sua assinatura para desbloquear este e outros recursos avançados.
-            </p>
-          </div>
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Voltar
-            </Button>
-            <Button onClick={() => navigate('/dashboard/settings?tab=subscription')} className="bg-green-600 hover:bg-green-700">
-              Fazer Upgrade Agora
-            </Button>
-          </div>
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center space-y-6 animate-in fade-in zoom-in duration-300">
+        <div className="bg-yellow-100 p-4 rounded-full">
+          <Lock className="h-12 w-12 text-yellow-600" />
         </div>
-      );
+        <div className="max-w-md space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">Recurso Premium</h2>
+          <p className="text-muted-foreground">
+            O módulo <strong>{moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}</strong> está disponível apenas no plano Pro.
+            Atualize sua assinatura para desbloquear este e outros recursos avançados.
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            Voltar
+          </Button>
+          <Button onClick={() => navigate('/dashboard/settings?tab=subscription')} className="bg-green-600 hover:bg-green-700">
+            Fazer Upgrade Agora
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -117,7 +118,9 @@ export const useModuleAccess = (moduleName: string) => {
   const isPro = tenant?.plan_type === 'pro' && tenant?.subscription_status === 'active';
   const trialEnds = tenant?.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
   const isTrial = tenant?.status === 'trial' && (!trialEnds || trialEnds > new Date());
-  const hasSubscriptionAccess = !isPremiumModule || isPro || isTrial;
+  const hasManualAccess = tenant?.manual_access_granted === true;
+
+  const hasSubscriptionAccess = !isPremiumModule || isPro || isTrial || hasManualAccess;
 
   return { hasAccess: moduleEnabled && hasSubscriptionAccess, isLoading };
 };

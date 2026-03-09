@@ -582,20 +582,21 @@ const AdminDashboard = () => {
                     <TableHead>Função</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Tenant</TableHead>
+                    <TableHead>Plano / Acesso</TableHead>
                     <TableHead>Criado em</TableHead>
-                    <TableHead>Ações</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {usersLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         Carregando usuários...
                       </TableCell>
                     </TableRow>
                   ) : usersWithEmails.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -616,13 +617,50 @@ const AdminDashboard = () => {
                             {user.is_active ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{user.tenants?.name || 'N/A'}</TableCell>
+                        <TableCell>{user.tenant_name || 'N/A'}</TableCell>
+                        <TableCell>
+                          {user.manual_access_granted ? (
+                            <Badge className="bg-purple-500 hover:bg-purple-600">Manual (Liberado)</Badge>
+                          ) : (
+                            <Badge variant="outline">Stripe</Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center justify-end space-x-2">
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className={user.manual_access_granted ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
+                              onClick={async () => {
+                                try {
+                                  if (!user.tenant_id) {
+                                    toast.error('Usuário não possui um tenant associado.');
+                                    return;
+                                  }
+
+                                  const newValue = !user.manual_access_granted;
+                                  const { error } = await supabase
+                                    .from('tenants')
+                                    .update({ manual_access_granted: newValue })
+                                    .eq('id', user.tenant_id);
+
+                                  if (error) throw error;
+
+                                  toast.success(`Acesso manual ${newValue ? 'liberado' : 'revogado'} com sucesso!`);
+                                  refetchUsers();
+                                } catch (error: any) {
+                                  toast.error('Erro ao alterar acesso: ' + error.message);
+                                }
+                              }}
+                              title={user.manual_access_granted ? "Revogar Acesso Manual" : "Liberar Acesso Manualmente"}
+                            >
+                              {user.manual_access_granted ? 'Revogar Acesso' : 'Liberar Manualmente'}
+                            </Button>
+                            <Button
+
                               variant="ghost"
                               size="icon"
                               onClick={() => {

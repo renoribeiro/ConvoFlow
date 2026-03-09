@@ -1,13 +1,14 @@
-
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, ArrowRight, Crown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 
 export const PricingSection = () => {
   const [userCount, setUserCount] = useState(1);
-  
+  const navigate = useNavigate();
+
   const basePrice = 299;
   const additionalUserPrice = 89;
   const totalPrice = basePrice + (userCount > 1 ? (userCount - 1) * additionalUserPrice : 0);
@@ -26,8 +27,8 @@ export const PricingSection = () => {
   ];
 
   const handleSubscribe = () => {
-    // Integração com Stripe será implementada aqui
-    console.log(`Assinatura para ${userCount} usuários - R$ ${totalPrice}/mês`);
+    // Navigate to auth page to create account before subscribing
+    navigate('/auth');
   };
 
   return (
@@ -62,7 +63,7 @@ export const PricingSection = () => {
         >
           {/* Gradient Background */}
           <div className="absolute inset-0 bg-gradient-to-br from-whatsapp-primary/5 to-transparent" />
-          
+
           <div className="relative z-10">
             {/* Price Calculator */}
             <div className="text-center mb-8">
