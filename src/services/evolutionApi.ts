@@ -149,10 +149,9 @@ export class EvolutionApiService {
       ? params.instanceName
       : String(params.instanceName);
 
-
-
     // Payload seguindo o modelo oficial da Evolution API V2
-    const body = {
+    // Inclui configuração inline de webhook (best practice V2)
+    const body: Record<string, any> = {
       integration: "WHATSAPP-BAILEYS",
       instanceName,
       qrcode: true,
@@ -163,7 +162,21 @@ export class EvolutionApiService {
       readStatus: true
     };
 
-
+    // V2 best practice: configure webhook inline with instance creation
+    if (params.webhookUrl) {
+      body.webhook = {
+        url: params.webhookUrl,
+        webhookByEvents: false,
+        webhookBase64: false,
+        events: [
+          'QRCODE_UPDATED',
+          'CONNECTION_UPDATE',
+          'MESSAGES_UPSERT',
+          'MESSAGES_UPDATE',
+          'SEND_MESSAGE'
+        ]
+      };
+    }
 
     return this.makeRequest('/instance/create', {
       method: 'POST',
@@ -1077,20 +1090,28 @@ const processIncomingMessage = async (instanceName: string, messageData: Incomin
 };
 
 const processConnectionUpdate = async (instanceName: string, connectionData: any): Promise<void> => {
-  const { state, qr } = connectionData;
+  // V2: QR code comes via separate 'qrcode.updated' event, not in connection data
+  const { state } = connectionData;
+
+  const updatePayload: Record<string, any> = {
+    status: state,
+    last_connected_at: state === 'open' ? new Date().toISOString() : null,
+  };
+
+  // Clear QR code when connected or disconnected
+  if (state === 'open' || state === 'close') {
+    updatePayload.qr_code = null;
+  }
 
   await supabase
     .from('whatsapp_instances')
-    .update({
-      status: state,
-      qr_code: qr || null,
-      last_connected_at: state === 'open' ? new Date().toISOString() : null,
-    })
+    .update(updatePayload)
     .eq('instance_key', instanceName);
 };
 
 const processQRCodeUpdate = async (instanceName: string, qrData: any): Promise<void> => {
-  const { qr } = qrData;
+  // V2 sends QR code in nested format: { qrcode: { code, base64 } } or legacy { qr }
+  const qr = qrData?.qrcode?.base64 || qrData?.qrcode?.code || qrData?.qr || null;
 
   await supabase
     .from('whatsapp_instances')

@@ -106,7 +106,7 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeUsersDateFilter, setActiveUsersDateFilter] = useState('30');
   const [newSubscriptionsDateFilter, setNewSubscriptionsDateFilter] = useState('30');
-  
+
   // Estados para modais e formulários
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
@@ -114,14 +114,14 @@ const AdminDashboard = () => {
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Estados para afiliados
   const [isCreateAffiliateOpen, setIsCreateAffiliateOpen] = useState(false);
   const [isEditAffiliateOpen, setIsEditAffiliateOpen] = useState(false);
   const [isDeleteAffiliateOpen, setIsDeleteAffiliateOpen] = useState(false);
   const [isViewAffiliateOpen, setIsViewAffiliateOpen] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState<Affiliate | null>(null);
-  
+
   // Estados do formulário de usuário
   const [userForm, setUserForm] = useState({
     firstName: '',
@@ -133,7 +133,7 @@ const AdminDashboard = () => {
     tenantId: '',
     planType: 'basic'
   });
-   
+
   // Estados do formulário de afiliado
   const [affiliateForm, setAffiliateForm] = useState({
     name: '',
@@ -223,19 +223,7 @@ const AdminDashboard = () => {
   }, [affiliatesError]);
 
   // Mutations para CRUD de usuários
-  const createUserMutation = useSupabaseMutation({
-    table: 'profiles',
-    operation: 'insert',
-    onSuccess: () => {
-      toast.success('Usuário criado com sucesso!');
-      setIsCreateUserOpen(false);
-      resetUserForm();
-      refetchUsers();
-    },
-    onError: (error) => {
-      toast.error('Erro ao criar usuário: ' + error.message);
-    }
-  });
+  // createUserMutation removido - agora usamos supabase.auth.signUp() diretamente
 
   const updateUserMutation = useSupabaseMutation({
     table: 'profiles',
@@ -338,23 +326,56 @@ const AdminDashboard = () => {
     setAffiliateForm(prev => ({ ...prev, affiliate_code: code }));
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!userForm.firstName || !userForm.lastName || !userForm.email) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
-    createUserMutation.mutate({
-      data: {
-        first_name: userForm.firstName,
-        last_name: userForm.lastName,
+    setIsLoading(true);
+    try {
+      // 1. Criar o usuário via Supabase Auth (dispara o trigger handle_new_user que cria o profile)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userForm.email,
-        phone: userForm.phone,
-        role: userForm.role,
-        is_active: userForm.isActive,
-        tenant_id: userForm.tenantId
+        password: Math.random().toString(36).slice(-12) + 'A1!', // Senha temporária segura
+        options: {
+          data: {
+            first_name: userForm.firstName,
+            last_name: userForm.lastName,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Não foi possível criar o usuário');
+
+      // 2. Atualizar o profile com campos adicionais (phone, role, is_active)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          phone: userForm.phone || null,
+          role: userForm.role,
+          is_active: userForm.isActive,
+        })
+        .eq('user_id', authData.user.id);
+
+      if (profileError) {
+        console.error('Erro ao atualizar profile:', profileError);
+        // Profile foi criado pelo trigger, mas update falhou - avisar
+        toast.warning('Usuário criado, mas alguns dados adicionais não foram salvos: ' + profileError.message);
+      } else {
+        toast.success('Usuário criado com sucesso!');
       }
-    });
+
+      setIsCreateUserOpen(false);
+      resetUserForm();
+      refetchUsers();
+    } catch (error: any) {
+      console.error('Erro ao criar usuário:', error);
+      toast.error('Erro ao criar usuário: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditUser = () => {
@@ -364,11 +385,9 @@ const AdminDashboard = () => {
       data: {
         first_name: userForm.firstName,
         last_name: userForm.lastName,
-        email: userForm.email,
         phone: userForm.phone,
         role: userForm.role,
         is_active: userForm.isActive,
-        tenant_id: userForm.tenantId
       },
       options: {
         filter: { column: 'user_id', operator: 'eq', value: selectedUser.id }
@@ -603,8 +622,8 @@ const AdminDashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => {
                                 setSelectedUser({
@@ -624,8 +643,8 @@ const AdminDashboard = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => {
                                 setSelectedUser({
@@ -655,8 +674,8 @@ const AdminDashboard = () => {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => {
                                 setSelectedUser({
@@ -926,8 +945,8 @@ const AdminDashboard = () => {
             <Button type="button" variant="outline" onClick={() => setIsCreateAffiliateOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleCreateAffiliate}
               disabled={createAffiliateMutation.isPending}
             >
@@ -1020,8 +1039,8 @@ const AdminDashboard = () => {
             <Button type="button" variant="outline" onClick={() => setIsEditAffiliateOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleEditAffiliate}
               disabled={updateAffiliateMutation.isPending}
             >
@@ -1037,13 +1056,13 @@ const AdminDashboard = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Afiliado</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o afiliado "{selectedAffiliate?.name}"? 
+              Tem certeza que deseja excluir o afiliado "{selectedAffiliate?.name}"?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteAffiliate}
               disabled={deleteAffiliateMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1208,12 +1227,12 @@ const AdminDashboard = () => {
             <Button type="button" variant="outline" onClick={() => setIsCreateUserOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleCreateUser}
-              disabled={createUserMutation.isPending}
+              disabled={isLoading}
             >
-              {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
+              {isLoading ? 'Criando...' : 'Criar Usuário'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1294,8 +1313,8 @@ const AdminDashboard = () => {
             <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleEditUser}
               disabled={updateUserMutation.isPending}
             >
@@ -1311,13 +1330,13 @@ const AdminDashboard = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o usuário "{selectedUser?.name}"? 
+              Tem certeza que deseja excluir o usuário "{selectedUser?.name}"?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteUser}
               disabled={deleteUserMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

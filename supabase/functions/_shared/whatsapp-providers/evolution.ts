@@ -9,7 +9,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
 
     async sendMessage(to: string, content: string, options?: SendMessageOptions): Promise<any> {
         const url = `${this.config.baseUrl}/message/sendText/${this.config.instanceName}`;
-        
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -33,23 +33,23 @@ export class EvolutionProvider implements IWhatsAppProvider {
     }
 
     async fetchHistory(limit: number = 50): Promise<any[]> {
-         // Evolution typically allows fetching messages by chat. Fetching ALL history might require different endpoint.
-         // This is a placeholder for the endpoint /chat/findMessages
-         const url = `${this.config.baseUrl}/chat/findMessages/${this.config.instanceName}`;
-         const response = await fetch(url, {
+        // Evolution typically allows fetching messages by chat. Fetching ALL history might require different endpoint.
+        // This is a placeholder for the endpoint /chat/findMessages
+        const url = `${this.config.baseUrl}/chat/findMessages/${this.config.instanceName}`;
+        const response = await fetch(url, {
             method: 'POST',
-             headers: {
+            headers: {
                 'Content-Type': 'application/json',
                 'apikey': this.config.apiKey,
             },
             body: JSON.stringify({
-                page: 1,
+                where: {},
                 limit: limit
             })
-         });
-         
-         if (!response.ok) return [];
-         const data = await response.json();
-         return data.messages || []; // Adjust based on actual response structure
+        });
+
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.messages || []; // Adjust based on actual response structure
     }
 }
