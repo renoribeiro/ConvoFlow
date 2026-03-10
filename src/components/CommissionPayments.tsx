@@ -87,10 +87,11 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
   });
 
   // Get affiliates for dropdown
-  const { data: affiliates } = useSupabaseQuery('affiliates', {
+  const { data: affiliates } = useSupabaseQuery({
+    table: 'affiliates',
     select: 'id, name, email',
-    filter: { is_active: true },
-  });
+    filter: [{ column: 'is_active', operator: 'eq', value: true }],
+  }) as { data: any[] | undefined };
 
   // Load payments and statistics
   const loadData = async () => {
@@ -217,12 +218,12 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
     setIsProcessing(true);
     try {
       const result = await stripeService.processBulkPayments(paymentIds);
-      
+
       toast({
         title: 'Processamento Concluído',
         description: `${result.successful.length} pagamentos processados com sucesso, ${result.failed.length} falharam`,
       });
-      
+
       setSelectedPayments([]);
       loadData();
     } catch (error) {
@@ -251,7 +252,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
     setIsProcessingStripe(true);
     try {
       // Buscar dados dos pagamentos selecionados
-      const paymentsToProcess = payments.filter(p => 
+      const paymentsToProcess = payments.filter(p =>
         selectedPayments.includes(p.id) && p.status === 'pending'
       );
 
@@ -274,20 +275,20 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
 
       // Processar pagamentos via Stripe MCP
       const results = await stripeMcpService.processBatchCommissionPayments(stripePayments);
-      
+
       toast({
         title: 'Sucesso',
         description: `${results.length} pagamentos processados via Stripe com sucesso!`,
       });
-      
+
       // Atualizar status dos pagamentos
       for (const result of results) {
         await stripeMcpService.updateCommissionPaymentStatus(result.id, 'processing');
       }
-      
+
       setSelectedPayments([]);
       loadData();
-      
+
     } catch (error: any) {
       console.error('Erro ao processar pagamentos via Stripe:', error);
       toast({
