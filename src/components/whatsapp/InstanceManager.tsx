@@ -72,8 +72,8 @@ export const InstanceManager = ({ onInstancesChange }: InstanceManagerProps) => 
     }
 
     try {
-      // Use current domain for webhook URL
-      const webhookUrl = `${window.location.origin}/api/webhooks/evolution`;
+      // Use Supabase Edge Function URL for webhook
+      const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-webhook`;
       await createInstance(newInstanceName.trim(), webhookUrl);
       setNewInstanceName('');
       setShowCreateDialog(false);
