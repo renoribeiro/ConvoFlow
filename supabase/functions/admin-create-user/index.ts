@@ -107,12 +107,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Create user via admin API — does NOT affect caller's session
-    const tempPassword = crypto.randomUUID().slice(0, 16) + 'A1!';
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true, // Auto-confirm so the admin doesn't need to verify
-      user_metadata: {
+    // inviteUserByEmail automatically creates the user and triggers the Supabase Invite Email
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
         first_name: firstName,
         last_name: lastName,
       },
@@ -133,9 +130,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Update profile with additional fields (profile is created by trigger handle_new_user)
-    // Wait a moment for the trigger to execute
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait a moment for the profile to be created by the handle_new_user trigger
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -154,17 +150,11 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: true,
           user: { id: newUser.user.id, email: newUser.user.email },
-          warning: 'User created but profile update failed: ' + profileError.message,
+          warning: 'User created and invited but profile update failed: ' + profileError.message,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Send password reset email so user can set their own password
-    await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-    });
 
     return new Response(
       JSON.stringify({
@@ -178,7 +168,7 @@ Deno.serve(async (req: Request) => {
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in admin-create-user:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
