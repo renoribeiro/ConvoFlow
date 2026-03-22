@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { ModuleGuard } from '@/components/auth/ModuleGuard';
+import { RoleGuard } from '@/components/auth/RoleGuard';
 import { DashboardCardSkeleton } from "@/components/shared/Skeleton";
 
 // Landing Page (carregamento imediato)
@@ -165,9 +166,11 @@ const App = () => (
                     </Suspense>
                   } />
                   <Route path="admin" element={
-                    <Suspense fallback={<PageLoadingSkeleton />}>
-                      <AdminDashboard />
-                    </Suspense>
+                    <RoleGuard role="super_admin" fallbackPath="/dashboard">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <AdminDashboard />
+                      </Suspense>
+                    </RoleGuard>
                   } />
                   <Route path="profile" element={
                     <Suspense fallback={<PageLoadingSkeleton />}>

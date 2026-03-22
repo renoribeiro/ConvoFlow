@@ -39,7 +39,7 @@ export const SubscriptionSettings = () => {
 
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          priceId: STRIPE_PRODUCT_ID, // Assuming the function can handle product ID or we just pass it so the function handles it. Actually, wait, let's pass a priceId if necessary, but the edge function earlier was hardcoded or expected priceId.
+          productId: STRIPE_PRODUCT_ID,
           userId: userResponse.user.id
         }
       });

@@ -325,8 +325,8 @@ async function executeNextStep(
         .update({ current_step: executionData.current_step + 1 })
         .eq('id', executionId);
 
-      // Executar próximo step recursivamente (com delay para evitar stack overflow)
-      setTimeout(() => executeNextStep(supabaseClient, executionId, logger), 1000);
+      // Executar próximo step diretamente (sem setTimeout que não é confiável em Deno Edge Functions)
+      await executeNextStep(supabaseClient, executionId, logger);
     } else {
       // Marcar execução como falha
       await supabaseClient

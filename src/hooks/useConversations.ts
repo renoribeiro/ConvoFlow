@@ -359,15 +359,29 @@ export const useDeleteConversation = () => {
         throw new Error('Tenant ID is required');
       }
 
-      // Primeiro deletar todas as mensagens da conversa
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('contact_id', conversationId)
-        .eq('tenant_id', tenant.id);
+      // Primeiro buscar a conversa para pegar o contact_id real
+      const { data: conversation, error: fetchError } = await supabase
+        .from('conversations')
+        .select('contact_id')
+        .eq('id', conversationId)
+        .eq('tenant_id', tenant.id)
+        .single();
 
-      if (messagesError) {
-        throw messagesError;
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (conversation?.contact_id) {
+        // Deletar todas as mensagens vinculadas a este contato
+        const { error: messagesError } = await supabase
+          .from('messages')
+          .delete()
+          .eq('contact_id', conversation.contact_id)
+          .eq('tenant_id', tenant.id);
+
+        if (messagesError) {
+          throw messagesError;
+        }
       }
 
       // Depois deletar a conversa

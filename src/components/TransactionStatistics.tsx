@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import stripeMcpService from '@/services/stripeMcpService';
+import { stripeService } from '@/services/stripeService';
 import {
   TrendingUp,
   DollarSign,
@@ -45,7 +45,7 @@ const TransactionStatistics = () => {
   const loadStats = async () => {
     setIsLoading(true);
     try {
-      const statsData = await stripeMcpService.getTransactionStats(
+      const statsData = await stripeService.getTransactionStats(
         tenantId || 'default',
         dateRange.startDate || undefined,
         dateRange.endDate || undefined

@@ -173,16 +173,14 @@ const AdminDashboard = () => {
     enabled: !!user && !authLoading && isSuperAdmin // Só executa se estiver autenticado e for super admin
   });
 
-  // Debug logs para identificar problemas
-  console.log('AdminDashboard - Auth loading:', authLoading);
-  console.log('AdminDashboard - User:', user);
-  console.log('AdminDashboard - Users loading:', usersLoading);
-  console.log('AdminDashboard - Users with emails:', usersWithEmails);
-  console.log('AdminDashboard - Users error:', usersError);
-  console.log('AdminDashboard - Affiliates loading:', affiliatesLoading);
-  console.log('AdminDashboard - Affiliates data:', affiliates);
-  console.log('AdminDashboard - Affiliates error:', affiliatesError);
-  console.log('AdminDashboard - Is super admin:', isSuperAdmin);
+  // Filtrar usuários com base no termo de busca
+  const filteredUsers = usersWithEmails.filter((u: any) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    return fullName.includes(term) || email.includes(term);
+  });
 
   // Verificar se o usuário está autenticado
   if (authLoading) {
@@ -239,19 +237,7 @@ const AdminDashboard = () => {
     }
   });
 
-  const deleteUserMutation = useSupabaseMutation({
-    table: 'profiles',
-    operation: 'delete',
-    onSuccess: () => {
-      toast.success('Usuário excluído com sucesso!');
-      setIsDeleteUserOpen(false);
-      setSelectedUser(null);
-      refetchUsers();
-    },
-    onError: (error) => {
-      toast.error('Erro ao excluir usuário: ' + error.message);
-    }
-  });
+  // Delete user agora é feito via edge function admin-create-user (método DELETE)
 
   // Mutations para CRUD de afiliados
   const createAffiliateMutation = useSupabaseMutation({
@@ -334,38 +320,25 @@ const AdminDashboard = () => {
 
     setIsLoading(true);
     try {
-      // 1. Criar o usuário via Supabase Auth (dispara o trigger handle_new_user que cria o profile)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userForm.email,
-        password: Math.random().toString(36).slice(-12) + 'A1!', // Senha temporária segura
-        options: {
-          data: {
-            first_name: userForm.firstName,
-            last_name: userForm.lastName,
-          }
+      // Usar edge function para criar usuário sem afetar sessão do admin
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: userForm.email,
+          firstName: userForm.firstName,
+          lastName: userForm.lastName,
+          phone: userForm.phone || null,
+          role: userForm.role,
+          isActive: userForm.isActive,
+          tenantId: userForm.tenantId || null,
         }
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Não foi possível criar o usuário');
+      if (error) throw error;
 
-      // 2. Atualizar o profile com campos adicionais (phone, role, is_active)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          phone: userForm.phone || null,
-          role: userForm.role,
-          is_active: userForm.isActive,
-          tenant_id: userForm.tenantId || null,
-        })
-        .eq('user_id', authData.user.id);
-
-      if (profileError) {
-        console.error('Erro ao atualizar profile:', profileError);
-        // Profile foi criado pelo trigger, mas update falhou - avisar
-        toast.warning('Usuário criado, mas alguns dados adicionais não foram salvos: ' + profileError.message);
+      if (data?.warning) {
+        toast.warning('Usuário criado, mas: ' + data.warning);
       } else {
-        toast.success('Usuário criado com sucesso!');
+        toast.success('Usuário criado com sucesso! Um email de redefinição de senha foi enviado.');
       }
 
       setIsCreateUserOpen(false);
@@ -373,7 +346,7 @@ const AdminDashboard = () => {
       refetchUsers();
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
-      toast.error('Erro ao criar usuário: ' + error.message);
+      toast.error('Erro ao criar usuário: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setIsLoading(false);
     }
@@ -397,15 +370,28 @@ const AdminDashboard = () => {
     });
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!selectedUser) return;
 
-    deleteUserMutation.mutate({
-      data: {},
-      options: {
-        filter: { column: 'user_id', operator: 'eq', value: selectedUser.id }
-      }
-    });
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        method: 'DELETE',
+        body: { userId: selectedUser.id }
+      });
+
+      if (error) throw error;
+
+      toast.success('Usuário excluído com sucesso!');
+      setIsDeleteUserOpen(false);
+      setSelectedUser(null);
+      refetchUsers();
+    } catch (error: any) {
+      console.error('Erro ao excluir usuário:', error);
+      toast.error('Erro ao excluir usuário: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreateAffiliate = () => {
@@ -603,7 +589,7 @@ const AdminDashboard = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    usersWithEmails.map((user: any) => (
+                    filteredUsers.map((user: any) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
                           {user.first_name} {user.last_name}
@@ -1460,10 +1446,10 @@ const AdminDashboard = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteUser}
-              disabled={deleteUserMutation.isPending}
+              disabled={isLoading}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteUserMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              {isLoading ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

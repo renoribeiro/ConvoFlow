@@ -90,7 +90,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     await loadTenantData();
   };
 
-  const updateTenantSettings = async (settings: any) => {
+  const updateTenantSettings = async (settings: Record<string, unknown>) => {
     if (!tenant) {
       throw new Error('Nenhum tenant carregado');
     }
@@ -135,7 +135,18 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   useEffect(() => {
-    loadTenantData();
+    let cancelled = false;
+    
+    const load = async () => {
+      if (cancelled) return;
+      await loadTenantData();
+    };
+    
+    load();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const value: TenantContextType = {

@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createLogger } from '../_shared/logger.ts'
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts'
 import {
-  checkRateLimit,
+  checkRateLimitDb,
   getRateLimitIdentifier,
   getRateLimitHeaders,
   createRateLimitResponse,
@@ -17,9 +17,23 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  // Need Supabase client early for DB rate limiting
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    logger.error('Missing Supabase configuration');
+    return new Response(JSON.stringify({ error: 'Configuration Error' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
   // Apply rate limiting
   const clientId = getRateLimitIdentifier(req);
-  const rateLimitResult = checkRateLimit(clientId, {
+  const rateLimitResult = await checkRateLimitDb(supabase, clientId, {
     ...RATE_LIMIT_PRESETS.webhook,
     keyPrefix: 'waha-webhook'
   });
@@ -33,18 +47,6 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      logger.error('Missing Supabase configuration');
-      return new Response(JSON.stringify({ error: 'Configuration Error' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     if (req.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 })

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { env } from '../lib/env';
 
@@ -109,7 +110,7 @@ class DataProcessingService {
       } catch (error) {
         console.error('[DataProcessingService] Error in real-time processing:', error);
         this.metrics.errors++;
-        this.emit('error', { error: error.message });
+        this.emit('error', { error: (error as Error).message });
       }
     }, this.config.refreshInterval);
 
@@ -124,7 +125,7 @@ class DataProcessingService {
       } catch (error) {
         console.error('[DataProcessingService] Error in historical processing:', error);
         this.metrics.errors++;
-        this.emit('error', { error: error.message });
+        this.emit('error', { error: (error as Error).message });
       }
     }, this.config.refreshInterval * 2); // Menos frequente
 
@@ -139,7 +140,7 @@ class DataProcessingService {
       } catch (error) {
         console.error('[DataProcessingService] Error refreshing materialized views:', error);
         this.metrics.errors++;
-        this.emit('error', { error: error.message });
+        this.emit('error', { error: (error as Error).message });
       }
     }, this.config.refreshInterval * 4); // Menos frequente
 
@@ -154,7 +155,7 @@ class DataProcessingService {
       } catch (error) {
         console.error('[DataProcessingService] Error in data cleanup:', error);
         this.metrics.errors++;
-        this.emit('error', { error: error.message });
+        this.emit('error', { error: (error as Error).message });
       }
     }, 60 * 60 * 1000); // A cada hora
 
@@ -393,7 +394,8 @@ class DataProcessingService {
 
   // Atualizar métricas do sistema
   private async updateSystemMetrics(): Promise<void> {
-    const memoryUsage = process.memoryUsage();
+    // No browser, usar performance.memory se disponível, senão mock zero
+    const memoryUsage = (performance as any).memory || { usedJSHeapSize: 0, totalJSHeapSize: 0 };
     
     // Métricas de memória
     await supabase
@@ -401,16 +403,16 @@ class DataProcessingService {
       .insert([
         {
           metric_name: 'memory_used',
-          metric_value: memoryUsage.heapUsed,
+          metric_value: memoryUsage.usedJSHeapSize,
           service_name: 'system',
-          recorded_at: new Date()
-        },
+          recorded_at: new Date().toISOString()
+        } as any,
         {
           metric_name: 'memory_total',
-          metric_value: memoryUsage.heapTotal,
+          metric_value: memoryUsage.totalJSHeapSize,
           service_name: 'system',
-          recorded_at: new Date()
-        }
+          recorded_at: new Date().toISOString()
+        } as any
       ]);
   }
 

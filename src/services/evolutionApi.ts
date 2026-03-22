@@ -351,15 +351,26 @@ export class EvolutionApiService {
     eventData: any
   ): Promise<void> => {
     try {
-      // This will be implemented when we create the webhook_logs table
-      console.log('📝 [logWebhookEvent]', {
-        instanceName,
-        eventType,
-        eventData,
-        timestamp: new Date().toISOString()
-      });
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      const logEntry = {
+        instance_name: instanceName,
+        event_type: eventType,
+        event_data: typeof eventData === 'string' ? eventData : JSON.stringify(eventData).substring(0, 10000),
+        processed_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('webhook_logs')
+        .insert(logEntry);
+
+      if (error) {
+        // Silently fail — logging should never break the main flow
+        console.warn('[logWebhookEvent] Failed to persist log:', error.message);
+      }
     } catch (error) {
-      console.warn('Failed to log webhook event:', error);
+      console.warn('[logWebhookEvent] Error:', error);
     }
   };
 
@@ -954,175 +965,4 @@ export class EvolutionApiService {
 // Service factory
 export const createEvolutionApiService = (serverUrl: string, apiKey: string) => {
   return new EvolutionApiService(serverUrl, apiKey);
-};
-
-// Webhook processing utilities
-export const processWebhookEvent = async (event: WebhookEvent): Promise<void> => {
-  const { event: eventType, instance, data } = event;
-
-  try {
-    switch (eventType) {
-      case 'messages.upsert':
-        await processIncomingMessage(instance, data);
-        break;
-      case 'connection.update':
-        await processConnectionUpdate(instance, data);
-        break;
-      case 'qrcode.updated':
-        await processQRCodeUpdate(instance, data);
-        break;
-      case 'presence.update':
-        await processPresenceUpdate(instance, data);
-        break;
-      default:
-        console.log(`Unhandled webhook event: ${eventType}`);
-    }
-  } catch (error) {
-    console.error(`Error processing webhook event ${eventType}:`, error);
-  }
-};
-
-const processIncomingMessage = async (instanceName: string, messageData: IncomingMessage): Promise<void> => {
-  const { key, message, messageTimestamp, pushName } = messageData;
-
-  if (key.fromMe) return; // Ignore messages sent by us
-
-  // Get WhatsApp instance from database
-  const { data: instance } = await supabase
-    .from('whatsapp_instances')
-    .select('id, tenant_id')
-    .eq('instance_key', instanceName)
-    .single();
-
-  if (!instance) {
-    console.error(`WhatsApp instance not found: ${instanceName}`);
-    return;
-  }
-
-  // Extract message content
-  const messageContent = message.conversation || message.extendedTextMessage?.text || '';
-
-  // Get or create contact
-  const phone = key.remoteJid.replace('@s.whatsapp.net', '');
-  let { data: contact } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('phone', phone)
-    .eq('tenant_id', instance.tenant_id)
-    .single();
-
-  if (!contact) {
-    const { data: newContact } = await supabase
-      .from('contacts')
-      .insert({
-        phone,
-        name: pushName || phone,
-        tenant_id: instance.tenant_id,
-        whatsapp_instance_id: instance.id,
-        last_interaction_at: new Date(messageTimestamp * 1000).toISOString(),
-      })
-      .select('id')
-      .single();
-
-    contact = newContact;
-  }
-
-  if (!contact) {
-    console.error('Failed to create or get contact');
-    return;
-  }
-
-  // Save message to database
-  await supabase.from('messages').insert({
-    contact_id: contact.id,
-    tenant_id: instance.tenant_id,
-    whatsapp_instance_id: instance.id,
-    direction: 'inbound',
-    message_type: 'text',
-    content: messageContent,
-    evolution_message_id: key.id,
-    status: 'received',
-  });
-
-  // Update contact last interaction
-  await supabase
-    .from('contacts')
-    .update({
-      last_interaction_at: new Date(messageTimestamp * 1000).toISOString(),
-    })
-    .eq('id', contact.id);
-
-  // Sync conversation unread count
-  const messageTime = new Date(messageTimestamp * 1000).toISOString();
-
-  // Check if conversation exists
-  const { data: existingConversation } = await supabase
-    .from('conversations')
-    .select('id, unread_count')
-    .eq('contact_id', contact.id)
-    .eq('tenant_id', instance.tenant_id)
-    .single();
-
-  if (existingConversation) {
-    // Update existing conversation
-    await supabase
-      .from('conversations')
-      .update({
-        unread_count: (existingConversation.unread_count || 0) + 1,
-        last_message_at: messageTime,
-        updated_at: messageTime
-      })
-      .eq('id', existingConversation.id);
-  } else {
-    // Create new conversation
-    await supabase
-      .from('conversations')
-      .insert({
-        contact_id: contact.id,
-        tenant_id: instance.tenant_id,
-        whatsapp_instance_id: instance.id,
-        unread_count: 1,
-        last_message_at: messageTime,
-        created_at: messageTime,
-        updated_at: messageTime
-      });
-  }
-};
-
-const processConnectionUpdate = async (instanceName: string, connectionData: any): Promise<void> => {
-  // V2: QR code comes via separate 'qrcode.updated' event, not in connection data
-  const { state } = connectionData;
-
-  const updatePayload: Record<string, any> = {
-    status: state,
-    last_connected_at: state === 'open' ? new Date().toISOString() : null,
-  };
-
-  // Clear QR code when connected or disconnected
-  if (state === 'open' || state === 'close') {
-    updatePayload.qr_code = null;
-  }
-
-  await supabase
-    .from('whatsapp_instances')
-    .update(updatePayload)
-    .eq('instance_key', instanceName);
-};
-
-const processQRCodeUpdate = async (instanceName: string, qrData: any): Promise<void> => {
-  // V2 sends QR code in nested format: { qrcode: { code, base64 } } or legacy { qr }
-  const qr = qrData?.qrcode?.base64 || qrData?.qrcode?.code || qrData?.qr || null;
-
-  await supabase
-    .from('whatsapp_instances')
-    .update({
-      qr_code: qr,
-      status: 'qrcode',
-    })
-    .eq('instance_key', instanceName);
-};
-
-const processPresenceUpdate = async (instanceName: string, presenceData: any): Promise<void> => {
-  // Handle presence updates if needed
-  console.log('Presence update:', { instanceName, presenceData });
-};
+};

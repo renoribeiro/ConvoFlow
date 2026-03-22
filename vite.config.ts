@@ -94,8 +94,13 @@ export default defineConfig(({ mode }) => {
           // Cache strategies
           runtimeCaching: [
             {
-              // Cache API requests
-              urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+              // DO NOT cache realtime/websocket connections, auth, or edge functions
+              urlPattern: /^https:\/\/.*\.supabase\.co\/(realtime|auth|functions)\/.*/i,
+              handler: 'NetworkOnly',
+            },
+            {
+              // Cache REST API and Storage requests
+              urlPattern: /^https:\/\/.*\.supabase\.co\/(rest|storage)\/.*/i,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'supabase-cache',

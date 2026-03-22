@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { EvolutionInstance } from '../types/evolution';
 import { EvolutionApiService } from '../services/evolutionApi';
-import { WebhookHandler } from '../services/webhookHandler';
+// WebhookHandler removido — webhooks são processados exclusivamente pela Edge Function server-side
 
 export interface Message {
   id: string;
@@ -71,7 +71,8 @@ export interface Group {
 export interface EvolutionState {
   // API Service
   apiService: EvolutionApiService | null;
-  webhookHandler: WebhookHandler | null;
+  /** @deprecated Webhooks são processados server-side pela Edge Function */
+  webhookHandler: null;
   
   // Instances
   instances: EvolutionInstance[];
@@ -198,11 +199,9 @@ export const useEvolutionStore = create<EvolutionState>()()
         
         initializeApi: (baseUrl: string, apiKey: string) => {
           const apiService = new EvolutionApiService(baseUrl, apiKey);
-          const webhookHandler = new WebhookHandler(apiService);
           
           set({ 
             apiService, 
-            webhookHandler,
             isConnected: true,
             lastUpdate: new Date()
           });
@@ -726,16 +725,11 @@ export const useEvolutionStore = create<EvolutionState>()()
         },
         
         // Webhook actions
-        processWebhookEvent: async (event: any) => {
-          const { webhookHandler } = get();
-          if (!webhookHandler) throw new Error('Webhook handler not initialized');
-          
-          try {
-            await webhookHandler.processWebhookEvent(event);
-            set({ lastUpdate: new Date() });
-          } catch (error: any) {
-            console.error('Error processing webhook event:', error);
-          }
+        processWebhookEvent: async (_event: any) => {
+          // Webhooks são processados exclusivamente pela Edge Function server-side (evolution-webhook)
+          // Este método é mantido para compatibilidade mas não faz processamento duplicado
+          console.warn('[EvolutionStore] processWebhookEvent is deprecated. Webhooks are processed server-side.');
+          set({ lastUpdate: new Date() });
         },
         
         // Utility actions

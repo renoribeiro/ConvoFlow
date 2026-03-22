@@ -145,9 +145,45 @@ export function createErrorResponse(error: SecureError | Error, requestId?: stri
   });
 }
 
-// CORS headers
+// CORS headers — restrito a origens específicas em produção
+const ALLOWED_ORIGINS = [
+  'https://convoflow.vercel.app',
+  'https://www.convoflow.vercel.app',
+];
+
+function getCorsOrigin(requestOrigin?: string | null): string {
+  // Em desenvolvimento, permitir qualquer origem
+  const env = Deno.env.get('ENVIRONMENT') || Deno.env.get('DENO_ENV') || 'production';
+  if (env === 'development' || env === 'local') {
+    return requestOrigin || '*';
+  }
+  
+  // Adicionar origens customizadas do env
+  const customOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN');
+  if (customOrigin) {
+    ALLOWED_ORIGINS.push(...customOrigin.split(',').map(o => o.trim()));
+  }
+
+  // Em produção, verificar se a origem está permitida
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  // Fallback para a origem principal
+  return ALLOWED_ORIGINS[0];
+}
+
+export function buildCorsHeaders(requestOrigin?: string | null): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': getCorsOrigin(requestOrigin),
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
+
+// Fallback estático para compatibilidade (usa a origem principal)
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': getCorsOrigin(),
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };

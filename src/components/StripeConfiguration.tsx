@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import stripeMcpService from '@/services/stripeMcpService';
+import { stripeService } from '@/services/stripeService';
 import TransactionStatistics from '@/components/TransactionStatistics';
 import {
   CreditCard,
@@ -56,14 +56,14 @@ const StripeConfiguration = () => {
 
   const loadConfiguration = async () => {
     try {
-      const configData = await stripeMcpService.getStripeConfig();
+      const configData = await stripeService.getStripeConfig();
       
       if (configData) {
         setConfig({
-          secret_key: configData.secretKey || '',
+          secret_key: '',
           publishable_key: configData.publishableKey || '',
-          webhook_secret: configData.webhookSecret || '',
-          environment: configData.environment || 'test'
+          webhook_secret: '',
+          environment: (configData.environment as 'test' | 'live') || 'test'
         });
       }
     } catch (error: any) {
@@ -73,7 +73,7 @@ const StripeConfiguration = () => {
 
   const checkConfiguration = async () => {
     try {
-      const configured = await stripeMcpService.isConfigured();
+      const configured = await stripeService.isConfigured();
       setIsConfigured(configured);
       
       if (configured) {
@@ -88,7 +88,7 @@ const StripeConfiguration = () => {
 
   const loadAccountInfo = async () => {
     try {
-      const info = await stripeMcpService.getAccountInfo();
+      const info = await stripeService.getAccountInfo();
       setAccountInfo(info);
     } catch (error) {
       console.error('Erro ao carregar informações da conta:', error);
@@ -97,7 +97,7 @@ const StripeConfiguration = () => {
 
   const loadBalance = async () => {
     try {
-      const balanceData = await stripeMcpService.getBalance();
+      const balanceData = await stripeService.getBalance();
       setBalance(balanceData);
     } catch (error) {
       console.error('Erro ao carregar saldo:', error);
@@ -117,7 +117,7 @@ const StripeConfiguration = () => {
     setIsLoading(true);
     try {
       // Usar o serviço para salvar a configuração
-      await stripeMcpService.saveStripeConfig({
+      await stripeService.saveStripeConfig({
         secretKey: config.secret_key,
         publishableKey: config.publishable_key,
         webhookSecret: config.webhook_secret,
@@ -157,7 +157,7 @@ const StripeConfiguration = () => {
       await handleSave();
       
       // Testa a conexão usando o novo método
-      const testResult = await stripeMcpService.testConnection();
+      const testResult = await stripeService.testConnection();
       
       if (testResult.success) {
         toast({

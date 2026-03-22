@@ -48,7 +48,7 @@ serve(async (req) => {
 
     logger.info('Job worker started...')
 
-    const maxProcessingTime = 9 * 60 * 1000 // 9 minutes
+    const maxProcessingTime = 45 * 1000 // 45 seconds to avoid Edge Function timeout
     const startTime = Date.now()
 
     let jobsProcessed = 0
@@ -207,7 +207,7 @@ async function processSendMessage(supabase: SupabaseClient, jobData: JobData, te
 
 
 async function processCampaignMessage(supabase: SupabaseClient, jobData: JobData, tenantId: string, logger: any) {
-  const { campaignId, contactId, messageText, instanceName, messageIndex, randomDelay } = jobData
+  const { campaignId, contactId, messageText, instanceName, messageIndex } = jobData
 
   if (!contactId || !campaignId || !messageText) {
       throw new Error("Missing required fields for campaign message");
@@ -251,11 +251,6 @@ async function processCampaignMessage(supabase: SupabaseClient, jobData: JobData
     telefone: contact.phone,
   })
 
-  if (randomDelay && randomDelay > 0) {
-    logger.debug(`Applying random delay for campaign message`, { delay: randomDelay, phone: DataSanitizer.sanitizePhoneNumber(contact.phone) })
-    await new Promise(resolve => setTimeout(resolve, randomDelay))
-  }
-
   try {
     await processSendMessage(supabase, {
       instanceName,
@@ -277,7 +272,7 @@ async function processCampaignMessage(supabase: SupabaseClient, jobData: JobData
       p_campaign_id: campaignId
     })
 
-    logger.info(`Campaign message sent`, { phone: DataSanitizer.sanitizePhoneNumber(contact.phone), delay: randomDelay || 0 })
+    logger.info(`Campaign message sent`, { phone: DataSanitizer.sanitizePhoneNumber(contact.phone) })
 
   } catch (error: any) {
     await supabase
@@ -415,11 +410,18 @@ async function processChatbotResponse(supabase: SupabaseClient, jobData: JobData
 function processSpintax(text: string, variables: Record<string, string> = {}): string {
   let result = text
 
+  // 1. Double braces replacement {{var}}
   for (const [key, value] of Object.entries(variables)) {
-    result = result.replace(new RegExp(`{{${key}}}`, 'g'), value)
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
   }
 
-  const spintaxRegex = /{([^}]+)}/g
+  // 2. Single braces replacement {var}
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value)
+  }
+
+  // 3. Spintax evaluation {opt1|opt2} (must contain a pipe)
+  const spintaxRegex = /{([^{}]*\|[^{}]*)}/g
   result = result.replace(spintaxRegex, (match, options) => {
     const choices = options.split('|')
     return choices[Math.floor(Math.random() * choices.length)]

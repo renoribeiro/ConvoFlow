@@ -21,7 +21,7 @@ import {
   EvolutionWebhookPayload
 } from '../_shared/types.ts'
 import {
-  checkRateLimit,
+  checkRateLimitDb,
   getRateLimitIdentifier,
   getRateLimitHeaders,
   createRateLimitResponse,
@@ -36,21 +36,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  // Apply rate limiting
-  const clientId = getRateLimitIdentifier(req);
-  const rateLimitResult = checkRateLimit(clientId, {
-    ...RATE_LIMIT_PRESETS.webhook,
-    keyPrefix: 'evolution-webhook'
-  });
-
-  if (!rateLimitResult.allowed) {
-    logger.warn('Rate limit exceeded', { clientId, retryAfter: rateLimitResult.retryAfter });
-    return createRateLimitResponse(
-      rateLimitResult.retryAfter!,
-      { ...corsHeaders, ...getRateLimitHeaders(rateLimitResult.remaining, rateLimitResult.resetAt, RATE_LIMIT_PRESETS.webhook.maxRequests) }
-    );
-  }
-
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -61,6 +46,21 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Apply rate limiting
+    const clientId = getRateLimitIdentifier(req);
+    const rateLimitResult = await checkRateLimitDb(supabase, clientId, {
+      ...RATE_LIMIT_PRESETS.webhook,
+      keyPrefix: 'evolution-webhook'
+    });
+
+    if (!rateLimitResult.allowed) {
+      logger.warn('Rate limit exceeded', { clientId, retryAfter: rateLimitResult.retryAfter });
+      return createRateLimitResponse(
+        rateLimitResult.retryAfter!,
+        { ...corsHeaders, ...getRateLimitHeaders(rateLimitResult.remaining, rateLimitResult.resetAt, RATE_LIMIT_PRESETS.webhook.maxRequests) }
+      );
+    }
 
     if (req.method !== 'POST') {
       throw new SecureError('Method not allowed', 'METHOD_NOT_ALLOWED', 405)
@@ -98,6 +98,23 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       })
+    }
+
+    // Security Check: Validate API key from webhook payload
+    const webhookSecret = Deno.env.get('EVOLUTION_WEBHOOK_SECRET')
+    if (webhookApiKey) {
+      const isValidKey = webhookApiKey === instance.instance_key || 
+                         (webhookSecret && webhookApiKey === webhookSecret)
+      if (!isValidKey) {
+        logger.warn(`Invalid API key for instance: ${instanceName}`)
+        return new Response(JSON.stringify({ success: false, error: 'Invalid API key' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        })
+      }
+    } else if (webhookSecret) {
+      // Se um secret está configurado mas nenhuma apikey foi enviada, logar aviso
+      logger.warn(`Webhook received without API key for instance: ${instanceName}`)
     }
 
     logger.info('Processing webhook event', {

@@ -51,7 +51,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { stripeService, CommissionPayment } from '../services/stripeService';
-import stripeMcpService from '../services/stripeMcpService';
 import { useSupabaseQuery } from '../hooks/useSupabaseQuery';
 
 interface CommissionPaymentsProps {
@@ -122,7 +121,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
 
   const checkStripeConfiguration = async () => {
     try {
-      const configured = await stripeMcpService.isConfigured();
+      const configured = await stripeService.isConfigured();
       setIsStripeConfigured(configured);
     } catch (error) {
       console.error('Erro ao verificar configuração do Stripe:', error);
@@ -142,6 +141,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
       pending: { variant: 'secondary' as const, icon: Clock, color: 'text-yellow-600' },
       processing: { variant: 'default' as const, icon: RefreshCw, color: 'text-blue-600' },
       paid: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
+      completed: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-700' },
       failed: { variant: 'destructive' as const, icon: XCircle, color: 'text-red-600' },
       cancelled: { variant: 'secondary' as const, icon: AlertCircle, color: 'text-gray-600' },
     };
@@ -268,13 +268,13 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
       // Preparar dados para o Stripe MCP
       const stripePayments = paymentsToProcess.map(payment => ({
         affiliateId: payment.affiliate_id,
-        amount: payment.amount,
+        amount: Number(payment.amount),
         currency: payment.currency || 'BRL',
         description: `Comissão - ${(payment as any).affiliates?.name || 'Afiliado'}`
       }));
 
       // Processar pagamentos via Stripe MCP
-      const results = await stripeMcpService.processBatchCommissionPayments(stripePayments);
+      const results = await stripeService.processBatchCommissionPayments(stripePayments);
 
       toast({
         title: 'Sucesso',
@@ -283,7 +283,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
 
       // Atualizar status dos pagamentos
       for (const result of results) {
-        await stripeMcpService.updateCommissionPaymentStatus(result.id, 'processing');
+        await stripeService.updateCommissionPaymentStatus(result.id, 'processing');
       }
 
       setSelectedPayments([]);
@@ -560,7 +560,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
                       {payment.description || '-'}
                     </TableCell>
                     <TableCell>
-                      {new Date(payment.created_at).toLocaleDateString('pt-BR')}
+                      {payment.created_at ? new Date(payment.created_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -703,7 +703,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Data de Criação</Label>
                   <p className="mt-1">
-                    {new Date(selectedPayment.created_at).toLocaleString('pt-BR')}
+                    {selectedPayment.created_at ? new Date(selectedPayment.created_at).toLocaleString('pt-BR') : '-'}
                   </p>
                 </div>
               </div>
@@ -723,7 +723,7 @@ const CommissionPayments: React.FC<CommissionPaymentsProps> = ({ affiliateId }) 
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Data do Pagamento</Label>
                   <p className="mt-1">
-                    {new Date(selectedPayment.paid_at).toLocaleString('pt-BR')}
+                    {selectedPayment.paid_at ? new Date(selectedPayment.paid_at).toLocaleString('pt-BR') : '-'}
                   </p>
                 </div>
               )}

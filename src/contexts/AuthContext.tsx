@@ -54,15 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Debug log for current auth state - only in development
-  if (import.meta.env.DEV) {
-    console.log('[AuthContext] Current state:', {
-      hasUser: !!user,
-      hasSession: !!session,
-      isLoading,
-      userId: user?.id
-    });
-  }
+
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
