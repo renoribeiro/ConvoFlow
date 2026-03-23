@@ -133,14 +133,19 @@ Deno.serve(async (req: Request) => {
     // Wait a moment for the profile to be created by the handle_new_user trigger
     await new Promise(resolve => setTimeout(resolve, 1000));
 
+    const profileUpdate: any = {
+      phone: phone || null,
+      role: role || 'tenant_user',
+      is_active: isActive !== undefined ? isActive : true,
+    };
+
+    if (tenantId) {
+      profileUpdate.tenant_id = tenantId;
+    }
+
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({
-        phone: phone || null,
-        role: role || 'tenant_user',
-        is_active: isActive !== undefined ? isActive : true,
-        tenant_id: tenantId || null,
-      })
+      .update(profileUpdate)
       .eq('user_id', newUser.user.id);
 
     if (profileError) {
