@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { email, firstName, lastName, phone, role, isActive, tenantId } = await req.json();
+    const { email, firstName, lastName, phone, role, isActive, tenantId, redirectTo } = await req.json();
 
     if (!email || !firstName || !lastName) {
       return new Response(
@@ -113,6 +113,7 @@ Deno.serve(async (req: Request) => {
         first_name: firstName,
         last_name: lastName,
       },
+      redirectTo: redirectTo || undefined,
     });
 
     if (createError) {

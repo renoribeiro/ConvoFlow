@@ -330,6 +330,7 @@ const AdminDashboard = () => {
           role: userForm.role,
           isActive: userForm.isActive,
           tenantId: userForm.tenantId || null,
+          redirectTo: window.location.origin,
         }
       });
 
