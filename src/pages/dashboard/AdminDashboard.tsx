@@ -334,7 +334,16 @@ const AdminDashboard = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        let msg = error.message;
+        if (error.context && error.context.error) {
+           msg = error.context.error;
+        } else if (error instanceof Error && (error as any).context) {
+           const ctx = await (error as any).context.json().catch(() => null);
+           if (ctx && ctx.error) msg = ctx.error;
+        }
+        throw new Error(msg);
+      }
 
       if (data?.warning) {
         toast.warning('Usuário criado, mas: ' + data.warning);
