@@ -1,16 +1,38 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTenant } from '@/contexts/TenantContext';
+import { Loader2, ChevronLeft, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
-import { Loader2, QrCode, Webhook, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { useWahaApi } from '@/hooks/useWahaApi';
+import { useMetaApi } from '@/hooks/useMetaApi';
+import { newInstanceSchema, type ProviderType } from '@/lib/validations/whatsappInstance';
 import { env } from '@/lib/env';
+import { ProviderSelector } from './ProviderSelector';
+import {
+  OfficialApiForm,
+  initialOfficialValues,
+  type OfficialFormValues,
+} from './forms/OfficialApiForm';
+import {
+  WahaApiForm,
+  initialWahaValues,
+  type WahaFormValues,
+} from './forms/WahaApiForm';
+import {
+  EvolutionApiForm,
+  initialEvolutionValues,
+  type EvolutionFormValues,
+  type EvolutionWebhookStatus,
+} from './forms/EvolutionApiForm';
 import { QRCodeModal } from './QRCodeModal';
 
 interface CreateInstanceModalProps {
@@ -19,364 +41,224 @@ interface CreateInstanceModalProps {
   onSuccess: () => void;
 }
 
+type WizardStep = 'select-provider' | 'configure';
+
 export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateInstanceModalProps) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    instance_key: ''
-  });
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [showQrCode, setShowQrCode] = useState(false);
+  const [step, setStep] = useState<WizardStep>('select-provider');
+  const [provider, setProvider] = useState<ProviderType | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [officialValues, setOfficialValues] = useState<OfficialFormValues>(initialOfficialValues);
+  const [wahaValues, setWahaValues] = useState<WahaFormValues>(initialWahaValues);
+  const [evolutionValues, setEvolutionValues] = useState<EvolutionFormValues>(initialEvolutionValues);
+
+  const [evolutionWebhookStatus, setEvolutionWebhookStatus] =
+    useState<EvolutionWebhookStatus>('idle');
+  const [evolutionWebhookError, setEvolutionWebhookError] = useState<string | null>(null);
+
   const [showQRModal, setShowQRModal] = useState(false);
   const [createdInstanceName, setCreatedInstanceName] = useState('');
-  
-  // Webhook automation states
-  const [enableWebhookAutomation, setEnableWebhookAutomation] = useState(true);
-  const [webhookStatus, setWebhookStatus] = useState<'idle' | 'configuring' | 'success' | 'error'>('idle');
-  const [webhookError, setWebhookError] = useState<string | null>(null);
-  const [retryAttempts, setRetryAttempts] = useState(3);
-  const [retryDelay, setRetryDelay] = useState(2000);
-  
-  const { tenant } = useTenant();
+
   const { toast } = useToast();
-  const { createInstance, getQRCode, getDefaultWebhookUrl } = useEvolutionApi();
+  const { createInstance: createEvolution } = useEvolutionApi();
+  const { createInstance: createWaha } = useWahaApi();
+  const { createInstance: createMeta } = useMetaApi();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      toast({
-        title: "Erro",
-        description: "Nome da instância é obrigatório",
-        variant: "destructive"
-      });
+  const resetWizard = () => {
+    setStep('select-provider');
+    setProvider(null);
+    setOfficialValues(initialOfficialValues());
+    setWahaValues(initialWahaValues());
+    setEvolutionValues(initialEvolutionValues());
+    setEvolutionWebhookStatus('idle');
+    setEvolutionWebhookError(null);
+  };
+
+  const handleClose = (next: boolean) => {
+    if (loading) return;
+    onOpenChange(next);
+    if (!next) {
+      resetWizard();
+    }
+  };
+
+  const goToConfigure = () => {
+    if (!provider) return;
+    setStep('configure');
+  };
+
+  const goBackToSelect = () => {
+    if (loading) return;
+    setStep('select-provider');
+  };
+
+  const buildPayload = () => {
+    if (provider === 'official') {
+      return { provider: 'official', ...officialValues } as const;
+    }
+    if (provider === 'waha') {
+      return { provider: 'waha', ...wahaValues } as const;
+    }
+    if (provider === 'evolution') {
+      return { provider: 'evolution', ...evolutionValues } as const;
+    }
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    const payload = buildPayload();
+    if (!payload) {
+      toast({ title: 'Erro', description: 'Selecione um provider', variant: 'destructive' });
       return;
     }
 
-    if (!formData.instance_key.trim()) {
+    const parsed = newInstanceSchema.safeParse(payload);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
       toast({
-        title: "Erro",
-        description: "Chave da instância é obrigatória",
-        variant: "destructive"
+        title: 'Verifique os campos',
+        description: firstIssue?.message || 'Dados inválidos',
+        variant: 'destructive',
       });
       return;
     }
-
-    console.log('🚀 [CreateInstanceModal] Iniciando criação de instância:', {
-      name: formData.name,
-      instance_key: formData.instance_key,
-      tenant_id: tenant?.id,
-      enableWebhookAutomation
-    });
 
     setLoading(true);
-    setWebhookStatus('idle');
-    setWebhookError(null);
-
     try {
-      // Verificar se o serviço Evolution API está disponível
-      if (!createInstance) {
-        console.error('❌ [CreateInstanceModal] Serviço Evolution API não está disponível');
-        throw new Error('Serviço Evolution API não está disponível. Verifique as configurações.');
-      }
-
-      console.log('📡 [CreateInstanceModal] Criando instância na Evolution API e salvando no banco...');
-      
-      if (enableWebhookAutomation) {
-        setWebhookStatus('configuring');
-        console.log('🔗 [CreateInstanceModal] Configuração automática de webhook habilitada');
-      }
-      
-      // Usar a função createInstance com configurações de webhook
-      await createInstance(
-        formData.instance_key, 
-        import.meta.env.VITE_EVOLUTION_WEBHOOK_URL,
-        {
-          enableWebhookAutomation,
-          retryAttempts,
-          retryDelay
+      if (parsed.data.provider === 'evolution') {
+        setEvolutionWebhookStatus(parsed.data.enableWebhookAutomation ? 'configuring' : 'idle');
+        setEvolutionWebhookError(null);
+        try {
+          await createEvolution(
+            parsed.data.instance_key,
+            env.get('EVOLUTION_WEBHOOK_URL') || undefined,
+            {
+              enableWebhookAutomation: parsed.data.enableWebhookAutomation,
+              retryAttempts: parsed.data.retryAttempts,
+              retryDelay: parsed.data.retryDelay,
+            },
+          );
+          if (parsed.data.enableWebhookAutomation) setEvolutionWebhookStatus('success');
+        } catch (err: any) {
+          if (parsed.data.enableWebhookAutomation && err?.message?.includes('webhook')) {
+            setEvolutionWebhookStatus('error');
+            setEvolutionWebhookError(err.message);
+          }
+          throw err;
         }
-      );
-      
-      if (enableWebhookAutomation) {
-        setWebhookStatus('success');
-        console.log('✅ [CreateInstanceModal] Webhook configurado automaticamente!');
+
+        setCreatedInstanceName(parsed.data.instance_key);
+        setShowQRModal(true);
+      } else if (parsed.data.provider === 'waha') {
+        await createWaha(parsed.data);
+      } else if (parsed.data.provider === 'official') {
+        await createMeta(parsed.data);
       }
-      
-      console.log('✅ [CreateInstanceModal] Instância criada com sucesso!');
 
-      // Show success message
-      const successMessage = enableWebhookAutomation 
-        ? "Instância criada com sucesso! Webhook configurado automaticamente. Conecte seu WhatsApp."
-        : "Instância criada com sucesso! Conecte seu WhatsApp.";
-        
-      toast({
-        title: "Sucesso",
-        description: successMessage
-      });
-      
-      // Store the created instance name and show QR modal
-      setCreatedInstanceName(formData.instance_key);
-      setShowQRModal(true);
-      
-      // Reset form and close creation modal
-      setFormData({
-        name: '',
-        instance_key: ''
-      });
-      onOpenChange(false);
-
-      console.log('🎉 [CreateInstanceModal] Processo de criação concluído com sucesso!');
       onSuccess();
-    } catch (error: any) {
-      console.error('💥 [CreateInstanceModal] Erro durante criação da instância:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        response: error?.response?.data,
-        status: error?.response?.status
+      onOpenChange(false);
+      resetWizard();
+    } catch (err) {
+      logger.error('Falha ao criar instância', {
+        provider: parsed.data.provider,
+        error: err instanceof Error ? err.message : err,
       });
-      
-      if (enableWebhookAutomation && error?.message?.includes('webhook')) {
-        setWebhookStatus('error');
-        setWebhookError(error.message);
-      }
-      
-      let errorMessage = 'Erro ao criar instância';
-      
-      // Identificar tipos específicos de erro
-      if (error?.message?.includes('autenticação')) {
-        errorMessage = 'Erro de autenticação com a Evolution API. Verifique a chave API.';
-      } else if (error?.message?.includes('já existe')) {
-        errorMessage = 'Instância já existe. Escolha uma chave diferente.';
-      } else if (error?.message?.includes('servidor')) {
-        errorMessage = 'Erro interno do servidor Evolution API. Tente novamente.';
-      } else if (error?.message?.includes('conexão')) {
-        errorMessage = 'Erro de conexão com a Evolution API. Verifique se o serviço está rodando.';
-      } else if (error?.message?.includes('webhook')) {
-        errorMessage = `Instância criada, mas erro na configuração do webhook: ${error.message}`;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      toast({
-        title: "Erro",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      // toast já é exibido pelo hook subjacente
     } finally {
       setLoading(false);
-      console.log('🏁 [CreateInstanceModal] Processo finalizado');
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const generateInstanceKey = () => {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    const key = `instance_${timestamp}_${random}`;
-    handleInputChange('instance_key', key);
+  const renderForm = () => {
+    if (provider === 'official') {
+      return (
+        <OfficialApiForm
+          values={officialValues}
+          onChange={(patch) => setOfficialValues((prev) => ({ ...prev, ...patch }))}
+          loading={loading}
+        />
+      );
+    }
+    if (provider === 'waha') {
+      return (
+        <WahaApiForm
+          values={wahaValues}
+          onChange={(patch) => setWahaValues((prev) => ({ ...prev, ...patch }))}
+          loading={loading}
+        />
+      );
+    }
+    if (provider === 'evolution') {
+      return (
+        <EvolutionApiForm
+          values={evolutionValues}
+          onChange={(patch) => setEvolutionValues((prev) => ({ ...prev, ...patch }))}
+          loading={loading}
+          webhookStatus={evolutionWebhookStatus}
+          webhookError={evolutionWebhookError}
+        />
+      );
+    }
+    return null;
   };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px]">
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adicionar Novo Número WhatsApp</DialogTitle>
+            <DialogTitle>
+              {step === 'select-provider' ? 'Nova Instância de WhatsApp' : 'Configurar API'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {step === 'select-provider'
+                ? 'Escolha qual API o ConvoFlow vai usar para esta instância.'
+                : 'Preencha os dados de acesso. Os campos sensíveis serão protegidos.'}
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome da Instância *</Label>
-                <Input
-                  id="name"
-                  placeholder="Ex: WhatsApp Vendas"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
+          {step === 'select-provider' ? (
+            <ProviderSelector value={provider} onChange={setProvider} disabled={loading} />
+          ) : (
+            renderForm()
+          )}
 
-              <div className="space-y-2">
-                <Label htmlFor="instance_key">Chave da Instância *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="instance_key"
-                    placeholder="Ex: vendas_001"
-                    value={formData.instance_key}
-                    onChange={(e) => handleInputChange('instance_key', e.target.value)}
-                    disabled={loading}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={generateInstanceKey}
-                    disabled={loading}
-                  >
-                    Gerar
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Identificador único para esta instância. Use apenas letras, números e underscore.
-                </p>
-              </div>
-
-              {/* Webhook Automation Section */}
-              <Card className="border-blue-200 bg-blue-50/50">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Webhook className="h-4 w-4 text-blue-600" />
-                      <CardTitle className="text-sm">Configuração Automática de Webhook</CardTitle>
-                    </div>
-                    <Switch
-                      checked={enableWebhookAutomation}
-                      onCheckedChange={setEnableWebhookAutomation}
-                      disabled={loading}
-                    />
-                  </div>
-                  <CardDescription className="text-xs">
-                    Configura automaticamente o webhook para receber eventos do WhatsApp
-                  </CardDescription>
-                </CardHeader>
-                
-                {enableWebhookAutomation && (
-                  <CardContent className="pt-0 space-y-3">
-                    {/* Webhook Status */}
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs font-medium">Status:</Label>
-                      {webhookStatus === 'idle' && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Aguardando
-                        </Badge>
-                      )}
-                      {webhookStatus === 'configuring' && (
-                        <Badge variant="default" className="text-xs">
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Configurando
-                        </Badge>
-                      )}
-                      {webhookStatus === 'success' && (
-                        <Badge variant="default" className="text-xs bg-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Configurado
-                        </Badge>
-                      )}
-                      {webhookStatus === 'error' && (
-                        <Badge variant="destructive" className="text-xs">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Erro
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Webhook URL */}
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">URL do Webhook:</Label>
-                      <div className="bg-white border rounded px-2 py-1">
-                        <code className="text-xs text-gray-600">
-                          {getDefaultWebhookUrl ? getDefaultWebhookUrl() : env.VITE_EVOLUTION_WEBHOOK_URL}
-                        </code>
-                      </div>
-                    </div>
-
-                    {/* Error Message */}
-                    {webhookError && (
-                      <div className="bg-red-50 border border-red-200 rounded p-2">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-red-800">Erro na configuração:</p>
-                            <p className="text-xs text-red-700 mt-1">{webhookError}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Advanced Settings */}
-                    <details className="group">
-                      <summary className="text-xs font-medium cursor-pointer text-blue-600 hover:text-blue-800">
-                        Configurações Avançadas
-                      </summary>
-                      <div className="mt-2 space-y-2 pl-4 border-l-2 border-blue-200">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">Tentativas:</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="10"
-                              value={retryAttempts}
-                              onChange={(e) => setRetryAttempts(parseInt(e.target.value) || 3)}
-                              className="h-7 text-xs"
-                              disabled={loading}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Delay (ms):</Label>
-                            <Input
-                              type="number"
-                              min="1000"
-                              max="10000"
-                              step="500"
-                              value={retryDelay}
-                              onChange={(e) => setRetryDelay(parseInt(e.target.value) || 2000)}
-                              className="h-7 text-xs"
-                              disabled={loading}
-                            />
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Eventos configurados: QRCODE_UPDATED, CONNECTION_UPDATE, MESSAGES_UPSERT, MESSAGES_UPDATE, SEND_MESSAGE
-                        </p>
-                      </div>
-                    </details>
-                  </CardContent>
-                )}
-              </Card>
-
-
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-              {showQrCode ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setShowQrCode(false);
-                    setQrCode(null);
-                    setFormData({ name: '', instance_key: '' });
-                    onSuccess();
-                  }}
-                >
-                  <QrCode className="mr-2 h-4 w-4" />
-                  Finalizar
+          <DialogFooter className="gap-2 sm:gap-2">
+            {step === 'select-provider' ? (
+              <>
+                <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
+                  Cancelar
                 </Button>
-              ) : (
-                <Button type="submit" disabled={loading}>
+                <Button onClick={goToConfigure} disabled={!provider || loading}>
+                  Continuar
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={goBackToSelect} disabled={loading}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+                </Button>
+                <div className="flex-1" />
+                <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSubmit} disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Criar Instância
+                  {provider === 'evolution' && (
+                    <>
+                      <QrCode className="mr-2 h-4 w-4" />
+                      Criar e abrir QR Code
+                    </>
+                  )}
+                  {provider === 'waha' && 'Salvar instância'}
+                  {provider === 'official' && 'Validar e conectar'}
                 </Button>
-              )}
-            </DialogFooter>
-          </form>
+              </>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       <QRCodeModal
         isOpen={showQRModal}
         onClose={() => {

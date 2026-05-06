@@ -179,7 +179,7 @@ async function processSendMessage(supabase: SupabaseClient, jobData: JobData, te
   }
   
   // 2. Instantiate Provider
-  const provider = ProviderFactory.getProvider(instance);
+  const provider = await ProviderFactory.getProvider(instance, supabase);
 
   // 3. Send Message
   const result = await provider.sendMessage(phone, message);

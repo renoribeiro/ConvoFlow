@@ -10,6 +10,7 @@ import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
+import { useMetaApi } from '@/hooks/useMetaApi';
 import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
@@ -19,6 +20,8 @@ import { EnvironmentDebug } from '@/components/debug/EnvironmentDebug';
 import { SupabaseDebug } from '@/components/debug/SupabaseDebug';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+type ProviderType = 'evolution' | 'waha' | 'official';
 
 interface WhatsAppInstance {
   id: string;
@@ -36,7 +39,15 @@ interface WhatsAppInstance {
   evolution_api_url?: string;
   evolution_api_key?: string;
   webhook_url?: string;
+  provider?: ProviderType;
+  connection_config?: Record<string, any>;
 }
+
+const PROVIDER_BADGE: Record<ProviderType, { label: string; className: string }> = {
+  official: { label: 'Oficial', className: 'bg-emerald-600 hover:bg-emerald-600 text-white' },
+  waha: { label: 'WAHA', className: 'bg-sky-600 hover:bg-sky-600 text-white' },
+  evolution: { label: 'Evolution', className: 'bg-slate-600 hover:bg-slate-600 text-white' },
+};
 
 export default function WhatsAppNumbers() {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
@@ -50,6 +61,7 @@ export default function WhatsAppNumbers() {
   const { tenant } = useTenant();
   const { toast } = useToast();
   const { connectInstance, disconnectInstance, getQRCode, refreshInstanceStatus } = useEvolutionApi();
+  const { verifyConnection: verifyMetaConnection } = useMetaApi();
 
   // Query para buscar instâncias do WhatsApp
   const { 
@@ -71,7 +83,8 @@ export default function WhatsAppNumbers() {
   // Mutation para atualizar status da instância
   const updateInstanceMutation = useSupabaseMutation({
     table: 'whatsapp_instances',
-    invalidateKeys: ['whatsapp-instances']
+    operation: 'update',
+    invalidateKeys: [['whatsapp-instances']]
   });
 
   // Verificação automática de status a cada 30 segundos
@@ -80,19 +93,33 @@ export default function WhatsAppNumbers() {
       if (instances.length === 0) return;
       
       for (const instance of instances) {
+        // Polling de status Evolution não se aplica a Meta/WAHA
+        if (instance.provider && instance.provider !== 'evolution') continue;
         try {
           const status = await refreshInstanceStatus(instance.instance_key);
           if (status && status !== instance.status) {
             await updateInstanceMutation.mutateAsync({
-              id: instance.id,
-              updates: { 
+              data: { 
                 status,
                 last_connected_at: status === 'open' ? new Date().toISOString() : instance.last_connected_at
-              }
+              },
+              options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
             });
           }
         } catch (error) {
           console.error(`Erro ao verificar status da instância ${instance.instance_key}:`, error);
+          // If the API returns an error, the instance likely no longer exists on the API side.
+          // Mark it as 'close' so the UI reflects reality.
+          if (instance.status === 'open' || instance.status === 'connecting') {
+            try {
+              await updateInstanceMutation.mutateAsync({
+                data: { status: 'close' },
+                options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
+              });
+            } catch (updateErr) {
+              console.warn('Failed to update instance status to close:', updateErr);
+            }
+          }
         }
       }
     };
@@ -205,8 +232,8 @@ export default function WhatsAppNumbers() {
       const status = await refreshInstanceStatus(instance.instance_key);
       if (status) {
         await updateInstanceMutation.mutateAsync({
-          id: instance.id,
-          updates: { status }
+          data: { status },
+          options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
         });
         toast({
           title: "Sucesso",
@@ -247,11 +274,11 @@ export default function WhatsAppNumbers() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Números WhatsApp"
-          description="Gerencie seus números e instâncias do WhatsApp"
+          title="Instâncias e APIs"
+          description="Gerencie suas instâncias e integrações de WhatsApp"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
-            { label: 'Números WhatsApp' }
+            { label: 'Instâncias e APIs' }
           ]}
         />
         <Card>
@@ -270,11 +297,11 @@ export default function WhatsAppNumbers() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Números WhatsApp"
-          description="Gerencie seus números e instâncias do WhatsApp"
+          title="Instâncias e APIs"
+          description="Gerencie suas instâncias e integrações de WhatsApp"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
-            { label: 'Números WhatsApp' }
+            { label: 'Instâncias e APIs' }
           ]}
         />
         <Card>
@@ -291,11 +318,11 @@ export default function WhatsAppNumbers() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Números WhatsApp"
-        description="Gerencie seus números e instâncias do WhatsApp"
+        title="Instâncias e APIs"
+        description="Gerencie suas instâncias e integrações de WhatsApp"
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Números WhatsApp' }
+          { label: 'Instâncias e APIs' }
         ]}
         actions={
           <div className="flex gap-2">
@@ -314,7 +341,7 @@ export default function WhatsAppNumbers() {
             </Button>
             <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Adicionar Número
+              Nova Instância
             </Button>
           </div>
         }
@@ -344,7 +371,7 @@ export default function WhatsAppNumbers() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Números</p>
+                <p className="text-sm font-medium text-muted-foreground">Total de Instâncias</p>
                 <p className="text-2xl font-bold">{totalInstances}</p>
               </div>
               <Smartphone className="h-8 w-8 text-blue-500" />
@@ -391,13 +418,13 @@ export default function WhatsAppNumbers() {
           ) : instances.length === 0 ? (
             <div className="text-center py-8">
               <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Nenhum número cadastrado</h3>
+              <h3 className="text-lg font-medium mb-2">Nenhuma instância cadastrada</h3>
               <p className="text-muted-foreground mb-4">
-                Adicione seu primeiro número WhatsApp para começar a usar a plataforma
+                Crie sua primeira instância de WhatsApp para começar a usar a plataforma
               </p>
               <Button onClick={() => setShowCreateModal(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Adicionar Primeiro Número
+                Criar Primeira Instância
               </Button>
             </div>
           ) : (
@@ -411,8 +438,13 @@ export default function WhatsAppNumbers() {
                     </div>
                     
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-semibold">{instance.name}</h4>
+                        <Badge
+                          className={PROVIDER_BADGE[instance.provider || 'evolution'].className}
+                        >
+                          {PROVIDER_BADGE[instance.provider || 'evolution'].label}
+                        </Badge>
                         <Badge variant={instance.is_active ? 'default' : 'secondary'}>
                           {instance.is_active ? 'Ativo' : 'Inativo'}
                         </Badge>
@@ -439,53 +471,70 @@ export default function WhatsAppNumbers() {
                     </Badge>
                     
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRefreshStatus(instance)}
-                        disabled={refreshingInstance === instance.id}
-                      >
-                        <RefreshCw className={`h-4 w-4 ${refreshingInstance === instance.id ? 'animate-spin' : ''}`} />
-                      </Button>
-                      
-                      {instance.status === 'close' && (
+                      {(!instance.provider || instance.provider === 'evolution') && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleShowQR(instance)}
-                          title="Conectar via QR Code"
+                          onClick={() => handleRefreshStatus(instance)}
+                          disabled={refreshingInstance === instance.id}
+                          title="Atualizar status"
                         >
-                          <QrCode className="h-4 w-4" />
+                          <RefreshCw className={`h-4 w-4 ${refreshingInstance === instance.id ? 'animate-spin' : ''}`} />
                         </Button>
                       )}
-                      
-                      {instance.status === 'open' && (
-                        <>
+
+                      {(!instance.provider || instance.provider === 'evolution') &&
+                        instance.status === 'close' && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleConfigureWebhook(instance)}
-                            title="Configurar Webhook"
+                            onClick={() => handleShowQR(instance)}
+                            title="Conectar via QR Code"
                           >
-                            <Webhook className="h-4 w-4" />
+                            <QrCode className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDisconnect(instance)}
-                            className="text-red-600 hover:text-red-700"
-                            title="Desconectar"
-                          >
-                            <WifiOff className="h-4 w-4" />
-                          </Button>
-                        </>
+                        )}
+
+                      {(!instance.provider || instance.provider === 'evolution') &&
+                        instance.status === 'open' && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleConfigureWebhook(instance)}
+                              title="Configurar Webhook"
+                            >
+                              <Webhook className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDisconnect(instance)}
+                              className="text-red-600 hover:text-red-700"
+                              title="Desconectar"
+                            >
+                              <WifiOff className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+
+                      {instance.provider === 'official' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => verifyMetaConnection(instance.id)}
+                          title="Testar conexão Meta"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
                       )}
-                      
+
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(instance)}
                         className="text-red-600 hover:text-red-700"
+                        title="Excluir instância"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

@@ -24,6 +24,8 @@ interface WhatsAppInstance {
   evolution_api_url?: string;
   evolution_api_key?: string;
   webhook_url?: string;
+  provider?: 'evolution' | 'waha' | 'official';
+  connection_config?: Record<string, any>;
 }
 
 interface EditInstanceModalProps {
@@ -75,7 +77,9 @@ export const EditInstanceModal = ({ open, onOpenChange, instance, onSuccess }: E
       return;
     }
 
-    if (!formData.evolution_api_url.trim()) {
+    const isEvolution = !instance.provider || instance.provider === 'evolution';
+
+    if (isEvolution && !formData.evolution_api_url.trim()) {
       toast({
         title: "Erro",
         description: "URL da Evolution API é obrigatória",
@@ -84,7 +88,7 @@ export const EditInstanceModal = ({ open, onOpenChange, instance, onSuccess }: E
       return;
     }
 
-    if (!formData.evolution_api_key.trim()) {
+    if (isEvolution && !formData.evolution_api_key.trim()) {
       toast({
         title: "Erro",
         description: "Chave da Evolution API é obrigatória",
@@ -97,15 +101,15 @@ export const EditInstanceModal = ({ open, onOpenChange, instance, onSuccess }: E
 
     try {
       await updateInstanceMutation.mutateAsync({
-        id: instance.id,
-        updates: {
+        data: {
           name: formData.name.trim(),
           evolution_api_url: formData.evolution_api_url.trim(),
           evolution_api_key: formData.evolution_api_key.trim(),
           webhook_url: formData.webhook_url.trim() || null,
           is_active: formData.is_active,
           updated_at: new Date().toISOString()
-        }
+        },
+        options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
       });
 
       toast({

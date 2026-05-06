@@ -43,7 +43,7 @@ const allNavigationItems = [
   { name: 'Campanhas', href: '/dashboard/campaigns', icon: Megaphone, moduleName: 'campaigns' },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: UserCheck, moduleName: 'followups' },
   { name: 'Automação', href: '/dashboard/automation', icon: Workflow, moduleName: 'automation' },
-  { name: 'Números WhatsApp', href: '/dashboard/whatsapp-numbers', icon: Smartphone, moduleName: 'whatsapp-numbers' },
+  { name: 'Instâncias e APIs', href: '/dashboard/whatsapp-numbers', icon: Smartphone, moduleName: 'whatsapp-numbers' },
   { name: 'Configurações', href: '/dashboard/settings', icon: Settings, moduleName: null }, // Configurações sempre visível
 ];
 
