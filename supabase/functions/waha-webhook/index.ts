@@ -73,11 +73,50 @@ serve(async (req) => {
 
     logger.info('Waha webhook received', { event: payload.event, session: sessionName });
 
+    // Map WAHA session status → our `whatsapp_instances.status` vocabulary.
+    // Ref: .agent/skills/waha/SKILL.md §2.1
+    const mapWahaStatus = (raw?: string): string | null => {
+      if (!raw) return null;
+      const s = raw.toUpperCase();
+      if (s === 'WORKING') return 'connected';
+      if (s === 'SCAN_QR_CODE') return 'qrcode';
+      if (s === 'STARTING') return 'connecting';
+      if (s === 'STOPPED' || s === 'FAILED') return 'disconnected';
+      return null;
+    };
+
+    if (payload.event === 'session.status' || payload.event === 'status') {
+      const mapped = mapWahaStatus(
+        payload.payload?.status || payload.status || payload.payload?.state,
+      );
+      if (mapped) {
+        await supabase
+          .from('whatsapp_instances')
+          .update({ status: mapped, updated_at: new Date().toISOString() })
+          .eq('id', instance.id);
+        logger.info('Instance status synced from WAHA', { id: instance.id, status: mapped });
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     if (payload.event === 'message') {
-      const msg = payload.payload;
+      const msg = payload.payload || {};
       if (msg.fromMe) return new Response('Skipped fromMe', { status: 200 });
 
-      const rawPhone = msg.from.replace('@c.us', '');
+      const fromRaw: string = typeof msg.from === 'string' ? msg.from : '';
+      if (!fromRaw) {
+        logger.warn('WAHA message without "from"', { id: msg.id });
+        return new Response('Missing from', { status: 200 });
+      }
+      // WAHA usa "<numero>@c.us" para contatos e "<id>@g.us" para grupos.
+      // Por enquanto ignoramos grupos para evitar inserir mensagens órfãs.
+      if (fromRaw.endsWith('@g.us')) {
+        return new Response('Skipped group message', { status: 200 });
+      }
+      const rawPhone = fromRaw.replace('@c.us', '');
       const phone = DataSanitizer.sanitizePhoneNumber(rawPhone);
       const content = msg.body || '';
 

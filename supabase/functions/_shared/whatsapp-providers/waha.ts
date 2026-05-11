@@ -1,10 +1,24 @@
 import { IWhatsAppProvider, ProviderConfig, SendMessageOptions } from './base.ts';
 
+/**
+ * Provider server-side da WAHA API.
+ *
+ * Endpoints e payloads validados contra `.agent/skills/waha/SKILL.md` e o
+ * relatório de instalação do deploy oficial (memudecore — engine NOWEB).
+ *
+ * Pontos importantes:
+ *  - O nome da sessão vai no BODY (`session`), nunca como path param desta
+ *    família de endpoints "/api/sendXxx".
+ *  - O destinatário é sempre `chatId` no formato `<numero>@c.us`.
+ *  - Header de auth: `X-Api-Key: {API_KEY}`.
+ */
 export class WahaProvider implements IWhatsAppProvider {
     private config: ProviderConfig;
+    private baseUrl: string;
 
     constructor(config: ProviderConfig) {
         this.config = config;
+        this.baseUrl = (config.baseUrl || '').replace(/\/+$/, '');
     }
 
     private formatChatId(phone: string): string {
@@ -12,48 +26,104 @@ export class WahaProvider implements IWhatsAppProvider {
         return `${numericPhone}@c.us`;
     }
 
-    async sendMessage(to: string, content: string, options?: SendMessageOptions): Promise<any> {
-        const url = `${this.config.baseUrl}/api/send/text`;
-        
+    private buildHeaders(): Record<string, string> {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
-            'X-Api-Key': this.config.apiKey
+            'Accept': 'application/json',
         };
+        if (this.config.apiKey) {
+            headers['X-Api-Key'] = this.config.apiKey;
+        }
+        return headers;
+    }
 
-        const body = {
-            chatId: this.formatChatId(to),
-            text: content,
-            session: this.config.instanceName,
-            reply_to: options?.quotedMessageId 
-        };
-
+    private async request<T = any>(
+        path: string,
+        init: { method?: string; body?: unknown } = {},
+    ): Promise<T> {
+        const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
         const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(body),
+            method: init.method || 'POST',
+            headers: this.buildHeaders(),
+            body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
+            const errorText = await response.text().catch(() => '');
             throw new Error(`Waha API Error (${response.status}): ${errorText}`);
         }
 
-        return await response.json();
+        if (response.status === 204) return undefined as T;
+
+        const text = await response.text();
+        if (!text) return undefined as T;
+        try {
+            return JSON.parse(text) as T;
+        } catch {
+            return text as unknown as T;
+        }
+    }
+
+    async sendMessage(to: string, content: string, options?: SendMessageOptions): Promise<any> {
+        return this.request('/api/sendText', {
+            method: 'POST',
+            body: {
+                session: this.config.instanceName,
+                chatId: this.formatChatId(to),
+                text: content,
+                linkPreview: true,
+                reply_to: options?.quotedMessageId ?? null,
+            },
+        });
     }
 
     async fetchHistory(limit: number = 50): Promise<any[]> {
-        const url = `${this.config.baseUrl}/api/messages?limit=${limit}&session=${this.config.instanceName}`;
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'X-Api-Key': this.config.apiKey
-        };
+        const session = encodeURIComponent(this.config.instanceName);
+        const url = `${this.baseUrl}/api/${session}/chats?limit=${limit}&sortBy=conversationTimestamp&sortOrder=desc`;
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: this.buildHeaders(),
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+        } catch {
+            return [];
+        }
+    }
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: headers
+    /**
+     * Cria (ou atualiza) a sessão WAHA com o webhook do ConvoFlow configurado.
+     * Idempotente: se a sessão já existe, o body é mesclado.
+     */
+    async ensureSession(opts: {
+        webhookUrl?: string;
+        hmacKey?: string;
+        events?: string[];
+    } = {}): Promise<any> {
+        const events = opts.events ?? ['message', 'message.ack', 'session.status'];
+        const webhooks = opts.webhookUrl
+            ? [{
+                url: opts.webhookUrl,
+                events,
+                ...(opts.hmacKey ? { hmac: { key: opts.hmacKey } } : {}),
+                retries: { delaySeconds: 2, attempts: 5 },
+            }]
+            : [];
+
+        return this.request('/api/sessions', {
+            method: 'POST',
+            body: {
+                name: this.config.instanceName,
+                start: true,
+                config: { webhooks },
+            },
         });
+    }
 
-        if (!response.ok) return [];
-        return await response.json();
+    async getSessionStatus(): Promise<any> {
+        const session = encodeURIComponent(this.config.instanceName);
+        return this.request(`/api/sessions/${session}`, { method: 'GET' });
     }
 }
