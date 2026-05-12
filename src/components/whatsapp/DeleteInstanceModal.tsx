@@ -132,11 +132,11 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
 
             <div className="space-y-2">
               <h4 className="font-medium text-sm">O que será deletado:</h4>
-              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                <li>• A instância será removida da Evolution API</li>
-                <li>• Todos os dados da instância serão removidos do sistema</li>
-                <li>• As mensagens associadas a esta instância permanecerão no sistema</li>
-                <li>• A conexão WhatsApp será encerrada permanentemente</li>
+              <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1">
+                <li>A instância será removida da Evolution API</li>
+                <li>Todos os dados da instância serão removidos do sistema</li>
+                <li>As mensagens e dados associados a esta instância serão removidos</li>
+                <li>A conexão WhatsApp será encerrada permanentemente</li>
               </ul>
             </div>
 

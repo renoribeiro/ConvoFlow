@@ -1,184 +1,132 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// =============================================================================
+// admin-create-user — SHIM de retrocompatibilidade
+// =============================================================================
+// Esta função foi substituída por `manage-user`. Continua disponível por 1
+// release para o frontend antigo. Aqui traduzimos o payload legado e
+// reencaminhamos para manage-user via fetch interno.
+//
+// Mapeamentos:
+//   POST   { email, firstName, lastName, phone, role, isActive, tenantId, redirectTo }
+//                 ->  manage-user action='create' (role legado é convertido)
+//   DELETE { userId }
+//                 ->  manage-user action='soft_delete' (não apaga auth.users)
+// =============================================================================
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
-};
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildCorsHeaders } from '../_shared/validation.ts';
+
+type LegacyRole = 'super_admin' | 'tenant_admin' | 'tenant_user' | 'user' | string;
+type NewRole = 'superadmin' | 'account_manager' | 'enterprise' | 'user';
+
+function mapRole(legacy: LegacyRole | undefined | null): NewRole {
+  switch (legacy) {
+    case 'super_admin':
+    case 'superadmin':
+      return 'superadmin';
+    case 'tenant_admin':
+    case 'enterprise':
+      return 'enterprise';
+    case 'account_manager':
+      return 'account_manager';
+    case 'tenant_user':
+    case 'user':
+    default:
+      return 'user';
+  }
+}
+
+const json = (body: unknown, status: number, cors: Record<string, string>) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, 'Content-Type': 'application/json' },
+  });
 
 Deno.serve(async (req: Request) => {
+  const cors = buildCorsHeaders(req.headers.get('origin'));
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: cors });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceKey) {
+    return json({ error: 'Server misconfigured' }, 500, cors);
+  }
+
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return json({ error: 'Missing authorization header' }, 401, cors);
+  }
+
+  const manageUserUrl = `${supabaseUrl}/functions/v1/manage-user`;
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Authenticate the caller via JWT
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user: callerUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !callerUser) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify caller is super_admin
-    const { data: callerProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('user_id', callerUser.id)
-      .single();
-
-    if (!callerProfile || callerProfile.role !== 'super_admin') {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden: super_admin role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Handle DELETE method for user deletion
     if (req.method === 'DELETE') {
+      // Legado deletava auth.users + profiles direto. Agora viramos soft_delete.
+      // Como o legado passava `userId` (auth.users.id), precisamos resolver
+      // profile.id correspondente.
       const { userId } = await req.json();
-      if (!userId) {
-        return new Response(
-          JSON.stringify({ error: 'userId is required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      if (!userId) return json({ error: 'userId é obrigatório' }, 400, cors);
 
-      // Prevent self-deletion
-      if (userId === callerUser.id) {
-        return new Response(
-          JSON.stringify({ error: 'Cannot delete your own account' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Delete profile first (cascade should handle, but let's be explicit)
-      await supabaseAdmin
+      const admin = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: profile, error: profileErr } = await admin
         .from('profiles')
-        .delete()
-        .eq('user_id', userId);
-
-      // Delete auth user
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-      if (deleteError) {
-        console.error('Error deleting auth user:', deleteError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to delete user: ' + deleteError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (profileErr || !profile) {
+        return json({ error: 'Profile não encontrado' }, 404, cors);
       }
 
-      return new Response(
-        JSON.stringify({ success: true, message: 'User deleted successfully' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Handle POST method for user creation
-    if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ error: 'Method not allowed' }),
-        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { email, firstName, lastName, phone, role, isActive, tenantId, redirectTo } = await req.json();
-
-    if (!email || !firstName || !lastName) {
-      return new Response(
-        JSON.stringify({ error: 'email, firstName and lastName are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create user via admin API — does NOT affect caller's session
-    // inviteUserByEmail automatically creates the user and triggers the Supabase Invite Email
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-      },
-      redirectTo: redirectTo || undefined,
-    });
-
-    if (createError) {
-      console.error('Error creating user:', createError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to create user: ' + createError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!newUser.user) {
-      return new Response(
-        JSON.stringify({ error: 'User creation returned no user' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Wait a moment for the profile to be created by the handle_new_user trigger
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const profileUpdate: any = {
-      phone: phone || null,
-      role: role || 'tenant_user',
-      is_active: isActive !== undefined ? isActive : true,
-    };
-
-    if (tenantId) {
-      profileUpdate.tenant_id = tenantId;
-    }
-
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('user_id', newUser.user.id);
-
-    if (profileError) {
-      console.error('Error updating profile:', profileError);
-      // User was created but profile update failed - return partial success
-      return new Response(
-        JSON.stringify({
-          success: true,
-          user: { id: newUser.user.id, email: newUser.user.email },
-          warning: 'User created and invited but profile update failed: ' + profileError.message,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        user: {
-          id: newUser.user.id,
-          email: newUser.user.email,
-          firstName,
-          lastName,
+      const upstream = await fetch(manageUserUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'soft_delete',
+          targetProfileId: profile.id,
+        }),
+      });
+      const data = await upstream.json();
+      return json(data, upstream.status, cors);
+    }
+
+    if (req.method !== 'POST') {
+      return json({ error: 'Method not allowed' }, 405, cors);
+    }
+
+    const body = await req.json();
+    const upstream = await fetch(manageUserUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'create',
+        email: body.email,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        phone: body.phone,
+        role: mapRole(body.role),
+        tenantId: body.tenantId,
+        redirectTo: body.redirectTo,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error: any) {
-    console.error('Error in admin-create-user:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    });
+    const data = await upstream.json();
+    return json(data, upstream.status, cors);
+  } catch (err) {
+    console.error('admin-create-user shim error:', err);
+    return json(
+      { error: err instanceof Error ? err.message : 'Internal error' },
+      500,
+      cors,
     );
   }
 });

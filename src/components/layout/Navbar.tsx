@@ -51,12 +51,14 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
   );
 
   const roleLabel = (() => {
-    switch (profile?.role) {
-      case 'super_admin':
-        return 'Super Admin';
-      case 'tenant_admin':
-        return 'Administrador';
-      case 'tenant_user':
+    switch (profile?.role as string | undefined) {
+      case 'superadmin':
+        return 'Superadministrador';
+      case 'account_manager':
+        return 'Gestor de Contas';
+      case 'enterprise':
+        return 'Enterprise';
+      case 'user':
         return 'Usuário';
       default:
         return 'Usuário';

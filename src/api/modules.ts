@@ -248,12 +248,14 @@ export class ModulesApi {
         return false;
       }
 
-      // Verificar se o usuário tem role de super_admin na tabela profiles
-      const { data: profile, error: profileError } = await supabase
+      // Verificar se o usuário tem role de superadmin na tabela profiles.
+      // cast `any` enquanto types.ts não reflete o enum novo (regenerar via
+      // `supabase gen types` após aplicar a migration de hierarquia).
+      const { data: profile, error: profileError } = await (supabase as any)
         .from('profiles')
         .select('role, is_active')
         .eq('user_id', user.id)
-        .eq('role', 'super_admin')
+        .eq('role', 'superadmin')
         .eq('is_active', true)
         .single();
 
@@ -262,7 +264,7 @@ export class ModulesApi {
         return false;
       }
 
-      const isSuper = profile && profile.role === 'super_admin';
+      const isSuper = profile && profile.role === 'superadmin';
       console.log('Verificação superadmin:', { userId: user.id, role: profile?.role, isSuper });
       return isSuper;
     } catch (error) {

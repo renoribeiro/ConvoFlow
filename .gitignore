@@ -68,3 +68,7 @@ Icon?
 *~
 
 .gemini/
+
+# Claude Code / MCP — contém tokens locais, NÃO commitar
+.claude/
+.mcp.json

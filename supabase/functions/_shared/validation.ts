@@ -151,13 +151,20 @@ const ALLOWED_ORIGINS = [
   'https://www.convoflow.vercel.app',
 ];
 
+const LOCALHOST_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 function getCorsOrigin(requestOrigin?: string | null): string {
   // Em desenvolvimento, permitir qualquer origem
   const env = Deno.env.get('ENVIRONMENT') || Deno.env.get('DENO_ENV') || 'production';
   if (env === 'development' || env === 'local') {
     return requestOrigin || '*';
   }
-  
+
+  // Sempre permitir localhost / 127.0.0.1 (qualquer porta) — dev local
+  if (requestOrigin && LOCALHOST_PATTERN.test(requestOrigin)) {
+    return requestOrigin;
+  }
+
   // Adicionar origens customizadas do env
   const customOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN');
   if (customOrigin) {

@@ -11,3 +11,18 @@ verify_jwt = false
 
 [functions.whatsapp-meta-setup]
 verify_jwt = true
+
+[functions.whatsapp-send-message]
+verify_jwt = true
+
+[functions.manage-user]
+verify_jwt = true
+
+[functions.track-login]
+verify_jwt = true
+
+[functions.usage-limits]
+verify_jwt = true
+
+[functions.admin-create-user]
+verify_jwt = true

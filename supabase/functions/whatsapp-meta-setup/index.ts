@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from '../_shared/logger.ts';
-import { corsHeaders } from '../_shared/validation.ts';
+import { buildCorsHeaders } from '../_shared/validation.ts';
 
 interface SetupRequest {
   instance_id: string;
@@ -21,6 +21,13 @@ const DEFAULT_GRAPH_VERSION = 'v20.0';
 
 Deno.serve(async (req: Request) => {
   const logger = createLogger(req);
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+
+  const jsonResponse = (body: Record<string, any>, status: number): Response =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -235,9 +242,3 @@ function truncate(text: string, max: number): string {
   return text.length > max ? text.slice(0, max) + '…' : text;
 }
 
-function jsonResponse(body: Record<string, any>, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}

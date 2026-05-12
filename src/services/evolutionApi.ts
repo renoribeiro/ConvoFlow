@@ -158,16 +158,17 @@ export class EvolutionApiService {
       rejectCall: true,
       groupsIgnore: true,
       alwaysOnline: true,
-      readMessages: true,
-      readStatus: true
+      readMessages: false,
+      readStatus: false
     };
 
     // V2 best practice: configure webhook inline with instance creation
     if (params.webhookUrl) {
       body.webhook = {
         url: params.webhookUrl,
-        webhookByEvents: false,
-        webhookBase64: false,
+        enabled: true,
+        byEvents: false,
+        base64: false,
         events: [
           'QRCODE_UPDATED',
           'CONNECTION_UPDATE',
@@ -405,8 +406,8 @@ export class EvolutionApiService {
     return this.makeRequest<{ instance: { state: string } }>(`/instance/connectionState/${instanceName}`);
   }
 
-  async connectInstance(instanceName: string): Promise<{ pairingCode: string; code: string; count: number }> {
-    return this.makeRequest<{ pairingCode: string; code: string; count: number }>(`/instance/connect/${instanceName}`, {
+  async connectInstance(instanceName: string): Promise<{ pairingCode: string; code: string; count: number; base64?: string }> {
+    return this.makeRequest<{ pairingCode: string; code: string; count: number; base64?: string }>(`/instance/connect/${instanceName}`, {
       method: 'GET',
     });
   }
@@ -895,20 +896,21 @@ export class EvolutionApiService {
   }
 
   /**
-   * Set webhook configuration - Evolution API V2 flat payload
+   * Set webhook configuration - Evolution API V2
+   * The API requires the payload to be wrapped in a "webhook" root key
    */
   async setWebhook(instanceName: string, webhookUrl: string, events: string[]): Promise<void> {
-    const payload: WebhookConfig = {
+    const webhookConfig: WebhookConfig = {
       enabled: true,
       url: webhookUrl,
-      webhookByEvents: false,
-      webhookBase64: false,
+      byEvents: false,
+      base64: false,
       events: events as WebhookConfigEvent[],
     };
 
     await this.makeRequest(`/webhook/set/${instanceName}`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ webhook: webhookConfig }),
     });
   }
 

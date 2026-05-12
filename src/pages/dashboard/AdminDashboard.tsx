@@ -51,6 +51,7 @@ import {
 import { useIsSuperAdmin } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { UserRole } from '@/types/userHierarchy';
 import CommissionPayments from '@/components/CommissionPayments';
 import StripeConfiguration from '@/components/StripeConfiguration';
 import { BillingDashboard } from '@/components/admin/billing/BillingDashboard';
@@ -61,7 +62,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'super_admin' | 'tenant_admin' | 'tenant_user';
+  role: UserRole;
   status: 'active' | 'inactive' | 'suspended';
   lastLogin: string;
   createdAt: string;
@@ -128,7 +129,7 @@ const AdminDashboard = () => {
     lastName: '',
     email: '',
     phone: '',
-    role: 'tenant_user' as User['role'],
+    role: 'user' as User['role'],
     isActive: true,
     tenantId: '',
     planType: 'basic'
@@ -289,7 +290,7 @@ const AdminDashboard = () => {
       lastName: '',
       email: '',
       phone: '',
-      role: 'tenant_user' as User['role'],
+      role: 'user' as User['role'],
       isActive: true,
       tenantId: '',
       planType: 'basic'
@@ -606,7 +607,7 @@ const AdminDashboard = () => {
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === 'super_admin' ? 'destructive' : 'secondary'}>
+                          <Badge variant={user.role === 'superadmin' ? 'destructive' : 'secondary'}>
                             {user.role}
                           </Badge>
                         </TableCell>
@@ -817,19 +818,24 @@ const AdminDashboard = () => {
                     <TableCell className="text-muted-foreground">Total de contas na plataforma</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Super Admins</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'super_admin').length}</TableCell>
+                    <TableCell className="font-medium">Superadministradores</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'superadmin').length}</TableCell>
                     <TableCell className="text-muted-foreground">Administradores com acesso total</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Tenant Admins</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'tenant_admin').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Administradores de tenant</TableCell>
+                    <TableCell className="font-medium">Gestores de Contas</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'account_manager').length}</TableCell>
+                    <TableCell className="text-muted-foreground">Gestores/afiliados</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Usuários Regulares</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'tenant_user').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Usuários de tenant</TableCell>
+                    <TableCell className="font-medium">Enterprises</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'enterprise').length}</TableCell>
+                    <TableCell className="text-muted-foreground">Contas Enterprise (clientes)</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Usuários</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'user').length}</TableCell>
+                    <TableCell className="text-muted-foreground">Usuários finais dentro de Enterprises</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Total de Afiliados</TableCell>
@@ -1326,9 +1332,10 @@ const AdminDashboard = () => {
                   <SelectValue placeholder="Selecione a função" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tenant_user">Usuário</SelectItem>
-                  <SelectItem value="tenant_admin">Administrador</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectItem value="account_manager">Gestor de Contas</SelectItem>
+                  <SelectItem value="superadmin">Superadministrador</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1412,9 +1419,10 @@ const AdminDashboard = () => {
                   <SelectValue placeholder="Selecione a função" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tenant_user">Usuário</SelectItem>
-                  <SelectItem value="tenant_admin">Administrador</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectItem value="account_manager">Gestor de Contas</SelectItem>
+                  <SelectItem value="superadmin">Superadministrador</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1489,7 +1497,7 @@ const AdminDashboard = () => {
                 <div>
                   <Label className="text-sm font-medium">Função</Label>
                   <div>
-                    <Badge variant={selectedUser.role === 'super_admin' ? 'destructive' : 'secondary'}>
+                    <Badge variant={selectedUser.role === 'superadmin' ? 'destructive' : 'secondary'}>
                       {selectedUser.role}
                     </Badge>
                   </div>

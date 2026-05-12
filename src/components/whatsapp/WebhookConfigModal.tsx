@@ -119,8 +119,8 @@ export const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
 
     try {
       await updateWebhookMutation.mutateAsync({
-        id: instance.id,
-        webhook_url: webhookSettings.url
+        data: { webhook_url: webhookSettings.url },
+        options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
       });
     } catch (error) {
       console.error('Error updating webhook:', error);

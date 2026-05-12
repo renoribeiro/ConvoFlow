@@ -172,10 +172,10 @@ export function useSupabaseMutation(options: UseSupabaseMutationOptions) {
     },
     onError: (error, variables, context) => {
       // Mostrar mensagem de erro
-      const message = errorMessage || 'Ocorreu um erro inesperado';
+      const message = errorMessage || error?.message || error?.details || 'Ocorreu um erro inesperado';
       toast({
-        title: "Erro",
-        description: message,
+        title: "Erro na Mutação",
+        description: `${message} (Tabela: ${table})`,
         variant: "destructive",
       });
 

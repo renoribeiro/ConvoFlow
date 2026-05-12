@@ -317,8 +317,8 @@ export interface SendListPayload {
 export interface WebhookConfig {
   enabled: boolean;
   url: string;
-  webhookByEvents?: boolean;
-  webhookBase64?: boolean;
+  byEvents?: boolean;
+  base64?: boolean;
   events: WebhookConfigEvent[];
 }
 

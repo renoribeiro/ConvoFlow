@@ -9,6 +9,7 @@ interface Contact {
   phone: string;
   lead_source_id?: string;
   current_stage_id?: string;
+  avatar_url?: string;
   created_at: string;
   updated_at: string;
   tenant_id: string;
@@ -48,19 +49,39 @@ interface UseConversationsOptions {
   searchQuery?: string;
   isArchived?: boolean;
   enabled?: boolean;
+  whatsappInstanceId?: string;
+  /** Quando true, traz apenas conversas com unread_count > 0. */
+  hasUnread?: boolean;
+  /** Filtro por janela de tempo (last_message_at). */
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
 }
 
 // Hook para buscar conversas com paginação infinita
-export const useConversations = ({ 
-  pageSize = 20, 
-  searchQuery = '', 
-  isArchived = false, 
-  enabled = true 
+export const useConversations = ({
+  pageSize = 20,
+  searchQuery = '',
+  isArchived = false,
+  enabled = true,
+  whatsappInstanceId,
+  hasUnread = false,
+  dateFrom = null,
+  dateTo = null,
 }: UseConversationsOptions = {}) => {
   const { tenant } = useTenant();
 
   return useInfiniteQuery({
-    queryKey: ['conversations', tenant?.id, searchQuery, isArchived, pageSize],
+    queryKey: [
+      'conversations',
+      tenant?.id,
+      whatsappInstanceId,
+      searchQuery,
+      isArchived,
+      pageSize,
+      hasUnread,
+      dateFrom?.toISOString() ?? null,
+      dateTo?.toISOString() ?? null,
+    ],
     queryFn: async ({ pageParam = null }) => {
       if (!tenant?.id) {
         throw new Error('Tenant ID is required');
@@ -99,11 +120,26 @@ export const useConversations = ({
         .order('last_message_at', { ascending: false })
         .limit(pageSize);
 
+      // Only filter by instance if explicitly specified
+      if (whatsappInstanceId) {
+        query = query.eq('whatsapp_instance_id', whatsappInstanceId);
+      }
+
       // Aplicar filtro de busca
       if (searchQuery.trim()) {
         query = query.or(
           `contacts.name.ilike.%${searchQuery}%,contacts.phone.ilike.%${searchQuery}%`
         );
+      }
+
+      if (hasUnread) {
+        query = query.gt('unread_count', 0);
+      }
+      if (dateFrom) {
+        query = query.gte('last_message_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        query = query.lte('last_message_at', dateTo.toISOString());
       }
 
       // Aplicar cursor para paginação
@@ -123,18 +159,41 @@ export const useConversations = ({
         ? conversations[conversations.length - 1].last_message_at 
         : undefined;
 
+      // Fetch last messages for these conversations
+      let conversationsWithMessages = conversations;
+      if (conversations.length > 0) {
+        conversationsWithMessages = await Promise.all(
+          conversations.map(async (conv) => {
+            const { data: msg } = await supabase
+              .from('messages')
+              .select('content, created_at')
+              .eq('contact_id', conv.contact_id)
+              .eq('tenant_id', tenant.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+              
+            return {
+              ...conv,
+              last_message: msg ? { content: msg.content, created_at: msg.created_at } : undefined
+            };
+          })
+        );
+      }
+
       return {
-        data: conversations,
+        data: conversationsWithMessages,
         nextCursor,
         hasMore
       } as ConversationsPage;
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: enabled && !!tenant?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutos
+    staleTime: 1000 * 15, // 15 segundos
     gcTime: 1000 * 60 * 15, // 15 minutos
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+    refetchInterval: 1000 * 10, // Polling a cada 10s como fallback do Realtime
     initialPageParam: null
   });
 };
@@ -150,7 +209,7 @@ export const useRecentConversations = (limit: number = 5) => {
         throw new Error('Tenant ID is required');
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('conversations')
         .select(`
           id,
@@ -165,6 +224,7 @@ export const useRecentConversations = (limit: number = 5) => {
             id,
             name,
             phone,
+            avatar_url,
             lead_source_id,
             current_stage_id,
             stage:funnel_stages!contacts_current_stage_id_fkey (
@@ -180,11 +240,37 @@ export const useRecentConversations = (limit: number = 5) => {
         .order('last_message_at', { ascending: false })
         .limit(limit);
 
+      const { data, error } = await query;
+
       if (error) {
         throw error;
       }
 
-      return data || [];
+      const conversations = data || [];
+
+      // Fetch last messages for these recent conversations
+      let conversationsWithMessages = conversations;
+      if (conversations.length > 0) {
+        conversationsWithMessages = await Promise.all(
+          conversations.map(async (conv) => {
+            const { data: msg } = await supabase
+              .from('messages')
+              .select('content, created_at')
+              .eq('contact_id', conv.contact_id)
+              .eq('tenant_id', tenant.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+              
+            return {
+              ...conv,
+              last_message: msg ? { content: msg.content, created_at: msg.created_at } : undefined
+            };
+          })
+        );
+      }
+
+      return conversationsWithMessages;
     },
     enabled: !!tenant?.id,
     staleTime: 1000 * 60 * 1, // 1 minuto
@@ -209,6 +295,7 @@ export const useConversation = (conversationId: string) => {
         .select(`
           id,
           contact_id,
+          whatsapp_instance_id,
           last_message_at,
           unread_count,
           is_archived,
@@ -219,6 +306,7 @@ export const useConversation = (conversationId: string) => {
             id,
             name,
             phone,
+            avatar_url,
             lead_source_id,
             current_stage_id,
             created_at,
@@ -234,7 +322,8 @@ export const useConversation = (conversationId: string) => {
         `)
         .eq('id', conversationId)
         .eq('tenant_id', tenant.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (error) {
         throw error;
@@ -365,7 +454,8 @@ export const useDeleteConversation = () => {
         .select('contact_id')
         .eq('id', conversationId)
         .eq('tenant_id', tenant.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (fetchError) {
         throw fetchError;
@@ -433,7 +523,7 @@ export const useConversationByContact = (contactId: string) => {
         return null;
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('conversations')
         .select(`
           id,
@@ -463,7 +553,9 @@ export const useConversationByContact = (contactId: string) => {
         `)
         .eq('contact_id', contactId)
         .eq('tenant_id', tenant.id)
-        .eq('is_archived', false)
+        .eq('is_archived', false);
+
+      const { data, error } = await query
         .order('last_message_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -491,22 +583,34 @@ export const useConversationStats = () => {
         throw new Error('Tenant ID is required');
       }
 
+      const baseQuery = supabase
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id);
+
+
+
+      const unreadQuery = supabase
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .gt('unread_count', 0);
+        
+
+
+      const archivedQuery = supabase
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('is_archived', true);
+
+
+
       // Buscar estatísticas básicas
       const [totalResult, unreadResult, archivedResult] = await Promise.all([
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenant.id),
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenant.id)
-          .gt('unread_count', 0),
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenant.id)
-          .eq('is_archived', true)
+        baseQuery,
+        unreadQuery,
+        archivedQuery
       ]);
 
       return {
@@ -560,6 +664,7 @@ export const useCreateConversation = () => {
         .eq('contact_id', contactId)
         .eq('tenant_id', tenant.id)
         .eq('is_archived', false)
+        .limit(1)
         .maybeSingle();
 
       if (existingConversation) {
@@ -572,7 +677,8 @@ export const useCreateConversation = () => {
         .select('whatsapp_instance_id')
         .eq('id', contactId)
         .eq('tenant_id', tenant.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (contactError) {
         throw contactError;
@@ -590,7 +696,8 @@ export const useCreateConversation = () => {
           is_archived: false
         })
         .select('id')
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (error) {
         throw error;

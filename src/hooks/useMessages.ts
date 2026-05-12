@@ -85,10 +85,11 @@ export const useMessages = ({ contactId, pageSize = 50, enabled = true }: UseMes
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: enabled && !!tenant?.id && !!contactId,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 30, // 30 segundos
     gcTime: 1000 * 60 * 30, // 30 minutos
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     refetchOnMount: true,
+    refetchInterval: 1000 * 10, // Polling a cada 10s como fallback do Realtime
     initialPageParam: null
   });
 };

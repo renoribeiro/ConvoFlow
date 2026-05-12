@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -30,9 +29,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Send, Paperclip, Smile, Phone, Video, MoreVertical, AlertCircle, Edit, User, Tag, MapPin } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import {
+  Send,
+  Paperclip,
+  Smile,
+  MoreVertical,
+  AlertCircle,
+  Edit,
+  User,
+  Tag,
+  RefreshCw,
+  Archive,
+  EyeOff,
+  X,
+  Image as ImageIcon,
+  FileText as FileTextIcon,
+  MessageCircle,
+} from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useMessages, useSendMessage, useMarkMessagesAsRead, getAllMessages } from '@/hooks/useMessages';
@@ -40,40 +53,19 @@ import { useInView } from 'react-intersection-observer';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { useConversation, useMarkConversationAsRead } from '@/hooks/useConversations';
-
-interface Message {
-  id: string;
-  content: string;
-  created_at: string;
-  sender_type: 'user' | 'contact';
-  status: 'sent' | 'delivered' | 'read' | 'failed';
-  message_type: 'text' | 'image' | 'audio' | 'video' | 'document';
-  media_url?: string;
-  contact_id: string;
-}
-
-interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  lead_source_id?: string;
-  current_stage_id?: string;
-  stage?: {
-    name: string;
-  };
-  lead_sources?: {
-    name: string;
-  };
-}
-
-interface Conversation {
-  id: string;
-  contact_id: string;
-  last_message_at: string;
-  unread_count: number;
-  contacts: Contact;
-}
+import {
+  useConversation,
+  useMarkConversationAsRead,
+  useArchiveConversation,
+} from '@/hooks/useConversations';
+import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
+import { useChatHistorySync } from '@/hooks/useChatHistorySync';
+import { useWhatsAppInstancesWithAdapter, pickActiveInstance } from '@/hooks/useWhatsAppApi';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
+import { uploadWhatsAppMedia, detectMediaTypeFromMime } from '@/services/whatsapp/media-upload';
+import { MessageBubble, type RenderableMessage } from './MessageBubble';
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -83,66 +75,107 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<RenderableMessage | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
     lead_source_id: '',
-    current_stage_id: ''
+    current_stage_id: '',
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimerRef = useRef<number | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
   const { tenant } = useTenant();
+  const queryClient = useQueryClient();
+
+  const { instances } = useWhatsAppInstancesWithAdapter();
 
   // Buscar conversa por ID da conversa para obter contact_id e dados do contato
   const { data: conversation, isLoading: conversationLoading, error: conversationError } = useConversation(conversationId || '');
   const contact = conversation?.contacts;
   const contactId = conversation?.contact_id;
+  const conversationInstanceId = (conversation as any)?.whatsapp_instance_id ?? null;
 
-  // Query para buscar mensagens com paginação infinita (usando contact_id derivado da conversa)
+  // Active instance + adapter — resolvido pelo provider correto da instância vinculada
+  const active = useMemo(
+    () => pickActiveInstance(instances, conversationInstanceId),
+    [instances, conversationInstanceId],
+  );
+  const capabilities = active?.adapter.getCapabilities();
+
   const messagesQuery = useMessages({
     contactId: contactId || '',
     pageSize: 50,
-    enabled: !!contactId
+    enabled: !!contactId,
   });
 
   const messages = getAllMessages(messagesQuery);
   const messagesLoading = messagesQuery.isLoading;
   const messagesError = messagesQuery.error;
 
-  // Hook para detectar quando carregar mais mensagens
-  const { ref: loadMoreRef, inView } = useInView({
-    threshold: 0,
-    rootMargin: '100px 0px 0px 0px'
+  useRealtimeMessages({
+    contactId: contactId || undefined,
+    enabled: !!contactId,
   });
 
-  // Query para buscar lead sources
+  const { syncConversation } = useChatHistorySync();
+  const syncedContactRef = useRef<string | null>(null);
+
+  // Auto-sync de histórico — só faz sentido para providers que SUPORTAM fetchHistory.
+  useEffect(() => {
+    if (!contactId || !contact?.phone || !active) return;
+    if (syncedContactRef.current === contactId) return;
+    syncedContactRef.current = contactId;
+
+    if (capabilities?.fetchHistory) {
+      syncConversation(contact.phone, contactId).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[ChatWindow] Auto-sync falhou:', err);
+      });
+    }
+
+    // Foto de perfil — best-effort em qualquer provider que retorne algo
+    if (!(contact as any)?.avatar_url) {
+      active.adapter
+        .getProfilePicture(contact.phone)
+        .then(async (url) => {
+          if (url) {
+            await supabase.from('contacts').update({ avatar_url: url }).eq('id', contactId);
+            queryClient.invalidateQueries({ queryKey: ['conversation', conversationId, tenant?.id] });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [contactId, contact?.phone, (contact as any)?.avatar_url, active, capabilities?.fetchHistory, syncConversation, conversationId, tenant?.id, queryClient]);
+
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '100px 0px 0px 0px',
+  });
+
   const { data: leadSources = [] } = useSupabaseQuery({
     table: 'lead_sources',
     select: 'id, name',
     filters: tenant?.id ? [{ column: 'tenant_id', operator: 'eq', value: tenant.id }] : [],
-    enabled: !!tenant?.id
+    enabled: !!tenant?.id,
   });
 
-  // Query para buscar funnel stages
   const { data: funnelStages = [] } = useSupabaseQuery({
     table: 'funnel_stages',
     select: 'id, name',
     filters: tenant?.id ? [{ column: 'tenant_id', operator: 'eq', value: tenant.id }] : [],
-    enabled: !!tenant?.id
+    enabled: !!tenant?.id,
   });
 
-  // Mutation para enviar mensagem
   const sendMessageMutation = useSendMessage();
-  
-  // Mutation para marcar mensagens como lidas
   const markAsReadMutation = useMarkMessagesAsRead();
-  
-  // Mutation para marcar conversa como lida
   const markConversationAsReadMutation = useMarkConversationAsRead();
+  const archiveConversationMutation = useArchiveConversation();
 
-  // Mutation para atualizar contato
   const updateContactMutation = useSupabaseMutation({
     table: 'contacts',
     operation: 'update',
@@ -150,66 +183,86 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       toast.success('Contato atualizado com sucesso!');
       setIsEditModalOpen(false);
     },
-    onError: (error) => {
-      console.error('Erro ao atualizar contato:', error);
+    onError: () => {
       toast.error('Erro ao atualizar contato. Tente novamente.');
-    }
+    },
   });
 
-  // Carregar mais mensagens quando o usuário rola para cima
   useEffect(() => {
     if (inView && messagesQuery.hasNextPage && !messagesQuery.isFetchingNextPage) {
       messagesQuery.fetchNextPage();
     }
-  }, [inView, messagesQuery.hasNextPage, messagesQuery.isFetchingNextPage]);
+  }, [inView, messagesQuery]);
 
-  // Scroll para o final quando novas mensagens chegam
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Fechar seletor de emoji ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showEmojiPicker && !(event.target as Element).closest('.emoji-picker')) {
         setShowEmojiPicker(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
 
-  // Marcar mensagens como lidas quando a conversa é aberta
+  // Marcar mensagens como lidas localmente quando a conversa é aberta
   useEffect(() => {
     if (contactId && messages.length > 0) {
-      const unreadMessages = messages.filter(msg => 
-        msg.direction === 'inbound' && msg.status !== 'read'
+      const unreadMessages = messages.filter(
+        (msg) => msg.direction === 'inbound' && msg.status !== 'read',
       );
-      
       if (unreadMessages.length > 0) {
         markAsReadMutation.mutate({
-          contactId: contactId,
-          messageIds: unreadMessages.map(msg => msg.id)
+          contactId,
+          messageIds: unreadMessages.map((msg) => msg.id),
         });
       }
     }
-  }, [contactId, messages.length]);
+  }, [contactId, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Marcar conversa como lida quando a conversa é aberta
   useEffect(() => {
     if (conversationId && conversation?.unread_count && conversation.unread_count > 0) {
       markConversationAsReadMutation.mutate(conversationId);
     }
-  }, [conversationId, conversation?.unread_count]);
+  }, [conversationId, conversation?.unread_count]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Early returns APÓS todos os hooks serem chamados
+  // Cálculo da janela de 24h (Meta)
+  const lastInboundAt = useMemo(() => {
+    const inbound = messages.filter((m) => m.direction === 'inbound');
+    if (!inbound.length) return null;
+    return new Date(inbound[inbound.length - 1].created_at);
+  }, [messages]);
+  const outsideMetaWindow = useMemo(() => {
+    if (!capabilities?.requiresTemplateOutsideWindow) return false;
+    if (!lastInboundAt) return true;
+    const ms = Date.now() - lastInboundAt.getTime();
+    return ms > 24 * 60 * 60 * 1000;
+  }, [capabilities?.requiresTemplateOutsideWindow, lastInboundAt]);
+
+  // Hook precisa ficar ANTES dos early returns para manter contagem estável.
+  const renderable: RenderableMessage[] = useMemo(() => {
+    return messages.map((m: any) => ({
+      id: m.id,
+      content: m.content ?? null,
+      created_at: m.created_at,
+      direction: m.direction,
+      status: m.status,
+      message_type: m.message_type ?? 'text',
+      media_url: m.media_url ?? null,
+      metadata: null,
+      quoted: null,
+    }));
+  }, [messages]);
+
+  // Early returns APÓS todos os hooks
   if (!conversationId) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <EmptyState
+          icon={<MessageCircle className="w-full h-full" />}
           title="Nenhuma conversa selecionada"
           description="Selecione uma conversa da lista para começar a conversar"
         />
@@ -222,57 +275,138 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       <div className="flex-1 flex items-center justify-center p-4">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Erro ao carregar a conversa. Tente novamente.
-          </AlertDescription>
+          <AlertDescription>Erro ao carregar a conversa. Tente novamente.</AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  // Função para abrir modal de edição
   const handleEditContact = () => {
     if (contact) {
       setEditForm({
         name: contact.name || '',
         phone: contact.phone || '',
-        lead_source_id: contact.lead_source_id || '',
-        current_stage_id: contact.current_stage_id || ''
+        lead_source_id: (contact as any).lead_source_id || '',
+        current_stage_id: (contact as any).current_stage_id || '',
       });
       setIsEditModalOpen(true);
     }
   };
 
-  // Função para salvar alterações do contato
   const handleSaveContact = () => {
     if (!contact?.id) return;
+    updateContactMutation.mutate({ id: contact.id, ...editForm });
+  };
 
-    updateContactMutation.mutate({
-      id: contact.id,
-      ...editForm
-    });
+  const handleArchive = () => {
+    if (!conversationId) return;
+    archiveConversationMutation.mutate({ conversationId, isArchived: !(conversation as any)?.is_archived });
+    if (active) {
+      active.adapter.archiveChat(contact?.phone || '', !(conversation as any)?.is_archived).catch(() => {
+        // Provider não suportar archive (ex.: Meta) é tratado em-tela; o estado local persiste.
+      });
+    }
+  };
+
+  const handleMarkUnread = async () => {
+    if (!conversationId || !tenant?.id) return;
+    const { error } = await supabase
+      .from('conversations')
+      .update({ unread_count: 1, updated_at: new Date().toISOString() })
+      .eq('id', conversationId)
+      .eq('tenant_id', tenant.id);
+    if (error) {
+      toast.error('Falha ao marcar conversa como não lida.');
+    } else {
+      toast.success('Conversa marcada como não lida.');
+      queryClient.invalidateQueries({ queryKey: ['conversations', tenant.id] });
+    }
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !contactId || isSending || !tenant?.id) return;
+    if (!contactId || isSending || !tenant?.id) return;
+    if (!message.trim() && !pendingFile) return;
+    if (!active) {
+      toast.error('Nenhuma instância de WhatsApp disponível.');
+      return;
+    }
+    if (!active.adapter.isReadyToSend()) {
+      toast.error(`A instância "${active.row.name}" não está conectada.`);
+      return;
+    }
+    if (outsideMetaWindow && !pendingFile && message.trim()) {
+      toast.warning('Fora da janela de 24h da Meta — esta conversa exige envio de template aprovado para iniciar.');
+    }
 
     setIsSending(true);
+    const text = message.trim();
 
     try {
+      let providerResult: { providerMessageId?: string; status: string; error?: string } | null = null;
+      let mediaUrl: string | undefined;
+      let mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text';
+      const phone = contact?.phone || '';
+
+      if (pendingFile) {
+        try {
+          const uploaded = await uploadWhatsAppMedia(pendingFile, tenant.id);
+          mediaUrl = uploaded.publicUrl;
+          mediaType = detectMediaTypeFromMime(uploaded.mimeType);
+          providerResult = await active.adapter.sendMedia(phone, {
+            mediaUrl: uploaded.publicUrl,
+            mediaType,
+            mimeType: uploaded.mimeType,
+            fileName: uploaded.fileName,
+            caption: text || undefined,
+            quotedMessageId: replyTo?.id,
+          });
+        } catch (e) {
+          const err = e instanceof Error ? e.message : String(e);
+          toast.error(`Falha no upload da mídia: ${err}`);
+          providerResult = { status: 'failed', error: err };
+        }
+      } else if (text) {
+        providerResult = await active.adapter.sendText(phone, text, {
+          quotedMessageId: replyTo?.id,
+          linkPreview: true,
+        });
+      }
+
+      const status =
+        providerResult?.status === 'sent'
+          ? 'sent'
+          : providerResult?.status === 'pending'
+          ? 'sent'
+          : 'failed';
+
+      if (status === 'failed') {
+        const detail = providerResult?.error || 'Erro desconhecido.';
+        toast.error(`Mensagem não foi enviada: ${detail}`);
+      }
+
       await sendMessageMutation.mutateAsync({
         contact_id: contactId,
-        whatsapp_instance_id: tenant.whatsapp_instances?.[0]?.id, // Usar primeira instância disponível
-        content: message.trim(),
+        whatsapp_instance_id: active.row.id,
+        content: text,
         direction: 'outbound',
-        message_type: 'text',
-        status: 'sent',
-        is_from_bot: false
-      });
+        message_type: mediaType,
+        media_url: mediaUrl,
+        status,
+        is_from_bot: false,
+      } as any);
 
       setMessage('');
-      setIsSending(false);
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      setPendingFile(null);
+      if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
+      setPendingFilePreview(null);
+      setReplyTo(null);
+    } catch (e) {
+      if (e instanceof WhatsAppAdapterError) {
+        toast.error(`[${e.code}] ${e.message}`);
+      } else {
+        toast.error('Erro ao enviar mensagem.');
+      }
+    } finally {
       setIsSending(false);
     }
   };
@@ -284,39 +418,49 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     }
   };
 
+  // Indicador de digitação (best-effort, throttled a 3s)
+  const handleTypingChange = (val: string) => {
+    setMessage(val);
+    if (!active || !contact?.phone) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 3000) {
+      lastTypingSentRef.current = now;
+      active.adapter.setTyping(contact.phone, true).catch(() => {});
+    }
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = window.setTimeout(() => {
+      active.adapter.setTyping(contact?.phone || '', false).catch(() => {});
+    }, 3000);
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     handleSendMessage();
   };
 
-  // Função para lidar com seleção de emoji
   const handleEmojiSelect = (emoji: string) => {
-    setMessage(prev => prev + emoji);
+    setMessage((prev) => prev + emoji);
     setShowEmojiPicker(false);
   };
 
-  // Função para lidar com seleção de arquivo
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      // Aqui você pode implementar o upload do arquivo
-      toast.success(`Arquivo selecionado: ${file.name}`);
+    if (!file) return;
+    setPendingFile(file);
+    if (file.type.startsWith('image/')) {
+      setPendingFilePreview(URL.createObjectURL(file));
+    } else {
+      setPendingFilePreview(null);
     }
   };
 
-  // Função para abrir seletor de arquivo
-  const handleAttachClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleAttachClick = () => fileInputRef.current?.click();
 
-  // Lista de emojis comuns
   const commonEmojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '❤️', '🔥', '💯', '🎉', '😢', '😡', '🙏', '👏', '💪'];
 
   if (conversationLoading || messagesLoading) {
     return (
       <div className="flex flex-col h-full bg-card border border-border rounded-lg">
-        {/* Header Skeleton */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Skeleton className="w-10 h-10 rounded-full" />
@@ -325,33 +469,14 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
               <Skeleton className="h-3 w-16" />
             </div>
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="w-8 h-8" />
-            <Skeleton className="w-8 h-8" />
-            <Skeleton className="w-8 h-8" />
-          </div>
+          <Skeleton className="w-8 h-8" />
         </div>
-        
-        {/* Messages Skeleton */}
         <div className="flex-1 p-4 space-y-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-              <div className="max-w-[70%] space-y-2">
-                <Skeleton className="h-12 w-48" />
-                <Skeleton className="h-3 w-16" />
-              </div>
+              <Skeleton className="h-12 w-48" />
             </div>
           ))}
-        </div>
-        
-        {/* Input Skeleton */}
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-2">
-            <Skeleton className="w-8 h-8" />
-            <Skeleton className="w-8 h-8" />
-            <Skeleton className="flex-1 h-10" />
-            <Skeleton className="w-8 h-8" />
-          </div>
         </div>
       </div>
     );
@@ -361,33 +486,30 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Avatar className="w-10 h-10">
+            {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
             <AvatarFallback>
               {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-semibold text-foreground">
-              {contact?.name || 'Contato'}
-            </h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground truncate">{contact?.name || 'Contato'}</h3>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {contact?.phone}
-              </span>
-              {contact?.stage?.name && (
-                <Badge variant="outline" className="text-xs">
-                  {contact.stage.name}
+              <span className="text-sm text-muted-foreground truncate">{contact?.phone}</span>
+              {(contact as any)?.stage?.name && (
+                <Badge variant="outline" className="text-xs">{(contact as any).stage.name}</Badge>
+              )}
+              {active && (
+                <Badge variant="secondary" className="text-xs">
+                  {providerLabel(active.adapter.type)}
                 </Badge>
               )}
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
-            {contact?.lead_sources?.name || 'Desconhecido'}
-          </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -399,6 +521,39 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
                 <Edit className="w-4 h-4 mr-2" />
                 Editar Contato
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleMarkUnread}>
+                <EyeOff className="w-4 h-4 mr-2" />
+                Marcar como não lida
+              </DropdownMenuItem>
+              {capabilities?.archive && (
+                <DropdownMenuItem onClick={handleArchive}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  {(conversation as any)?.is_archived ? 'Desarquivar' : 'Arquivar conversa'}
+                </DropdownMenuItem>
+              )}
+              {capabilities?.fetchHistory && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (contact?.phone && contactId) {
+                      toast.info('Buscando histórico...');
+                      syncConversation(contact.phone, contactId)
+                        .then((res: any) => {
+                          if (res.newMessages > 0) {
+                            toast.success(`Baixou ${res.newMessages} novas mensagens.`);
+                          } else if (res.error) {
+                            toast.error(`Vazio: ${res.error}`, { duration: 8000 });
+                          } else {
+                            toast.info('A conversa já está atualizada.');
+                          }
+                        })
+                        .catch(() => toast.error('Falha ao sincronizar histórico.'));
+                    }
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Puxar Histórico
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <User className="w-4 h-4 mr-2" />
@@ -413,10 +568,53 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
         </div>
       </div>
 
+      {/* Aviso de capacidade do provider */}
+      {active && !active.adapter.isReadyToSend() && (
+        <Alert variant="destructive" className="rounded-none border-x-0">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>
+            Instância "{active.row.name}" está {active.row.status}. Reconecte antes de enviar.
+          </AlertDescription>
+        </Alert>
+      )}
+      {outsideMetaWindow && (
+        <Alert className="rounded-none border-x-0 border-amber-500/30 bg-amber-500/10 text-amber-700">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription className="text-xs">
+            Cloud API da Meta: o cliente não envia mensagem há mais de 24h. Para iniciar conversa,
+            é necessário usar um <strong>template aprovado</strong>.
+          </AlertDescription>
+        </Alert>
+      )}
+      {active?.adapter.type === 'official' &&
+        (active.row.profile_name === 'Test Number' ||
+          active.row.phone_number?.startsWith('+1 555-052')) && (
+          <Alert className="rounded-none border-x-0 border-amber-500/30 bg-amber-500/10 text-amber-700">
+            <AlertCircle className="w-4 h-4" />
+            <AlertDescription className="text-xs">
+              Esta instância está usando o <strong>número de teste gratuito</strong> da Meta
+              (+1 555-052-9071). Só envia mensagens para destinatários cadastrados na
+              "Recipient list" do painel Meta (developers.facebook.com → seu app → WhatsApp →
+              API Setup → Manage phone number list). Para produção, registre um número real
+              na WABA.
+            </AlertDescription>
+          </Alert>
+        )}
+      {!capabilities?.fetchHistory && (
+        <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
+          Este provider não suporta puxar histórico — apenas mensagens recebidas via webhook aparecem aqui.
+        </p>
+      )}
+
       {/* Messages */}
       <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.length === 0 ? (
+        <div className="space-y-3">
+          {messagesQuery.hasNextPage && (
+            <div ref={loadMoreRef} className="text-center text-xs text-muted-foreground py-2">
+              {messagesQuery.isFetchingNextPage ? 'Carregando...' : 'Role para cima para mais mensagens'}
+            </div>
+          )}
+          {renderable.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">Nenhuma mensagem ainda</p>
               <p className="text-sm text-muted-foreground mt-1">
@@ -424,108 +622,97 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
               </p>
             </div>
           ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
-              >
-                <div
-                  className={`max-w-[70%] p-3 rounded-lg ${
-                    msg.direction === 'inbound'
-                      ? 'bg-muted text-foreground'
-                      : 'bg-primary text-primary-foreground'
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs opacity-70">
-                      {formatDistanceToNow(new Date(msg.created_at), { 
-                        locale: ptBR, 
-                        addSuffix: true 
-                      })}
-                    </span>
-                    {msg.direction === 'outbound' && (
-                      <Badge 
-                        variant={msg.status === 'failed' ? 'destructive' : 'secondary'} 
-                        className="text-xs"
-                      >
-                        {msg.status === 'sent' ? 'Enviado' :
-                         msg.status === 'delivered' ? 'Entregue' :
-                         msg.status === 'read' ? 'Lido' : 'Falhou'}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
+            renderable.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} onReply={setReplyTo} />
             ))
           )}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
+      {/* Pre-send preview / reply banner */}
+      {(pendingFile || replyTo) && (
+        <div className="border-t border-border bg-muted/40 px-4 py-2 flex items-center gap-3">
+          {replyTo && (
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-xs text-muted-foreground">Respondendo:</span>
+              <span className="text-xs truncate">{replyTo.content || `[${replyTo.message_type}]`}</span>
+              <Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
+          {pendingFile && (
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {pendingFilePreview ? (
+                <img src={pendingFilePreview} className="w-10 h-10 rounded object-cover" alt="preview" />
+              ) : pendingFile.type.startsWith('audio/') ? (
+                <ImageIcon className="w-5 h-5" />
+              ) : (
+                <FileTextIcon className="w-5 h-5" />
+              )}
+              <span className="text-xs truncate">{pendingFile.name}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
+                  setPendingFile(null);
+                  setPendingFilePreview(null);
+                }}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-4 border-t border-border flex-shrink-0">
-        {/* Input de arquivo oculto */}
         <input
           ref={fileInputRef}
           type="file"
           className="hidden"
           onChange={handleFileSelect}
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
         />
-        
-        {/* Seletor de emoji */}
-         {showEmojiPicker && (
-           <div className="emoji-picker mb-2 p-2 border border-border rounded-lg bg-background">
-             <div className="grid grid-cols-8 gap-1">
-               {commonEmojis.map((emoji, index) => (
-                 <Button
-                   key={index}
-                   type="button"
-                   variant="ghost"
-                   size="sm"
-                   className="h-8 w-8 p-0 text-lg hover:bg-muted"
-                   onClick={() => handleEmojiSelect(emoji)}
-                 >
-                   {emoji}
-                 </Button>
-               ))}
-             </div>
-           </div>
-         )}
-        
+
+        {showEmojiPicker && (
+          <div className="emoji-picker mb-2 p-2 border border-border rounded-lg bg-background">
+            <div className="grid grid-cols-8 gap-1">
+              {commonEmojis.map((emoji, index) => (
+                <Button
+                  key={index}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-lg hover:bg-muted"
+                  onClick={() => handleEmojiSelect(emoji)}
+                >
+                  {emoji}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSend} className="flex items-center gap-2">
-          <Button 
-            type="button" 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleAttachClick}
-            title="Anexar arquivo"
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={handleAttachClick} title="Anexar arquivo">
             <Paperclip className="w-4 h-4" />
           </Button>
-          <Button 
-            type="button" 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            title="Adicionar emoji"
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Adicionar emoji">
             <Smile className="w-4 h-4" />
           </Button>
           <Input
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => handleTypingChange(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Digite sua mensagem..."
+            placeholder={pendingFile ? 'Adicionar legenda (opcional)...' : 'Digite sua mensagem...'}
             className="flex-1"
             disabled={isSending}
           />
-          <Button 
-            type="submit" 
-            size="sm" 
-            disabled={!message.trim() || isSending}
-          >
+          <Button type="submit" size="sm" disabled={(!message.trim() && !pendingFile) || isSending}>
             {isSending ? (
               <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
             ) : (
@@ -535,92 +722,51 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
         </form>
       </div>
 
-      {/* Modal de Edição do Contato */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Editar Contato</DialogTitle>
-            <DialogDescription>
-              Atualize as informações do contato abaixo.
-            </DialogDescription>
+            <DialogDescription>Atualize as informações do contato abaixo.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Nome
-              </Label>
-              <Input
-                id="name"
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                className="col-span-3"
-              />
+              <Label htmlFor="name" className="text-right">Nome</Label>
+              <Input id="name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Telefone
-              </Label>
-              <Input
-                id="phone"
-                value={editForm.phone}
-                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                className="col-span-3"
-              />
+              <Label htmlFor="phone" className="text-right">Telefone</Label>
+              <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="lead_source" className="text-right">
-                Fonte
-              </Label>
-              <Select
-                value={editForm.lead_source_id}
-                onValueChange={(value) => setEditForm({ ...editForm, lead_source_id: value })}
-              >
+              <Label htmlFor="lead_source" className="text-right">Fonte</Label>
+              <Select value={editForm.lead_source_id} onValueChange={(value) => setEditForm({ ...editForm, lead_source_id: value })}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Selecione uma fonte" />
                 </SelectTrigger>
                 <SelectContent>
                   {leadSources.map((source: any) => (
-                    <SelectItem key={source.id} value={source.id}>
-                      {source.name}
-                    </SelectItem>
+                    <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="stage" className="text-right">
-                Etapa
-              </Label>
-              <Select
-                value={editForm.current_stage_id}
-                onValueChange={(value) => setEditForm({ ...editForm, current_stage_id: value })}
-              >
+              <Label htmlFor="stage" className="text-right">Etapa</Label>
+              <Select value={editForm.current_stage_id} onValueChange={(value) => setEditForm({ ...editForm, current_stage_id: value })}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Selecione uma etapa" />
                 </SelectTrigger>
                 <SelectContent>
                   {funnelStages.map((stage: any) => (
-                    <SelectItem key={stage.id} value={stage.id}>
-                      {stage.name}
-                    </SelectItem>
+                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsEditModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSaveContact}
-              disabled={updateContactMutation.isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancelar</Button>
+            <Button type="button" onClick={handleSaveContact} disabled={updateContactMutation.isPending}>
               {updateContactMutation.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>

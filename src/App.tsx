@@ -37,6 +37,9 @@ const Settings = React.lazy(() => import("./pages/Settings"));
 const ProfileSettings = React.lazy(() => import("@/components/settings/ProfileSettings").then(module => ({ default: module.ProfileSettings })));
 const Notifications = React.lazy(() => import("./pages/Notifications"));
 const AdminDashboard = React.lazy(() => import("./pages/dashboard/AdminDashboard"));
+const UsersPage = React.lazy(() => import("./pages/dashboard/admin/UsersPage"));
+const UsageLimitsPage = React.lazy(() => import("./pages/dashboard/admin/UsageLimitsPage"));
+const TeamPage = React.lazy(() => import("./pages/dashboard/TeamPage"));
 const WhatsAppNumbers = React.lazy(() => import("./pages/WhatsAppNumbers"));
 
 // Use optimized query client configuration
@@ -166,9 +169,30 @@ const App = () => (
                     </Suspense>
                   } />
                   <Route path="admin" element={
-                    <RoleGuard role="super_admin" fallbackPath="/dashboard">
+                    <RoleGuard role="superadmin" fallbackPath="/dashboard">
                       <Suspense fallback={<PageLoadingSkeleton />}>
                         <AdminDashboard />
+                      </Suspense>
+                    </RoleGuard>
+                  } />
+                  <Route path="admin/users" element={
+                    <RoleGuard role="superadmin" fallbackPath="/dashboard">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <UsersPage />
+                      </Suspense>
+                    </RoleGuard>
+                  } />
+                  <Route path="admin/usage-limits" element={
+                    <RoleGuard role="superadmin" fallbackPath="/dashboard">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <UsageLimitsPage />
+                      </Suspense>
+                    </RoleGuard>
+                  } />
+                  <Route path="team" element={
+                    <RoleGuard minRole="enterprise" fallbackPath="/dashboard">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <TeamPage />
                       </Suspense>
                     </RoleGuard>
                   } />

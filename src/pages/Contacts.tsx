@@ -7,17 +7,21 @@ import { ContactFilters } from '@/components/contacts/ContactFilters';
 import { Plus, Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
 
 export default function Contacts() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     stage: '',
     source: '',
     tags: []
   });
+  const { tenant } = useTenant();
 
   const handleImport = () => {
     fileInputRef.current?.click();
@@ -42,32 +46,81 @@ export default function Contacts() {
     }
   };
 
-  const handleExport = () => {
-    // Simular exportação
-    toast.success('Preparando exportação...');
-    
-    // Criar dados CSV simulados
-    const csvData = [
-      ['Nome', 'Email', 'Telefone', 'Estágio', 'Origem'],
-      ['João Silva', 'joao@email.com', '(11) 99999-9999', 'Lead', 'Website'],
-      ['Maria Santos', 'maria@email.com', '(11) 88888-8888', 'Cliente', 'Indicação'],
-      ['Pedro Costa', 'pedro@email.com', '(11) 77777-7777', 'Prospect', 'WhatsApp']
-    ];
-    
-    const csvContent = csvData.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
+  const escapeCsv = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[",\n\r]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const handleExport = async () => {
+    if (!tenant?.id) {
+      toast.error('Tenant não identificado.');
+      return;
+    }
+    if (isExporting) return;
+
+    setIsExporting(true);
+    toast.info('Preparando exportação...');
+
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select(`
+          name,
+          email,
+          phone,
+          notes,
+          created_at,
+          stage:funnel_stages!contacts_current_stage_id_fkey ( name ),
+          lead_sources:lead_source_id ( name )
+        `)
+        .eq('tenant_id', tenant.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const rows = data ?? [];
+      if (rows.length === 0) {
+        toast.warning('Nenhum contato para exportar.');
+        return;
+      }
+
+      const header = ['Nome', 'Email', 'Telefone', 'Estágio', 'Origem', 'Notas', 'Criado em'];
+      const lines = [header.join(',')];
+      for (const r of rows as any[]) {
+        lines.push(
+          [
+            escapeCsv(r.name),
+            escapeCsv(r.email),
+            escapeCsv(r.phone),
+            escapeCsv(r.stage?.name),
+            escapeCsv(r.lead_sources?.name),
+            escapeCsv(r.notes),
+            escapeCsv(r.created_at),
+          ].join(','),
+        );
+      }
+
+      const csvContent = '﻿' + lines.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
       link.setAttribute('href', url);
       link.setAttribute('download', `contatos_${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      toast.success('Contatos exportados com sucesso!');
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exportados ${rows.length} contatos.`);
+    } catch (err) {
+      toast.error('Falha ao exportar contatos.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -93,9 +146,9 @@ export default function Contacts() {
               <Upload className="w-4 h-4 mr-2" />
               Importar
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
-              Exportar
+              {isExporting ? 'Exportando...' : 'Exportar'}
             </Button>
             <Button onClick={() => setIsModalOpen(true)} size="sm">
               <Plus className="w-4 h-4 mr-2" />

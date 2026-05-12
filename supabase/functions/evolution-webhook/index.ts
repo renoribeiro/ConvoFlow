@@ -285,6 +285,13 @@ async function processIncomingMessage(
 
   if (!contact) return;
 
+  // Preemptively update the conversation's whatsapp_instance_id to prevent trigger unique constraint failure
+  await supabase
+    .from('conversations')
+    .update({ whatsapp_instance_id: instance.id })
+    .eq('contact_id', contact.id)
+    .eq('tenant_id', instance.tenant_id);
+
   // Save message to database
   await supabase.from('messages').insert({
     contact_id: contact.id,
@@ -437,6 +444,13 @@ async function processSentMessage(
     .maybeSingle();
 
   if (existingMsg) return;
+
+  // Preemptively update the conversation's whatsapp_instance_id to prevent trigger unique constraint failure
+  await supabase
+    .from('conversations')
+    .update({ whatsapp_instance_id: instance.id })
+    .eq('contact_id', contact.id)
+    .eq('tenant_id', instance.tenant_id);
 
   await supabase.from('messages').insert({
     contact_id: contact.id,

@@ -1,54 +1,97 @@
-
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ConversationsList } from '@/components/conversations/ConversationsList';
 import { ChatWindow } from '@/components/conversations/ChatWindow';
-import { ConversationFiltersModal } from '@/components/conversations/ConversationFiltersModal';
+import {
+  ConversationFiltersModal,
+  DEFAULT_FILTER_STATE,
+  type ConversationsFilterState,
+} from '@/components/conversations/ConversationFiltersModal';
 import { useConversationByContact, useCreateConversation } from '@/hooks/useConversations';
 import { Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useGlobalMessageListener } from '@/hooks/useRealtimeMessages';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Conversations() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
-  
-  // Obter contact_id da URL
+  const { notifyNewMessage } = useNotifications();
+
   const contactId = searchParams.get('contact');
-  
-  // Buscar conversa por contact_id se fornecido
   const { data: conversationByContact, isLoading: isLoadingConversation } = useConversationByContact(contactId || '');
-  
-  // Hook para criar nova conversa
   const createConversationMutation = useCreateConversation();
 
-  // Efeito para selecionar automaticamente a conversa quando encontrada ou criar uma nova
-  // Importante: não sobrescrever a seleção manual do usuário. Só auto-selecionar quando ainda não há uma conversa selecionada.
-  useEffect(() => {
-    if (!contactId) return; // só atua quando a URL define um contato
+  const handleNewInboundMessage = useCallback(
+    async (message: {
+      contactId: string;
+      content: string;
+      direction: string;
+      messageType: string;
+    }) => {
+      let contactName = 'Novo contato';
+      let contactPhone = '';
+      try {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('name, phone')
+          .eq('id', message.contactId)
+          .limit(1)
+          .maybeSingle();
+        if (contact) {
+          contactName = contact.name || contact.phone || 'Contato';
+          contactPhone = contact.phone || '';
+        }
+      } catch {
+        /* fallback */
+      }
 
-    // Se o usuário já selecionou uma conversa manualmente, não sobrescreva
+      let preview = message.content;
+      if (message.messageType === 'image') preview = '📷 Imagem';
+      else if (message.messageType === 'audio') preview = '🎤 Áudio';
+      else if (message.messageType === 'video') preview = '📹 Vídeo';
+      else if (message.messageType === 'document') preview = '📄 Documento';
+      else if (message.messageType === 'sticker') preview = '🖼️ Figurinha';
+      else if (message.messageType === 'location') preview = '📍 Localização';
+
+      notifyNewMessage({ contactName, messagePreview: preview || 'Nova mensagem', contactPhone });
+    },
+    [notifyNewMessage],
+  );
+
+  useGlobalMessageListener(handleNewInboundMessage);
+
+  useEffect(() => {
+    if (!contactId) return;
     if (selectedConversation) return;
 
     if (conversationByContact) {
-      // Se encontrou a conversa, seleciona ela uma única vez
       setSelectedConversation(conversationByContact.id);
       return;
     }
 
-    // Se não encontrou e não está carregando, cria uma nova conversa para o contato
     if (!isLoadingConversation && !createConversationMutation.isPending) {
       createConversationMutation.mutate(contactId, {
         onSuccess: (conversationId) => {
-          // Só definir se ainda não houver seleção (evitar travar após clique do usuário durante a criação)
-          setSelectedConversation(prev => prev ?? conversationId);
-        }
+          setSelectedConversation((prev) => prev ?? conversationId);
+        },
       });
     }
-  }, [contactId, conversationByContact, isLoadingConversation, createConversationMutation.isPending, selectedConversation]);
+  }, [contactId, conversationByContact, isLoadingConversation, createConversationMutation.isPending, selectedConversation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeFilterCount =
+    (filters.hasUnread ? 1 : 0) +
+    (filters.isArchived ? 1 : 0) +
+    (filters.dateFrom ? 1 : 0) +
+    (filters.dateTo ? 1 : 0);
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] -m-6">
@@ -58,7 +101,7 @@ export default function Conversations() {
           description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
-            { label: 'Conversas' }
+            { label: 'Conversas' },
           ]}
           actions={
             <div className="flex items-center gap-2">
@@ -74,6 +117,11 @@ export default function Conversations() {
               <Button variant="outline" size="sm" onClick={() => setShowFilters(true)}>
                 <Filter className="w-4 h-4 mr-2" />
                 Filtros
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                    {activeFilterCount}
+                  </Badge>
+                )}
               </Button>
             </div>
           }
@@ -86,17 +134,25 @@ export default function Conversations() {
             searchQuery={searchQuery}
             selectedId={selectedConversation}
             onSelect={setSelectedConversation}
+            hasUnread={filters.hasUnread}
+            isArchived={filters.isArchived}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            whatsappInstanceId={activeInstanceId}
+            onInstanceChange={setActiveInstanceId}
           />
         </div>
-        
+
         <div className="flex-1 border border-border rounded-lg h-full">
           <ChatWindow conversationId={selectedConversation || undefined} />
         </div>
       </div>
-      
-      <ConversationFiltersModal 
-        isOpen={showFilters} 
-        onClose={() => setShowFilters(false)} 
+
+      <ConversationFiltersModal
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        value={filters}
+        onChange={setFilters}
       />
     </div>
   );

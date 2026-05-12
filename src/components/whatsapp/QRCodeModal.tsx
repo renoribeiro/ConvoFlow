@@ -41,7 +41,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
       
       if (connectionData) {
         console.log(`✅ [QRCodeModal] Dados de conexão obtidos:`, connectionData);
-        setQrCode(connectionData.code);
+        setQrCode(connectionData.base64 || connectionData.code);
         setPairingCode(connectionData.pairingCode);
       } else {
         console.log(`❌ [QRCodeModal] Dados de conexão não disponíveis`);

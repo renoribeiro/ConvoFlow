@@ -41,71 +41,24 @@ let isInitialized = false;
 /**
  * Initialize Sentry error monitoring
  * Should be called once in main.tsx
+ *
+ * NOTA: o pacote `@sentry/react` não está instalado neste projeto. Para evitar
+ * que o Vite quebre tentando resolver o import dinâmico durante a análise
+ * estática, mantemos esta função como no-op. Os outros exports (captureError,
+ * captureMessage, etc.) já caem em fallback para console quando
+ * `SentryInstance` é null.
+ *
+ * Para ATIVAR Sentry de verdade:
+ *   1. npm install @sentry/react
+ *   2. Restaurar o bloco original (ver histórico no git deste arquivo)
+ *   3. Definir VITE_SENTRY_DSN no .env
  */
 export async function initSentry(): Promise<void> {
-    // Skip in development unless explicitly enabled
-    if (env.isDevelopment() && !env.get('ENABLE_DEBUG_LOGS')) {
-        console.log('[Sentry] Skipped in development mode');
-        return;
+    if (env.isDevelopment()) {
+        console.log('[Sentry] Disabled — pacote @sentry/react não instalado.');
     }
-
-    const dsn = import.meta.env.VITE_SENTRY_DSN;
-    if (!dsn) {
-        console.log('[Sentry] No DSN configured, error tracking disabled');
-        return;
-    }
-
-    try {
-        // Dynamically import Sentry to avoid bundle size impact when not used
-        const Sentry = await import('@sentry/react');
-
-        Sentry.init({
-            dsn,
-            environment: env.get('ENVIRONMENT'),
-            release: `convoflow@${env.get('APP_VERSION')}`,
-
-            // Performance monitoring
-            tracesSampleRate: env.isProduction() ? 0.1 : 1.0,
-
-            // Session replay (optional)
-            replaysSessionSampleRate: 0.1,
-            replaysOnErrorSampleRate: 1.0,
-
-            // Integrations
-            integrations: [
-                Sentry.browserTracingIntegration(),
-                Sentry.replayIntegration({
-                    maskAllText: true,
-                    blockAllMedia: true,
-                }),
-            ],
-
-            // Filter out known non-actionable errors
-            beforeSend(event) {
-                // Ignore network errors from blocked requests
-                if (event.exception?.values?.[0]?.value?.includes('Failed to fetch')) {
-                    return null;
-                }
-
-                // Ignore ResizeObserver errors
-                if (event.exception?.values?.[0]?.value?.includes('ResizeObserver')) {
-                    return null;
-                }
-
-                return event;
-            },
-
-            // Don't track localhost
-            denyUrls: [/localhost/, /127\.0\.0\.1/],
-        });
-
-        SentryInstance = Sentry;
-        isInitialized = true;
-        console.log('[Sentry] Initialized successfully');
-    } catch (error) {
-        console.warn('[Sentry] Failed to initialize:', error);
-        // Continue without Sentry - the app should still work
-    }
+    // Mantém SentryInstance = null e isInitialized = false;
+    // os captureError/captureMessage caem em fallback console.* sem problema.
 }
 
 /**

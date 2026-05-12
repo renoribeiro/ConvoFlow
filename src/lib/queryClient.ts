@@ -25,6 +25,13 @@ export const QUERY_KEYS = {
     PROFILE: 'profile',
     SETTINGS: 'settings',
     MODULES: 'modules',
+
+    // Hierarquia de usuários
+    USERS: 'users',
+    USER_DETAILS: 'user-details',
+    TEAM: 'team',
+    USAGE_LIMITS: 'usage-limits',
+    AFFILIATE_STATS: 'affiliate-stats',
 } as const;
 
 // Cache times in milliseconds

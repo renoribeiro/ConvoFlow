@@ -73,6 +73,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
 
+      // fire-and-forget: registra evento de login para tracking de atividade.
+      // Falha aqui não pode bloquear o login.
+      supabase.functions.invoke('track-login').catch((err) => {
+        console.warn('[AuthContext] track-login failed:', err);
+      });
+
       toast({
         title: "Login realizado com sucesso!",
         description: "Bem-vindo de volta.",

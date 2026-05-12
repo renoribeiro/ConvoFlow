@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,8 @@ export const InstanceManager = ({ onInstancesChange }: InstanceManagerProps) => 
     deleteInstance, 
     connectInstance, 
     getQRCode,
-    refreshInstances 
+    refreshInstances,
+    service
   } = useEvolutionApi();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -37,6 +38,28 @@ export const InstanceManager = ({ onInstancesChange }: InstanceManagerProps) => 
       onInstancesChange(instances);
     }
   }, [instances, onInstancesChange]);
+
+  const fixedInstances = useRef<Set<string>>(new Set());
+
+  // Auto-fix read settings for existing instances
+  useEffect(() => {
+    if (service && instances.length > 0) {
+      instances.forEach(async (inst) => {
+        if ((inst.status === 'open' || inst.status === 'connected') && !fixedInstances.current.has(inst.instanceName)) {
+          fixedInstances.current.add(inst.instanceName);
+          try {
+            await service.updateInstanceSettings(inst.instanceName, {
+              readMessages: false,
+              readStatus: false
+            });
+            console.log(`✅ Auto-fixed read settings for ${inst.instanceName}`);
+          } catch(e) {
+            console.error(`Failed to auto-fix read settings for ${inst.instanceName}`, e);
+          }
+        }
+      });
+    }
+  }, [service, instances]);
 
   const handleConnect = async (instanceName: string) => {
     try {

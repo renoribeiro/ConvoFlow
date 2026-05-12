@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
+import { UserRole, roleAtLeast } from '@/types/userHierarchy';
 
 type Tenant = Tables<'tenants'>;
 type Profile = Tables<'profiles'>;
@@ -58,13 +59,15 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         throw new Error(`Erro ao buscar perfil: ${profileError.message}`);
       }
 
-      if (!profileData?.tenant_id) {
-        throw new Error('Usuário não possui tenant associado');
-      }
-
       setProfile(profileData);
 
-      // Buscar dados do tenant
+      // Superadmin e account_manager podem não ter tenant_id; nesse caso o
+      // contexto carrega só o profile e segue sem tenant.
+      if (!profileData?.tenant_id) {
+        setTenant(null);
+        return;
+      }
+
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select('*')
@@ -98,7 +101,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       const { error } = await supabase
         .from('tenants')
-        .update({ 
+        .update({
           settings: {
             ...tenant.settings,
             ...settings
@@ -136,14 +139,14 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     let cancelled = false;
-    
+
     const load = async () => {
       if (cancelled) return;
       await loadTenantData();
     };
-    
+
     load();
-    
+
     return () => {
       cancelled = true;
     };
@@ -172,14 +175,25 @@ export const useTenantId = () => {
   return tenantId;
 };
 
-// Hook para verificar se o usuário é admin do tenant
-export const useIsTenantAdmin = () => {
+/**
+ * Retorna a role do usuário atual no novo enum, ou null se ainda não
+ * carregada. Faz cast porque os tipos gerados (`Tables<'profiles'>.role`)
+ * podem refletir o enum antigo até `supabase gen types` ser executado.
+ */
+export const useRole = (): UserRole | null => {
   const { profile } = useTenant();
-  return profile?.role === 'tenant_admin';
+  return (profile?.role as UserRole | undefined) ?? null;
 };
 
-// Hook para verificar se o usuário é super admin
-export const useIsSuperAdmin = () => {
-  const { profile } = useTenant();
-  return profile?.role === 'super_admin';
+export const useIsSuperAdmin = () => useRole() === 'superadmin';
+export const useIsAccountManager = () => useRole() === 'account_manager';
+export const useIsEnterprise = () => useRole() === 'enterprise';
+
+/** @deprecated Use useIsEnterprise. Mantido por 1 release. */
+export const useIsTenantAdmin = useIsEnterprise;
+
+/** Retorna true se a role do usuário for ao menos `minimum` na hierarquia. */
+export const useHasMinRole = (minimum: UserRole): boolean => {
+  const role = useRole();
+  return role !== null && roleAtLeast(role, minimum);
 };

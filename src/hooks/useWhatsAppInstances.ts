@@ -1,75 +1,90 @@
-import { useSupabaseQuery } from './useSupabaseQuery';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 
 export interface WhatsAppInstance {
   id: string;
   name: string;
+  instanceKey: string; // Chave da instância na Evolution API
   number: string;
-  status: 'connected' | 'disconnected' | 'connecting';
+  status: 'connected' | 'disconnected' | 'connecting' | 'open' | 'close' | 'qrcode';
   lastSeen: string;
   messagesCount: number;
+  evolutionApiUrl?: string;
+  evolutionApiKey?: string;
 }
 
 export const useWhatsAppInstances = () => {
-  const { currentTenant } = useTenant();
+  const { tenant } = useTenant();
 
-  // Buscar instâncias do WhatsApp
-  const { data: instances, isLoading, error } = useSupabaseQuery({
-    queryKey: ['whatsapp-instances', currentTenant?.id],
-    table: 'whatsapp_instances',
-    select: `
-      id,
-      name,
-      phone_number,
-      status,
-      last_seen,
-      created_at
-    `,
-    filters: currentTenant ? [{ column: 'tenant_id', operator: 'eq', value: currentTenant.id }] : [],
-    enabled: !!currentTenant,
-  });
+  const { data: instances = [], isLoading, error } = useQuery({
+    queryKey: ['whatsapp-instances', tenant?.id],
+    queryFn: async () => {
+      if (!tenant?.id) return [];
 
-  // Buscar contagem de mensagens de hoje para cada instância
-  const { data: messageCounts } = useSupabaseQuery({
-    queryKey: ['whatsapp-message-counts', currentTenant?.id],
-    table: 'messages',
-    select: `
-      whatsapp_instance_id,
-      count(*)
-    `,
-    filters: [
-      ...(currentTenant ? [{ column: 'tenant_id', operator: 'eq', value: currentTenant.id }] : []),
-      { column: 'created_at', operator: 'gte', value: new Date().toISOString().split('T')[0] + 'T00:00:00.000Z' }
-    ],
-    groupBy: ['whatsapp_instance_id'],
-    enabled: !!currentTenant,
-  });
+      // Fetch instances with safe column selection (no last_seen — may not exist in all schemas)
+      const { data: rawInstances, error: instancesError } = await supabase
+        .from('whatsapp_instances')
+        .select('id, name, instance_key, phone_number, status, created_at, updated_at, evolution_api_url, evolution_api_key')
+        .eq('tenant_id', tenant.id);
 
-  // Formatar dados para exibição
-  const formattedInstances: WhatsAppInstance[] = (instances || []).map(instance => {
-    const messageCount = messageCounts?.find(
-      (count: any) => count.whatsapp_instance_id === instance.id
-    )?.count || 0;
+      if (instancesError) {
+        console.error('Failed to fetch whatsapp_instances:', instancesError);
+        throw instancesError;
+      }
 
-    return {
-      id: instance.id,
-      name: instance.name || `WhatsApp ${instance.phone_number}`,
-      number: instance.phone_number,
-      status: instance.status as 'connected' | 'disconnected' | 'connecting',
-      lastSeen: instance.last_seen 
-        ? new Date(instance.last_seen).toLocaleString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : 'Nunca',
-      messagesCount: parseInt(messageCount) || 0
-    };
+      if (!rawInstances || rawInstances.length === 0) return [];
+
+      // Fetch message counts separately with a simple count query per instance
+      const instanceIds = rawInstances.map((i: any) => i.id);
+      const today = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
+
+      let messageCounts: Record<string, number> = {};
+      try {
+        const { data: msgs } = await supabase
+          .from('messages')
+          .select('whatsapp_instance_id')
+          .eq('tenant_id', tenant.id)
+          .gte('created_at', today)
+          .in('whatsapp_instance_id', instanceIds);
+
+        if (msgs) {
+          for (const msg of msgs) {
+            const id = (msg as any).whatsapp_instance_id;
+            messageCounts[id] = (messageCounts[id] || 0) + 1;
+          }
+        }
+      } catch (e) {
+        // Non-critical, just means we can't show message counts
+        console.warn('Failed to fetch message counts:', e);
+      }
+
+      return rawInstances.map((instance: any): WhatsAppInstance => ({
+        id: instance.id,
+        name: instance.name || `WhatsApp ${instance.phone_number || 'Sem número'}`,
+        instanceKey: instance.instance_key,
+        number: instance.phone_number || '',
+        status: instance.status as WhatsAppInstance['status'],
+        lastSeen: instance.updated_at
+          ? new Date(instance.updated_at).toLocaleString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          : 'Nunca',
+        messagesCount: messageCounts[instance.id] || 0,
+        evolutionApiUrl: instance.evolution_api_url,
+        evolutionApiKey: instance.evolution_api_key,
+      }));
+    },
+    enabled: !!tenant?.id,
+    staleTime: 1000 * 30, // 30 seconds
+    refetchInterval: 1000 * 30, // Refresh every 30s
   });
 
   return {
-    instances: formattedInstances,
+    instances,
     isLoading,
     error
   };
