@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useIsSuperAdmin } from '@/contexts/TenantContext';
+import { useIsSuperAdmin, useTenant } from '@/contexts/TenantContext';
 import { useModules } from '@/hooks/useModules';
+import { ROLE_LABELS } from '@/types/userHierarchy';
+import type { UserRole } from '@/types/userHierarchy';
 import { 
   MessageSquare, 
   BarChart3, 
@@ -51,7 +53,8 @@ const adminNavigationItems = [
   {
     name: 'Administração',
     href: '/dashboard/admin',
-    icon: Shield
+    icon: Shield,
+    moduleName: null as string | null,
   }
 ];
 
@@ -59,6 +62,7 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
   const { logout } = useAuth();
   const isSuperAdmin = useIsSuperAdmin();
   const { visibleModules, isLoading } = useModules();
+  const { tenant, profile, loading: tenantLoading } = useTenant();
   
   // Construir lista de navegação baseada nos módulos visíveis
   const getVisibleNavigationItems = () => {
@@ -144,18 +148,24 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">
-                  Empresa Demo
+                  {tenantLoading
+                    ? 'Carregando...'
+                    : tenant?.name ?? (profile?.role ? ROLE_LABELS[profile.role as UserRole] : 'Sem tenant')}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Plano Premium
+                <p className="text-xs text-muted-foreground truncate">
+                  {tenantLoading
+                    ? ''
+                    : profile?.role
+                      ? ROLE_LABELS[profile.role as UserRole]
+                      : ''}
                 </p>
               </div>
             </div>
           </div>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
+
+          <Button
+            variant="ghost"
+            size="sm"
             className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
             onClick={() => logout()}
           >

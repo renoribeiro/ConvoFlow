@@ -44,49 +44,59 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      // Buscar perfil do usuário
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+    // Buscar perfil do usuário — falha aqui é crítica
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-      if (profileError) {
-        throw new Error(`Erro ao buscar perfil: ${profileError.message}`);
-      }
-
-      setProfile(profileData);
-
-      // Superadmin e account_manager podem não ter tenant_id; nesse caso o
-      // contexto carrega só o profile e segue sem tenant.
-      if (!profileData?.tenant_id) {
-        setTenant(null);
-        return;
-      }
-
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('id', profileData.tenant_id)
-        .single();
-
-      if (tenantError) {
-        throw new Error(`Erro ao buscar tenant: ${tenantError.message}`);
-      }
-
-      setTenant(tenantData);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      setError(errorMessage);
-      setTenant(null);
+    if (profileError) {
+      console.error('[TenantContext] Erro ao buscar perfil:', profileError);
+      setError(`Erro ao buscar perfil: ${profileError.message}`);
       setProfile(null);
-    } finally {
+      setTenant(null);
       setLoading(false);
+      return;
     }
+
+    if (!profileData) {
+      console.warn('[TenantContext] Profile não encontrado para user:', user.id);
+      setProfile(null);
+      setTenant(null);
+      setLoading(false);
+      return;
+    }
+
+    setProfile(profileData);
+
+    // Superadmin e account_manager podem não ter tenant_id
+    if (!profileData.tenant_id) {
+      setTenant(null);
+      setLoading(false);
+      return;
+    }
+
+    // Buscar tenant — falha aqui NÃO deve apagar o profile já carregado.
+    // Profile carregado é mais importante que tenant (auth/permissions usam o profile).
+    const { data: tenantData, error: tenantError } = await supabase
+      .from('tenants')
+      .select('*')
+      .eq('id', profileData.tenant_id)
+      .maybeSingle();
+
+    if (tenantError) {
+      console.error('[TenantContext] Erro ao buscar tenant (profile preservado):', tenantError);
+      setError(`Erro ao buscar tenant: ${tenantError.message}`);
+      setTenant(null);
+    } else {
+      setTenant(tenantData);
+    }
+
+    setLoading(false);
   };
 
   const refreshTenant = async () => {

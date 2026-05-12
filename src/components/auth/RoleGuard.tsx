@@ -1,21 +1,12 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRole, useHasMinRole } from '@/contexts/TenantContext';
+import { useTenant, useRole, useHasMinRole } from '@/contexts/TenantContext';
 import { UserRole } from '@/types/userHierarchy';
 
 interface RoleGuardProps {
   children: React.ReactNode;
-  /**
-   * Role(s) exigida(s) para acesso. Pode ser uma role específica, um
-   * array de roles, ou usar `minRole` para hierarquia.
-   * Superadmin sempre tem acesso.
-   */
   role?: UserRole | UserRole[];
-  /**
-   * Nível mínimo na hierarquia (`user < enterprise < account_manager < superadmin`).
-   * Mutuamente exclusivo com `role`.
-   */
   minRole?: UserRole;
   fallbackPath?: string;
 }
@@ -24,13 +15,17 @@ export const RoleGuard = ({
   children,
   role,
   minRole,
-  fallbackPath = '/',
+  fallbackPath = '/dashboard',
 }: RoleGuardProps) => {
-  const { isLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
+  const { loading: tenantLoading, profile } = useTenant();
   const userRole = useRole();
   const hasMinRole = useHasMinRole(minRole ?? 'user');
 
-  if (isLoading) {
+  // Aguardar AMBOS auth e tenant antes de decidir redirect.
+  // Caso contrário o redirect dispara antes do profile carregar -> loop visual
+  // entre landing page e dashboard.
+  if (authLoading || tenantLoading || profile === null) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

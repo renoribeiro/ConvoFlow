@@ -21,7 +21,7 @@ interface NavbarProps {
 }
 
 export const Navbar = ({ onMenuClick }: NavbarProps) => {
-  const { tenant, profile } = useTenant();
+  const { tenant, profile, loading: tenantLoading } = useTenant();
 
   // Buscar número de WhatsApp conectados
   const { data: connectedWhatsApp = 0 } = useSupabaseCount(
@@ -46,12 +46,15 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
     { enabled: !!tenant?.id }
   );
 
-  const displayName = (
-    `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'Usuário'
-  );
+  // Enquanto o profile está carregando, mostrar placeholder neutro
+  // (evita o "Usuário / Usuário" piscando antes do profile chegar).
+  const displayName = tenantLoading
+    ? 'Carregando...'
+    : (`${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'Usuário');
 
   const roleLabel = (() => {
-    switch (profile?.role as string | undefined) {
+    if (tenantLoading || !profile) return '...';
+    switch (profile.role as string | undefined) {
       case 'superadmin':
         return 'Superadministrador';
       case 'account_manager':

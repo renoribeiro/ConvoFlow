@@ -202,8 +202,16 @@ export const useModules = () => {
     return !!module && module.is_enabled;
   }, [getModulesForCurrentUser, isSuperAdmin]);
 
-  // Estados de loading
-  const isLoading = isLoadingAll || isLoadingVisible || isLoadingEnabled;
+  // Estados de loading — só considera queries que realmente vão rodar
+  // (queries com enabled=false em React Query mantêm isPending=true mas
+  // isLoading=false; mesmo assim, computamos explicitamente para clareza).
+  const isLoading = (() => {
+    if (isLoadingSuperAdmin) return true;
+    if (isLoadingVisible) return true;
+    if (superAdminStatus === true && isLoadingAll) return true;
+    if (superAdminStatus === false && isLoadingEnabled) return true;
+    return false;
+  })();
   const error = allModulesError || visibleModulesError || enabledModulesError;
 
   return {

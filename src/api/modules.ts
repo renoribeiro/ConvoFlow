@@ -249,22 +249,21 @@ export class ModulesApi {
       }
 
       // Verificar se o usuário tem role de superadmin na tabela profiles.
-      // cast `any` enquanto types.ts não reflete o enum novo (regenerar via
-      // `supabase gen types` após aplicar a migration de hierarquia).
-      const { data: profile, error: profileError } = await (supabase as any)
+      // Usa apenas `role` como fonte de verdade (status é mantido em sync
+      // por trigger). Filtrar por is_active duplicava a regra e gerava
+      // divergência com useIsSuperAdmin() do TenantContext.
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, is_active')
+        .select('role')
         .eq('user_id', user.id)
-        .eq('role', 'superadmin')
-        .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
-        console.log('Usuário não é super admin ou erro ao verificar:', profileError.message);
+        console.log('Erro ao verificar superadmin:', profileError.message);
         return false;
       }
 
-      const isSuper = profile && profile.role === 'superadmin';
+      const isSuper = !!profile && (profile.role as string) === 'superadmin';
       console.log('Verificação superadmin:', { userId: user.id, role: profile?.role, isSuper });
       return isSuper;
     } catch (error) {

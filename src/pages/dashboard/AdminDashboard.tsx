@@ -183,7 +183,34 @@ const AdminDashboard = () => {
     return fullName.includes(term) || email.includes(term);
   });
 
-  // Verificar se o usuário está autenticado
+  // useEffect SEMPRE antes de early returns para não violar Rules of Hooks.
+  // Em React Strict mode, número de hooks chamados muda entre renders →
+  // erro "Rendered more hooks than during the previous render" → tela crasha.
+
+  // Mostrar erro se não for super admin
+  React.useEffect(() => {
+    if (user && !isSuperAdmin && !usersLoading && !authLoading) {
+      toast.error('Acesso negado: Apenas super administradores podem acessar esta página');
+    }
+  }, [user, isSuperAdmin, usersLoading, authLoading]);
+
+  // Mostrar erro se houver problema na query de usuários
+  React.useEffect(() => {
+    if (usersError) {
+      console.error('Erro na query de usuários:', usersError);
+      toast.error('Erro ao carregar usuários: ' + usersError.message);
+    }
+  }, [usersError]);
+
+  // Mostrar erro se houver problema na query de afiliados
+  React.useEffect(() => {
+    if (affiliatesError) {
+      console.error('Erro na query de afiliados:', affiliatesError);
+      toast.error('Erro ao carregar afiliados: ' + affiliatesError.message);
+    }
+  }, [affiliatesError]);
+
+  // Verificar se o usuário está autenticado (early returns DEPOIS dos hooks)
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -195,31 +222,6 @@ const AdminDashboard = () => {
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
-
-  // Mostrar erro se não for super admin
-  React.useEffect(() => {
-    if (!isSuperAdmin && !usersLoading && !authLoading) {
-      toast.error('Acesso negado: Apenas super administradores podem acessar esta página');
-    }
-  }, [isSuperAdmin, usersLoading, authLoading]);
-
-  // Mostrar erro se houver problema na query de usuários
-  React.useEffect(() => {
-    if (usersError) {
-      console.error('Erro na query de usuários:', usersError);
-      toast.error('Erro ao carregar usuários: ' + usersError.message);
-    }
-  }, [usersError]);
-
-
-
-  // Mostrar erro se houver problema na query de afiliados
-  React.useEffect(() => {
-    if (affiliatesError) {
-      console.error('Erro na query de afiliados:', affiliatesError);
-      toast.error('Erro ao carregar afiliados: ' + affiliatesError.message);
-    }
-  }, [affiliatesError]);
 
   // Mutations para CRUD de usuários
   // createUserMutation removido - agora usamos supabase.auth.signUp() diretamente
