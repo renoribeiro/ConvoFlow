@@ -100,44 +100,59 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { tenant, loading: tenantLoading } = useTenant();
 
-  // Usar os novos hooks para buscar dados
-  const { data: totalContacts = 0 } = useSupabaseCount('contacts');
-  
-  const { data: activeCampaigns = 0 } = useSupabaseCount(
+  const {
+    data: totalContacts = 0,
+    isLoading: contactsLoading,
+    isError: contactsError,
+  } = useSupabaseCount('contacts');
+
+  const {
+    data: activeCampaigns = 0,
+    isLoading: campaignsLoading,
+    isError: campaignsError,
+  } = useSupabaseCount(
     'mass_message_campaigns',
     [{ column: 'status', operator: 'eq', value: 'running' }]
   );
-  
-  const { data: activeChatbots = 0 } = useSupabaseCount(
+
+  const {
+    data: activeChatbots = 0,
+    isLoading: chatbotsLoading,
+    isError: chatbotsError,
+  } = useSupabaseCount(
     'chatbots',
     [{ column: 'is_active', operator: 'eq', value: true }]
   );
 
-  // Buscar conversas ativas (últimas 24h)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const { data: activeConversations = 0 } = useSupabaseCount(
-    'messages',
-    [{ column: 'created_at', operator: 'gte', value: yesterday.toISOString() }]
+  const {
+    data: activeConversations = 0,
+    isLoading: conversationsLoading,
+    isError: conversationsError,
+  } = useSupabaseCount(
+    'conversations',
+    [{ column: 'is_archived', operator: 'eq', value: false }]
   );
 
-  // Buscar atividades recentes
-  const { data: recentActivity = [] } = useSupabaseQuery({
+  const {
+    data: recentActivity = [],
+    isLoading: activityLoading,
+    isError: activityError,
+  } = useSupabaseQuery({
     table: 'messages',
-    queryKey: ['recent-activity'],
+    queryKey: ['recent-activity', tenant?.id],
     select: `
       id,
       content,
-      sender_type,
+      direction,
       created_at,
-      contacts!inner(
+      contacts (
         name,
         phone
       )
     `,
     orderBy: [{ column: 'created_at', ascending: false }],
-    limit: 10
+    limit: 10,
+    enabled: !!tenant?.id,
   });
 
   const stats = {
@@ -147,17 +162,21 @@ export default function Dashboard() {
     activeChatbots,
   };
 
-  const formattedActivity: RecentActivity[] = recentActivity.map((message: any) => ({
-    id: message.id,
-    type: message.direction === 'incoming' ? 'message_received' : 'message_sent',
-    description: `${message.direction === 'incoming' ? 'Mensagem recebida' : 'Mensagem enviada'} de ${message.contacts?.name || message.contacts?.phone}`,
-    timestamp: message.created_at,
-  }));
+  const formattedActivity: RecentActivity[] = recentActivity.map((message: any) => {
+    const isIncoming = message.direction === 'incoming' || message.direction === 'inbound';
+    const contactLabel = message.contacts?.name || message.contacts?.phone || 'contato desconhecido';
+    return {
+      id: message.id,
+      type: isIncoming ? 'message_received' : 'message_sent',
+      description: `${isIncoming ? 'Mensagem recebida de' : 'Mensagem enviada para'} ${contactLabel}`,
+      timestamp: message.created_at,
+    };
+  });
 
-  const statsLoading = tenantLoading;
-  const activityLoading = tenantLoading;
-  const statsError = null;
-  const activityError = null;
+  const statsLoading =
+    tenantLoading || contactsLoading || campaignsLoading || chatbotsLoading || conversationsLoading;
+  const statsError =
+    contactsError || campaignsError || chatbotsError || conversationsError;
 
   return (
     <div className="flex flex-col h-full">
