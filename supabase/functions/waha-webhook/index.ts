@@ -52,6 +52,28 @@ serve(async (req) => {
       return new Response('Method not allowed', { status: 405 })
     }
 
+    // Origin authentication: WAHA does not send a JWT, so the gateway is
+    // configured with verify_jwt=false. Use a shared secret instead, sent
+    // by WAHA via the Authorization: Bearer <secret> header (configured on
+    // the WAHA side via WHATSAPP_HOOK_HEADERS).
+    const wahaSecret = Deno.env.get('WAHA_WEBHOOK_SECRET');
+    if (!wahaSecret) {
+      logger.error('WAHA_WEBHOOK_SECRET is not configured; refusing webhook to avoid forged events');
+      return new Response(JSON.stringify({ error: 'Webhook authentication not configured' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      });
+    }
+    const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization') ?? '';
+    const providedSecret = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (providedSecret !== wahaSecret) {
+      logger.warn('WAHA webhook rejected: invalid or missing shared secret');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
+    }
+
     const payload = await req.json();
     const sessionName = payload.session || payload.sessionId;
 

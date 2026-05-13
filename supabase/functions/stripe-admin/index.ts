@@ -52,11 +52,11 @@ serve(async (req) => {
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single();
 
-    if (profile?.role !== 'super_admin') {
-      throw new Error('Forbidden: Only super_admin can perform Stripe admin actions');
+    if (profile?.role !== 'superadmin') {
+      throw new Error('Forbidden: Only superadmin can perform Stripe admin actions');
     }
 
     const { action, payload } = await req.json();

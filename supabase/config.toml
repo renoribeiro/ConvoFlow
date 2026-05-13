@@ -3,6 +3,21 @@ project_id = "pqjkuwyshybxldzpfbbs"
 [functions.evolution-webhook]
 verify_jwt = true
 
+[functions.waha-webhook]
+# WAHA does not send a JWT; we authenticate via a shared secret header
+# (WAHA_WEBHOOK_SECRET). See supabase/functions/waha-webhook/index.ts.
+verify_jwt = false
+
+[functions.automation-processor]
+# Called server-to-server (DB trigger or other Edge Functions) with
+# service_role. Tenant isolation is enforced inside the handler.
+verify_jwt = true
+
+[functions.stripe-webhook]
+# Stripe signs payloads with Stripe-Signature; the handler verifies the
+# signature, so JWT verification is disabled at the gateway.
+verify_jwt = false
+
 [functions.job-worker]
 verify_jwt = true
 

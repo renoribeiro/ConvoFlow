@@ -101,20 +101,28 @@ serve(async (req) => {
     }
 
     // Security Check: Validate API key from webhook payload
+    // The webhook payload from Evolution MUST include `apikey`. We compare
+    // it against the instance.instance_key (per-instance auth) or, if set,
+    // a global EVOLUTION_WEBHOOK_SECRET (shared deploy-wide secret).
+    // Webhooks without an apikey are rejected — previously a missing key
+    // only triggered a warning, which left the endpoint forgeable by anyone
+    // who knew an instance_name.
     const webhookSecret = Deno.env.get('EVOLUTION_WEBHOOK_SECRET')
-    if (webhookApiKey) {
-      const isValidKey = webhookApiKey === instance.instance_key || 
-                         (webhookSecret && webhookApiKey === webhookSecret)
-      if (!isValidKey) {
-        logger.warn(`Invalid API key for instance: ${instanceName}`)
-        return new Response(JSON.stringify({ success: false, error: 'Invalid API key' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 401,
-        })
-      }
-    } else if (webhookSecret) {
-      // Se um secret está configurado mas nenhuma apikey foi enviada, logar aviso
-      logger.warn(`Webhook received without API key for instance: ${instanceName}`)
+    if (!webhookApiKey) {
+      logger.warn(`Webhook rejected: missing apikey for instance ${instanceName}`)
+      return new Response(JSON.stringify({ success: false, error: 'Missing apikey' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+    const isValidKey = webhookApiKey === instance.instance_key ||
+                       (webhookSecret && webhookApiKey === webhookSecret)
+    if (!isValidKey) {
+      logger.warn(`Invalid API key for instance: ${instanceName}`)
+      return new Response(JSON.stringify({ success: false, error: 'Invalid API key' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
     }
 
     logger.info('Processing webhook event', {

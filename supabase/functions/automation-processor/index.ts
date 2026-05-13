@@ -5,6 +5,10 @@ import { corsHeaders } from '../_shared/validation.ts';
 
 interface AutomationTrigger {
   type: string;
+  // tenant_id is REQUIRED to enforce isolation. service_role bypasses RLS,
+  // so the handler relies on this field to scope automation_flows lookup
+  // and to populate tenant_id on the executions it creates.
+  tenant_id: string;
   data: Record<string, unknown>;
   contact_id?: string;
   message_id?: string;
@@ -72,12 +76,30 @@ serve(async (req) => {
 
     const { trigger }: { trigger: AutomationTrigger } = await req.json();
 
-    logger.info('Processing automation trigger', { triggerType: trigger.type });
+    if (!trigger || !trigger.type || !trigger.tenant_id) {
+      logger.warn('Rejected automation trigger: missing required fields', {
+        hasTrigger: !!trigger,
+        hasType: !!trigger?.type,
+        hasTenantId: !!trigger?.tenant_id,
+      });
+      return new Response(
+        JSON.stringify({ error: 'trigger.type and trigger.tenant_id are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Buscar fluxos ativos com o tipo de gatilho correspondente
+    logger.info('Processing automation trigger', {
+      triggerType: trigger.type,
+      tenantId: trigger.tenant_id,
+    });
+
+    // Buscar fluxos ativos com o tipo de gatilho correspondente.
+    // Scope explicitly by tenant_id — service_role bypasses RLS, so we
+    // MUST filter here to avoid cross-tenant flow execution.
     const { data: flows, error: flowsError } = await supabaseClient
       .from('automation_flows')
       .select('*')
+      .eq('tenant_id', trigger.tenant_id)
       .eq('active', true)
       .eq('trigger_type', trigger.type);
 
@@ -106,6 +128,7 @@ serve(async (req) => {
           const { data: execution, error: executionError } = await supabaseClient
             .from('automation_executions')
             .insert({
+              tenant_id: trigger.tenant_id,
               flow_id: flow.id,
               contact_id: trigger.contact_id,
               trigger_data: trigger.data,
@@ -424,25 +447,19 @@ async function scheduleSendMessage(
       logger.error('No message content found');
       return false;
     }
-    
-    // Agendar mensagem
-    const { error } = await supabaseClient
-      .from('scheduled_messages')
-      .insert({
-        contact_id: contactId,
-        message_content: messageContent,
-        scheduled_for: new Date().toISOString(),
-        message_type: 'automation',
-        status: 'pending'
-      });
-    
-    if (error) {
-      logger.error('Error scheduling message', { error });
-      return false;
-    }
-    
-    logger.info('Message scheduled successfully');
-    return true;
+
+    // NOTE: a tabela `scheduled_messages` foi removida do schema. Esta
+    // ramificação ficou como código morto após o redesign do agendamento,
+    // que hoje passa pela `job_queue` consumida por `job-worker`. Até a
+    // reescrita desse step para enfileirar em `job_queue` com tenant_id
+    // e contact_id corretos, retornamos `false` para sinalizar que o
+    // step não foi executado (e evitamos erro de tabela inexistente em
+    // produção).
+    logger.warn('scheduleSendMessage step is not implemented yet', {
+      contactId,
+      messageLength: messageContent.length,
+    });
+    return false;
   } catch (error: any) {
     logger.error('Error in scheduleSendMessage', { error: error.message });
     return false;
