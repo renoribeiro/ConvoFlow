@@ -72,7 +72,7 @@ export default function Followups() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total de Follow-ups</p>
                 {loading ? (
-                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                 ) : (
                   <p className="text-2xl font-bold">{stats.total}</p>
                 )}
@@ -88,7 +88,7 @@ export default function Followups() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
                 {loading ? (
-                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                 ) : (
                   <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
                 )}
@@ -104,7 +104,7 @@ export default function Followups() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
                 {loading ? (
-                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                 ) : (
                   <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
                 )}
@@ -120,7 +120,7 @@ export default function Followups() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Em Atraso</p>
                 {loading ? (
-                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                 ) : (
                   <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
                 )}

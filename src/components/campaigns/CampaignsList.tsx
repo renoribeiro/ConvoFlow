@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import { CampaignWizard } from './CampaignWizardNew';
 import { CampaignReportsModal } from './CampaignReportsModal';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
@@ -11,7 +11,7 @@ import { Pagination } from '@/components/shared/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Send, Edit, Pause, Play, Trash2, Clock, Users, MoreHorizontal } from 'lucide-react';
+import { Send, Edit, Trash2, Clock, Users, MoreHorizontal } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { CampaignCardSkeleton } from '@/components/shared/Skeleton';
 import { logger } from '@/lib/logger';
@@ -29,6 +29,24 @@ interface Campaign {
   started_at?: string;
   completed_at?: string;
 }
+
+type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+const CAMPAIGN_STATUS_MAP: Record<string, StatusVariant> = {
+  active: 'info',
+  completed: 'success',
+  failed: 'danger',
+  draft: 'neutral',
+  scheduled: 'warning',
+};
+
+const CAMPAIGN_STATUS_LABELS: Record<string, string> = {
+  active: 'Ativa',
+  completed: 'Concluída',
+  failed: 'Falhou',
+  draft: 'Rascunho',
+  scheduled: 'Agendada',
+};
 
 interface CampaignsListProps {
   status: string;
@@ -89,7 +107,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
 
       setCampaigns(campaignsData || []);
     } catch (error) {
-      console.error('Error loading campaigns:', error);
+      logger.error('Erro ao carregar campanhas', { error: error instanceof Error ? error.message : 'Erro desconhecido' });
       toast({
         title: "Erro",
         description: "Falha ao carregar campanhas",
@@ -203,13 +221,12 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   if (campaigns.length === 0) {
     return (
       <>
-        <div className="text-center py-12">
-          <h3 className="text-lg font-semibold mb-2">Nenhuma campanha encontrada</h3>
-          <p className="text-muted-foreground mb-4">
-            Não há campanhas {status === 'draft' ? 'em rascunho' : status === 'active' ? 'ativas' : status} no momento.
-          </p>
-          <Button onClick={() => setShowWizard(true)}>Nova Campanha</Button>
-        </div>
+        <EmptyState
+          icon={<Send className="w-10 h-10" />}
+          title="Nenhuma campanha encontrada"
+          description={`Não há campanhas ${status === 'draft' ? 'em rascunho' : status === 'active' ? 'ativas' : status} no momento.`}
+          action={{ label: 'Nova Campanha', onClick: () => setShowWizard(true) }}
+        />
         {showWizard && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <CampaignWizard
@@ -236,9 +253,9 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'}>
-                    {campaign.status}
-                  </Badge>
+                  <StatusBadge status={CAMPAIGN_STATUS_MAP[campaign.status] ?? 'neutral'}>
+                    {CAMPAIGN_STATUS_LABELS[campaign.status] ?? campaign.status}
+                  </StatusBadge>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm">
@@ -276,7 +293,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
                   <div className="text-xs text-muted-foreground">Total</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{campaign.sent_count}</div>
+                  <div className="text-2xl font-bold text-foreground">{campaign.sent_count}</div>
                   <div className="text-xs text-muted-foreground">Enviadas</div>
                 </div>
                 <div className="text-center">

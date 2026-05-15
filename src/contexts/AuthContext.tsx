@@ -1,6 +1,7 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -28,14 +29,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const previousUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    console.log('[AuthContext] Initializing auth state listener');
-
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[AuthContext] Auth state changed:', { event, hasSession: !!session, userId: session?.user?.id });
+        const newUserId = session?.user?.id ?? null;
+
+        // Limpa o cache do TanStack Query quando o usuário muda (login, logout,
+        // troca de conta). Sem isso, dados do tenant anterior podem aparecer
+        // no dashboard do novo usuário porque queries com queryKey customizado
+        // não incluem tenant_id automaticamente.
+        if (previousUserId.current !== newUserId) {
+          queryClient.clear();
+          previousUserId.current = newUserId;
+        }
 
         setSession(session);
         setUser(session?.user ?? null);
@@ -45,14 +55,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[AuthContext] Initial session check:', { hasSession: !!session, userId: session?.user?.id });
+      previousUserId.current = session?.user?.id ?? null;
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
 
 

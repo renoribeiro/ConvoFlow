@@ -57,7 +57,7 @@ export default function Campaigns() {
                 <p className="text-sm font-medium text-muted-foreground">Total de Campanhas</p>
                 <p className="text-2xl font-bold">{stats.totalCampaigns}</p>
               </div>
-              <Send className="h-8 w-8 text-blue-500" />
+              <Send className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -67,9 +67,9 @@ export default function Campaigns() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Campanhas Ativas</p>
-                <p className="text-2xl font-bold text-green-600">{stats.activeCampaigns}</p>
+                <p className="text-2xl font-bold text-primary">{stats.activeCampaigns}</p>
               </div>
-              <Clock className="h-8 w-8 text-green-500" />
+              <Clock className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -81,7 +81,7 @@ export default function Campaigns() {
                 <p className="text-sm font-medium text-muted-foreground">Mensagens Enviadas</p>
                 <p className="text-2xl font-bold">{stats.messagesSent.toLocaleString()}</p>
               </div>
-              <Send className="h-8 w-8 text-orange-500" />
+              <Send className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -91,9 +91,9 @@ export default function Campaigns() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.successRate}%</p>
+                <p className="text-2xl font-bold">{stats.successRate}%</p>
               </div>
-              <BarChart3 className="h-8 w-8 text-purple-500" />
+              <BarChart3 className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>

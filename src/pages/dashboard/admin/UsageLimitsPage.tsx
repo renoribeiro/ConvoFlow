@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -15,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { QUERY_KEYS } from '@/lib/queryClient';
 import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 interface UsageLimit {
   id: string;
@@ -31,7 +33,6 @@ export default function UsageLimitsPage() {
   const { data: limits = [], isLoading } = useQuery({
     queryKey: [QUERY_KEYS.USAGE_LIMITS],
     queryFn: async () => {
-      // cast `any` enquanto types.ts não inclui usage_limits (regenerar após migration).
       const { data, error } = await (supabase as any)
         .from('usage_limits')
         .select('*')
@@ -58,21 +59,28 @@ export default function UsageLimitsPage() {
   });
 
   return (
-    <div className="space-y-4 p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Limites de uso por nível</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure os limites aplicados a cada nível da hierarquia. Deixe vazio para "sem limite".
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Limites de uso por nível"
+        description="Configure os limites aplicados a cada nível da hierarquia. Deixe vazio para sem limite."
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Administração', href: '/dashboard/admin' },
+          { label: 'Limites de Uso' },
+        ]}
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Configurações de limites</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">Configurações de limites</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Carregando...</div>
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -80,8 +88,8 @@ export default function UsageLimitsPage() {
                   <TableHead>Nível</TableHead>
                   <TableHead>Limite</TableHead>
                   <TableHead>Descrição</TableHead>
-                  <TableHead className="w-[200px]">Valor</TableHead>
-                  <TableHead className="w-[120px]" />
+                  <TableHead className="w-[180px]">Valor</TableHead>
+                  <TableHead className="w-[100px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -95,7 +103,7 @@ export default function UsageLimitsPage() {
                     <TableRow key={l.id}>
                       <TableCell className="font-medium">{ROLE_LABELS[l.role]}</TableCell>
                       <TableCell>{l.limit_name}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="text-muted-foreground text-sm">
                         {l.description ?? '—'}
                       </TableCell>
                       <TableCell>
@@ -104,6 +112,7 @@ export default function UsageLimitsPage() {
                           min={0}
                           value={currentValue}
                           placeholder="Sem limite"
+                          className="h-8"
                           onChange={(e) =>
                             setEdited((prev) => ({ ...prev, [l.id]: e.target.value }))
                           }
@@ -112,6 +121,7 @@ export default function UsageLimitsPage() {
                       <TableCell>
                         <Button
                           size="sm"
+                          variant="outline"
                           disabled={editing === undefined || update.isPending}
                           onClick={() => {
                             const parsed = editing === '' ? null : Number(editing);

@@ -1,5 +1,5 @@
 import { useSupabaseQuery } from './useSupabaseQuery';
-import { useTenant } from './useTenant';
+import { useTenant } from '@/contexts/TenantContext';
 import { subDays, format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 

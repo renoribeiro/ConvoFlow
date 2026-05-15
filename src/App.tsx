@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -66,6 +67,7 @@ const PageLoadingSkeleton = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
     <TooltipProvider>
       <AuthProvider>
         <TenantProvider>
@@ -190,7 +192,7 @@ const App = () => (
                     </RoleGuard>
                   } />
                   <Route path="team" element={
-                    <RoleGuard minRole="enterprise" fallbackPath="/dashboard">
+                    <RoleGuard minRole="agencia" fallbackPath="/dashboard">
                       <Suspense fallback={<PageLoadingSkeleton />}>
                         <TeamPage />
                       </Suspense>
@@ -216,6 +218,7 @@ const App = () => (
         </TenantProvider>
       </AuthProvider>
     </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

@@ -113,7 +113,7 @@ export const useWahaApi = (): UseWahaApiReturn => {
         .select('tenant_id')
         .eq('user_id', user.id)
         .single();
-      if (!profile?.tenant_id) throw new Error('Tenant do usuário não encontrado');
+      if (!profile?.tenant_id) throw new Error('Conta do usuário não encontrada');
 
       const baseUrl = input.serverUrl.replace(/\/+$/, '');
       const apiKey = input.apiKey || '';

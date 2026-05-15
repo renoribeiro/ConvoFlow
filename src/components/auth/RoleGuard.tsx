@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant, useRole, useHasMinRole } from '@/contexts/TenantContext';
+import { Skeleton } from '@/components/ui/skeleton';
 import { UserRole } from '@/types/userHierarchy';
 
 interface RoleGuardProps {
@@ -20,15 +21,21 @@ export const RoleGuard = ({
   const { isLoading: authLoading } = useAuth();
   const { loading: tenantLoading, profile } = useTenant();
   const userRole = useRole();
-  const hasMinRole = useHasMinRole(minRole ?? 'user');
+  const hasMinRole = useHasMinRole(minRole ?? 'loja');
 
   // Aguardar AMBOS auth e tenant antes de decidir redirect.
   // Caso contrário o redirect dispara antes do profile carregar -> loop visual
   // entre landing page e dashboard.
   if (authLoading || tenantLoading || profile === null) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-48 rounded" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-md" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-md" />
       </div>
     );
   }

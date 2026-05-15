@@ -8,23 +8,22 @@ import PageErrorBoundary from '@/components/ErrorBoundaries/PageErrorBoundary';
 export const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-  // pageName derivado da rota — só pra mensagem amigável no fallback.
   const pageName = (location.pathname.split('/').filter(Boolean).pop() || 'página')
     .replace(/-/g, ' ');
 
   return (
-    <div className="min-h-screen bg-gradient-background">
+    <div className="min-h-screen bg-muted/30">
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className={cn(
-        "transition-all duration-300",
-        sidebarOpen ? "ml-64" : "ml-16"
-      )}>
+      <div
+        className={cn(
+          'flex flex-col min-h-screen transition-all duration-300',
+          sidebarOpen ? 'lg:ml-60' : 'lg:ml-14',
+        )}
+      >
         <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main className="p-6">
-          {/* key={pathname} reseta o boundary quando o usuário troca de rota,
-              evitando que a tela de erro "trave" o app numa rota diferente. */}
+        <main className="flex-1 p-6">
           <PageErrorBoundary key={location.pathname} pageName={pageName}>
             <Outlet />
           </PageErrorBoundary>

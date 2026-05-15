@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
-import { UserRole, roleAtLeast } from '@/types/userHierarchy';
+import { AnyUserRole, UserRole, normalizeRole, roleAtLeast } from '@/types/userHierarchy';
 
 type Tenant = Tables<'tenants'>;
 type Profile = Tables<'profiles'>;
@@ -90,7 +90,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     if (tenantError) {
       console.error('[TenantContext] Erro ao buscar tenant (profile preservado):', tenantError);
-      setError(`Erro ao buscar tenant: ${tenantError.message}`);
+      setError(`Erro ao buscar Conta: ${tenantError.message}`);
       setTenant(null);
     } else {
       setTenant(tenantData);
@@ -105,7 +105,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const updateTenantSettings = async (settings: Record<string, unknown>) => {
     if (!tenant) {
-      throw new Error('Nenhum tenant carregado');
+      throw new Error('Nenhuma Conta carregada');
     }
 
     try {
@@ -186,21 +186,29 @@ export const useTenantId = () => {
 };
 
 /**
- * Retorna a role do usuário atual no novo enum, ou null se ainda não
- * carregada. Faz cast porque os tipos gerados (`Tables<'profiles'>.role`)
- * podem refletir o enum antigo até `supabase gen types` ser executado.
+ * Retorna a role do usuário atual normalizada para o enum atual
+ * (`superadmin` | `agencia` | `loja`), ou null se ainda não carregada.
+ *
+ * `normalizeRole()` converte valores legados (`user`/`enterprise`/
+ * `account_manager`) para o enum atual, então este hook permanece
+ * estável mesmo quando o cache do TanStack Query ainda contém um
+ * profile pré-migration.
  */
 export const useRole = (): UserRole | null => {
   const { profile } = useTenant();
-  return (profile?.role as UserRole | undefined) ?? null;
+  return normalizeRole(profile?.role as AnyUserRole | undefined);
 };
 
 export const useIsSuperAdmin = () => useRole() === 'superadmin';
-export const useIsAccountManager = () => useRole() === 'account_manager';
-export const useIsEnterprise = () => useRole() === 'enterprise';
+export const useIsAgencia = () => useRole() === 'agencia';
+export const useIsLoja = () => useRole() === 'loja';
 
-/** @deprecated Use useIsEnterprise. Mantido por 1 release. */
-export const useIsTenantAdmin = useIsEnterprise;
+/** @deprecated Use useIsAgencia. Mantido por 1 release. */
+export const useIsAccountManager = useIsAgencia;
+/** @deprecated Use useIsLoja. Mantido por 1 release. */
+export const useIsEnterprise = useIsLoja;
+/** @deprecated Use useIsLoja. Mantido por 1 release. */
+export const useIsTenantAdmin = useIsLoja;
 
 /** Retorna true se a role do usuário for ao menos `minimum` na hierarquia. */
 export const useHasMinRole = (minimum: UserRole): boolean => {

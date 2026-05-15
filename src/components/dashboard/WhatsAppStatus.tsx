@@ -14,30 +14,47 @@ export const WhatsAppStatus = () => {
     navigate('/dashboard/whatsapp-numbers');
   };
 
-  const getStatusIcon = (status: string) => {
+  // Normaliza status entre providers (Evolution: open/close/connecting/qrcode;
+  // WAHA/Meta: connected/disconnected/connecting).
+  const normalizeStatus = (status: string): 'connected' | 'connecting' | 'disconnected' => {
     switch (status) {
       case 'connected':
-        return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'open':
+        return 'connected';
       case 'connecting':
-        return <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />;
+      case 'qrcode':
+        return 'connecting';
+      case 'disconnected':
+      case 'close':
       default:
-        return <WifiOff className="h-4 w-4 text-red-500" />;
+        return 'disconnected';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (normalizeStatus(status)) {
+      case 'connected':
+        return <Wifi className="h-4 w-4 text-emerald-600" />;
+      case 'connecting':
+        return <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />;
+      default:
+        return <WifiOff className="h-4 w-4 text-red-600" />;
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (normalizeStatus(status)) {
       case 'connected':
-        return 'bg-green-500';
+        return 'bg-emerald-600';
       case 'connecting':
-        return 'bg-yellow-500';
+        return 'bg-amber-600';
       default:
-        return 'bg-red-500';
+        return 'bg-red-600';
     }
   };
 
   const getStatusText = (status: string) => {
-    switch (status) {
+    switch (normalizeStatus(status)) {
       case 'connected':
         return 'Conectado';
       case 'connecting':
@@ -107,7 +124,7 @@ export const WhatsAppStatus = () => {
                   </p>
                   
                   <p className="text-xs text-muted-foreground">
-                    Último acesso: {instance.lastSeen}
+                    Última atualização: {instance.lastSeen}
                   </p>
                 </div>
               </div>

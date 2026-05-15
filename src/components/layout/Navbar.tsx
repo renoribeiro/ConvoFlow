@@ -1,20 +1,22 @@
-
-import { Bell, Search, User, ChevronDown, Menu } from 'lucide-react';
+import { Bell, Search, User, ChevronDown, Menu, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
-import { useSupabaseQuery, useSupabaseCount } from '@/hooks/useSupabaseQuery';
-import { useTenant } from '@/contexts/TenantContext';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { useTenant, useIsSuperAdmin } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AnyUserRole, roleLabel as roleLabelHelper } from '@/types/userHierarchy';
+import { RoleBadge } from '@/components/users/RoleBadge';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -22,51 +24,12 @@ interface NavbarProps {
 
 export const Navbar = ({ onMenuClick }: NavbarProps) => {
   const { tenant, profile, loading: tenantLoading } = useTenant();
+  const { logout } = useAuth();
+  const isSuperAdmin = useIsSuperAdmin();
 
-  // Buscar número de WhatsApp conectados
-  const { data: connectedWhatsApp = 0 } = useSupabaseCount(
-    'whatsapp_instances',
-    [
-      { column: 'tenant_id', operator: 'eq', value: tenant?.id },
-      { column: 'status', operator: 'eq', value: 'open' }
-    ],
-    { enabled: !!tenant?.id }
-  );
-
-  // Buscar conversas ativas (mensagens das últimas 24h)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const { data: activeConversations = 0 } = useSupabaseCount(
-    'messages',
-    [
-      { column: 'tenant_id', operator: 'eq', value: tenant?.id },
-      { column: 'created_at', operator: 'gte', value: yesterday.toISOString() }
-    ],
-    { enabled: !!tenant?.id }
-  );
-
-  // Enquanto o profile está carregando, mostrar placeholder neutro
-  // (evita o "Usuário / Usuário" piscando antes do profile chegar).
   const displayName = tenantLoading
     ? 'Carregando...'
     : (`${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'Usuário');
-
-  const roleLabel = (() => {
-    if (tenantLoading || !profile) return '...';
-    switch (profile.role as string | undefined) {
-      case 'superadmin':
-        return 'Superadministrador';
-      case 'account_manager':
-        return 'Gestor de Contas';
-      case 'enterprise':
-        return 'Enterprise';
-      case 'user':
-        return 'Usuário';
-      default:
-        return 'Usuário';
-    }
-  })();
 
   const initials = (
     `${(profile?.first_name ?? '').charAt(0)}${(profile?.last_name ?? '').charAt(0)}`
@@ -74,72 +37,95 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
   );
 
   return (
-    <header className="h-16 bg-dashboard-navbar border-b border-border flex items-center justify-between px-6">
-      {/* Left Side */}
-      <div className="flex items-center space-x-4">
+    <header className="h-12 bg-card border-b border-border flex items-center justify-between px-4 flex-shrink-0">
+      {/* Left */}
+      <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden"
+          className="lg:hidden h-8 w-8"
+          aria-label="Abrir menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4 w-4" />
         </Button>
-        
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+        <div className="relative hidden sm:block">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Buscar conversas, contatos..."
-            className="pl-10 w-80 bg-background"
+            placeholder="Buscar..."
+            className="pl-8 h-8 w-56 text-sm bg-muted/50 border-0 focus-visible:ring-1 focus-visible:bg-background"
           />
+          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            ⌘K
+          </kbd>
         </div>
       </div>
 
-      {/* Right Side */}
-      <div className="flex items-center space-x-4">
-        {/* Status Indicators */}
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="bg-status-success/10 text-status-success border-status-success">
-            {connectedWhatsApp} WhatsApp conectados
-          </Badge>
-          <Badge variant="outline" className="bg-status-info/10 text-status-info border-status-info">
-            {activeConversations} conversas ativas
-          </Badge>
-        </div>
-
-        {/* Notifications */}
+      {/* Right */}
+      <div className="flex items-center gap-1">
         <NotificationCenter />
+        <ThemeToggle />
 
-        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center space-x-2">
-              <Avatar className="h-8 w-8">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 h-8 px-2"
+              aria-label="Menu do usuário"
+            >
+              <Avatar className="h-7 w-7">
                 <AvatarImage src={profile?.avatar_url ?? undefined} alt={displayName} />
-                <AvatarFallback>{initials}</AvatarFallback>
+                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
               <div className="text-left hidden md:block">
-                <p className="text-sm font-medium">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{roleLabel}</p>
+                <p className="text-xs font-medium leading-none">{displayName}</p>
+                {!tenantLoading && profile?.role && (
+                  <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+                    {roleLabelHelper(profile.role as AnyUserRole | undefined)}
+                  </p>
+                )}
               </div>
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium">{displayName}</p>
+                {!tenantLoading && profile?.role && (
+                  <RoleBadge role={profile.role as AnyUserRole} />
+                )}
+                {tenant?.name && (
+                  <p className="text-xs text-muted-foreground truncate">{tenant.name}</p>
+                )}
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/dashboard/profile" className="flex items-center">
-                <User className="mr-2 h-4 w-4" />
+              <Link to="/dashboard/profile" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
                 Meu Perfil
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/dashboard/notifications" className="flex items-center">
-                <Bell className="mr-2 h-4 w-4" />
+              <Link to="/dashboard/notifications" className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
                 Notificações
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/dashboard/settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Configurações
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive gap-2"
+              onClick={() => logout()}
+            >
+              <LogOut className="h-4 w-4" />
               Sair
             </DropdownMenuItem>
           </DropdownMenuContent>

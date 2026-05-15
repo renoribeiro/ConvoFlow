@@ -30,7 +30,7 @@ export const useMetaApi = (): UseMetaApiReturn => {
         .select('tenant_id')
         .eq('user_id', user.id)
         .single();
-      if (!profile?.tenant_id) throw new Error('Tenant do usuário não encontrado');
+      if (!profile?.tenant_id) throw new Error('Conta do usuário não encontrada');
 
       const connectionConfig = {
         phoneNumberId: input.phoneNumberId,

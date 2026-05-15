@@ -40,7 +40,7 @@ export default function Settings() {
       />
 
       <Tabs defaultValue={currentTab} className="space-y-6">
-        <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-7' : 'grid-cols-7'}`}>
+        <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-8' : 'grid-cols-7'}`}>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Perfil
@@ -70,11 +70,11 @@ export default function Settings() {
             Aparência
           </TabsTrigger>
           {isSuperAdmin && (
-              <TabsTrigger value="modules" className="flex items-center gap-2">
-                <SettingsIcon className="w-4 h-4" />
-                Módulos
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="modules" className="flex items-center gap-2">
+              <SettingsIcon className="w-4 h-4" />
+              Módulos
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile">

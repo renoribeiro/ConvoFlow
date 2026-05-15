@@ -114,6 +114,14 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
 
       if (!profile) return;
 
+      // Superadmin / account_manager sem tenant não têm instâncias próprias.
+      // Em vez de rodar .eq('tenant_id', null) (que estoura erro no PostgREST),
+      // saímos limpos com lista vazia.
+      if (!profile.tenant_id) {
+        setInstances([]);
+        return;
+      }
+
       const { data: dbInstances, error } = await supabase
         .from('whatsapp_instances')
         .select('*')

@@ -24,25 +24,22 @@ import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
 interface InviteUserModalProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** Tenant a vincular (obrigatório se role escolhida ≠ superadmin/account_manager). */
+  /** Tenant a vincular (obrigatório se role escolhida ≠ superadmin). */
   defaultTenantId?: string | null;
 }
 
 /**
- * Decide quais roles o usuário atual pode convidar:
- *   superadmin       → todas (incluindo superadmin)
- *   account_manager  → enterprise apenas
- *   enterprise       → user apenas
- *   user             → nenhuma (modal não deve abrir)
+ * Decide quais roles o usuário atual pode convidar (hierarquia 3 níveis):
+ *   superadmin → todas (incluindo superadmin)
+ *   agencia    → loja apenas (cria Lojas filhas)
+ *   loja       → nenhuma (modal não deve abrir)
  */
 function allowedRolesFor(callerRole: UserRole | null): UserRole[] {
   switch (callerRole) {
     case 'superadmin':
-      return ['superadmin', 'account_manager', 'enterprise', 'user'];
-    case 'account_manager':
-      return ['enterprise'];
-    case 'enterprise':
-      return ['user'];
+      return ['superadmin', 'agencia', 'loja'];
+    case 'agencia':
+      return ['loja'];
     default:
       return [];
   }
@@ -61,10 +58,10 @@ export function InviteUserModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>(allowed[0] ?? 'user');
+  const [role, setRole] = useState<UserRole>(allowed[0] ?? 'loja');
   const [tenantId, setTenantId] = useState(defaultTenantId ?? '');
 
-  const requiresTenant = role === 'enterprise' || role === 'user';
+  const requiresTenant = role === 'loja' || role === 'agencia';
 
   const reset = () => {
     setEmail('');
@@ -163,7 +160,7 @@ export function InviteUserModal({
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Obrigatório para enterprise/user.
+                Obrigatório para Loja e Agência (cada uma tem tenant próprio).
               </p>
             </div>
           )}

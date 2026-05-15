@@ -40,12 +40,12 @@ export function InstanceSelector({ instances, selectedId, onChange }: InstanceSe
   if (!current) return null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 w-full min-w-0">
       <Select value={current.row.id} onValueChange={onChange}>
-        <SelectTrigger className="h-8 min-w-[200px] text-xs">
-          <SelectValue>
-            <div className="flex items-center gap-2 min-w-0">
-              <Avatar className="w-5 h-5">
+        <SelectTrigger className="h-auto py-1.5 flex-1 min-w-0 text-xs">
+          <SelectValue asChild>
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-left">
+              <Avatar className="w-7 h-7 flex-shrink-0">
                 {current.row.profile_picture_url && (
                   <AvatarImage src={current.row.profile_picture_url} alt={current.row.name} />
                 )}
@@ -53,11 +53,12 @@ export function InstanceSelector({ instances, selectedId, onChange }: InstanceSe
                   {current.row.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="truncate font-medium">{current.row.name}</span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground text-[11px]">
-                {providerLabel((current.row.provider as ProviderType | null) ?? 'evolution')}
-              </span>
+              <div className="flex flex-col min-w-0 flex-1 leading-tight">
+                <span className="truncate font-medium text-xs">{current.row.name}</span>
+                <span className="truncate text-muted-foreground text-[10px]">
+                  {providerLabel((current.row.provider as ProviderType | null) ?? 'evolution')}
+                </span>
+              </div>
             </div>
           </SelectValue>
         </SelectTrigger>
@@ -85,7 +86,7 @@ export function InstanceSelector({ instances, selectedId, onChange }: InstanceSe
           ))}
         </SelectContent>
       </Select>
-      {statusBadge(current.row.status)}
+      <div className="flex-shrink-0">{statusBadge(current.row.status)}</div>
     </div>
   );
 }

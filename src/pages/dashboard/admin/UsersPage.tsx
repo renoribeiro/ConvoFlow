@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import { useUsers, UsersFilters } from '@/hooks/users/useUsers';
 import { UsersTable } from '@/components/users/UsersTable';
 import { InviteUserModal } from '@/components/users/InviteUserModal';
 import { ROLE_LABELS, STATUS_LABELS, UserRole, UserStatus } from '@/types/userHierarchy';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 export default function UsersPage() {
   const [filters, setFilters] = useState<UsersFilters>({});
@@ -23,22 +25,26 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useUsers({ ...filters, search });
 
   return (
-    <div className="space-y-4 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Gestão de Usuários</h1>
-          <p className="text-sm text-muted-foreground">
-            Hierarquia completa de Superadmins, Gestores, Enterprises e Usuários.
-          </p>
-        </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" /> Convidar usuário
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Gestão de Usuários"
+        description="Hierarquia completa de Superadmins, Agências e Lojas."
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Administração', href: '/dashboard/admin' },
+          { label: 'Usuários' },
+        ]}
+        actions={
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Convidar usuário
+          </Button>
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filtros</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">Filtros</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[240px]">
@@ -56,7 +62,7 @@ export default function UsersPage() {
               setFilters((f) => ({ ...f, role: v === 'all' ? undefined : (v as UserRole) }))
             }
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Função" />
             </SelectTrigger>
             <SelectContent>
@@ -77,7 +83,7 @@ export default function UsersPage() {
               }))
             }
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -95,7 +101,11 @@ export default function UsersPage() {
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Carregando...</div>
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
+            </div>
           ) : (
             <UsersTable rows={users} />
           )}

@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 import {
   Table,
   TableBody,
@@ -49,6 +50,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useIsSuperAdmin } from '@/contexts/TenantContext';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { UserRole } from '@/types/userHierarchy';
@@ -197,7 +199,6 @@ const AdminDashboard = () => {
   // Mostrar erro se houver problema na query de usuários
   React.useEffect(() => {
     if (usersError) {
-      console.error('Erro na query de usuários:', usersError);
       toast.error('Erro ao carregar usuários: ' + usersError.message);
     }
   }, [usersError]);
@@ -205,23 +206,9 @@ const AdminDashboard = () => {
   // Mostrar erro se houver problema na query de afiliados
   React.useEffect(() => {
     if (affiliatesError) {
-      console.error('Erro na query de afiliados:', affiliatesError);
       toast.error('Erro ao carregar afiliados: ' + affiliatesError.message);
     }
   }, [affiliatesError]);
-
-  // Verificar se o usuário está autenticado (early returns DEPOIS dos hooks)
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
 
   // Mutations para CRUD de usuários
   // createUserMutation removido - agora usamos supabase.auth.signUp() diretamente
@@ -284,6 +271,25 @@ const AdminDashboard = () => {
       toast.error('Erro ao excluir afiliado: ' + error.message);
     }
   });
+
+  // Early returns DEPOIS de todos os hooks
+  if (authLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-muted rounded-md animate-pulse" />
+          ))}
+        </div>
+        <div className="h-64 bg-muted rounded-md animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   // Funções auxiliares
   const resetUserForm = () => {
@@ -358,7 +364,7 @@ const AdminDashboard = () => {
       resetUserForm();
       refetchUsers();
     } catch (error: any) {
-      console.error('Erro ao criar usuário:', error);
+      logger.error('Erro ao criar usuário', { error: error?.message ?? 'Erro desconhecido' });
       toast.error('Erro ao criar usuário: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setIsLoading(false);
@@ -400,7 +406,7 @@ const AdminDashboard = () => {
       setSelectedUser(null);
       refetchUsers();
     } catch (error: any) {
-      console.error('Erro ao excluir usuário:', error);
+      logger.error('Erro ao excluir usuário', { error: error?.message ?? 'Erro desconhecido' });
       toast.error('Erro ao excluir usuário: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setIsLoading(false);
@@ -467,14 +473,14 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Administração</h1>
-          <p className="text-muted-foreground">
-            Painel de controle para super administradores
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Administração"
+        description="Painel de controle para super administradores"
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Administração' },
+        ]}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6">
@@ -582,7 +588,7 @@ const AdminDashboard = () => {
                     <TableHead>Email</TableHead>
                     <TableHead>Função</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Tenant</TableHead>
+                    <TableHead>Conta</TableHead>
                     <TableHead>Plano / Acesso</TableHead>
                     <TableHead>Criado em</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -638,7 +644,7 @@ const AdminDashboard = () => {
                               onClick={async () => {
                                 try {
                                   if (!user.tenant_id) {
-                                    toast.error('Usuário não possui um tenant associado.');
+                                    toast.error('Usuário não possui uma Conta associada.');
                                     return;
                                   }
 
@@ -820,24 +826,19 @@ const AdminDashboard = () => {
                     <TableCell className="text-muted-foreground">Total de contas na plataforma</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Superadministradores</TableCell>
+                    <TableCell className="font-medium">Superadmins</TableCell>
                     <TableCell>{usersWithEmails.filter((u: any) => u.role === 'superadmin').length}</TableCell>
                     <TableCell className="text-muted-foreground">Administradores com acesso total</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Gestores de Contas</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'account_manager').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Gestores/afiliados</TableCell>
+                    <TableCell className="font-medium">Agências</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'agencia').length}</TableCell>
+                    <TableCell className="text-muted-foreground">Agências (gerenciam Lojas afiliadas)</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Enterprises</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'enterprise').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Contas Enterprise (clientes)</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Usuários</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'user').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Usuários finais dentro de Enterprises</TableCell>
+                    <TableCell className="font-medium">Lojas</TableCell>
+                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'loja').length}</TableCell>
+                    <TableCell className="text-muted-foreground">Lojas (operam conversas/contatos do dia-a-dia)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Total de Afiliados</TableCell>
@@ -1334,10 +1335,9 @@ const AdminDashboard = () => {
                   <SelectValue placeholder="Selecione a função" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">Usuário</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="account_manager">Gestor de Contas</SelectItem>
-                  <SelectItem value="superadmin">Superadministrador</SelectItem>
+                  <SelectItem value="loja">Loja</SelectItem>
+                  <SelectItem value="agencia">Agência</SelectItem>
+                  <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1421,10 +1421,9 @@ const AdminDashboard = () => {
                   <SelectValue placeholder="Selecione a função" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">Usuário</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="account_manager">Gestor de Contas</SelectItem>
-                  <SelectItem value="superadmin">Superadministrador</SelectItem>
+                  <SelectItem value="loja">Loja</SelectItem>
+                  <SelectItem value="agencia">Agência</SelectItem>
+                  <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1513,7 +1512,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Tenant</Label>
+                  <Label className="text-sm font-medium">Conta</Label>
                   <p className="text-sm text-muted-foreground">{selectedUser.tenantName || 'N/A'}</p>
                 </div>
                 <div>

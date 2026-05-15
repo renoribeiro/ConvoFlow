@@ -1,5 +1,5 @@
 import { useSupabaseQuery } from './useSupabaseQuery';
-import { useTenant } from './useTenant';
+import { useTenant } from '@/contexts/TenantContext';
 import { subHours, subMinutes } from 'date-fns';
 
 interface SystemAlert {

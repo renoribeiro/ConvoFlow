@@ -230,9 +230,9 @@ export const ConversationsList = ({
           {conversationsQuery.hasNextPage && (
             <div ref={loadMoreRef} className="flex justify-center py-4">
               {conversationsQuery.isFetchingNextPage ? (
-                <div className="text-sm text-gray-500">Carregando mais conversas...</div>
+                <div className="text-sm text-muted-foreground">Carregando mais conversas...</div>
               ) : (
-                <div className="text-sm text-gray-400">Role para carregar mais</div>
+                <div className="text-sm text-muted-foreground/60">Role para carregar mais</div>
               )}
             </div>
           )}

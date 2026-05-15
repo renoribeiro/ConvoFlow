@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
@@ -11,6 +12,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { useMetaApi } from '@/hooks/useMetaApi';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
@@ -58,7 +60,7 @@ export default function WhatsAppNumbers() {
   const [refreshingInstance, setRefreshingInstance] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('instances');
   
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const { connectInstance, disconnectInstance, getQRCode, refreshInstanceStatus } = useEvolutionApi();
   const { verifyConnection: verifyMetaConnection } = useMetaApi();
@@ -269,7 +271,30 @@ export default function WhatsAppNumbers() {
   const connectedInstances = instances.filter(i => i.status === 'open').length;
   const totalInstances = instances.length;
 
-  // Verificar se tenant ainda está carregando
+  // Tenant ainda carregando — skeletons
+  if (tenantLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Instâncias e APIs"
+          description="Gerencie suas instâncias e integrações de WhatsApp"
+          breadcrumbs={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Instâncias e APIs' }
+          ]}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-md" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  // Usuário sem tenant (superadmin/account_manager sem vínculo).
+  // Instâncias do WhatsApp pertencem a tenants, então não há o que gerenciar aqui.
   if (!tenant) {
     return (
       <div className="space-y-6">
@@ -282,11 +307,12 @@ export default function WhatsAppNumbers() {
           ]}
         />
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              <span>Carregando informações do tenant...</span>
-            </div>
+          <CardContent className="p-12">
+            <EmptyState
+              icon={<Smartphone className="h-6 w-6" />}
+              title="Nenhuma Conta selecionada"
+              description="Instâncias de WhatsApp são gerenciadas por Conta. Como superadmin, você não possui instâncias próprias — acesse a administração para gerenciar as Contas."
+            />
           </CardContent>
         </Card>
       </div>
@@ -306,8 +332,9 @@ export default function WhatsAppNumbers() {
         />
         <Card>
           <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              Erro ao carregar instâncias: {error.message}
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">Erro ao carregar instâncias: {error.message}</span>
             </div>
           </CardContent>
         </Card>
@@ -411,9 +438,10 @@ export default function WhatsAppNumbers() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Carregando instâncias...</p>
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-md" />
+              ))}
             </div>
           ) : instances.length === 0 ? (
             <div className="text-center py-8">

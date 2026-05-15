@@ -1,97 +1,119 @@
-import { 
-  MessageSquare, 
-  Users, 
-  TrendingUp, 
+import {
+  MessageSquare,
+  Users,
   Clock,
   Target,
-  Zap
+  Zap,
 } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RecentConversations } from '@/components/dashboard/RecentConversations';
 import { WhatsAppStatus } from '@/components/dashboard/WhatsAppStatus';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
+
+const numberFmt = new Intl.NumberFormat('pt-BR');
+const TREND_LABEL = 'em relação ao período anterior';
+
+interface CardConfig {
+  title: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  trend?: { value: number; isPositive: boolean; label: string };
+  href?: string;
+  loading: boolean;
+}
 
 const Index = () => {
+  const m = useDashboardMetrics();
+
+  const cards: CardConfig[] = [
+    {
+      title: 'Conversas Ativas',
+      value: numberFmt.format(m.activeConversations),
+      description: 'Em andamento agora',
+      icon: <MessageSquare className="h-4 w-4" />,
+      href: '/dashboard/conversations',
+      loading: m.loading.activeConversations,
+    },
+    {
+      title: 'Novos Contatos',
+      value: numberFmt.format(m.newContacts),
+      description: 'Criados hoje',
+      icon: <Users className="h-4 w-4" />,
+      trend: {
+        value: m.contactsTrend,
+        isPositive: m.contactsTrend >= 0,
+        label: TREND_LABEL,
+      },
+      href: '/dashboard/contacts',
+      loading: m.loading.newContacts,
+    },
+    {
+      title: 'Taxa de Conversão',
+      value: `${m.conversionRate.toFixed(1)}%`,
+      description: 'Contatos no estágio final',
+      icon: <Target className="h-4 w-4" />,
+      href: '/dashboard/funnel',
+      loading: m.loading.conversionRate,
+    },
+    {
+      title: 'Tempo Médio Resposta',
+      value: `${m.avgResponseTime.toFixed(1)} min`,
+      description: 'Primeira resposta — últimas 24h',
+      icon: <Clock className="h-4 w-4" />,
+      trend: {
+        value: m.responseTimeTrend,
+        isPositive: m.responseTimeTrend >= 0,
+        label: TREND_LABEL,
+      },
+      loading: m.loading.avgResponseTime,
+    },
+    {
+      title: 'Mensagens Enviadas',
+      value: numberFmt.format(m.messagesSent),
+      description: 'Hoje',
+      icon: <Zap className="h-4 w-4" />,
+      trend: {
+        value: m.messagesTrend,
+        isPositive: m.messagesTrend >= 0,
+        label: TREND_LABEL,
+      },
+      loading: m.loading.messagesSent,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">
-          Dashboard
-        </h1>
-        <p className="text-muted-foreground">
-          Visão geral das suas conversas e métricas de WhatsApp
-        </p>
+      <PageHeader
+        title="Dashboard"
+        description="Visão geral das suas conversas e métricas de WhatsApp"
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {cards.map((c) =>
+          c.loading ? (
+            <Skeleton key={c.title} className="h-[140px] w-full rounded-lg" />
+          ) : (
+            <MetricCard
+              key={c.title}
+              title={c.title}
+              value={c.value}
+              description={c.description}
+              icon={c.icon}
+              trend={c.trend}
+              href={c.href}
+              className="xl:col-span-1"
+            />
+          )
+        )}
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <MetricCard
-          title="Conversas Ativas"
-          value="127"
-          description="Conversas em andamento"
-          icon={<MessageSquare className="h-4 w-4" />}
-          trend={{ value: 12, isPositive: true }}
-          className="xl:col-span-1"
-          href="/dashboard/conversations"
-        />
-        
-        <MetricCard
-          title="Novos Contatos"
-          value="43"
-          description="Hoje"
-          icon={<Users className="h-4 w-4" />}
-          trend={{ value: 8, isPositive: true }}
-          className="xl:col-span-1"
-          href="/dashboard/contacts"
-        />
-        
-        <MetricCard
-          title="Taxa de Conversão"
-          value="24.5%"
-          description="Lead para venda"
-          icon={<Target className="h-4 w-4" />}
-          trend={{ value: 3, isPositive: true }}
-          className="xl:col-span-1"
-          href="/dashboard/funnel"
-        />
-        
-        <MetricCard
-          title="Tempo Médio Resposta"
-          value="2.3 min"
-          description="Tempo médio para primeira resposta"
-          icon={<Clock className="h-4 w-4" />}
-          trend={{ value: 15, isPositive: false }}
-          className="xl:col-span-1"
-        />
-        
-        <MetricCard
-          title="Messages Enviadas"
-          value="1,234"
-          description="Nas últimas 24h"
-          icon={<Zap className="h-4 w-4" />}
-          trend={{ value: 18, isPositive: true }}
-          className="xl:col-span-1"
-        />
-        
-        <MetricCard
-          title="Receita Gerada"
-          value="R$ 8.7k"
-          description="Este mês"
-          icon={<TrendingUp className="h-4 w-4" />}
-          trend={{ value: 22, isPositive: true }}
-          className="xl:col-span-1"
-          href="/dashboard/reports"
-        />
-      </div>
-
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Conversations - Takes 2 columns */}
         <div className="lg:col-span-2">
           <RecentConversations />
         </div>
-        
-        {/* WhatsApp Status - Takes 1 column */}
         <div className="lg:col-span-1">
           <WhatsAppStatus />
         </div>

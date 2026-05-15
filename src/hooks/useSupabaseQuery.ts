@@ -2,6 +2,19 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
+import { logger } from '@/lib/logger';
+
+/**
+ * Tabelas que NÃO devem ser filtradas por tenant_id automaticamente.
+ * Inclui tabelas globais (tenants, affiliates), tabela de perfis (filtrada
+ * via auth.uid()), e views administrativas.
+ */
+const TENANT_AGNOSTIC_TABLES = new Set([
+  'profiles',
+  'tenants',
+  'affiliates',
+  'admin_users_view',
+]);
 
 interface QueryFilter {
   column: string;
@@ -27,6 +40,11 @@ interface UseSupabaseQueryOptions {
   enabled?: boolean;
   refetchInterval?: number;
   staleTime?: number;
+  /**
+   * Suprime o toast de erro. Use para queries de fundo (métricas, contadores)
+   * onde uma falha não-crítica não deve interromper a UI. Default: false.
+   */
+  silent?: boolean;
 }
 
 export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
@@ -41,7 +59,8 @@ export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
     limit,
     enabled = true,
     refetchInterval,
-    staleTime
+    staleTime,
+    silent = false,
   } = options;
 
   const { tenant } = useTenant();
@@ -50,14 +69,33 @@ export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
   // Combinar filtros de ambas as propriedades
   const allFilters = [...filter, ...filters];
 
+  const isTenantAgnostic = TENANT_AGNOSTIC_TABLES.has(table);
+  // Defense-in-depth: nunca rodar query tenant-scoped sem tenant carregado.
+  // Antes do hardening, o filtro tenant era silenciosamente pulado nesse caso
+  // — o que tornava possível um superadmin/account_manager sem tenant ler
+  // toda a tabela. Agora a query fica desabilitada explicitamente.
+  const queryEnabled = enabled && (isTenantAgnostic || !!tenant?.id);
+
+  // Cache deve ser particionado por tenant. Para queries de tabelas tenant-scoped,
+  // sempre anexamos tenant?.id ao queryKey customizado — do contrário dados do
+  // tenant A vazariam pelo cache do TanStack Query para o tenant B no próximo
+  // login (mesmo com RLS correto, o cache do cliente carrega os dados antigos).
+  const finalQueryKey = queryKey
+    ? (isTenantAgnostic ? queryKey : [...queryKey, tenant?.id])
+    : [table, select, allFilters, order || orderBy, limit, tenant?.id];
+
   return useQuery({
-    queryKey: queryKey || [table, select, allFilters, order || orderBy, limit, tenant?.id],
+    queryKey: finalQueryKey,
     queryFn: async () => {
       try {
         let query = supabase.from(table).select(select);
 
-        // Filtrar por tenant automaticamente se não for a tabela profiles, tenants ou affiliates
-        if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates' && table !== 'admin_users_view') {
+        if (!isTenantAgnostic) {
+          if (!tenant?.id) {
+            // Não deve ocorrer porque enabled bloqueia; aqui é só defense-in-depth.
+            logger.warn(`useSupabaseQuery(${table}) chamada sem tenant — bloqueada.`);
+            throw new Error(`tenant_id é obrigatório para consultar ${table}`);
+          }
           query = query.eq('tenant_id', tenant.id);
         }
 
@@ -122,16 +160,18 @@ export function useSupabaseQuery(options: UseSupabaseQueryOptions) {
 
         return data || [];
       } catch (error) {
-        console.error(`Erro ao executar query na tabela ${table}:`, error);
-        toast({
-          title: 'Erro ao carregar dados',
-          description: `Falha ao carregar dados da tabela ${table}`,
-          variant: 'destructive',
-        });
+        logger.error(`Erro ao executar query na tabela ${table}`, { error });
+        if (!silent) {
+          toast({
+            title: 'Erro ao carregar dados',
+            description: `Falha ao carregar dados da tabela ${table}`,
+            variant: 'destructive',
+          });
+        }
         throw error;
       }
     },
-    enabled,
+    enabled: queryEnabled,
     refetchInterval,
     staleTime,
   });
@@ -150,13 +190,19 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
   const { tenant } = useTenant();
   const { toast } = useToast();
 
+  const isTenantAgnostic = TENANT_AGNOSTIC_TABLES.has(options.table);
+  const queryEnabled = (options.enabled ?? true) && (isTenantAgnostic || !!tenant?.id);
+
   return useQuery({
     queryKey: [options.table, 'single', options.filters, tenant?.id],
     queryFn: async () => {
       let query = supabase.from(options.table).select(options.select || '*');
 
-      // Filtrar por tenant automaticamente
-      if (tenant?.id && options.table !== 'profiles' && options.table !== 'tenants' && options.table !== 'affiliates' && options.table !== 'admin_users_view') {
+      if (!isTenantAgnostic) {
+        if (!tenant?.id) {
+          logger.warn(`useSupabaseQuerySingle(${options.table}) chamada sem tenant — bloqueada.`);
+          throw new Error(`tenant_id é obrigatório para consultar ${options.table}`);
+        }
         query = query.eq('tenant_id', tenant.id);
       }
 
@@ -211,7 +257,7 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
 
       return data;
     },
-    enabled: options.enabled,
+    enabled: queryEnabled,
   });
 }
 
@@ -219,10 +265,12 @@ export function useSupabaseQuerySingle(options: UseSupabaseQueryOptions) {
 export function useSupabaseCount(
   table: string,
   filters?: QueryFilter[],
-  options?: { enabled?: boolean; refetchInterval?: number; staleTime?: number }
+  options?: { enabled?: boolean; refetchInterval?: number; staleTime?: number; silent?: boolean }
 ) {
   const { tenant } = useTenant();
   const { toast } = useToast();
+
+  const isTenantAgnostic = TENANT_AGNOSTIC_TABLES.has(table);
 
   return useQuery({
     queryKey: ['count', table, filters, tenant?.id],
@@ -231,8 +279,11 @@ export function useSupabaseCount(
         .from(table)
         .select('*', { count: 'exact', head: true });
 
-      // Filtrar por tenant automaticamente
-      if (tenant?.id && table !== 'profiles' && table !== 'tenants' && table !== 'affiliates' && table !== 'admin_users_view') {
+      if (!isTenantAgnostic) {
+        if (!tenant?.id) {
+          logger.warn(`useSupabaseCount(${table}) chamada sem tenant — bloqueada.`);
+          throw new Error(`tenant_id é obrigatório para consultar ${table}`);
+        }
         query = query.eq('tenant_id', tenant.id);
       }
 
@@ -277,18 +328,20 @@ export function useSupabaseCount(
       const { count, error } = await query;
 
       if (error) {
-        console.error(`Erro ao contar registros na tabela ${table}:`, error);
-        toast({
-          title: 'Erro ao contar registros',
-          description: error.message,
-          variant: 'destructive',
-        });
+        logger.error(`Erro ao contar registros na tabela ${table}`, { error });
+        if (!options?.silent) {
+          toast({
+            title: 'Erro ao contar registros',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
         throw error;
       }
 
       return count || 0;
     },
-    enabled: options?.enabled ?? !!tenant?.id,
+    enabled: (options?.enabled ?? true) && (isTenantAgnostic || !!tenant?.id),
     refetchInterval: options?.refetchInterval,
     staleTime: options?.staleTime,
   });

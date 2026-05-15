@@ -1,13 +1,14 @@
 import { Badge } from '@/components/ui/badge';
-import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
+import { AnyUserRole, UserRole, normalizeRole, roleLabel } from '@/types/userHierarchy';
 
 const VARIANTS: Record<UserRole, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   superadmin: 'destructive',
-  account_manager: 'default',
-  enterprise: 'secondary',
-  user: 'outline',
+  agencia: 'default',
+  loja: 'secondary',
 };
 
-export function RoleBadge({ role }: { role: UserRole }) {
-  return <Badge variant={VARIANTS[role]}>{ROLE_LABELS[role]}</Badge>;
+export function RoleBadge({ role }: { role: AnyUserRole }) {
+  const normalized = normalizeRole(role);
+  if (!normalized) return <Badge variant="outline">Desconhecido</Badge>;
+  return <Badge variant={VARIANTS[normalized]}>{roleLabel(normalized)}</Badge>;
 }

@@ -90,7 +90,7 @@ export const WahaApiForm = ({ values, onChange, loading }: Props) => {
         />
         <p className="text-xs text-muted-foreground">
           Se o servidor WAHA já é compartilhado com outras integrações (ex.: n8n),{' '}
-          escolha um nome único por tenant para evitar conflito de pareamento.
+          escolha um nome único por Conta para evitar conflito de pareamento.
         </p>
       </div>
 

@@ -11,6 +11,7 @@ interface MetricCardProps {
   trend?: {
     value: number;
     isPositive: boolean;
+    label?: string;
   };
   className?: string;
   href?: string;
@@ -71,7 +72,7 @@ export const MetricCard = ({
             <span className="mr-1">
               {trend.isPositive ? "↗" : "↘"}
             </span>
-            {Math.abs(trend.value)}% em relação ao mês anterior
+            {Math.abs(trend.value).toFixed(1)}% {trend.label ?? 'em relação ao período anterior'}
           </div>
         )}
       </CardContent>

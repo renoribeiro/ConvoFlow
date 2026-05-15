@@ -1,34 +1,56 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { 
-  Bell, 
-  Mail, 
-  MessageSquare, 
-  Users, 
-  TrendingUp, 
+import {
+  Bell,
+  MessageSquare,
+  Users,
+  TrendingUp,
   Settings,
   Check,
   X,
   Clock,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
 interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: NotificationType;
   isRead: boolean;
   timestamp: string;
   icon: React.ReactNode;
 }
+
+const TYPE_TO_STATUS: Record<NotificationType, 'info' | 'success' | 'warning' | 'danger'> = {
+  info: 'info',
+  success: 'success',
+  warning: 'warning',
+  error: 'danger',
+};
+
+const TYPE_LABELS: Record<NotificationType, string> = {
+  info: 'Info',
+  success: 'Sucesso',
+  warning: 'Alerta',
+  error: 'Erro',
+};
+
+const TYPE_ICON_CLASS: Record<NotificationType, string> = {
+  success: 'text-emerald-600 bg-emerald-50',
+  warning: 'text-amber-600 bg-amber-50',
+  error: 'text-red-600 bg-red-50',
+  info: 'text-sky-600 bg-sky-50',
+};
 
 const mockNotifications: Notification[] = [
   {
@@ -38,7 +60,7 @@ const mockNotifications: Notification[] = [
     type: 'info',
     isRead: false,
     timestamp: '2 minutos atrás',
-    icon: <MessageSquare className="w-4 h-4" />
+    icon: <MessageSquare className="w-4 h-4" />,
   },
   {
     id: '2',
@@ -47,7 +69,7 @@ const mockNotifications: Notification[] = [
     type: 'success',
     isRead: false,
     timestamp: '15 minutos atrás',
-    icon: <TrendingUp className="w-4 h-4" />
+    icon: <TrendingUp className="w-4 h-4" />,
   },
   {
     id: '3',
@@ -56,7 +78,7 @@ const mockNotifications: Notification[] = [
     type: 'warning',
     isRead: true,
     timestamp: '1 hora atrás',
-    icon: <Clock className="w-4 h-4" />
+    icon: <Clock className="w-4 h-4" />,
   },
   {
     id: '4',
@@ -65,17 +87,17 @@ const mockNotifications: Notification[] = [
     type: 'info',
     isRead: true,
     timestamp: '2 horas atrás',
-    icon: <Users className="w-4 h-4" />
+    icon: <Users className="w-4 h-4" />,
   },
   {
     id: '5',
     title: 'Problema de conexão',
-    message: 'WhatsApp desconectado - verificar configurações',
+    message: 'WhatsApp desconectado — verificar configurações',
     type: 'error',
     isRead: false,
     timestamp: '3 horas atrás',
-    icon: <AlertCircle className="w-4 h-4" />
-  }
+    icon: <AlertCircle className="w-4 h-4" />,
+  },
 ];
 
 export default function Notifications() {
@@ -86,261 +108,164 @@ export default function Notifications() {
     whatsappMessages: true,
     funnelUpdates: true,
     followupReminders: true,
-    systemAlerts: true
+    systemAlerts: true,
   });
   const { toast } = useToast();
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    toast({
-      title: "Todas as notificações foram marcadas como lidas",
-    });
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    toast({ title: 'Todas as notificações foram marcadas como lidas' });
   };
 
   const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'success': return 'text-green-600 bg-green-100';
-      case 'warning': return 'text-yellow-600 bg-yellow-100';
-      case 'error': return 'text-red-600 bg-red-100';
-      default: return 'text-blue-600 bg-blue-100';
-    }
-  };
-
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'success': return 'bg-green-100 text-green-800';
-      case 'warning': return 'bg-yellow-100 text-yellow-800';
-      case 'error': return 'bg-red-100 text-red-800';
-      default: return 'bg-blue-100 text-blue-800';
-    }
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Notificações"
-        description={`Gerencie suas notificações e preferências (${unreadCount} não lidas)`}
+        description={`${unreadCount} não lida${unreadCount !== 1 ? 's' : ''}`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Notificações' }
+          { label: 'Notificações' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
-              <Check className="w-4 h-4 mr-2" />
-              Marcar todas como lidas
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={markAllAsRead} disabled={unreadCount === 0}>
+            <Check className="w-4 h-4 mr-2" />
+            Marcar todas como lidas
+          </Button>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Notifications List */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* Lista */}
+        <div className="lg:col-span-2">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bell className="w-4 h-4" />
                 Notificações Recentes
-                {unreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-2">
-                    {unreadCount}
-                  </Badge>
-                )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-4 rounded-lg border transition-all duration-200 ${
-                    notification.isRead 
-                      ? 'bg-muted/20 border-muted' 
-                      : 'bg-card border-primary/20 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-full ${getTypeColor(notification.type)}`}>
-                      {notification.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className={`font-medium text-sm ${
-                            notification.isRead ? 'text-muted-foreground' : 'text-foreground'
-                          }`}>
-                            {notification.title}
-                          </h4>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {notification.message}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {notification.timestamp}
-                            </span>
-                            <Badge variant="outline" className={getTypeBadge(notification.type)}>
-                              {notification.type}
-                            </Badge>
+            <CardContent className="space-y-2">
+              {notifications.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  Nenhuma notificação
+                </p>
+              ) : (
+                notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-3 rounded-md border transition-colors ${
+                      notification.isRead
+                        ? 'bg-muted/20 border-muted'
+                        : 'bg-card border-border shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`p-1.5 rounded-full flex-shrink-0 ${TYPE_ICON_CLASS[notification.type]}`}
+                      >
+                        {notification.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4
+                              className={`text-sm font-medium leading-snug ${
+                                notification.isRead ? 'text-muted-foreground' : 'text-foreground'
+                              }`}
+                            >
+                              {notification.title}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                              {notification.message}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[10px] text-muted-foreground">
+                                {notification.timestamp}
+                              </span>
+                              <StatusBadge status={TYPE_TO_STATUS[notification.type]}>
+                                {TYPE_LABELS[notification.type]}
+                              </StatusBadge>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {!notification.isRead && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {!notification.isRead && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => markAsRead(notification.id)}
+                                title="Marcar como lida"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
-                              size="sm"
-                              onClick={() => markAsRead(notification.id)}
-                              className="h-8 w-8 p-0"
+                              size="icon"
+                              className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => deleteNotification(notification.id)}
+                              title="Excluir notificação"
                             >
-                              <Check className="w-4 h-4" />
+                              <X className="w-3.5 h-3.5" />
                             </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteNotification(notification.id)}
-                            className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Preferences */}
-        <div className="space-y-4">
+        {/* Preferências */}
+        <div>
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Settings className="w-4 h-4" />
                 Preferências
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="email-notifications">Email</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Receber notificações por email
-                    </p>
+            <CardContent className="space-y-4">
+              {[
+                { id: 'email', label: 'Email', desc: 'Receber notificações por email', key: 'emailNotifications' as const },
+                { id: 'push', label: 'Push', desc: 'Notificações no navegador', key: 'pushNotifications' as const },
+                { id: 'whatsapp', label: 'WhatsApp', desc: 'Novas mensagens recebidas', key: 'whatsappMessages' as const },
+                { id: 'funnel', label: 'Funil', desc: 'Mudanças no funil de vendas', key: 'funnelUpdates' as const },
+                { id: 'followup', label: 'Follow-ups', desc: 'Lembretes de follow-up', key: 'followupReminders' as const },
+                { id: 'system', label: 'Sistema', desc: 'Alertas do sistema', key: 'systemAlerts' as const },
+              ].map((item, idx, arr) => (
+                <div key={item.id}>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor={item.id} className="text-sm font-medium">
+                        {item.label}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <Switch
+                      id={item.id}
+                      checked={preferences[item.key]}
+                      onCheckedChange={(checked) =>
+                        setPreferences((prev) => ({ ...prev, [item.key]: checked }))
+                      }
+                    />
                   </div>
-                  <Switch
-                    id="email-notifications"
-                    checked={preferences.emailNotifications}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, emailNotifications: checked}))
-                    }
-                  />
+                  {idx < arr.length - 1 && <Separator className="mt-4" />}
                 </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="push-notifications">Push</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Notificações push no navegador
-                    </p>
-                  </div>
-                  <Switch
-                    id="push-notifications"
-                    checked={preferences.pushNotifications}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, pushNotifications: checked}))
-                    }
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="whatsapp-messages">WhatsApp</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Novas mensagens recebidas
-                    </p>
-                  </div>
-                  <Switch
-                    id="whatsapp-messages"
-                    checked={preferences.whatsappMessages}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, whatsappMessages: checked}))
-                    }
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="funnel-updates">Funil</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Mudanças no funil de vendas
-                    </p>
-                  </div>
-                  <Switch
-                    id="funnel-updates"
-                    checked={preferences.funnelUpdates}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, funnelUpdates: checked}))
-                    }
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="followup-reminders">Follow-ups</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Lembretes de follow-up
-                    </p>
-                  </div>
-                  <Switch
-                    id="followup-reminders"
-                    checked={preferences.followupReminders}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, followupReminders: checked}))
-                    }
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="system-alerts">Sistema</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Alertas do sistema
-                    </p>
-                  </div>
-                  <Switch
-                    id="system-alerts"
-                    checked={preferences.systemAlerts}
-                    onCheckedChange={(checked) => 
-                      setPreferences(prev => ({...prev, systemAlerts: checked}))
-                    }
-                  />
-                </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </div>
