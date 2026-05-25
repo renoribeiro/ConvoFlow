@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createLogger } from '../_shared/logger.ts';
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts';
+import { verifyMetaSignature } from '../_shared/cryptoSignature.ts';
 import {
   checkRateLimitDb,
   getRateLimitIdentifier,
@@ -30,6 +31,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const verifyTokenEnv = Deno.env.get('META_GLOBAL_VERIFY_TOKEN');
+  const appSecret = Deno.env.get('META_APP_SECRET');
 
   if (!supabaseUrl || !supabaseServiceKey) {
     logger.error('Missing Supabase configuration');
@@ -81,7 +83,40 @@ serve(async (req) => {
   }
 
   try {
-    const payload = await req.json();
+    // Read the raw body BEFORE parsing so we can verify the HMAC against the
+    // exact bytes Meta signed. JSON.parse must run on the same string.
+    const rawBody = await req.text();
+
+    if (!appSecret) {
+      logger.error('META_APP_SECRET is not configured');
+      return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      });
+    }
+
+    const signatureHeader = req.headers.get('x-hub-signature-256');
+    const signatureValid = await verifyMetaSignature(rawBody, signatureHeader, appSecret);
+    if (!signatureValid) {
+      logger.warn('Invalid Meta webhook signature', {
+        hasHeader: !!signatureHeader,
+      });
+      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
+    }
+
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      logger.warn('Meta webhook body is not valid JSON');
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
 
     if (payload.object !== 'whatsapp_business_account') {
       logger.warn('Unexpected webhook object', { object: payload.object });
@@ -160,6 +195,22 @@ async function handleIncomingMessage(
 
   if (!content || !messageId) {
     logger.info('Skipping Meta message without text content', { type: msg.type });
+    return;
+  }
+
+  // Webhooks are at-least-once. Drop duplicates before invoking the RPC so we
+  // don't double-fire downstream automations on the same wamid.
+  const { data: existing, error: dedupError } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('evolution_message_id', messageId)
+    .limit(1)
+    .maybeSingle();
+
+  if (dedupError) {
+    logger.warn('Meta dedup lookup failed, proceeding anyway', { error: dedupError.message });
+  } else if (existing) {
+    logger.info('Meta message already processed, skipping', { id: messageId });
     return;
   }
 

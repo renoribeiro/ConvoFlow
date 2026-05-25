@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
             <CardHeader>
               <CardTitle className="text-3xl text-center">Política de Privacidade</CardTitle>
               <p className="text-center text-muted-foreground">
-                Última atualização: Janeiro de 2025 • Conforme LGPD
+                Última atualização: 25 de maio de 2026 • Conforme LGPD
               </p>
             </CardHeader>
             <CardContent className="prose prose-slate dark:prose-invert max-w-none">
@@ -39,14 +39,21 @@ export default function PrivacyPolicy() {
                     <h2 className="text-xl font-semibold mb-0">1. Informações Gerais</h2>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Esta Política de Privacidade descreve como a ConvoFlow coleta, usa, armazena e protege suas informações pessoais, 
+                    Esta Política de Privacidade descreve como o ConvoFlow coleta, usa, armazena e protege suas informações pessoais,
                     em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei 13.709/2018) e demais legislações aplicáveis.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed mt-3">
+                    O ConvoFlow é uma plataforma de automação para WhatsApp operada por
+                    <strong> RE9 ONLINE BRANDING LTDA</strong>, inscrita no CNPJ sob nº 27.286.273/0001-09,
+                    com sede na Rua Barbosa de Freitas, nº 1741, Sala 04, Aldeota, Fortaleza/CE,
+                    CEP 60.170-021 (doravante denominada simplesmente "ConvoFlow" ou "Controladora").
                   </p>
                   <div className="mt-4 p-4 bg-background rounded border-l-4 border-primary">
                     <p className="text-sm text-muted-foreground mb-0">
-                      <strong>Controlador:</strong> ConvoFlow Ltda.<br />
-                      <strong>DPO (Encarregado):</strong> privacy@convoflow.com<br />
-                      <strong>Contato:</strong> Rua Exemplo, 123 - São Paulo, SP
+                      <strong>Controladora:</strong> RE9 ONLINE BRANDING LTDA (CNPJ 27.286.273/0001-09)<br />
+                      <strong>Encarregado de Dados (DPO):</strong> privacidade@convoflow.com.br<br />
+                      <strong>Endereço:</strong> Rua Barbosa de Freitas, 1741, Sala 04, Aldeota, Fortaleza/CE, CEP 60.170-021<br />
+                      <strong>Telefone:</strong> (85) 99176-4169
                     </p>
                   </div>
                 </section>
@@ -143,8 +150,87 @@ export default function PrivacyPolicy() {
                   </div>
                 </section>
 
+                <section className="bg-green-50 dark:bg-green-950/20 p-6 rounded-lg border border-green-200 dark:border-green-900">
+                  <h2 className="text-xl font-semibold mb-4">5. Integração com WhatsApp Business e Meta Platforms</h2>
+                  <p className="text-muted-foreground leading-relaxed mb-4">
+                    O ConvoFlow se integra à <strong>WhatsApp Business Platform</strong> (Meta Cloud API) e à infraestrutura
+                    da <strong>Meta Platforms, Inc.</strong> para viabilizar o envio e recebimento de mensagens em nome de
+                    nossos clientes. Esta seção descreve, em conformidade com as exigências da Meta e da LGPD, como esses
+                    dados são tratados.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-medium mb-2">Dados transmitidos à Meta:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>Números de telefone de remetentes e destinatários (formato E.164)</li>
+                        <li>Conteúdo das mensagens enviadas (texto, mídia, templates, mensagens interativas)</li>
+                        <li>Metadados técnicos: timestamps, identificadores de mensagem (wamid), status de entrega</li>
+                        <li>Identificadores da conta WhatsApp Business (Phone Number ID e WABA ID)</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Finalidades:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>Roteamento e entrega de mensagens entre cliente e destinatário final</li>
+                        <li>Confirmação de leitura, entrega e métricas de engajamento</li>
+                        <li>Cumprimento das políticas da Meta sobre janelas de atendimento de 24 horas e uso de templates</li>
+                        <li>Prevenção a fraudes, spam e abuso da plataforma WhatsApp</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Bases legais e responsabilidades:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>
+                          <strong>Execução de contrato</strong> com o cliente que contratou o ConvoFlow e
+                          <strong> consentimento</strong> dos destinatários finais (opt-in), conforme exigido pela
+                          WhatsApp Business Policy.
+                        </li>
+                        <li>
+                          A Meta atua como <strong>operadora</strong> dos dados de mensageria conforme seus próprios termos e
+                          política de privacidade, disponíveis em{' '}
+                          <a href="https://www.whatsapp.com/legal/business-policy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                            whatsapp.com/legal/business-policy
+                          </a>{' '}
+                          e{' '}
+                          <a href="https://www.facebook.com/privacy/policy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                            facebook.com/privacy/policy
+                          </a>.
+                        </li>
+                        <li>
+                          O cliente do ConvoFlow é responsável por obter o consentimento prévio e expresso dos
+                          destinatários antes de iniciar qualquer comunicação por WhatsApp e por respeitar pedidos de
+                          descadastramento (opt-out).
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Retenção e exclusão:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>O conteúdo das mensagens é armazenado em nossa infraestrutura pelo prazo configurado pelo cliente, com limite máximo de 2 (dois) anos.</li>
+                        <li>O wamid e metadados de status são retidos pelo mesmo prazo para fins de auditoria e suporte.</li>
+                        <li>A Meta mantém os dados conforme seus próprios prazos, descritos na política de privacidade da Meta.</li>
+                        <li>Mediante solicitação do titular, podemos excluir o histórico armazenado em nossos servidores; a exclusão na Meta deve ser solicitada diretamente a ela.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Transferência internacional:</h3>
+                      <p className="text-muted-foreground">
+                        Por se tratar de empresa sediada nos Estados Unidos, a Meta processa parte dos dados em servidores
+                        fora do Brasil. A transferência é amparada pelas hipóteses do art. 33 da LGPD,
+                        em especial pela execução de contrato e pelo consentimento específico do titular ao utilizar o
+                        WhatsApp.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">5. Armazenamento e Segurança</h2>
+                  <h2 className="text-xl font-semibold mb-4">6. Armazenamento e Segurança</h2>
                   <div className="space-y-4">
                     <div>
                       <h3 className="font-medium mb-2">Período de Retenção:</h3>
@@ -170,7 +256,7 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section className="bg-primary/5 p-6 rounded-lg border">
-                  <h2 className="text-xl font-semibold mb-4">6. Seus Direitos (LGPD)</h2>
+                  <h2 className="text-xl font-semibold mb-4">7. Seus Direitos (LGPD)</h2>
                   <p className="text-muted-foreground mb-4">
                     Como titular de dados pessoais, você possui os seguintes direitos:
                   </p>
@@ -220,14 +306,14 @@ export default function PrivacyPolicy() {
                   
                   <div className="mt-4 p-4 bg-background rounded border">
                     <p className="text-sm text-muted-foreground mb-0">
-                      <strong>Como exercer seus direitos:</strong> Entre em contato através do e-mail privacy@convoflow.com 
+                      <strong>Como exercer seus direitos:</strong> Entre em contato através do e-mail privacidade@convoflow.com.br
                       ou pela área de configurações da plataforma. Responderemos em até 15 dias úteis.
                     </p>
                   </div>
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">7. Cookies e Tecnologias Similares</h2>
+                  <h2 className="text-xl font-semibold mb-4">8. Cookies e Tecnologias Similares</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Utilizamos cookies essenciais para o funcionamento da plataforma, cookies de performance para melhorar 
                     a experiência e cookies de funcionalidade para personalização. Você pode gerenciar suas preferências 
@@ -236,7 +322,7 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">8. Alterações na Política</h2>
+                  <h2 className="text-xl font-semibold mb-4">9. Alterações na Política</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Esta política pode ser atualizada periodicamente. Notificaremos sobre mudanças significativas 
                     por e-mail e através da plataforma. Recomendamos revisar esta política regularmente.
@@ -244,7 +330,7 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">9. Base Legal para Tratamento</h2>
+                  <h2 className="text-xl font-semibold mb-4">10. Base Legal para Tratamento</h2>
                   <div className="space-y-2 text-muted-foreground">
                     <p><strong>Execução de contrato:</strong> Prestação dos serviços contratados</p>
                     <p><strong>Interesse legítimo:</strong> Melhorias, segurança e prevenção à fraude</p>
@@ -258,12 +344,15 @@ export default function PrivacyPolicy() {
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p><strong>Encarregado de Dados (DPO):</strong></p>
-                      <p>privacy@convoflow.com</p>
-                      <p>Tel: (11) 9999-9999</p>
+                      <p>privacidade@convoflow.com.br</p>
+                      <p>Tel: (85) 99176-4169</p>
+                      <p>RE9 ONLINE BRANDING LTDA</p>
+                      <p>Rua Barbosa de Freitas, 1741, Sala 04</p>
+                      <p>Aldeota, Fortaleza/CE — CEP 60.170-021</p>
                     </div>
                     <div>
                       <p><strong>Autoridade Nacional (ANPD):</strong></p>
-                      <p>Se não ficar satisfeito com nossa resposta, pode contactar a ANPD</p>
+                      <p>Se não ficar satisfeito com nossa resposta, você pode contatar a ANPD</p>
                       <p>www.gov.br/anpd</p>
                     </div>
                   </div>
