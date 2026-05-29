@@ -147,6 +147,8 @@ export function createErrorResponse(error: SecureError | Error, requestId?: stri
 
 // CORS headers — restrito a origens específicas em produção
 const ALLOWED_ORIGINS = [
+  'https://convoflow.com.br',
+  'https://www.convoflow.com.br',
   'https://convoflow.vercel.app',
   'https://www.convoflow.vercel.app',
 ];
