@@ -210,14 +210,24 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
         .eq('user_id', user!.id)
         .single();
 
+      // Persistir provider + connection_config é o que faz o EvolutionAdapter
+      // conseguir instanciar a partir do row (senão joga AUTH_FAILED e o
+      // useWhatsAppApi filtra a instância fora do seletor de Conversas).
       const instanceData = {
         instance_key: name,
         name,
         tenant_id: profile!.tenant_id,
+        provider: 'evolution',
+        connection_config: {
+          baseUrl: service.baseUrl,
+          apiKey: service.apiKey,
+        },
         status: result?.status || 'disconnected',
         webhook_url: result?.webhookUrl || webhookUrl,
         webhook_configured: result?.webhookConfigured || false,
-        webhook_events: enableAutomation ? ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE'] : null,
+        webhook_events: enableAutomation
+          ? ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE']
+          : null,
         // @ts-ignore
         automation_enabled: enableAutomation
       };

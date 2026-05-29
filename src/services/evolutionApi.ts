@@ -29,8 +29,10 @@ import { ValidationSchemas, validateInput, UrlSanitizer } from '../lib/validatio
 import { toast } from 'sonner';
 
 export class EvolutionApiService {
-  private baseUrl: string;
-  private apiKey: string;
+  // Public readonly para o hook conseguir gravar em whatsapp_instances.connection_config
+  // sem reabrir tenants.settings ou .env — a fonte da verdade fica no service ativo.
+  public readonly baseUrl: string;
+  public readonly apiKey: string;
 
   constructor(baseUrl: string, apiKey: string) {
     // Validate and sanitize inputs
@@ -85,14 +87,12 @@ export class EvolutionApiService {
 
 
       if (!response.ok) {
-        let errorData;
+        const rawBody = await response.text();
+        let errorData: any;
         try {
-          errorData = await response.json();
-
+          errorData = rawBody ? JSON.parse(rawBody) : { message: response.statusText };
         } catch {
-          const errorText = await response.text();
-
-          errorData = { message: errorText };
+          errorData = { message: rawBody || response.statusText };
         }
 
         // Tratamento específico para erros de chave estrangeira do Evolution API
@@ -174,7 +174,9 @@ export class EvolutionApiService {
           'CONNECTION_UPDATE',
           'MESSAGES_UPSERT',
           'MESSAGES_UPDATE',
-          'SEND_MESSAGE'
+          'SEND_MESSAGE',
+          'CONTACTS_UPSERT',
+          'CONTACTS_UPDATE'
         ]
       };
     }
@@ -262,7 +264,9 @@ export class EvolutionApiService {
       'CONNECTION_UPDATE',
       'MESSAGES_UPSERT',
       'MESSAGES_UPDATE',
-      'SEND_MESSAGE'
+      'SEND_MESSAGE',
+      'CONTACTS_UPSERT',
+      'CONTACTS_UPDATE'
     ];
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {

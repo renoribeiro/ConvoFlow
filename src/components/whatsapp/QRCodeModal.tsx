@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, QrCode, Smartphone, Copy } from 'lucide-react';
+import { Loader2, RefreshCw, QrCode, Smartphone, Copy, CheckCircle2 } from 'lucide-react';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { toast } from '@/hooks/use-toast';
 
@@ -26,7 +26,9 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { connectInstance } = useEvolutionApi();
+  const [connected, setConnected] = useState(false);
+  const { connectInstance, refreshInstanceStatus, refreshInstances } = useEvolutionApi();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchConnectionData = async () => {
     if (!instanceName) return;
@@ -82,10 +84,48 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     }
   }, [isOpen, instanceName]);
 
+  // Polling do status: quando state vira "open", mostra sucesso e fecha o modal.
+  useEffect(() => {
+    if (!isOpen || !instanceName || connected) return;
+
+    const stopPolling = () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const state = await refreshInstanceStatus(instanceName);
+        if (state === 'open') {
+          stopPolling();
+          setConnected(true);
+          await refreshInstances();
+          toast({
+            title: 'Conectado!',
+            description: `Instância ${instanceName} pareada com sucesso.`,
+          });
+          setTimeout(() => handleClose(), 1500);
+        }
+      } catch (err) {
+        // Erros transientes durante polling não devem encerrar — só logar.
+        console.warn('[QRCodeModal] Falha ao checar status:', err);
+      }
+    }, 3000);
+
+    return stopPolling;
+  }, [isOpen, instanceName, connected, refreshInstanceStatus, refreshInstances]);
+
   const handleClose = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     setQrCode(null);
     setPairingCode(null);
     setError(null);
+    setConnected(false);
     onClose();
   };
 
@@ -103,14 +143,22 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-4">
-          {loading && (
+          {connected && (
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+              <CheckCircle2 className="h-12 w-12 text-green-600" />
+              <p className="font-medium text-green-700">Conectado com sucesso!</p>
+              <p className="text-sm text-gray-600">Fechando...</p>
+            </div>
+          )}
+
+          {loading && !connected && (
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
               <p className="text-sm text-gray-600">Conectando instância...</p>
             </div>
           )}
 
-          {error && (
+          {error && !connected && (
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
               <div className="text-red-500 text-center">
                 <p className="font-medium">Erro ao conectar instância</p>
@@ -123,7 +171,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
             </div>
           )}
 
-          {(qrCode || pairingCode) && !loading && !error && (
+          {(qrCode || pairingCode) && !loading && !error && !connected && (
             <div className="space-y-6">
               {/* Código de Pareamento */}
               {pairingCode && (
