@@ -1,7 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Bell, Search, User, ChevronDown, Menu, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AnyUserRole, roleLabel as roleLabelHelper } from '@/types/userHierarchy';
 import { RoleBadge } from '@/components/users/RoleBadge';
+import { CommandPalette } from '@/components/layout/CommandPalette';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -26,6 +27,19 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
   const { tenant, profile, loading: tenantLoading } = useTenant();
   const { logout } = useAuth();
   const isSuperAdmin = useIsSuperAdmin();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Atalho global ⌘K / Ctrl+K para abrir a busca.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setPaletteOpen((current) => !current);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const displayName = tenantLoading
     ? 'Carregando...'
@@ -50,16 +64,28 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
           <Menu className="h-4 w-4" />
         </Button>
 
-        <div className="relative hidden sm:block">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Buscar..."
-            className="pl-8 h-8 w-56 text-sm bg-muted/50 border-0 focus-visible:ring-1 focus-visible:bg-background"
-          />
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Abrir busca (Ctrl+K)"
+          className="relative hidden sm:flex items-center h-8 w-56 rounded-md bg-muted/50 hover:bg-muted text-sm text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
+        >
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+          <span className="pl-8 pr-12">Buscar...</span>
           <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             ⌘K
           </kbd>
-        </div>
+        </button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Abrir busca"
+          className="sm:hidden h-8 w-8"
+        >
+          <Search className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Right */}
@@ -131,6 +157,8 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </header>
   );
 };
