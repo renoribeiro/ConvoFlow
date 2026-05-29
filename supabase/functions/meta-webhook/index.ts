@@ -98,8 +98,29 @@ serve(async (req) => {
     const signatureHeader = req.headers.get('x-hub-signature-256');
     const signatureValid = await verifyMetaSignature(rawBody, signatureHeader, appSecret);
     if (!signatureValid) {
+      // Logging detalhado para diagnóstico — quando aparecem 401s recorrentes,
+      // estes campos identificam a fonte:
+      // - userAgent: distingue Meta (facebookplatform/...) de bots/scanners
+      // - sourceIp: identifica origem (Meta vs. outro lugar)
+      // - bodyAppId: identifica QUAL Meta App está enviando (apps diferentes
+      //   têm secrets diferentes — útil quando há mais de um app apontando
+      //   pra esta URL)
+      let bodyAppId: string | undefined;
+      try {
+        const peek = JSON.parse(rawBody);
+        bodyAppId = peek?.entry?.[0]?.id;
+      } catch {
+        // body não é JSON válido — provavelmente scanner ou request malformado
+      }
       logger.warn('Invalid Meta webhook signature', {
         hasHeader: !!signatureHeader,
+        userAgent: req.headers.get('user-agent'),
+        sourceIp:
+          req.headers.get('cf-connecting-ip') ||
+          req.headers.get('x-real-ip') ||
+          req.headers.get('x-forwarded-for'),
+        bodyAppId,
+        bodyLength: rawBody.length,
       });
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
