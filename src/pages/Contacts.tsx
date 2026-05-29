@@ -4,17 +4,20 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { ContactsTable } from '@/components/contacts/ContactsTable';
 import { ContactModal } from '@/components/contacts/ContactModal';
 import { ContactFilters } from '@/components/contacts/ContactFilters';
+import { InstanceSelector } from '@/components/conversations/InstanceSelector';
 import { Plus, Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
 
 export default function Contacts() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     search: '',
     stage: '',
@@ -22,6 +25,7 @@ export default function Contacts() {
     tags: []
   });
   const { tenant } = useTenant();
+  const { instances } = useWhatsAppInstancesWithAdapter();
 
   const handleImport = () => {
     fileInputRef.current?.click();
@@ -66,7 +70,7 @@ export default function Contacts() {
     toast.info('Preparando exportação...');
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('contacts')
         .select(`
           name,
@@ -77,8 +81,13 @@ export default function Contacts() {
           stage:funnel_stages!contacts_current_stage_id_fkey ( name ),
           lead_sources:lead_source_id ( name )
         `)
-        .eq('tenant_id', tenant.id)
-        .order('created_at', { ascending: false });
+        .eq('tenant_id', tenant.id);
+
+      if (activeInstanceId) {
+        query = query.eq('whatsapp_instance_id', activeInstanceId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -166,9 +175,20 @@ export default function Contacts() {
         </div>
         
         {/* Tabela à direita */}
-        <div className="flex-1">
+        <div className="flex-1 space-y-3 min-w-0">
+          {instances.length > 0 && (
+            <InstanceSelector
+              instances={instances}
+              selectedId={activeInstanceId}
+              onChange={(id) => setActiveInstanceId(id === '__all__' ? null : id)}
+            />
+          )}
           {/* Ajuste: abrir modal ao editar */}
-          <ContactsTable filters={filters} onEdit={(id) => { setSelectedContact(id); setIsModalOpen(true); }} />
+          <ContactsTable
+            filters={filters}
+            whatsappInstanceId={activeInstanceId}
+            onEdit={(id) => { setSelectedContact(id); setIsModalOpen(true); }}
+          />
         </div>
       </div>
 

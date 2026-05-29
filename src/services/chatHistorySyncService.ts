@@ -37,17 +37,21 @@ export interface SyncResult {
 /**
  * Extract a clean phone number from a WhatsApp JID.
  * Returns null for group JIDs or invalid numbers.
+ *
+ * Evolution V2 / Baileys novo retorna muitos chats com remoteJid em formato
+ * LID (`12345@lid`) e o phone real só aparece no `remoteJidAlt`. Quando o JID
+ * primário for LID, o caller passa `altJid` (vindo de lastMessage.key.remoteJidAlt)
+ * pra recuperarmos o phone.
  */
-function extractPhoneFromJid(jid: string): string | null {
-  if (!jid) return null;
-  // Ignore groups
-  if (jid.includes('@g.us')) return null;
-  // Ignore LIDs
-  if (jid.includes('@lid')) return null;
-  // Ignore status broadcasts
-  if (jid === 'status@broadcast') return null;
+function extractPhoneFromJid(jid: string, altJid?: string | null): string | null {
+  // Tenta com altJid quando o jid primário é LID/inutilizável.
+  const candidate = (jid && !jid.includes('@lid')) ? jid : (altJid || '');
+  if (!candidate) return null;
+  if (candidate.includes('@g.us')) return null;
+  if (candidate.includes('@lid')) return null; // ainda LID mesmo no alt — desiste
+  if (candidate === 'status@broadcast') return null;
 
-  const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  const phone = candidate.replace('@s.whatsapp.net', '').replace('@c.us', '');
   // basic validation: must be digits only and > 8 chars
   if (!/^\d{8,}$/.test(phone)) return null;
   return phone;
@@ -135,20 +139,27 @@ async function findOrCreateContact(
   profilePicUrl?: string
 ): Promise<string | null> {
   try {
-    // Try to find existing contact
+    // Try to find existing contact (escopo por instância)
     const { data: existing } = await supabase
       .from('contacts')
-      .select('id')
+      .select('id, name')
       .eq('phone', phone)
       .eq('tenant_id', tenantId)
+      .eq('whatsapp_instance_id', instanceId)
       .limit(1)
       .maybeSingle();
 
     if (existing) {
-      if (profilePicUrl) {
+      const updates: Record<string, unknown> = {};
+      if (profilePicUrl) updates.avatar_url = profilePicUrl;
+      // Promover name placeholder (igual ao phone) pro pushName recebido.
+      // Não sobrescreve nomes já editados pelo usuário.
+      const isPlaceholder = !existing.name || existing.name === phone;
+      if (pushName && isPlaceholder) updates.name = pushName;
+      if (Object.keys(updates).length > 0) {
         await supabase
           .from('contacts')
-          .update({ avatar_url: profilePicUrl })
+          .update(updates)
           .eq('id', existing.id);
       }
       return existing.id;
@@ -169,12 +180,13 @@ async function findOrCreateContact(
       .maybeSingle();
 
     if (error) {
-      // Could be a race condition, try to find again
+      // Could be a race condition, try to find again (escopo por instância)
       const { data: retryFind } = await supabase
         .from('contacts')
         .select('id')
         .eq('phone', phone)
         .eq('tenant_id', tenantId)
+        .eq('whatsapp_instance_id', instanceId)
         .limit(1)
         .maybeSingle();
       return retryFind?.id || null;
@@ -319,7 +331,14 @@ export async function syncChatHistory(
     for (const chat of individualChats) {
       try {
         const chatId = chat.remoteJid || chat.id || '';
-        const phone = extractPhoneFromJid(chatId);
+        // Evolution V2 envia remoteJidAlt dentro de lastMessage.key quando o JID
+        // primário é LID. Tentamos esses fallbacks pra resgatar o phone real.
+        const altJid =
+          chat.lastMessage?.key?.remoteJidAlt ||
+          chat.lastMessage?.remoteJidAlt ||
+          chat.remoteJidAlt ||
+          null;
+        const phone = extractPhoneFromJid(chatId, altJid);
 
         if (!phone) {
           progress.processedChats++;

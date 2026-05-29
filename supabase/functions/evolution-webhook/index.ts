@@ -252,14 +252,23 @@ async function processIncomingMessage(
   // Determine message content and type
   const { content: rawMessageContent, messageType } = extractMessageContent(message)
 
-  // Handle LID resolution: Use sender field to resolve real phone numbers
-  // In V2, remoteJid can be a LID (Link ID) instead of the real phone number
+  // Handle LID resolution: Evolution V2/Baileys novo manda remoteJid em
+  // formato LID (`12345@lid`). Tentamos em ordem:
+  //   1. sender field (já vem resolvido em alguns eventos)
+  //   2. key.remoteJidAlt (Baileys V2 traz o phone real aqui quando JID é LID)
+  //   3. key.remoteJid (fallback — só serve se não for LID)
   let rawPhone: string;
   if (sender && !sender.includes('@lid')) {
-    // Use sender field if it's a real phone number
     rawPhone = sender.replace('@s.whatsapp.net', '').replace('@c.us', '');
-  } else {
+  } else if ((key as any).remoteJidAlt && !(key as any).remoteJidAlt.includes('@lid')) {
+    rawPhone = (key as any).remoteJidAlt.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  } else if (!key.remoteJid.includes('@lid')) {
     rawPhone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+  } else {
+    logger.warn('Cannot resolve phone from LID — sender/remoteJidAlt/remoteJid all LID', {
+      sender, remoteJid: key.remoteJid, remoteJidAlt: (key as any).remoteJidAlt,
+    });
+    return;
   }
 
   const phone = DataSanitizer.sanitizePhoneNumber(rawPhone)
@@ -273,12 +282,14 @@ async function processIncomingMessage(
     return;
   }
 
-  // Find or Create Contact
+  // Find or Create Contact — escopo por instância (mesma pessoa em duas
+  // instâncias = dois contatos separados, conforme decisão do usuário).
   let { data: contact } = await supabase
     .from('contacts')
-    .select('id')
+    .select('id, name')
     .eq('phone', phone)
     .eq('tenant_id', instance.tenant_id)
+    .eq('whatsapp_instance_id', instance.id)
     .maybeSingle()
 
   if (!contact) {
@@ -287,18 +298,22 @@ async function processIncomingMessage(
       name: pushName || phone,
       tenant_id: instance.tenant_id,
       whatsapp_instance_id: instance.id
-    }).select('id').single();
+    }).select('id, name').single();
     contact = newContact;
+  } else if (pushName && (!contact.name || contact.name === phone)) {
+    // Contato existia com nome placeholder (igual ao phone) — promover ao pushName recebido.
+    await supabase
+      .from('contacts')
+      .update({ name: pushName, updated_at: new Date().toISOString() })
+      .eq('id', contact.id);
   }
 
   if (!contact) return;
 
-  // Preemptively update the conversation's whatsapp_instance_id to prevent trigger unique constraint failure
-  await supabase
-    .from('conversations')
-    .update({ whatsapp_instance_id: instance.id })
-    .eq('contact_id', contact.id)
-    .eq('tenant_id', instance.tenant_id);
+  // O trigger BEFORE INSERT handle_message_conversation agora busca conversa
+  // por (contact, tenant) — sem filtrar por instância — então não há mais
+  // risco de violar a UNIQUE constraint. Conversas mantêm o whatsapp_instance_id
+  // da instância que as criou, em vez de migrar a cada mensagem nova.
 
   // Save message to database
   await supabase.from('messages').insert({
@@ -429,17 +444,28 @@ async function processSentMessage(
   if (!key?.id || !key.fromMe) return;
 
   const { content, messageType } = extractMessageContent(message);
-  const rawPhone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+
+  // Resolução de LID (idem processIncomingMessage): tenta remoteJidAlt primeiro.
+  let rawPhone: string;
+  if ((key as any).remoteJidAlt && !(key as any).remoteJidAlt.includes('@lid')) {
+    rawPhone = (key as any).remoteJidAlt.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  } else if (!key.remoteJid.includes('@lid')) {
+    rawPhone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+  } else {
+    logger.warn('Sent message has LID remoteJid without alt — skip', { remoteJid: key.remoteJid });
+    return;
+  }
   const phone = DataSanitizer.sanitizePhoneNumber(rawPhone);
 
   if (!phone) return;
 
-  // Find the contact
+  // Find the contact — escopo por instância
   const { data: contact } = await supabase
     .from('contacts')
     .select('id')
     .eq('phone', phone)
     .eq('tenant_id', instance.tenant_id)
+    .eq('whatsapp_instance_id', instance.id)
     .maybeSingle();
 
   if (!contact) return;
@@ -453,12 +479,8 @@ async function processSentMessage(
 
   if (existingMsg) return;
 
-  // Preemptively update the conversation's whatsapp_instance_id to prevent trigger unique constraint failure
-  await supabase
-    .from('conversations')
-    .update({ whatsapp_instance_id: instance.id })
-    .eq('contact_id', contact.id)
-    .eq('tenant_id', instance.tenant_id);
+  // Trigger BEFORE INSERT já gerencia a conversa por (contact, tenant).
+  // Como contatos agora são per-instance, a conversa naturalmente também fica per-instance.
 
   await supabase.from('messages').insert({
     contact_id: contact.id,
@@ -536,19 +558,38 @@ async function processContactEvent(
     const sanitizedPhone = DataSanitizer.sanitizePhoneNumber(phone);
     if (!sanitizedPhone) continue;
 
-    // Upsert the contact
-    const { error } = await supabase
+    const pushName: string | undefined = contact.name || contact.pushName || contact.notify;
+    const profilePicUrl: string | undefined = contact.profilePicUrl || contact.profilePictureUrl;
+
+    // Buscar contato existente pra decidir entre INSERT e UPDATE seletivo.
+    // Lookup é por (phone, tenant, instance) — contatos são per-instance.
+    const { data: existing } = await supabase
       .from('contacts')
-      .upsert({
+      .select('id, name')
+      .eq('phone', sanitizedPhone)
+      .eq('tenant_id', instance.tenant_id)
+      .eq('whatsapp_instance_id', instance.id)
+      .maybeSingle();
+
+    if (existing) {
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      // Só sobrescrever name se ainda for placeholder (igual ao phone ou vazio) E tivermos algo melhor.
+      const isPlaceholder = !existing.name || existing.name === sanitizedPhone;
+      if (pushName && isPlaceholder) updates.name = pushName;
+      if (profilePicUrl) updates.avatar_url = profilePicUrl;
+      if (Object.keys(updates).length > 1) {
+        const { error } = await supabase.from('contacts').update(updates).eq('id', existing.id);
+        if (error) logger.warn('Failed to update contact', { phone: sanitizedPhone, error: error.message });
+      }
+    } else {
+      const { error } = await supabase.from('contacts').insert({
         phone: sanitizedPhone,
-        name: contact.name || contact.pushName || sanitizedPhone,
+        name: pushName || sanitizedPhone,
+        avatar_url: profilePicUrl || null,
         tenant_id: instance.tenant_id,
         whatsapp_instance_id: instance.id,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'phone,tenant_id' });
-
-    if (error) {
-      logger.warn('Failed to upsert contact', { phone: sanitizedPhone, error: error.message });
+      });
+      if (error) logger.warn('Failed to insert contact', { phone: sanitizedPhone, error: error.message });
     }
   }
 

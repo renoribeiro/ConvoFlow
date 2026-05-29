@@ -8,6 +8,7 @@ export interface WhatsAppInstance {
   instanceKey: string; // Chave da instância na Evolution API
   number: string;
   status: 'connected' | 'disconnected' | 'connecting' | 'open' | 'close' | 'qrcode';
+  provider: 'evolution' | 'waha' | 'official' | null;
   lastSeen: string;
   messagesCount: number;
   evolutionApiUrl?: string;
@@ -25,7 +26,7 @@ export const useWhatsAppInstances = () => {
       // Fetch instances with safe column selection (no last_seen — may not exist in all schemas)
       const { data: rawInstances, error: instancesError } = await supabase
         .from('whatsapp_instances')
-        .select('id, name, instance_key, phone_number, status, created_at, updated_at, evolution_api_url, evolution_api_key')
+        .select('id, name, instance_key, phone_number, status, provider, created_at, updated_at, evolution_api_url, evolution_api_key')
         .eq('tenant_id', tenant.id);
 
       if (instancesError) {
@@ -65,6 +66,7 @@ export const useWhatsAppInstances = () => {
         instanceKey: instance.instance_key,
         number: instance.phone_number || '',
         status: instance.status as WhatsAppInstance['status'],
+        provider: (instance.provider as WhatsAppInstance['provider']) ?? null,
         lastSeen: instance.updated_at
           ? new Date(instance.updated_at).toLocaleString('pt-BR', {
               day: '2-digit',

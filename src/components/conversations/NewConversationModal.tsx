@@ -108,13 +108,15 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
         throw new Error('Instância selecionada não encontrada');
       }
 
-      // Verificar se o contato já existe
+      // Verificar se o contato já existe nesta instância específica.
+      // Contatos são per-instance — mesma pessoa em duas instâncias = dois contatos.
       let { data: existingContact } = await supabase
         .from('contacts')
         .select('id')
         .eq('phone', formattedPhone)
         .eq('tenant_id', tenant?.id)
-        .single();
+        .eq('whatsapp_instance_id', selectedInstance)
+        .maybeSingle();
 
       let contactId = existingContact?.id;
 

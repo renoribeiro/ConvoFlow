@@ -53,13 +53,14 @@ interface ContactsTableProps {
     source: string;
     tags: string[];
   };
+  whatsappInstanceId?: string | null;
   onEdit: (id: string) => void;
 }
 
 
 
 
-export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
+export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsTableProps) => {
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     contactId: string | null;
@@ -91,7 +92,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
 
     // Aplicar filtros
     const filters_array = [];
-    
+
     // Filtro de estágio
     if (filters.stage && filters.stage !== 'all' && filters.stage !== '') {
       filters_array.push({
@@ -100,7 +101,7 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
         value: filters.stage
       });
     }
-    
+
     // Filtro de fonte
     if (filters.source && filters.source !== 'all' && filters.source !== '') {
       filters_array.push({
@@ -110,12 +111,21 @@ export const ContactsTable = ({ filters, onEdit }: ContactsTableProps) => {
       });
     }
 
+    // Filtro por instância (escopo per-instance — contatos são separados por instância)
+    if (whatsappInstanceId) {
+      filters_array.push({
+        column: 'whatsapp_instance_id',
+        operator: 'eq',
+        value: whatsappInstanceId
+      });
+    }
+
     return { ...query, filter: filters_array };
   };
 
   const { data: allContacts = [], isLoading, error } = useSupabaseQuery({
     table: 'contacts',
-    queryKey: ['contacts', filters.stage, filters.source, filters.tags],
+    queryKey: ['contacts', filters.stage, filters.source, filters.tags, whatsappInstanceId ?? 'all'],
     ...buildQuery()
   });
 
