@@ -125,7 +125,7 @@ export const ConversationsList = ({
             <Button
               variant="outline"
               size="icon"
-              onClick={() => syncAllChats()}
+              onClick={() => syncAllChats(whatsappInstanceId ?? null)}
               disabled={isSyncing}
               title="Sincronizar conversas recentes (Evolution/WAHA)"
             >
@@ -161,14 +161,20 @@ export const ConversationsList = ({
               <p className="text-muted-foreground">Nenhuma conversa encontrada</p>
             </div>
           ) : (
-            filteredConversations.map((conversation) => (
+            filteredConversations.map((conversation) => {
+              const hasUnread = conversation.unread_count > 0;
+              const isSelected = selectedId === conversation.id;
+              return (
               <div
                 key={conversation.id}
-                className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-accent ${
-                  selectedId === conversation.id ? 'bg-accent' : ''
+                className={`relative p-3 rounded-lg cursor-pointer transition-colors hover:bg-accent ${
+                  isSelected ? 'bg-accent' : hasUnread ? 'bg-primary/5' : ''
                 }`}
                 onClick={() => onSelect(conversation.id)}
               >
+                {hasUnread && !isSelected && (
+                  <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-primary" aria-hidden />
+                )}
                 <div className="flex items-start gap-3">
                   <div className="relative">
                     <Avatar className="w-10 h-10">
@@ -183,18 +189,18 @@ export const ConversationsList = ({
                         )}
                       </AvatarFallback>
                     </Avatar>
-                    {conversation.unread_count > 0 && (
+                    {hasUnread && (
                       <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary border-2 border-background" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="font-medium text-foreground truncate flex items-center gap-1">
+                      <p className={`truncate flex items-center gap-1 ${hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
                         {conversation.is_group && <Users className="w-3 h-3 text-muted-foreground" />}
                         {conversation.contact_name}
                       </p>
-                      <span className="text-xs text-muted-foreground">
+                      <span className={`text-xs ${hasUnread ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                         {formatDistanceToNow(new Date(conversation.last_message_at), {
                           locale: ptBR,
                           addSuffix: true,
@@ -202,7 +208,9 @@ export const ConversationsList = ({
                       </span>
                     </div>
 
-                    <p className="text-sm text-muted-foreground truncate mb-2">{conversation.last_message}</p>
+                    <p className={`text-sm truncate mb-2 ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      {conversation.last_message}
+                    </p>
 
                     <div className="flex items-center justify-between">
                       <div className="flex gap-1 min-w-0">
@@ -215,7 +223,7 @@ export const ConversationsList = ({
                           </Badge>
                         )}
                       </div>
-                      {conversation.unread_count > 0 && (
+                      {hasUnread && (
                         <Badge className="bg-primary text-primary-foreground">
                           {conversation.unread_count}
                         </Badge>
@@ -224,7 +232,8 @@ export const ConversationsList = ({
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
 
           {conversationsQuery.hasNextPage && (

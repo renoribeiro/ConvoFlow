@@ -23,8 +23,12 @@ interface UseChatHistorySyncReturn {
   isSyncing: boolean;
   /** Sync a single conversation on-demand */
   syncConversation: (contactPhone: string, contactId: string) => Promise<{ newMessages: number }>;
-  /** Manually sync all recent chats for the active instance */
-  syncAllChats: () => Promise<void>;
+  /**
+   * Manually sync all recent chats. Aceita `targetInstanceId` opcional para
+   * sincronizar uma instância específica (a selecionada na UI). Quando omitido,
+   * usa a primeira Evolution conectada.
+   */
+  syncAllChats: (targetInstanceId?: string | null) => Promise<void>;
 }
 
 export const useChatHistorySync = (): UseChatHistorySyncReturn => {
@@ -35,8 +39,13 @@ export const useChatHistorySync = (): UseChatHistorySyncReturn => {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Get the active instance (prioritize connected ones)
-  const activeInstance = instances?.find(i => i.status === 'connected' || i.status === 'open') || instances?.[0];
+  // Sync histórico só roda em provider Evolution (service é EvolutionApiService).
+  // Pra Meta/WAHA a sincronização vem via webhook do próprio provedor — não há
+  // endpoint REST de histórico equivalente.
+  const evolutionInstances = (instances || []).filter(i => (i.provider ?? 'evolution') === 'evolution');
+  const activeInstance =
+    evolutionInstances.find(i => i.status === 'connected' || i.status === 'open') ||
+    evolutionInstances[0];
   const instanceName = activeInstance?.instanceKey || '';
   const instanceId = activeInstance?.id || '';
 
@@ -85,17 +94,45 @@ export const useChatHistorySync = (): UseChatHistorySyncReturn => {
    * Restored to allow users to pull history for newly connected instances
    * without relying on automatic mass-syncs.
    */
-  const syncAllChats = useCallback(async () => {
-    if (!service || !tenant?.id || !instanceName || !instanceId || isSyncing) return;
+  const syncAllChats = useCallback(async (targetInstanceId?: string | null) => {
+    if (!service || !tenant?.id || isSyncing) {
+      console.warn('[syncAllChats] Pré-requisitos faltando', {
+        hasService: !!service,
+        hasTenant: !!tenant?.id,
+        isSyncing,
+      });
+      return;
+    }
+
+    // Resolver instância alvo: usa a passada (selecionada na UI) ou cai pra
+    // primeira Evolution conectada. Pra ser Evolution-only — Meta/WAHA não
+    // expõem histórico via REST e tem seu próprio caminho.
+    const target = targetInstanceId
+      ? evolutionInstances.find(i => i.id === targetInstanceId)
+      : activeInstance;
+
+    if (!target) {
+      console.warn('[syncAllChats] Nenhuma instância Evolution disponível pra sincronizar', {
+        targetInstanceId,
+        evolutionInstances: evolutionInstances.map(i => ({ id: i.id, name: i.name, status: i.status })),
+      });
+      return;
+    }
 
     setIsSyncing(true);
     try {
+      console.log('[syncAllChats] Iniciando sync', {
+        instanceName: target.instanceKey,
+        instanceId: target.id,
+      });
       const result = await syncChatHistory(
         service,
-        instanceName,
+        target.instanceKey,
         tenant.id,
-        instanceId
+        target.id
       );
+
+      console.log('[syncAllChats] Resultado:', result);
 
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
@@ -106,7 +143,7 @@ export const useChatHistorySync = (): UseChatHistorySyncReturn => {
     } finally {
       setIsSyncing(false);
     }
-  }, [service, tenant?.id, instanceName, instanceId, isSyncing, queryClient]);
+  }, [service, tenant?.id, isSyncing, queryClient, evolutionInstances, activeInstance]);
 
   return {
     isSyncing,
