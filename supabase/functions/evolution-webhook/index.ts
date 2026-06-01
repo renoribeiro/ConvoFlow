@@ -327,7 +327,7 @@ async function processIncomingMessage(
     status: 'received',
   })
 
-  // Trigger automation via RPC
+  // Trigger automation via RPC (v1 bots only — patched RPC ignores v2 bots).
   try {
     await supabase.rpc('process_incoming_message', {
       p_phone: phone,
@@ -338,6 +338,57 @@ async function processIncomingMessage(
   } catch (error: any) {
     logger.warn('RPC process_incoming_message not available', { error: error.message });
   }
+
+  // Fire-and-forget: invoke visual-flow chatbot engine (v2 bots).
+  // We do NOT await the result so the webhook returns quickly.
+  // The inbound message row was already persisted above — the engine must NOT
+  // re-insert it (it only inserts its own outbound bot-reply rows).
+  invokeChatbotEngine({
+    tenant_id: instance.tenant_id,
+    whatsapp_instance_id: instance.id,
+    contact_id: contact!.id,
+    phone,
+    message: rawMessageContent,
+  }, logger);
+}
+
+/**
+ * Fire-and-forget invocation of the process-chatbot-message Edge Function.
+ * Errors are caught and logged; they must never propagate to the webhook caller.
+ */
+function invokeChatbotEngine(
+  payload: {
+    tenant_id: string;
+    whatsapp_instance_id: string;
+    contact_id: string;
+    phone: string;
+    message: string;
+  },
+  logger: any,
+): void {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const engineSecret = Deno.env.get('CHATBOT_ENGINE_SECRET');
+
+  if (!supabaseUrl || !serviceKey) return;
+
+  const url = `${supabaseUrl}/functions/v1/process-chatbot-message`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${serviceKey}`,
+  };
+  if (engineSecret) {
+    headers['x-internal-secret'] = engineSecret;
+  }
+
+  fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  }).catch((err) => {
+    logger.warn('process-chatbot-message invocation failed', { error: err?.message });
+  });
 }
 
 /**

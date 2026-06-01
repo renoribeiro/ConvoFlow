@@ -42,6 +42,7 @@ const UsersPage = React.lazy(() => import("./pages/dashboard/admin/UsersPage"));
 const UsageLimitsPage = React.lazy(() => import("./pages/dashboard/admin/UsageLimitsPage"));
 const TeamPage = React.lazy(() => import("./pages/dashboard/TeamPage"));
 const WhatsAppNumbers = React.lazy(() => import("./pages/WhatsAppNumbers"));
+const ChatbotFlowBuilder = React.lazy(() => import("./pages/ChatbotFlowBuilder"));
 
 // Use optimized query client configuration
 import { createQueryClient } from '@/lib/queryClient';
@@ -134,6 +135,13 @@ const App = () => (
                     <ModuleGuard moduleName="chatbots">
                       <Suspense fallback={<PageLoadingSkeleton />}>
                         <Chatbots />
+                      </Suspense>
+                    </ModuleGuard>
+                  } />
+                  <Route path="chatbots/:id/builder" element={
+                    <ModuleGuard moduleName="chatbots">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <ChatbotFlowBuilder />
                       </Suspense>
                     </ModuleGuard>
                   } />
