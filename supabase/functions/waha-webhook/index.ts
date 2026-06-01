@@ -143,6 +143,7 @@ serve(async (req) => {
       const content = msg.body || '';
 
       if (phone && content) {
+        // v1 bots (patched RPC ignores v2 bots).
         await supabase.rpc('process_incoming_message', {
           p_phone: phone,
           p_message_content: content,
@@ -150,6 +151,27 @@ serve(async (req) => {
           p_evolution_message_id: msg.id
         });
         logger.info('Message processed', { id: msg.id });
+
+        // Resolve contact_id for the chatbot engine call.
+        const { data: contactRow } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('phone', phone)
+          .eq('tenant_id', instance.tenant_id)
+          .eq('whatsapp_instance_id', instance.id)
+          .maybeSingle();
+
+        if (contactRow?.id) {
+          // Fire-and-forget: visual-flow chatbot engine (v2 bots).
+          // Do NOT await — webhook must respond promptly.
+          invokeChatbotEngine({
+            tenant_id: instance.tenant_id,
+            whatsapp_instance_id: instance.id,
+            contact_id: contactRow.id,
+            phone,
+            message: content,
+          }, logger);
+        }
       }
     } else if (payload.event === 'message.ack' || payload.event === 'message.status') {
       const ackData = payload.payload;
@@ -189,3 +211,42 @@ serve(async (req) => {
     })
   }
 })
+
+/**
+ * Fire-and-forget invocation of the process-chatbot-message Edge Function.
+ * Errors are caught and logged; they must never propagate to the webhook caller.
+ */
+function invokeChatbotEngine(
+  payload: {
+    tenant_id: string;
+    whatsapp_instance_id: string;
+    contact_id: string;
+    phone: string;
+    message: string;
+  },
+  logger: any,
+): void {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const engineSecret = Deno.env.get('CHATBOT_ENGINE_SECRET');
+
+  if (!supabaseUrl || !serviceKey) return;
+
+  const url = `${supabaseUrl}/functions/v1/process-chatbot-message`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${serviceKey}`,
+  };
+  if (engineSecret) {
+    headers['x-internal-secret'] = engineSecret;
+  }
+
+  fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  }).catch((err: any) => {
+    logger.warn('process-chatbot-message invocation failed', { error: err?.message });
+  });
+}

@@ -46,3 +46,10 @@ verify_jwt = true
 # Gera relatório com dados reais do tenant e envia por e-mail (Resend).
 # Autentica o caller pelo JWT e resolve o tenant_id internamente.
 verify_jwt = true
+
+[functions.process-chatbot-message]
+# Called server-to-server only (from evolution-webhook, waha-webhook,
+# meta-webhook). No user JWT is available in webhook context, so JWT
+# verification is disabled. Origin is validated inside the handler via
+# the CHATBOT_ENGINE_SECRET shared secret (x-internal-secret header).
+verify_jwt = false
