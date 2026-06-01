@@ -1,30 +1,25 @@
 // =============================================================================
-// send-report — Gera um relatório com dados reais do tenant e envia por e-mail
-// via Resend (https://resend.com). Registra a execução em report_executions.
+// send-report — Gera um relatório com dados reais do tenant e entrega por
+// e-mail (Resend) e/ou WhatsApp (instância de envio do sistema, configurada
+// pelo super admin). Registra a execução em report_executions.
 // =============================================================================
-// Fluxo:
-//   1. Autentica o caller pelo JWT (Authorization: Bearer) e resolve o tenant_id
-//      a partir de profiles — TODA consulta de dados é escopada por esse tenant_id
-//      (nunca confia em tenant vindo do body).
-//   2. Coleta métricas reais (contatos, conversas, mensagens, funil, campanhas)
-//      no período selecionado.
-//   3. Renderiza um e-mail HTML (e anexa CSV quando o formato pedido é csv/excel).
-//   4. Envia via Resend para os destinatários informados.
-//   5. Grava uma linha em report_executions (status completed/failed + tempo).
-//
-// Secrets necessários (configurar em Supabase → Edge Functions → Secrets):
+// Secrets necessários (e-mail):
 //   RESEND_API_KEY     — API key do Resend (re_...)
-//   REPORT_FROM_EMAIL  — remetente verificado no Resend, ex.: "ConvoFlow
-//                        Relatórios <relatorios@convoflow.com.br>"
+//   REPORT_FROM_EMAIL  — remetente verificado, ex.: "ConvoFlow <relatorios@...>"
+//
+// WhatsApp: o super admin define em system_settings (key='report_whatsapp_instance_id',
+// value={instanceId}) qual whatsapp_instances é o número de envio do sistema.
+// O envio é agnóstico de provider (evolution | waha | official/Meta).
+//
+// ⚠️ Meta Cloud API (provider 'official') só envia texto livre dentro da janela
+// de 24h; fora disso exige template aprovado (erro 131047).
+//
+// Regras WhatsApp: ver .agent/skills/{evolution-v2,waha,meta-cloud-api}/SKILL.md
 // =============================================================================
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// ---------------------------------------------------------------------------
-// Helpers inline (espelham supabase/functions/_shared/validation.ts) — mantidos
-// locais para que esta função seja um artefato autocontido no deploy.
-// ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS = [
   'https://convoflow.com.br',
   'https://www.convoflow.com.br',
@@ -62,21 +57,12 @@ class SecureError extends Error {
 interface ReportRequest {
   name?: string;
   description?: string;
-  type?: 'campaigns' | 'conversations' | 'funnel' | 'general' | string;
+  type?: string;
   frequency?: string;
-  format?: 'pdf' | 'excel' | 'csv' | 'html' | string;
+  format?: string;
   metrics?: string[];
-  filters?: {
-    dateRange?: string;
-    campaigns?: string[];
-    contacts?: string[];
-    status?: string[];
-  };
-  delivery?: {
-    email?: boolean;
-    whatsapp?: boolean;
-    recipients?: string[] | string;
-  };
+  filters?: { dateRange?: string; campaigns?: string[]; contacts?: string[]; status?: string[] };
+  delivery?: { email?: boolean; whatsapp?: boolean; recipients?: string[] | string };
 }
 
 interface CallerProfile {
@@ -88,42 +74,24 @@ interface CallerProfile {
 }
 
 const json = (body: unknown, status: number, cors: Record<string, string>) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  });
+  new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
 async function getCaller(admin: SupabaseClient, token: string): Promise<CallerProfile> {
   const { data: { user }, error } = await admin.auth.getUser(token);
-  if (error || !user) {
-    throw new SecureError('Token inválido', 'UNAUTHORIZED', 401);
-  }
+  if (error || !user) throw new SecureError('Token inválido', 'UNAUTHORIZED', 401);
   const { data: profile, error: profileError } = await admin
     .from('profiles')
     .select('id, user_id, role, tenant_id, status')
     .eq('user_id', user.id)
     .maybeSingle();
-
-  if (profileError || !profile) {
-    throw new SecureError('Profile do caller não encontrado', 'NO_PROFILE', 403);
-  }
-  if (profile.status && profile.status !== 'active') {
-    throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
-  }
-  if (!profile.tenant_id) {
-    throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
-  }
+  if (profileError || !profile) throw new SecureError('Profile do caller não encontrado', 'NO_PROFILE', 403);
+  if (profile.status && profile.status !== 'active') throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
+  if (!profile.tenant_id) throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
   return profile as CallerProfile;
 }
 
-// ---------------------------------------------------------------------------
-// Período
-// ---------------------------------------------------------------------------
 function rangeToSince(dateRange?: string): { since: Date; label: string } {
   const now = new Date();
   const map: Record<string, { days: number; label: string }> = {
@@ -142,11 +110,7 @@ function rangeToSince(dateRange?: string): { since: Date; label: string } {
   return { since, label: entry.label };
 }
 
-async function countIn(
-  admin: SupabaseClient,
-  table: string,
-  apply: (q: any) => any,
-): Promise<number> {
+async function countIn(admin: SupabaseClient, table: string, apply: (q: any) => any): Promise<number> {
   try {
     let q = admin.from(table).select('*', { count: 'exact', head: true });
     q = apply(q);
@@ -158,19 +122,10 @@ async function countIn(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Coleta de métricas (sempre escopada por tenant_id)
-// ---------------------------------------------------------------------------
 async function collectMetrics(admin: SupabaseClient, tenantId: string, sinceIso: string) {
   const [
-    contactsTotal,
-    contactsNew,
-    conversationsTotal,
-    conversationsNew,
-    conversationsArchived,
-    messagesTotal,
-    messagesSent,
-    messagesReceived,
+    contactsTotal, contactsNew, conversationsTotal, conversationsNew,
+    conversationsArchived, messagesTotal, messagesSent, messagesReceived,
   ] = await Promise.all([
     countIn(admin, 'contacts', (q) => q.eq('tenant_id', tenantId)),
     countIn(admin, 'contacts', (q) => q.eq('tenant_id', tenantId).gte('created_at', sinceIso)),
@@ -178,13 +133,10 @@ async function collectMetrics(admin: SupabaseClient, tenantId: string, sinceIso:
     countIn(admin, 'conversations', (q) => q.eq('tenant_id', tenantId).gte('created_at', sinceIso)),
     countIn(admin, 'conversations', (q) => q.eq('tenant_id', tenantId).eq('is_archived', true)),
     countIn(admin, 'messages', (q) => q.eq('tenant_id', tenantId).gte('created_at', sinceIso)),
-    countIn(admin, 'messages', (q) =>
-      q.eq('tenant_id', tenantId).gte('created_at', sinceIso).in('direction', ['outbound', 'sent', 'out'])),
-    countIn(admin, 'messages', (q) =>
-      q.eq('tenant_id', tenantId).gte('created_at', sinceIso).in('direction', ['inbound', 'received', 'in'])),
+    countIn(admin, 'messages', (q) => q.eq('tenant_id', tenantId).gte('created_at', sinceIso).in('direction', ['outbound', 'sent', 'out'])),
+    countIn(admin, 'messages', (q) => q.eq('tenant_id', tenantId).gte('created_at', sinceIso).in('direction', ['inbound', 'received', 'in'])),
   ]);
 
-  // Leads por estágio do funil
   let funnelStages: Array<{ name: string; count: number }> = [];
   try {
     const { data: stages } = await admin
@@ -196,31 +148,20 @@ async function collectMetrics(admin: SupabaseClient, tenantId: string, sinceIso:
       funnelStages = await Promise.all(
         stages.map(async (s: any) => ({
           name: s.name as string,
-          count: await countIn(admin, 'contacts', (q) =>
-            q.eq('tenant_id', tenantId).eq('current_stage_id', s.id)),
+          count: await countIn(admin, 'contacts', (q) => q.eq('tenant_id', tenantId).eq('current_stage_id', s.id)),
         })),
       );
     }
   } catch { /* funil opcional */ }
 
   return {
-    contactsTotal,
-    contactsNew,
-    conversationsTotal,
-    conversationsNew,
-    conversationsArchived,
-    messagesTotal,
-    messagesSent,
-    messagesReceived,
-    funnelStages,
+    contactsTotal, contactsNew, conversationsTotal, conversationsNew,
+    conversationsArchived, messagesTotal, messagesSent, messagesReceived, funnelStages,
   };
 }
 
 type Metrics = Awaited<ReturnType<typeof collectMetrics>>;
 
-// ---------------------------------------------------------------------------
-// Render HTML
-// ---------------------------------------------------------------------------
 function metricCard(label: string, value: number | string): string {
   return `
     <td style="padding:8px;">
@@ -231,27 +172,15 @@ function metricCard(label: string, value: number | string): string {
     </td>`;
 }
 
-function renderHtml(opts: {
-  name: string;
-  typeLabel: string;
-  periodLabel: string;
-  generatedAt: string;
-  m: Metrics;
-}): string {
+function renderHtml(opts: { name: string; typeLabel: string; periodLabel: string; generatedAt: string; m: Metrics }): string {
   const { name, typeLabel, periodLabel, generatedAt, m } = opts;
-
   const funnelRows = m.funnelStages.length
-    ? m.funnelStages
-        .map(
-          (s) => `
+    ? m.funnelStages.map((s) => `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#334155;">${s.name}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;color:#0f172a;">${s.count}</td>
-        </tr>`,
-        )
-        .join('')
+        </tr>`).join('')
     : `<tr><td colspan="2" style="padding:12px;color:#94a3b8;">Sem estágios de funil configurados.</td></tr>`;
-
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -263,27 +192,16 @@ function renderHtml(opts: {
     <div style="background:#ffffff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
       <h1 style="font-size:18px;color:#0f172a;margin:0 0 4px;">${name}</h1>
       <p style="font-size:13px;color:#64748b;margin:0 0 20px;">Gerado em ${generatedAt}</p>
-
       <table role="presentation" width="100%" style="border-collapse:collapse;">
         <tr>${metricCard('Contatos (total)', m.contactsTotal)}${metricCard('Novos contatos', m.contactsNew)}</tr>
         <tr>${metricCard('Conversas (total)', m.conversationsTotal)}${metricCard('Novas conversas', m.conversationsNew)}</tr>
         <tr>${metricCard('Msgs enviadas', m.messagesSent)}${metricCard('Msgs recebidas', m.messagesReceived)}</tr>
       </table>
-
       <h2 style="font-size:15px;color:#0f172a;margin:24px 0 8px;">Resumo de mensagens</h2>
-      <p style="font-size:13px;color:#475569;margin:0;">
-        Total de mensagens no período: <strong>${m.messagesTotal}</strong>
-        &middot; Conversas arquivadas: <strong>${m.conversationsArchived}</strong>
-      </p>
-
+      <p style="font-size:13px;color:#475569;margin:0;">Total de mensagens no período: <strong>${m.messagesTotal}</strong> &middot; Conversas arquivadas: <strong>${m.conversationsArchived}</strong></p>
       <h2 style="font-size:15px;color:#0f172a;margin:24px 0 8px;">Leads por estágio do funil</h2>
-      <table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #f1f5f9;border-radius:8px;overflow:hidden;">
-        ${funnelRows}
-      </table>
-
-      <p style="font-size:12px;color:#94a3b8;margin:24px 0 0;border-top:1px solid #f1f5f9;padding-top:16px;">
-        Este relatório foi gerado automaticamente pelo ConvoFlow com base nos dados reais da sua conta.
-      </p>
+      <table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #f1f5f9;border-radius:8px;overflow:hidden;">${funnelRows}</table>
+      <p style="font-size:12px;color:#94a3b8;margin:24px 0 0;border-top:1px solid #f1f5f9;padding-top:16px;">Este relatório foi gerado automaticamente pelo ConvoFlow com base nos dados reais da sua conta.</p>
     </div>
   </div>
 </body></html>`;
@@ -305,50 +223,138 @@ function renderCsv(m: Metrics): string {
   return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
 
-// ---------------------------------------------------------------------------
-// Resend
-// ---------------------------------------------------------------------------
+// Resumo do relatório em texto puro (WhatsApp).
+function renderWhatsAppText(name: string, typeLabel: string, periodLabel: string, m: Metrics): string {
+  const lines = [
+    `📊 *${name}*`,
+    `${typeLabel} · ${periodLabel}`,
+    '',
+    `👥 Contatos: ${m.contactsTotal} (novos: ${m.contactsNew})`,
+    `💬 Conversas: ${m.conversationsTotal} (novas: ${m.conversationsNew})`,
+    `✉️ Mensagens no período: ${m.messagesTotal}`,
+    `   • Enviadas: ${m.messagesSent}  • Recebidas: ${m.messagesReceived}`,
+  ];
+  if (m.funnelStages.length) {
+    lines.push('', '*Funil:*');
+    for (const s of m.funnelStages) lines.push(`   • ${s.name}: ${s.count}`);
+  }
+  lines.push('', '— ConvoFlow');
+  return lines.join('\n');
+}
+
 async function sendViaResend(opts: {
-  apiKey: string;
-  from: string;
-  to: string[];
-  subject: string;
-  html: string;
+  apiKey: string; from: string; to: string[]; subject: string; html: string;
   attachments?: Array<{ filename: string; content: string }>;
 }): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: opts.from,
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
-      attachments: opts.attachments,
-    }),
+    headers: { Authorization: `Bearer ${opts.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, attachments: opts.attachments }),
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new SecureError(
-      `Falha no envio pelo Resend (HTTP ${res.status}): ${detail.slice(0, 300)}`,
-      'EMAIL_PROVIDER_ERROR',
-      502,
-    );
+    throw new SecureError(`Falha no envio pelo Resend (HTTP ${res.status}): ${detail.slice(0, 300)}`, 'EMAIL_PROVIDER_ERROR', 502);
   }
 }
 
-// ---------------------------------------------------------------------------
-// Handler
-// ---------------------------------------------------------------------------
+// Instância de WhatsApp de envio do sistema (definida pelo super admin).
+async function loadSystemWhatsAppInstance(admin: SupabaseClient): Promise<any> {
+  const { data: setting } = await admin
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'report_whatsapp_instance_id')
+    .maybeSingle();
+  const raw = setting?.value as any;
+  const instanceId = raw?.instanceId || (typeof raw === 'string' ? raw : null);
+  if (!instanceId) {
+    throw new SecureError(
+      'Número de envio do sistema não configurado. Peça ao super admin para configurar em Configurações.',
+      'NO_SYSTEM_WHATSAPP',
+      400,
+    );
+  }
+  const { data: instance } = await admin
+    .from('whatsapp_instances')
+    .select('id, provider, instance_key, connection_config, evolution_api_url, evolution_api_key, status')
+    .eq('id', instanceId)
+    .maybeSingle();
+  if (!instance) throw new SecureError('Instância de envio do sistema não encontrada.', 'SYSTEM_WHATSAPP_NOT_FOUND', 400);
+  return instance;
+}
+
+// Envio de texto WhatsApp agnóstico de provider. Regras por provider:
+//  - evolution: POST {baseUrl}/message/sendText/{instanceKey}  (.agent/skills/evolution-v2)
+//  - waha:      POST {baseUrl}/api/sendText                      (.agent/skills/waha)
+//  - official:  Graph API + token do Vault                       (.agent/skills/meta-cloud-api)
+async function sendWhatsApp(admin: SupabaseClient, instance: any, to: string, text: string): Promise<void> {
+  const provider = instance.provider || 'evolution';
+  const cfg = (instance.connection_config as Record<string, any>) || {};
+  const number = String(to).replace(/\D/g, '');
+
+  if (provider === 'official') {
+    const phoneNumberId = cfg.phoneNumberId || instance.instance_key;
+    const graphVersion = cfg.graphApiVersion || 'v20.0';
+    if (!phoneNumberId) throw new Error('connection_config.phoneNumberId ausente na instância do sistema.');
+    const { data: token, error: tErr } = await admin.rpc('get_instance_meta_token', { p_instance_id: instance.id });
+    if (tErr || !token) throw new Error('Token Meta não encontrado no Vault para a instância do sistema.');
+    const resp = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: `+${number}`,
+        type: 'text',
+        text: { body: text, preview_url: false },
+      }),
+    });
+    if (!resp.ok) {
+      const j = await resp.json().catch(() => null);
+      const code = j?.error?.code;
+      let msg = j?.error?.message || `HTTP ${resp.status}`;
+      if (code === 131047) {
+        msg = 'Fora da janela de 24h do WhatsApp: o destinatário precisa ter enviado mensagem nas últimas 24h, ou é necessário um template aprovado.';
+      } else if (code === 131026) {
+        msg = 'Número não existe no WhatsApp.';
+      }
+      throw new Error(msg);
+    }
+    return;
+  }
+
+  if (provider === 'evolution') {
+    const baseUrl = cfg.baseUrl || instance.evolution_api_url;
+    const apiKey = cfg.apiKey || instance.evolution_api_key;
+    if (!baseUrl || !apiKey) throw new Error('Configuração Evolution ausente na instância do sistema.');
+    const resp = await fetch(`${baseUrl}/message/sendText/${instance.instance_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({ number, text }),
+    });
+    if (!resp.ok) throw new Error(`Evolution API (${resp.status}): ${(await resp.text()).slice(0, 200)}`);
+    return;
+  }
+
+  if (provider === 'waha') {
+    const baseUrl = cfg.baseUrl;
+    const apiKey = cfg.apiKey;
+    if (!baseUrl) throw new Error('Configuração WAHA ausente na instância do sistema.');
+    const resp = await fetch(`${baseUrl}/api/sendText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-Api-Key': apiKey } : {}) },
+      body: JSON.stringify({ session: cfg.sessionName || instance.instance_key, chatId: `${number}@c.us`, text, linkPreview: false }),
+    });
+    if (!resp.ok) throw new Error(`WAHA (${resp.status}): ${(await resp.text()).slice(0, 200)}`);
+    return;
+  }
+
+  throw new Error(`Provider de WhatsApp não suportado: ${provider}`);
+}
+
 Deno.serve(async (req) => {
   const cors = buildCorsHeaders(req.headers.get('origin'));
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (req.method !== 'POST') {
-    return json({ error: { message: 'Método não permitido', code: 'METHOD_NOT_ALLOWED' } }, 405, cors);
-  }
+  if (req.method !== 'POST') return json({ error: { message: 'Método não permitido', code: 'METHOD_NOT_ALLOWED' } }, 405, cors);
 
   const startedAt = Date.now();
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -366,120 +372,113 @@ Deno.serve(async (req) => {
     caller = await getCaller(admin, token);
     body = (await req.json().catch(() => ({}))) as ReportRequest;
 
-    // Validação de entrega
-    const wantsEmail = body.delivery?.email !== false; // default: enviar por e-mail
+    // Destinatários: separa e-mails de telefones a partir do mesmo campo.
     const rawRecipients = body.delivery?.recipients;
-    const recipients = (Array.isArray(rawRecipients) ? rawRecipients : String(rawRecipients ?? '')
-      .split(/[,;\n]/))
+    const rawList = (Array.isArray(rawRecipients) ? rawRecipients : String(rawRecipients ?? '').split(/[,;\n]/))
       .map((r) => r.trim())
-      .filter(Boolean)
-      .filter((r) => EMAIL_RE.test(r));
+      .filter(Boolean);
+    const emails = rawList.filter((r) => EMAIL_RE.test(r));
+    const phones = rawList
+      .filter((r) => !EMAIL_RE.test(r))
+      .map((r) => r.replace(/\D/g, ''))
+      .filter((d) => d.length >= 10);
 
-    if (!wantsEmail) {
-      throw new SecureError('Selecione "Enviar por Email" para esta ação', 'NO_EMAIL_DELIVERY', 400);
+    const wantsEmail = body.delivery?.email === true;
+    const wantsWhatsapp = body.delivery?.whatsapp === true;
+    if (!wantsEmail && !wantsWhatsapp) {
+      throw new SecureError('Selecione ao menos um canal de entrega (e-mail ou WhatsApp).', 'NO_CHANNEL', 400);
     }
-    if (recipients.length === 0) {
-      throw new SecureError('Informe ao menos um e-mail de destinatário válido', 'NO_RECIPIENTS', 400);
+    if (wantsEmail && emails.length === 0) {
+      throw new SecureError('Informe ao menos um e-mail de destinatário válido.', 'NO_EMAIL_RECIPIENTS', 400);
+    }
+    if (wantsWhatsapp && phones.length === 0) {
+      throw new SecureError('Informe ao menos um número de WhatsApp válido (com DDD).', 'NO_PHONE_RECIPIENTS', 400);
     }
 
-    const apiKey = Deno.env.get('RESEND_API_KEY');
-    const from = Deno.env.get('REPORT_FROM_EMAIL');
-    if (!apiKey) throw new SecureError('RESEND_API_KEY não configurada no servidor', 'MISSING_CONFIG', 500);
-    if (!from) throw new SecureError('REPORT_FROM_EMAIL não configurada no servidor', 'MISSING_CONFIG', 500);
-
+    // Métricas (uma vez, reaproveitadas em ambos os canais).
     const { since, label: periodLabel } = rangeToSince(body.filters?.dateRange);
     const m = await collectMetrics(admin, caller.tenant_id!, since.toISOString());
 
-    const typeLabels: Record<string, string> = {
-      campaigns: 'Campanhas',
-      conversations: 'Conversas',
-      funnel: 'Funil de Vendas',
-      general: 'Geral',
-    };
+    const typeLabels: Record<string, string> = { campaigns: 'Campanhas', conversations: 'Conversas', funnel: 'Funil de Vendas', general: 'Geral' };
     const typeLabel = typeLabels[body.type ?? 'general'] ?? 'Geral';
     const name = (body.name && body.name.trim()) || `Relatório ${typeLabel}`;
     const generatedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-    const html = renderHtml({ name, typeLabel, periodLabel, generatedAt, m });
+    const delivered: Array<{ channel: string; to: string[] }> = [];
+    const warnings: string[] = [];
 
-    const attachments =
-      body.format === 'csv' || body.format === 'excel'
-        ? [{ filename: `${name.replace(/[^\w.-]+/g, '_')}.csv`, content: btoa(unescape(encodeURIComponent(renderCsv(m)))) }]
-        : undefined;
+    // --- Canal e-mail ---
+    if (wantsEmail) {
+      try {
+        const apiKey = Deno.env.get('RESEND_API_KEY');
+        const from = Deno.env.get('REPORT_FROM_EMAIL');
+        if (!apiKey) throw new Error('RESEND_API_KEY não configurada no servidor.');
+        if (!from) throw new Error('REPORT_FROM_EMAIL não configurada no servidor.');
 
-    await sendViaResend({
-      apiKey,
-      from,
-      to: recipients,
-      subject: `📊 ${name} — ${periodLabel}`,
-      html,
-      attachments,
-    });
+        const html = renderHtml({ name, typeLabel, periodLabel, generatedAt, m });
+        const attachments = body.format === 'csv' || body.format === 'excel'
+          ? [{ filename: `${name.replace(/[^\w.-]+/g, '_')}.csv`, content: btoa(unescape(encodeURIComponent(renderCsv(m)))) }]
+          : undefined;
 
+        await sendViaResend({ apiKey, from, to: emails, subject: `📊 ${name} — ${periodLabel}`, html, attachments });
+        delivered.push({ channel: 'email', to: emails });
+      } catch (e) {
+        warnings.push(`E-mail: ${(e as Error).message}`);
+      }
+    }
+
+    // --- Canal WhatsApp (instância de envio do sistema) ---
+    if (wantsWhatsapp) {
+      try {
+        const instance = await loadSystemWhatsAppInstance(admin);
+        const text = renderWhatsAppText(name, typeLabel, periodLabel, m);
+        const okPhones: string[] = [];
+        for (const phone of phones) {
+          try {
+            await sendWhatsApp(admin, instance, phone, text);
+            okPhones.push(phone);
+          } catch (e) {
+            warnings.push(`WhatsApp ${phone}: ${(e as Error).message}`);
+          }
+        }
+        if (okPhones.length) delivered.push({ channel: 'whatsapp', to: okPhones });
+      } catch (e) {
+        warnings.push(`WhatsApp: ${(e as Error).message}`);
+      }
+    }
+
+    // Nenhum canal entregou → falha (registra como failed via catch).
+    if (delivered.length === 0) {
+      throw new SecureError(warnings.join(' | ') || 'Nenhum canal foi entregue.', 'DELIVERY_FAILED', 502);
+    }
+
+    const allRecipients = [...emails, ...phones];
     const executionTime = Date.now() - startedAt;
-    // E-mail já foi enviado — o registro da execução é best-effort e NÃO pode
-    // mascarar o sucesso do envio caso a gravação falhe.
     let executionId: string | null = null;
     try {
-      const { data: execution } = await admin
-        .from('report_executions')
-        .insert({
-          tenant_id: caller.tenant_id,
-          template_id: null,
-          executed_by: caller.user_id,
-          status: 'success', // valores permitidos pela CHECK: success | failed | timeout
-          execution_time: executionTime,
-          // parameters guarda a config + destinatários resolvidos + o resultado
-          // gerado (result), pra o histórico poder exibir o conteúdo do relatório.
-          parameters: { ...body, recipients, resolvedFrom: from, result: m },
-          executed_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
+      const { data: execution } = await admin.from('report_executions').insert({
+        tenant_id: caller.tenant_id, template_id: null, executed_by: caller.user_id,
+        status: 'success', execution_time: executionTime,
+        // parameters guarda a config + destinatários + resultado gerado + avisos.
+        parameters: { ...body, recipients: allRecipients, delivered, warnings, result: m },
+        executed_at: new Date().toISOString(),
+      }).select('id').single();
       executionId = execution?.id ?? null;
     } catch (logErr) {
-      console.error('Falha ao registrar report_execution (e-mail já enviado):', logErr);
+      console.error('Falha ao registrar report_execution (entrega já realizada):', logErr);
     }
 
-    return json(
-      {
-        success: true,
-        executionId,
-        recipients,
-        executionTime,
-        metrics: m,
-      },
-      200,
-      cors,
-    );
+    return json({ success: true, executionId, delivered, warnings, executionTime, metrics: m }, 200, cors);
   } catch (err) {
     const secure = err instanceof SecureError ? err : null;
-    // Registra a falha (best-effort) se já temos o tenant do caller
     if (caller?.tenant_id) {
-      await admin
-        .from('report_executions')
-        .insert({
-          tenant_id: caller.tenant_id,
-          template_id: null,
-          executed_by: caller.user_id,
-          status: 'failed',
-          execution_time: Date.now() - startedAt,
-          error_message: (err as Error)?.message?.slice(0, 500) ?? 'Erro desconhecido',
-          parameters: body,
-          executed_at: new Date().toISOString(),
-        })
-        .then(() => {}, () => {});
+      await admin.from('report_executions').insert({
+        tenant_id: caller.tenant_id, template_id: null, executed_by: caller.user_id,
+        status: 'failed', execution_time: Date.now() - startedAt,
+        error_message: (err as Error)?.message?.slice(0, 500) ?? 'Erro desconhecido',
+        parameters: body, executed_at: new Date().toISOString(),
+      }).then(() => {}, () => {});
     }
-    return json(
-      {
-        success: false,
-        error: {
-          message: (err as Error)?.message ?? 'Erro interno',
-          code: secure?.code ?? 'INTERNAL_ERROR',
-        },
-      },
-      secure?.statusCode ?? 500,
-      cors,
-    );
+    return json({ success: false, error: { message: (err as Error)?.message ?? 'Erro interno', code: secure?.code ?? 'INTERNAL_ERROR' } }, secure?.statusCode ?? 500, cors);
   }
 });

@@ -157,18 +157,21 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
       return;
     }
 
-    // Envio por e-mail exige destinatários válidos.
-    if (reportData.delivery.email) {
-      const hasRecipient = recipientsRaw
-        .split(/[,;\n]/)
-        .map((r) => r.trim())
-        .some((r) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r));
-      if (!hasRecipient) {
-        toast.error('Informe ao menos um e-mail de destinatário válido');
-        return;
-      }
-    } else if (!reportData.delivery.whatsapp) {
-      toast.error('Selecione ao menos um canal de entrega (e-mail)');
+    // Validação por canal: e-mail exige e-mail válido; WhatsApp exige número.
+    const parts = recipientsRaw.split(/[,;\n]/).map((r) => r.trim()).filter(Boolean);
+    const hasEmail = parts.some((r) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r));
+    const hasPhone = parts.some((r) => r.replace(/\D/g, '').length >= 10);
+
+    if (!reportData.delivery.email && !reportData.delivery.whatsapp) {
+      toast.error('Selecione ao menos um canal de entrega (e-mail ou WhatsApp)');
+      return;
+    }
+    if (reportData.delivery.email && !hasEmail) {
+      toast.error('Informe ao menos um e-mail de destinatário válido');
+      return;
+    }
+    if (reportData.delivery.whatsapp && !hasPhone) {
+      toast.error('Informe ao menos um número de WhatsApp válido (com DDD)');
       return;
     }
 
@@ -193,8 +196,12 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
         throw new Error(data?.error?.message || 'Falha ao gerar o relatório');
       }
 
-      const count = data?.recipients?.length ?? 0;
-      toast.success(`Relatório enviado para ${count} destinatário(s)!`);
+      const delivered: Array<{ channel: string }> = data?.delivered ?? [];
+      const channels = delivered.map((d) => (d.channel === 'email' ? 'e-mail' : 'WhatsApp'));
+      toast.success(channels.length ? `Relatório enviado por ${channels.join(' e ')}!` : 'Relatório enviado!');
+      if (Array.isArray(data?.warnings) && data.warnings.length) {
+        toast.warning(data.warnings.join(' | '));
+      }
       resetForm();
       onClose();
     } catch (error) {
@@ -431,7 +438,7 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
                       <Label htmlFor="recipients">Destinatários</Label>
                       <Input
                         id="recipients"
-                        placeholder="Digite emails separados por vírgula"
+                        placeholder="E-mails e/ou números com DDD, separados por vírgula"
                         value={recipientsRaw}
                         onChange={(e) => setRecipientsRaw(e.target.value)}
                         disabled={isLoading}

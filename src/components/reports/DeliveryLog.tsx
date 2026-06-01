@@ -136,9 +136,11 @@ export const DeliveryLog = () => {
         throw new Error(message);
       }
       if (data && data.success === false) throw new Error(data?.error?.message || 'Falha ao reenviar');
+      const delivered: Array<{ channel: string }> = data?.delivered ?? [];
+      const channels = delivered.map((d) => (d.channel === 'email' ? 'e-mail' : 'WhatsApp'));
       toast({
         title: 'Relatório reenviado',
-        description: `Enviado para ${data?.recipients?.length ?? 0} destinatário(s).`,
+        description: channels.length ? `Enviado por ${channels.join(' e ')}.` : 'Reenviado.',
       });
       queryClient.invalidateQueries({ queryKey: ['report-executions'] });
     } catch (e) {
