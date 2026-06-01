@@ -5,15 +5,13 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useSupabaseQuery } from './useSupabaseQuery';
 import { 
   getMockReportTemplates, 
-  getMockReportSchedules, 
-  getMockReportExecutions,
+  getMockReportSchedules,
   addMockReportTemplate,
   addMockReportSchedule,
   updateMockReportSchedule,
   removeMockReportSchedule,
   type MockReportTemplate,
-  type MockReportSchedule,
-  type MockReportExecution
+  type MockReportSchedule
 } from '@/data/mockReportsData';
 
 // Interfaces para tipos de dados
@@ -506,33 +504,36 @@ export function useReportExecutions(templateId?: string) {
   return useQuery({
     queryKey: ['report-executions', templateId, tenant?.id],
     queryFn: async () => {
+      // Sem tenant resolvido ainda: histórico vazio (nunca dados mock para um
+      // usuário logado — isso mostrava execuções falsas de demonstração).
       if (!tenant?.id) {
-        return getMockReportExecutions({ templateId });
+        return [];
       }
-      
+
       try {
         let query = supabase
           .from('report_executions')
           .select('*, report_templates(name, type)')
           .eq('tenant_id', tenant.id);
-        
+
         if (templateId) {
           query = query.eq('template_id', templateId);
         }
-        
-        const { data, error } = await query.order('created_at', { ascending: false });
-        
+
+        // A coluna correta é executed_at (não existe created_at nesta tabela).
+        const { data, error } = await query.order('executed_at', { ascending: false });
+
         if (error) {
-          console.warn('Erro ao buscar execuções, usando dados mockados:', error);
-          return getMockReportExecutions({ templateId });
+          console.warn('Erro ao buscar execuções:', error);
+          return [];
         }
-        
+
         return data || [];
       } catch (error) {
-        console.warn('Erro na consulta de execuções, usando dados mockados:', error);
-        return getMockReportExecutions({ templateId });
+        console.warn('Erro na consulta de execuções:', error);
+        return [];
       }
     },
-    enabled: true,
+    enabled: !!tenant?.id,
   });
 }

@@ -14,8 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 interface ReportExecution {
   id: string;
   template_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  started_at: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'success' | 'timeout';
+  executed_at: string;
   completed_at?: string;
   execution_time?: number;
   error_message?: string;
@@ -29,7 +29,7 @@ interface ReportExecution {
 }
 
 // Função para mapear status do banco para status de entrega
-const mapExecutionStatus = (status: string) => {
+const mapExecutionStatus = (status: string | null | undefined) => {
   switch (status) {
     // Valores reais da tabela report_executions: success | failed | timeout.
     // 'completed'/'running' vêm dos dados mock legados — mantidos por compat.
@@ -43,7 +43,7 @@ const mapExecutionStatus = (status: string) => {
   }
 };
 
-const getStatusIcon = (status: string) => {
+const getStatusIcon = (status: string | null | undefined) => {
   const mappedStatus = mapExecutionStatus(status);
   switch (mappedStatus) {
     case 'success': return <CheckCircle className="w-4 h-4 text-green-600" />;
@@ -53,7 +53,7 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status: string | null | undefined) => {
   const mappedStatus = mapExecutionStatus(status);
   switch (mappedStatus) {
     case 'success': return <Badge className="bg-green-100 text-green-800">Concluído</Badge>;
@@ -277,23 +277,20 @@ export const DeliveryLog = () => {
 
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <p className="text-sm font-medium">
-                        {new Date(execution.started_at).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      {execution.execution_time && (
-                        <p className="text-xs text-muted-foreground">
-                          {execution.execution_time}ms
+                      {execution.executed_at && (
+                        <p className="text-sm font-medium">
+                          {new Date(execution.executed_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </p>
                       )}
-                      {execution.completed_at && (
+                      {execution.execution_time != null && (
                         <p className="text-xs text-muted-foreground">
-                          Concluído: {new Date(execution.completed_at).toLocaleTimeString('pt-BR')}
+                          {execution.execution_time}ms
                         </p>
                       )}
                     </div>
