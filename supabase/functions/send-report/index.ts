@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
           tenant_id: caller.tenant_id,
           template_id: null,
           executed_by: caller.user_id,
-          status: 'completed',
+          status: 'success', // valores permitidos pela CHECK: success | failed | timeout
           execution_time: executionTime,
           parameters: { ...body, recipients, resolvedFrom: from },
           executed_at: new Date().toISOString(),

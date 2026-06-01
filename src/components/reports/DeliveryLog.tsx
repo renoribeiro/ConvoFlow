@@ -31,8 +31,12 @@ interface ReportExecution {
 // Função para mapear status do banco para status de entrega
 const mapExecutionStatus = (status: string) => {
   switch (status) {
+    // Valores reais da tabela report_executions: success | failed | timeout.
+    // 'completed'/'running' vêm dos dados mock legados — mantidos por compat.
+    case 'success':
     case 'completed': return 'success';
-    case 'failed': return 'failed';
+    case 'failed':
+    case 'timeout': return 'failed';
     case 'pending':
     case 'running': return 'pending';
     default: return 'pending';
