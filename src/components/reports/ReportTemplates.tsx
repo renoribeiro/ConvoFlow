@@ -7,9 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { FileText, BarChart3, TrendingUp, DollarSign, Users, Download, Eye, Settings, AlertCircle, MoreVertical, Edit, Trash2 } from 'lucide-react';
-import { useReportTemplates, useGenerateReport, useDeleteReportTemplate } from '@/hooks/useReports';
+import { useReportTemplates, useDeleteReportTemplate } from '@/hooks/useReports';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
+import { NewReportModal } from './NewReportModal';
 import { ViewTemplateModal } from './ViewTemplateModal';
 import { EditTemplateModal } from './EditTemplateModal';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
@@ -29,9 +30,12 @@ const getIconByType = (type: string) => {
 const getColorByCategory = (category: string) => {
   switch (category?.toLowerCase()) {
     case 'performance': return 'bg-blue-500';
-    case 'financial': return 'bg-purple-500';
-    case 'traffic': return 'bg-green-500';
-    case 'conversion': return 'bg-orange-500';
+    case 'financial':
+    case 'financeiro': return 'bg-purple-500';
+    case 'traffic':
+    case 'tráfego': return 'bg-green-500';
+    case 'conversion':
+    case 'conversão': return 'bg-orange-500';
     case 'marketing': return 'bg-pink-500';
     case 'analytics': return 'bg-indigo-500';
     case 'crm': return 'bg-teal-500';
@@ -61,7 +65,9 @@ export const ReportTemplates = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-  
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [generateInitial, setGenerateInitial] = useState<any>(null);
+
   // Buscar todos os templates incluindo públicos
   const { data: templates = [], isLoading, error } = useReportTemplates({
     includePublic: true
@@ -71,38 +77,39 @@ export const ReportTemplates = () => {
   const isLoadingData = tenantLoading || isLoading;
   
   // Mutations
-  const generateReportMutation = useGenerateReport();
   const deleteTemplateMutation = useDeleteReportTemplate();
   
   // Categorias disponíveis
   const categories = ['Todos', 'Performance', 'Financeiro', 'Marketing', 'Tráfego', 'Conversão'];
   
-  // Mapeamento de categorias para filtros no banco
+  // Mapeamento dos botões de filtro para o valor de `category` salvo no banco.
   const categoryMapping: Record<string, string> = {
     'Todos': 'all',
-    'Performance': 'performance',
-    'Financeiro': 'financial',
-    'Marketing': 'marketing',
-    'Tráfego': 'traffic',
-    'Conversão': 'conversion'
+    'Performance': 'Performance',
+    'Financeiro': 'Financeiro',
+    'Marketing': 'Marketing',
+    'Tráfego': 'Tráfego',
+    'Conversão': 'Conversão'
   };
   
   const filteredTemplates = selectedCategory === 'Todos' 
     ? templates 
     : templates.filter(t => t.category === categoryMapping[selectedCategory]);
 
-  const handleGenerateReport = (templateId: string) => {
-    generateReportMutation.mutate({
-      templateId,
-      config: {
-        type: 'dashboard',
-        dataSource: 'conversations',
-        timeRange: {
-          start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          end: new Date().toISOString()
-        }
-      }
+  // Gerar a partir de um template: abre o modal de Novo Relatório pré-preenchido
+  // com a config do template, para o usuário completar destinatários e enviar.
+  const handleGenerateReport = (template: any) => {
+    const cfg = template.config || {};
+    setGenerateInitial({
+      name: template.name,
+      description: template.description || '',
+      type: cfg.reportType || 'general',
+      format: cfg.format || 'pdf',
+      metrics: Array.isArray(cfg.metrics) ? cfg.metrics : [],
+      filters: { dateRange: cfg.dateRange || '30days', campaigns: [], contacts: [], status: [] },
+      frequency: 'manual',
     });
+    setGenerateModalOpen(true);
   };
 
   const handleViewTemplate = (template: any) => {
@@ -279,14 +286,13 @@ export const ReportTemplates = () => {
                   )}
 
                   <div className="flex gap-2 pt-2">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="flex-1"
-                      onClick={() => handleGenerateReport(template.id)}
-                      disabled={generateReportMutation.isPending}
+                      onClick={() => handleGenerateReport(template)}
                     >
                       <Eye className="w-4 h-4 mr-2" />
-                      {generateReportMutation.isPending ? 'Gerando...' : 'Gerar'}
+                      Gerar
                     </Button>
                     <Button variant="outline" size="sm">
                       <Download className="w-4 h-4" />
@@ -346,6 +352,13 @@ export const ReportTemplates = () => {
         </Card>
        )}
  
+       {/* Gerar a partir de template → Novo Relatório pré-preenchido */}
+       <NewReportModal
+         isOpen={generateModalOpen}
+         onClose={() => setGenerateModalOpen(false)}
+         initialData={generateInitial}
+       />
+
        {/* View Template Modal */}
        <ViewTemplateModal
         isOpen={viewModalOpen}

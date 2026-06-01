@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 interface NewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Dados iniciais (ex.: ao gerar a partir de um template). */
+  initialData?: Partial<ReportData>;
 }
 
 interface ReportData {
@@ -37,7 +39,7 @@ interface ReportData {
   };
 }
 
-export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
+export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalProps) => {
   const [reportData, setReportData] = useState<ReportData>({
     name: '',
     description: '',
@@ -62,6 +64,20 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
   // Campo de destinatários (e-mails separados por vírgula). Mantido como string
   // crua porque o usuário digita livremente; o parsing/validação ocorre no envio.
   const [recipientsRaw, setRecipientsRaw] = useState('');
+
+  // Ao abrir com dados iniciais (gerar a partir de um template), pré-preenche o form.
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setReportData((prev) => ({
+        ...prev,
+        ...initialData,
+        filters: { ...prev.filters, ...(initialData.filters ?? {}) },
+        delivery: { ...prev.delivery, ...(initialData.delivery ?? {}) },
+      }));
+      setCurrentStep(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const reportTypes = [
     { value: 'campaigns', label: 'Campanhas', icon: MessageSquare, description: 'Performance de campanhas de marketing' },
