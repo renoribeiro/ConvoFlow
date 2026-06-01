@@ -53,16 +53,6 @@ type PageItem = {
   keywords?: string[];
 };
 
-const PREMIUM_MODULES = new Set([
-  'chatbots',
-  'automation',
-  'campaigns',
-  'followups',
-  'reports',
-  'tracking',
-  'funnel',
-]);
-
 const PAGES: PageItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, keywords: ['inicio', 'home'] },
   { label: 'Conversas', path: '/dashboard/conversations', icon: MessageCircle, moduleName: 'conversations', keywords: ['chat', 'mensagens'] },
@@ -98,7 +88,7 @@ interface CommandPaletteProps {
 
 export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
   const navigate = useNavigate();
-  const { tenant, tenantId } = useTenant();
+  const { tenantId } = useTenant();
   const isSuperAdmin = useIsSuperAdmin();
   const hasAgenciaRole = useHasMinRole('agencia');
   const { visibleModules } = useModules();
@@ -118,17 +108,8 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
     return () => window.clearTimeout(handle);
   }, [search]);
 
-  // Premium gate replicates ModuleGuard logic so the palette only shows pages
-  // the user can actually open.
-  const hasPremiumAccess = useMemo(() => {
-    if (!tenant) return false;
-    const isPro = tenant.plan_type === 'pro' && tenant.subscription_status === 'active';
-    const trialEnds = tenant.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
-    const isTrial = tenant.status === 'trial' && (!trialEnds || trialEnds > new Date());
-    const hasManualAccess = tenant.manual_access_granted === true;
-    return isPro || isTrial || hasManualAccess;
-  }, [tenant]);
-
+  // Acesso por módulo depende apenas do toggle de produto (is_enabled) e do
+  // papel do usuário — sem verificação de plano/assinatura.
   const accessiblePages = useMemo(() => {
     const enabledModuleNames = new Set(
       (visibleModules ?? [])
@@ -144,11 +125,10 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
 
       if (page.moduleName) {
         if (!enabledModuleNames.has(page.moduleName)) return false;
-        if (PREMIUM_MODULES.has(page.moduleName) && !hasPremiumAccess) return false;
       }
       return true;
     });
-  }, [visibleModules, isSuperAdmin, hasAgenciaRole, hasPremiumAccess]);
+  }, [visibleModules, isSuperAdmin, hasAgenciaRole]);
 
   // Contacts: lightweight server-side query, only runs while palette is open.
   const { data: contacts = [] } = useQuery<ContactRow[]>({
