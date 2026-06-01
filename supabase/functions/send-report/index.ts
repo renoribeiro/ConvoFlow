@@ -429,7 +429,9 @@ Deno.serve(async (req) => {
           executed_by: caller.user_id,
           status: 'success', // valores permitidos pela CHECK: success | failed | timeout
           execution_time: executionTime,
-          parameters: { ...body, recipients, resolvedFrom: from },
+          // parameters guarda a config + destinatários resolvidos + o resultado
+          // gerado (result), pra o histórico poder exibir o conteúdo do relatório.
+          parameters: { ...body, recipients, resolvedFrom: from, result: m },
           executed_at: new Date().toISOString(),
         })
         .select('id')

@@ -7,9 +7,40 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, XCircle, Clock, Mail, MessageSquare, FileText, Search, Filter, Download, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Mail, MessageSquare, FileText, Search, Filter, Download, AlertCircle, RefreshCw } from 'lucide-react';
 import { useReportExecutions } from '@/hooks/useReports';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+const TYPE_LABELS: Record<string, string> = {
+  campaigns: 'Campanhas',
+  conversations: 'Conversas',
+  funnel: 'Funil de Vendas',
+  general: 'Geral',
+};
+
+const PERIOD_LABELS: Record<string, string> = {
+  today: 'Hoje',
+  '1day': 'Último dia',
+  '7days': 'Últimos 7 dias',
+  '14days': 'Últimos 14 dias',
+  '30days': 'Últimos 30 dias',
+  '90days': 'Últimos 90 dias',
+  '6months': 'Últimos 6 meses',
+  '1year': 'Último ano',
+  year: 'Último ano',
+};
+
+// Resumo compacto do que foi gerado, a partir do result salvo em parameters.
+function buildResultSummary(result: any): string {
+  if (!result || typeof result !== 'object') return '';
+  const parts: string[] = [];
+  if (result.contactsTotal != null) parts.push(`${result.contactsTotal} contatos`);
+  if (result.conversationsTotal != null) parts.push(`${result.conversationsTotal} conversas`);
+  if (result.messagesTotal != null) parts.push(`${result.messagesTotal} msgs`);
+  return parts.join(' · ');
+}
 
 interface ReportExecution {
   id: string;
@@ -75,8 +106,51 @@ const getMethodIcon = (method: string) => {
 export const DeliveryLog = () => {
   const { data: executions = [], isLoading, error } = useReportExecutions();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  // Reenvia o relatório usando a config original salva em parameters.
+  const handleResend = async (execution: any) => {
+    const p = (execution.parameters ?? {}) as any;
+    setResendingId(execution.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('send-report', {
+        body: {
+          name: p.name,
+          description: p.description,
+          type: p.type,
+          format: p.format,
+          metrics: p.metrics,
+          filters: p.filters,
+          delivery: { ...(p.delivery ?? {}), recipients: p.recipients ?? p.delivery?.recipients },
+        },
+      });
+      if (invokeError) {
+        let message = invokeError.message;
+        try {
+          const ctx = await (invokeError as any).context?.json?.();
+          if (ctx?.error?.message) message = ctx.error.message;
+        } catch { /* mantém a mensagem padrão */ }
+        throw new Error(message);
+      }
+      if (data && data.success === false) throw new Error(data?.error?.message || 'Falha ao reenviar');
+      toast({
+        title: 'Relatório reenviado',
+        description: `Enviado para ${data?.recipients?.length ?? 0} destinatário(s).`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['report-executions'] });
+    } catch (e) {
+      toast({
+        title: 'Erro ao reenviar',
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const filteredExecutions = executions.filter(execution => {
     const reportName = execution.report_templates?.name || 'Relatório sem nome';
@@ -252,53 +326,98 @@ export const DeliveryLog = () => {
           {/* Executions List */}
           {!isLoading && (
             <div className="space-y-4">
-              {filteredExecutions.map((execution) => (
-                <div key={execution.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(execution.status)}
-                      <FileText className="w-4 h-4 text-blue-600" />
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium">
-                        {execution.report_templates?.name || 'Relatório sem nome'}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        ID: {execution.id.slice(0, 8)}...
-                      </p>
-                      {execution.error_message && (
-                        <p className="text-sm text-red-600 mt-1">
-                          Erro: {execution.error_message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+              {filteredExecutions.map((execution) => {
+                const p = ((execution as any).parameters ?? {}) as any;
+                const reportName = p.name || execution.report_templates?.name || 'Relatório sem nome';
+                const recipients: string[] = Array.isArray(p.recipients) ? p.recipients : [];
+                const typeLabel = TYPE_LABELS[p.type] ?? (p.type || '');
+                const periodLabel = PERIOD_LABELS[p.filters?.dateRange] ?? '';
+                const resultSummary = buildResultSummary(p.result);
+                const generatedLine = [typeLabel, periodLabel, resultSummary].filter(Boolean).join(' · ');
+                const isResending = resendingId === execution.id;
 
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      {execution.executed_at && (
-                        <p className="text-sm font-medium">
-                          {new Date(execution.executed_at).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      )}
-                      {execution.execution_time != null && (
-                        <p className="text-xs text-muted-foreground">
-                          {execution.execution_time}ms
-                        </p>
-                      )}
+                return (
+                  <div key={execution.id} className="flex items-start justify-between gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="flex items-start space-x-3 min-w-0">
+                      <div className="flex items-center space-x-2 pt-0.5">
+                        {getStatusIcon(execution.status)}
+                        <FileText className="w-4 h-4 text-blue-600" />
+                      </div>
+
+                      <div className="min-w-0 space-y-1">
+                        <h4 className="font-medium truncate">{reportName}</h4>
+                        <p className="text-xs text-muted-foreground">ID: {execution.id.slice(0, 8)}…</p>
+
+                        {/* Canais de entrega */}
+                        {(p.delivery?.email || p.delivery?.whatsapp) && (
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {p.delivery?.email && (
+                              <Badge variant="outline" className="gap-1 font-normal">
+                                <Mail className="w-3 h-3 text-blue-600" /> E-mail
+                              </Badge>
+                            )}
+                            {p.delivery?.whatsapp && (
+                              <Badge variant="outline" className="gap-1 font-normal">
+                                <MessageSquare className="w-3 h-3 text-green-600" /> WhatsApp
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Destinatários */}
+                        {recipients.length > 0 && (
+                          <p className="text-xs text-muted-foreground break-all">
+                            Para: {recipients.join(', ')}
+                          </p>
+                        )}
+
+                        {/* O que foi gerado */}
+                        {generatedLine && (
+                          <p className="text-xs text-muted-foreground">
+                            Gerado: {generatedLine}
+                          </p>
+                        )}
+
+                        {execution.error_message && (
+                          <p className="text-sm text-red-600 mt-1">Erro: {execution.error_message}</p>
+                        )}
+                      </div>
                     </div>
-                    
-                    {getStatusBadge(execution.status)}
+
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="text-right">
+                        {execution.executed_at && (
+                          <p className="text-sm font-medium">
+                            {new Date(execution.executed_at).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                        {execution.execution_time != null && (
+                          <p className="text-xs text-muted-foreground">{execution.execution_time}ms</p>
+                        )}
+                      </div>
+
+                      {getStatusBadge(execution.status)}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        disabled={isResending}
+                        onClick={() => handleResend(execution)}
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
+                        {isResending ? 'Reenviando…' : 'Reenviar'}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
