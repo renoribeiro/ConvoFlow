@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { FileText, BarChart3, Users, MessageSquare, Calendar, X, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface NewReportModalProps {
   isOpen: boolean;
@@ -58,6 +59,9 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  // Campo de destinatários (e-mails separados por vírgula). Mantido como string
+  // crua porque o usuário digita livremente; o parsing/validação ocorre no envio.
+  const [recipientsRaw, setRecipientsRaw] = useState('');
 
   const reportTypes = [
     { value: 'campaigns', label: 'Campanhas', icon: MessageSquare, description: 'Performance de campanhas de marketing' },
@@ -132,46 +136,70 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
     }
   };
 
+  const resetForm = () => {
+    setReportData({
+      name: '',
+      description: '',
+      type: '',
+      frequency: 'manual',
+      format: 'pdf',
+      metrics: [],
+      filters: { dateRange: '30days', campaigns: [], contacts: [], status: [] },
+      delivery: { email: false, whatsapp: false, recipients: [] }
+    });
+    setRecipientsRaw('');
+    setCurrentStep(1);
+  };
+
   const handleSubmit = async () => {
     if (!reportData.name || !reportData.type || reportData.metrics.length === 0) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
+    // Envio por e-mail exige destinatários válidos.
+    if (reportData.delivery.email) {
+      const hasRecipient = recipientsRaw
+        .split(/[,;\n]/)
+        .map((r) => r.trim())
+        .some((r) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r));
+      if (!hasRecipient) {
+        toast.error('Informe ao menos um e-mail de destinatário válido');
+        return;
+      }
+    } else if (!reportData.delivery.whatsapp) {
+      toast.error('Selecione ao menos um canal de entrega (e-mail)');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Simular criação do relatório
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log('Novo relatório criado:', reportData);
-      toast.success('Relatório criado com sucesso!');
-      
-      // Reset form
-      setReportData({
-        name: '',
-        description: '',
-        type: '',
-        frequency: 'manual',
-        format: 'pdf',
-        metrics: [],
-        filters: {
-          dateRange: '30days',
-          campaigns: [],
-          contacts: [],
-          status: []
-        },
-        delivery: {
-          email: false,
-          whatsapp: false,
-          recipients: []
-        }
+      // Gera o relatório com dados reais e envia por e-mail via Edge Function.
+      const { data, error } = await supabase.functions.invoke('send-report', {
+        body: { ...reportData, delivery: { ...reportData.delivery, recipients: recipientsRaw } },
       });
-      setCurrentStep(1);
+
+      // invoke() trata status != 2xx como erro; tenta extrair a mensagem do corpo.
+      if (error) {
+        let message = error.message;
+        try {
+          const ctx = await (error as any).context?.json?.();
+          if (ctx?.error?.message) message = ctx.error.message;
+        } catch { /* mantém a mensagem padrão */ }
+        throw new Error(message);
+      }
+      if (data && data.success === false) {
+        throw new Error(data?.error?.message || 'Falha ao gerar o relatório');
+      }
+
+      const count = data?.recipients?.length ?? 0;
+      toast.success(`Relatório enviado para ${count} destinatário(s)!`);
+      resetForm();
       onClose();
     } catch (error) {
-      console.error('Erro ao criar relatório:', error);
-      toast.error('Erro ao criar relatório. Tente novamente.');
+      console.error('Erro ao gerar relatório:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -403,7 +431,9 @@ export const NewReportModal = ({ isOpen, onClose }: NewReportModalProps) => {
                       <Label htmlFor="recipients">Destinatários</Label>
                       <Input
                         id="recipients"
-                        placeholder="Digite emails ou números separados por vírgula"
+                        placeholder="Digite emails separados por vírgula"
+                        value={recipientsRaw}
+                        onChange={(e) => setRecipientsRaw(e.target.value)}
                         disabled={isLoading}
                       />
                     </div>

@@ -41,3 +41,8 @@ verify_jwt = true
 
 [functions.admin-create-user]
 verify_jwt = true
+
+[functions.send-report]
+# Gera relatório com dados reais do tenant e envia por e-mail (Resend).
+# Autentica o caller pelo JWT e resolve o tenant_id internamente.
+verify_jwt = true
