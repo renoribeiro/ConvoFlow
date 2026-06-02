@@ -7,6 +7,7 @@ import {
   Controls,
   MiniMap,
   addEdge,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
   type Connection,
@@ -53,6 +54,7 @@ import {
 import { NODE_TYPES } from '@/components/chatbots/flow/nodes/FlowNodes';
 import NodeConfigPanel from '@/components/chatbots/flow/panels/NodeConfigPanel';
 import NewChatbotFlowModal from '@/components/chatbots/NewChatbotFlowModal';
+import { FlowEdgeContext, EDGE_TYPES } from '@/components/chatbots/flow/edges/DeletableEdge';
 import type { ChatbotNodeType, ChatbotNodeData, ChatbotVariableRow } from '@/types/chatbot-flow.types';
 
 // ---------------------------------------------------------------------------
@@ -283,6 +285,49 @@ const ChatbotFlowBuilder: React.FC = () => {
         pushHistory(nodes, next);
         return next;
       });
+    },
+    [nodes, pushHistory]
+  );
+
+  // Delete a single connection (× button on the edge).
+  const deleteEdge = useCallback(
+    (edgeId: string) => {
+      setEdges((es) => {
+        const next = es.filter((e) => e.id !== edgeId);
+        pushHistory(nodes, next);
+        return next;
+      });
+    },
+    [nodes, pushHistory]
+  );
+
+  // Reconnect (move) a connection: drag an edge endpoint to another handle.
+  // Dropping it on empty space removes the edge (React Flow's standard pattern).
+  const edgeReconnectSuccessful = useRef(true);
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false;
+  }, []);
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeReconnectSuccessful.current = true;
+      setEdges((es) => {
+        const next = reconnectEdge(oldEdge, newConnection, es);
+        pushHistory(nodes, next);
+        return next;
+      });
+    },
+    [nodes, pushHistory]
+  );
+  const onReconnectEnd = useCallback(
+    (_event: MouseEvent | TouchEvent, edge: Edge) => {
+      if (!edgeReconnectSuccessful.current) {
+        setEdges((es) => {
+          const next = es.filter((e) => e.id !== edge.id);
+          pushHistory(nodes, next);
+          return next;
+        });
+      }
+      edgeReconnectSuccessful.current = true;
     },
     [nodes, pushHistory]
   );
@@ -588,15 +633,21 @@ const ChatbotFlowBuilder: React.FC = () => {
 
         {/* Canvas */}
         <div ref={reactFlowWrapper} className="flex-1 relative" onDrop={onDrop} onDragOver={onDragOver}>
+          <FlowEdgeContext.Provider value={{ deleteEdge }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
+            onReconnect={onReconnect}
+            onReconnectStart={onReconnectStart}
+            onReconnectEnd={onReconnectEnd}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            edgesReconnectable
             fitView
             deleteKeyCode={null}
             className="bg-[hsl(var(--background))]"
@@ -617,6 +668,7 @@ const ChatbotFlowBuilder: React.FC = () => {
               nodeColor="#888"
             />
           </ReactFlow>
+          </FlowEdgeContext.Provider>
         </div>
 
         {/* Right sidebar — node config */}
