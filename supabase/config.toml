@@ -1,7 +1,10 @@
 project_id = "pqjkuwyshybxldzpfbbs"
 
 [functions.evolution-webhook]
-verify_jwt = true
+# Evolution calls this webhook externally without a Supabase JWT; the function
+# authenticates each request via the per-instance apikey (and optional
+# EVOLUTION_WEBHOOK_SECRET). Must stay false or the gateway 401s real webhooks.
+verify_jwt = false
 
 [functions.waha-webhook]
 # WAHA does not send a JWT; we authenticate via a shared secret header
