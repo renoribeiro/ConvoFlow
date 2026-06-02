@@ -273,6 +273,56 @@ export function useUpdateChatbotMeta() {
 }
 
 // ---------------------------------------------------------------------------
+// Replace a chatbot's triggers (delete-all + insert)
+// ---------------------------------------------------------------------------
+export interface UpdateTriggersPayload {
+  chatbotId: string;
+  triggers: Array<{
+    trigger_type: ChatbotTriggerType;
+    trigger_value: ChatbotTriggerValue;
+    is_active: boolean;
+  }>;
+}
+
+export function useUpdateChatbotTriggers() {
+  const tenantId = useTenantId();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationKey: [QUERY_KEYS.CHATBOTS, 'update-triggers'],
+    mutationFn: async (payload: UpdateTriggersPayload) => {
+      if (!tenantId) throw new Error('tenant_id é obrigatório');
+      const { chatbotId, triggers } = payload;
+
+      const { error: delErr } = await db
+        .from('chatbot_triggers')
+        .delete()
+        .eq('chatbot_id', chatbotId)
+        .eq('tenant_id', tenantId);
+      if (delErr) throw delErr;
+
+      if (triggers.length > 0) {
+        const { error: insErr } = await db.from('chatbot_triggers').insert(
+          triggers.map((t) => ({
+            tenant_id: tenantId,
+            chatbot_id: chatbotId,
+            trigger_type: t.trigger_type,
+            trigger_value: t.trigger_value,
+            is_active: t.is_active,
+          }))
+        );
+        if (insErr) throw insErr;
+      }
+      logger.info('Gatilhos atualizados', { chatbotId, count: triggers.length });
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CHATBOTS, 'full', vars.chatbotId] });
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CHATBOTS, 'list'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Toggle is_active
 // ---------------------------------------------------------------------------
 export function useToggleChatbotActive() {

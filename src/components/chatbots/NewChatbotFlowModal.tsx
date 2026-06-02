@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { X, Plus } from 'lucide-react';
@@ -23,13 +23,35 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
-import { useCreateChatbot } from '@/hooks/useChatbotFlow';
+import {
+  useCreateChatbot,
+  useUpdateChatbotMeta,
+  useUpdateChatbotTriggers,
+} from '@/hooks/useChatbotFlow';
 import { ChatbotFlowCreateSchema } from '@/lib/validations/chatbot-flow';
-import type { ChatbotTriggerType, ChatbotTriggerValue } from '@/types/chatbot-flow.types';
+import type {
+  ChatbotTriggerType,
+  ChatbotTriggerValue,
+  ChatbotTriggerRow,
+} from '@/types/chatbot-flow.types';
+
+/** Initial settings of an existing bot, for edit mode. */
+export interface ChatbotInitialSettings {
+  id: string;
+  name: string;
+  description?: string | null;
+  whatsapp_instance_id?: string | null;
+  priority?: number | null;
+  triggers: ChatbotTriggerRow[];
+}
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When provided, the modal edits this bot instead of creating a new one. */
+  initial?: ChatbotInitialSettings;
+  /** Called after a successful edit save (edit mode only). */
+  onSaved?: () => void;
 }
 
 const TRIGGER_LABELS: Record<ChatbotTriggerType, string> = {
@@ -66,19 +88,58 @@ const defaultTriggerConfig = (): TriggerConfig => ({
   stage_id: '',
 });
 
-const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose }) => {
+const emptyConfigs = (): TriggerConfigs =>
+  Object.fromEntries(ALL_TRIGGER_TYPES.map((t) => [t, defaultTriggerConfig()])) as TriggerConfigs;
+
+/** Build the editable trigger config map from persisted trigger rows. */
+const configsFromTriggers = (triggers: ChatbotTriggerRow[]): TriggerConfigs => {
+  const base = emptyConfigs();
+  for (const tr of triggers ?? []) {
+    const t = tr.trigger_type;
+    if (!base[t]) continue;
+    base[t].enabled = true;
+    const v = (tr.trigger_value ?? {}) as Record<string, unknown>;
+    if (t === 'keyword') base[t].keywords = Array.isArray(v.keywords) ? (v.keywords as string[]) : [];
+    if (t === 'no_agent_reply') base[t].minutes = typeof v.minutes === 'number' ? v.minutes : 5;
+    if (t === 'funnel_stage') base[t].stage_id = typeof v.stage_id === 'string' ? v.stage_id : '';
+  }
+  return base;
+};
+
+const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose, initial, onSaved }) => {
   const navigate = useNavigate();
+  const isEdit = !!initial;
+
   const createChatbot = useCreateChatbot();
+  const updateMeta = useUpdateChatbotMeta();
+  const updateTriggers = useUpdateChatbotTriggers();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [instanceId, setInstanceId] = useState<string>('all');
   const [priority, setPriority] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [triggerConfigs, setTriggerConfigs] = useState<TriggerConfigs>(emptyConfigs);
 
-  const [triggerConfigs, setTriggerConfigs] = useState<TriggerConfigs>(() =>
-    Object.fromEntries(ALL_TRIGGER_TYPES.map((t) => [t, defaultTriggerConfig()])) as TriggerConfigs
-  );
+  // Prefill (edit) or reset (create) whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setName(initial.name ?? '');
+      setDescription(initial.description ?? '');
+      setInstanceId(initial.whatsapp_instance_id ?? 'all');
+      setPriority(initial.priority ?? 0);
+      setTriggerConfigs(configsFromTriggers(initial.triggers));
+    } else {
+      setName('');
+      setDescription('');
+      setInstanceId('all');
+      setPriority(0);
+      setTriggerConfigs(emptyConfigs());
+    }
+    setErrors({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial?.id]);
 
   const { data: instances = [] } = useSupabaseQuery({
     table: 'whatsapp_instances',
@@ -164,7 +225,6 @@ const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose }) => {
       });
     }
 
-    // Extra per-trigger validation
     for (const type of ALL_TRIGGER_TYPES) {
       const cfg = triggerConfigs[type];
       if (!cfg.enabled) continue;
@@ -183,6 +243,25 @@ const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose }) => {
   const handleSubmit = async () => {
     if (!validate()) return;
 
+    if (isEdit && initial) {
+      try {
+        await updateMeta.mutateAsync({
+          id: initial.id,
+          name,
+          description: description || null,
+          whatsapp_instance_id: instanceId === 'all' ? null : instanceId,
+          priority,
+        });
+        await updateTriggers.mutateAsync({ chatbotId: initial.id, triggers: buildTriggers() });
+        toast.success('Bot atualizado com sucesso');
+        onSaved?.();
+        onClose();
+      } catch (err: any) {
+        toast.error('Erro ao atualizar bot', { description: err?.message });
+      }
+      return;
+    }
+
     try {
       const chatbot = await createChatbot.mutateAsync({
         name,
@@ -193,30 +272,20 @@ const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose }) => {
       });
 
       toast.success('Chatbot criado com sucesso');
-      handleClose();
+      onClose();
       navigate(`/dashboard/chatbots/${chatbot.id}/builder`);
     } catch (err: any) {
       toast.error('Erro ao criar chatbot', { description: err?.message });
     }
   };
 
-  const handleClose = () => {
-    setName('');
-    setDescription('');
-    setInstanceId('all');
-    setPriority(0);
-    setErrors({});
-    setTriggerConfigs(
-      Object.fromEntries(ALL_TRIGGER_TYPES.map((t) => [t, defaultTriggerConfig()])) as TriggerConfigs
-    );
-    onClose();
-  };
+  const isPending = createChatbot.isPending || updateMeta.isPending || updateTriggers.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Chatbot</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar Bot' : 'Novo Chatbot'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -365,11 +434,17 @@ const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose }) => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={createChatbot.isPending}>
-            {createChatbot.isPending ? 'Criando...' : 'Criar e Abrir Editor'}
+          <Button onClick={handleSubmit} disabled={isPending}>
+            {isEdit
+              ? isPending
+                ? 'Salvando...'
+                : 'Salvar Alterações'
+              : isPending
+                ? 'Criando...'
+                : 'Criar e Abrir Editor'}
           </Button>
         </DialogFooter>
       </DialogContent>
