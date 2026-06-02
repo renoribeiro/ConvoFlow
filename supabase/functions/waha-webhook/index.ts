@@ -242,11 +242,28 @@ function invokeChatbotEngine(
     headers['x-internal-secret'] = engineSecret;
   }
 
-  fetch(url, {
+  const enginePromise = fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
-  }).catch((err: any) => {
-    logger.warn('process-chatbot-message invocation failed', { error: err?.message });
-  });
+  })
+    .then((res) => {
+      if (!res.ok) logger.warn('process-chatbot-message returned non-OK', { status: res.status });
+    })
+    .catch((err: any) => {
+      logger.warn('process-chatbot-message invocation failed', { error: err?.message });
+    });
+
+  // Keep the isolate alive until the background request completes. Without this,
+  // Deno tears the isolate down when the webhook response returns and cancels
+  // the in-flight fetch — so the engine would never be invoked.
+  try {
+    // @ts-ignore EdgeRuntime is a Supabase Edge runtime global
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(enginePromise);
+    }
+  } catch (_e) {
+    // best-effort; ignore
+  }
 }
