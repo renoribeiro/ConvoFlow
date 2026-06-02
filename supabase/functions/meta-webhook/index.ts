@@ -235,8 +235,12 @@ async function handleIncomingMessage(
     return;
   }
 
-  // v1 bots (patched RPC ignores v2 bots).
-  await supabase.rpc('process_incoming_message', {
+  // v1 bots (patched RPC ignores v2 bots). The RPC resolves/creates the contact
+  // by (phone, tenant) and RETURNS its id — use that directly. Re-querying with
+  // an instance filter missed contacts whose whatsapp_instance_id is null or set
+  // to another instance (e.g. created before this instance existed), which
+  // silently prevented the v2 engine from ever being invoked.
+  const { data: rpcResult } = await supabase.rpc('process_incoming_message', {
     p_phone: phone,
     p_message_content: content,
     p_whatsapp_instance_id: instance.id,
@@ -245,23 +249,30 @@ async function handleIncomingMessage(
 
   logger.info('Meta message processed', { id: messageId, type: msg.type });
 
-  // Resolve contact_id then fire-and-forget for visual-flow (v2) bots.
-  const { data: contactRow } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('phone', phone)
-    .eq('tenant_id', instance.tenant_id)
-    .eq('whatsapp_instance_id', instance.id)
-    .maybeSingle();
+  // Resolve contact_id: prefer the RPC result; fall back to a phone+tenant lookup.
+  let contactId: string | undefined = (rpcResult as any)?.contact_id;
+  if (!contactId) {
+    const { data: contactRow } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('phone', phone)
+      .eq('tenant_id', instance.tenant_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    contactId = contactRow?.id as string | undefined;
+  }
 
-  if (contactRow?.id) {
+  if (contactId) {
     invokeChatbotEngine({
       tenant_id: instance.tenant_id,
       whatsapp_instance_id: instance.id,
-      contact_id: contactRow.id,
+      contact_id: contactId,
       phone,
       message: content,
     }, logger);
+  } else {
+    logger.warn('Meta: could not resolve contact_id for chatbot engine', { phone });
   }
 }
 
@@ -344,11 +355,28 @@ function invokeChatbotEngine(
     headers['x-internal-secret'] = engineSecret;
   }
 
-  fetch(url, {
+  const enginePromise = fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
-  }).catch((err: any) => {
-    logger.warn('process-chatbot-message invocation failed', { error: err?.message });
-  });
+  })
+    .then((res) => {
+      if (!res.ok) logger.warn('process-chatbot-message returned non-OK', { status: res.status });
+    })
+    .catch((err: any) => {
+      logger.warn('process-chatbot-message invocation failed', { error: err?.message });
+    });
+
+  // Keep the isolate alive until the background request completes. Without this,
+  // Deno tears the isolate down when the webhook response returns and cancels
+  // the in-flight fetch — so the engine would never be invoked.
+  try {
+    // @ts-ignore EdgeRuntime is a Supabase Edge runtime global
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(enginePromise);
+    }
+  } catch (_e) {
+    // best-effort; ignore
+  }
 }

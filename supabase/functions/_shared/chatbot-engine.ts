@@ -1140,8 +1140,11 @@ async function sendBotMessage(
   try {
     // Import provider factory dynamically to keep this file importable in test
     // environments without Deno network access.
-    const { ProviderFactory } = await import('./whatsapp-providers/provider-factory.ts');
-    const provider = ProviderFactory.getProvider(instance);
+    // NOTE: use the shared _shared/provider-factory.ts (async) — for the Meta
+    // ('official') provider it resolves the access token from Vault via the
+    // get_instance_meta_token RPC. The token is NOT in connection_config.
+    const { ProviderFactory } = await import('./provider-factory.ts');
+    const provider = await ProviderFactory.getProvider(instance, supabase as unknown as Parameters<typeof ProviderFactory.getProvider>[1]);
     await provider.sendMessage(input.phone, text);
   } catch (err) {
     logger.error('Failed to send bot message via provider', {

@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Loader2,
   Check,
+  Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +52,7 @@ import {
 } from '@/lib/chatbot/flowConstants';
 import { NODE_TYPES } from '@/components/chatbots/flow/nodes/FlowNodes';
 import NodeConfigPanel from '@/components/chatbots/flow/panels/NodeConfigPanel';
+import NewChatbotFlowModal from '@/components/chatbots/NewChatbotFlowModal';
 import type { ChatbotNodeType, ChatbotNodeData, ChatbotVariableRow } from '@/types/chatbot-flow.types';
 
 // ---------------------------------------------------------------------------
@@ -109,6 +111,7 @@ const ChatbotFlowBuilder: React.FC = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [variables, setVariables] = useState<ChatbotVariableRow[]>([]);
   const [botName, setBotName] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -517,6 +520,11 @@ const ChatbotFlowBuilder: React.FC = () => {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} title="Editar configurações do bot">
+            <Settings2 className="h-4 w-4" />
+            <span className="ml-1.5">Editar Bot</span>
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
           <Button variant="ghost" size="icon" onClick={undo} title="Desfazer (Ctrl+Z)">
             <Undo2 className="h-4 w-4" />
           </Button>
@@ -650,6 +658,20 @@ const ChatbotFlowBuilder: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit bot settings (name, description, instance, priority, triggers) */}
+      <NewChatbotFlowModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        initial={{
+          id: flowData.chatbot.id,
+          name: flowData.chatbot.name,
+          description: flowData.chatbot.description,
+          whatsapp_instance_id: flowData.chatbot.whatsapp_instance_id,
+          priority: flowData.chatbot.priority,
+          triggers: flowData.triggers,
+        }}
+      />
     </div>
   );
 };
