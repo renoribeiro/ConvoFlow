@@ -3,8 +3,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldCheck, RefreshCw, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ShieldCheck, RefreshCw, Info, Loader2, Zap } from 'lucide-react';
 import { env } from '@/lib/env';
+import { useMetaEmbeddedSignup } from '@/hooks/useMetaEmbeddedSignup';
 
 export interface OfficialFormValues {
   name: string;
@@ -28,9 +30,13 @@ interface Props {
   values: OfficialFormValues;
   onChange: (patch: Partial<OfficialFormValues>) => void;
   loading: boolean;
+  onSignupSuccess?: () => void;
 }
 
-export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
+export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: Props) => {
+  const { isAvailable: embeddedSignupAvailable, startSignup, loading: signupLoading } =
+    useMetaEmbeddedSignup();
+
   // Ensure verifyToken is populated on first render
   useEffect(() => {
     if (!values.verifyToken) {
@@ -48,8 +54,62 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
     onChange({ verifyToken: seed.verifyToken });
   };
 
+  const handleEmbeddedSignup = async () => {
+    try {
+      await startSignup(values.name || undefined);
+      onSignupSuccess?.();
+    } catch {
+      // Toast already shown by the hook; swallow so it doesn't bubble to modal
+    }
+  };
+
+  const isDisabled = loading || signupLoading;
+
   return (
     <div className="space-y-4">
+      {embeddedSignupAvailable ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-blue-700" />
+            <span className="text-sm font-medium text-blue-900">Conexão automática</span>
+          </div>
+          <p className="text-xs text-blue-800">
+            Clique abaixo para conectar sua conta WhatsApp Business diretamente via Meta, sem
+            precisar copiar IDs ou tokens manualmente.
+          </p>
+          <Button
+            type="button"
+            className="w-full bg-blue-700 hover:bg-blue-800 text-white"
+            onClick={handleEmbeddedSignup}
+            disabled={isDisabled}
+          >
+            {signupLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Conectar com a Meta
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            — ou preencha os campos abaixo manualmente —
+          </p>
+        </div>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full opacity-50 cursor-not-allowed"
+                disabled
+              >
+                Conectar com a Meta
+              </Button>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Configuração da Meta pendente (VITE_FACEBOOK_APP_ID / VITE_META_CONFIG_ID)</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
+
       <Alert className="border-emerald-200 bg-emerald-50/60">
         <ShieldCheck className="h-4 w-4 text-emerald-700" />
         <AlertTitle>API Oficial do WhatsApp (Meta Cloud API)</AlertTitle>
@@ -75,7 +135,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
           placeholder="Ex: WhatsApp Vendas Oficial"
           value={values.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          disabled={loading}
+          disabled={isDisabled}
         />
       </div>
 
@@ -87,7 +147,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
             placeholder="123456789012345"
             value={values.phoneNumberId}
             onChange={(e) => onChange({ phoneNumberId: e.target.value })}
-            disabled={loading}
+            disabled={isDisabled}
           />
         </div>
         <div className="space-y-2">
@@ -97,7 +157,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
             placeholder="123456789012345"
             value={values.wabaId}
             onChange={(e) => onChange({ wabaId: e.target.value })}
-            disabled={loading}
+            disabled={isDisabled}
           />
         </div>
       </div>
@@ -110,7 +170,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
           placeholder="EAAG..."
           value={values.accessToken}
           onChange={(e) => onChange({ accessToken: e.target.value })}
-          disabled={loading}
+          disabled={isDisabled}
           autoComplete="off"
         />
         <p className="text-xs text-muted-foreground">
@@ -126,7 +186,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
             variant="ghost"
             size="sm"
             onClick={regenerateVerifyToken}
-            disabled={loading}
+            disabled={isDisabled}
           >
             <RefreshCw className="h-3 w-3 mr-1" />
             Gerar novo
@@ -136,7 +196,7 @@ export const OfficialApiForm = ({ values, onChange, loading }: Props) => {
           id="meta-verify"
           value={values.verifyToken}
           onChange={(e) => onChange({ verifyToken: e.target.value })}
-          disabled={loading}
+          disabled={isDisabled}
         />
       </div>
 

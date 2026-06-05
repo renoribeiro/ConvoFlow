@@ -30,6 +30,12 @@ verify_jwt = false
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
+[functions.meta-oauth-exchange]
+# Completes the Embedded Signup OAuth flow (code -> token -> WABA subscribe ->
+# instance creation). Called from an authenticated user session, so JWT
+# verification is required — same setting as whatsapp-meta-setup.
+verify_jwt = true
+
 [functions.whatsapp-send-message]
 verify_jwt = true
 

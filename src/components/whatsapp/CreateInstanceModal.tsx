@@ -176,6 +176,11 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
           values={officialValues}
           onChange={(patch) => setOfficialValues((prev) => ({ ...prev, ...patch }))}
           loading={loading}
+          onSignupSuccess={() => {
+            onSuccess();
+            onOpenChange(false);
+            resetWizard();
+          }}
         />
       );
     }
