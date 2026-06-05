@@ -1,24 +1,31 @@
-
 import { useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { CampaignsList } from '@/components/campaigns/CampaignsList';
-import { CampaignWizard } from '@/components/campaigns/CampaignWizard';
+import { CampaignWizard } from '@/components/campaigns/CampaignWizardNew';
 import { CampaignReportsModal } from '@/components/campaigns/CampaignReportsModal';
-import { Plus, Send, Clock, BarChart3 } from 'lucide-react';
+import { Plus, Send, Clock, BarChart3, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useCampaignGlobalStats } from '@/hooks/useCampaigns';
+import type { Campaign } from '@/hooks/useCampaigns';
 
 export default function Campaigns() {
   const [showWizard, setShowWizard] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
   const [showReports, setShowReports] = useState(false);
 
-  const stats = {
-    totalCampaigns: 8,
-    activeCampaigns: 3,
-    messagesSent: 1247,
-    successRate: 87.5
+  const { data: stats, isLoading: statsLoading } = useCampaignGlobalStats();
+
+  const handleEdit = (campaign: Campaign) => {
+    setEditCampaign(campaign);
+    setShowWizard(true);
+  };
+
+  const handleCloseWizard = () => {
+    setShowWizard(false);
+    setEditCampaign(null);
   };
 
   return (
@@ -28,12 +35,12 @@ export default function Campaigns() {
         description="Crie e gerencie campanhas de mensagens em massa para seus contatos"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
-          { label: 'Campanhas' }
+          { label: 'Campanhas' },
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => setShowReports(true)}
             >
@@ -50,115 +57,97 @@ export default function Campaigns() {
 
       {/* Estatísticas Rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Campanhas</p>
-                <p className="text-2xl font-bold">{stats.totalCampaigns}</p>
-              </div>
-              <Send className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Campanhas Ativas</p>
-                <p className="text-2xl font-bold text-primary">{stats.activeCampaigns}</p>
-              </div>
-              <Clock className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Mensagens Enviadas</p>
-                <p className="text-2xl font-bold">{stats.messagesSent.toLocaleString()}</p>
-              </div>
-              <Send className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</p>
-                <p className="text-2xl font-bold">{stats.successRate}%</p>
-              </div>
-              <BarChart3 className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Total de Campanhas"
+          value={stats?.totalCampaigns}
+          icon={<Send className="h-8 w-8 text-muted-foreground" />}
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Campanhas Ativas"
+          value={stats?.activeCampaigns}
+          icon={<Clock className="h-8 w-8 text-muted-foreground" />}
+          loading={statsLoading}
+          highlight
+        />
+        <StatCard
+          label="Mensagens Enviadas"
+          value={stats?.messagesSent?.toLocaleString('pt-BR')}
+          icon={<Send className="h-8 w-8 text-muted-foreground" />}
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Taxa de Sucesso"
+          value={stats ? `${stats.successRate.toFixed(1)}%` : undefined}
+          icon={<TrendingUp className="h-8 w-8 text-muted-foreground" />}
+          loading={statsLoading}
+        />
       </div>
 
       {showWizard ? (
-        <CampaignWizard 
-          onClose={() => setShowWizard(false)}
-          campaignId={selectedCampaign}
+        <CampaignWizard
+          onClose={handleCloseWizard}
+          campaign={editCampaign ?? undefined}
         />
       ) : (
         <Tabs defaultValue="active" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="active">Campanhas Ativas</TabsTrigger>
+            <TabsTrigger value="active">Ativas</TabsTrigger>
             <TabsTrigger value="scheduled">Agendadas</TabsTrigger>
             <TabsTrigger value="completed">Concluídas</TabsTrigger>
-            <TabsTrigger value="drafts">Rascunhos</TabsTrigger>
+            <TabsTrigger value="draft">Rascunhos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active">
-            <CampaignsList 
-              status="active"
-              onEdit={(id) => {
-                setSelectedCampaign(id);
-                setShowWizard(true);
-              }}
-            />
+            <CampaignsList status="active" onEdit={handleEdit} />
           </TabsContent>
-
           <TabsContent value="scheduled">
-            <CampaignsList 
-              status="scheduled"
-              onEdit={(id) => {
-                setSelectedCampaign(id);
-                setShowWizard(true);
-              }}
-            />
+            <CampaignsList status="scheduled" onEdit={handleEdit} />
           </TabsContent>
-
           <TabsContent value="completed">
-            <CampaignsList 
-              status="completed"
-              onEdit={(id) => {
-                setSelectedCampaign(id);
-                setShowWizard(true);
-              }}
-            />
+            <CampaignsList status="completed" onEdit={handleEdit} />
           </TabsContent>
-
-          <TabsContent value="drafts">
-            <CampaignsList 
-              status="draft"
-              onEdit={(id) => {
-                setSelectedCampaign(id);
-                setShowWizard(true);
-              }}
-            />
+          <TabsContent value="draft">
+            <CampaignsList status="draft" onEdit={handleEdit} />
           </TabsContent>
         </Tabs>
       )}
 
-      <CampaignReportsModal 
-        isOpen={showReports} 
-        onClose={() => setShowReports(false)} 
-      />
+      <CampaignReportsModal isOpen={showReports} onClose={() => setShowReports(false)} />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Internal component
+// ─────────────────────────────────────────────
+
+interface StatCardProps {
+  label: string;
+  value: string | number | undefined;
+  icon: React.ReactNode;
+  loading?: boolean;
+  highlight?: boolean;
+}
+
+function StatCard({ label, value, icon, loading, highlight }: StatCardProps) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{label}</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16 mt-1" />
+            ) : (
+              <p className={`text-2xl font-bold${highlight ? ' text-primary' : ''}`}>
+                {value ?? '—'}
+              </p>
+            )}
+          </div>
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

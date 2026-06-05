@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,23 +6,41 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { Slider } from '@/components/ui/slider';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  CalendarIcon, 
-  Clock, 
-  Users, 
-  MessageSquare, 
-  Send, 
-  Info,
+import { useTenantId } from '@/contexts/TenantContext';
+import { useCampaignMutations, type Campaign, type CampaignCreateInput, type MessageType, type AudienceType } from '@/hooks/useCampaigns';
+import { logger } from '@/lib/logger';
+import { format, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
   X,
-  Plus
+  MessageSquare,
+  Image as ImageIcon,
+  Video,
+  Upload,
+  Users,
+  Tags,
+  ListChecks,
+  CalendarIcon,
+  Send,
+  Clock,
+  Loader2,
+  Download,
+  CheckCircle,
+  AlertCircle,
+  Search,
 } from 'lucide-react';
-import { format } from 'date-fns';
+
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
 
 interface Tag {
   id: string;
@@ -42,658 +60,1198 @@ interface WhatsAppInstance {
   status: string;
 }
 
-interface CampaignWizardProps {
-  onClose: () => void;
-  onCampaignCreated: () => void;
+interface Contact {
+  id: string;
+  name: string | null;
+  phone: string;
+  current_stage_id: string | null;
 }
 
-export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardProps) => {
+interface CsvRow {
+  phone: string;
+  name?: string;
+  email?: string;
+}
+
+interface CsvParseResult {
+  valid: CsvRow[];
+  invalid: Array<{ row: number; reason: string }>;
+}
+
+// ─────────────────────────────────────────────
+// CSV parser (no external dep)
+// ─────────────────────────────────────────────
+
+function parseCsv(text: string): CsvParseResult {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return { valid: [], invalid: [] };
+
+  const firstLine = lines[0] ?? '';
+  const header = firstLine.split(',').map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
+  const phoneIdx = header.indexOf('phone') !== -1 ? header.indexOf('phone') : header.indexOf('telefone');
+  const nameIdx = header.indexOf('name') !== -1 ? header.indexOf('name') : header.indexOf('nome');
+  const emailIdx = header.indexOf('email');
+
+  const valid: CsvRow[] = [];
+  const invalid: Array<{ row: number; reason: string }> = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const cols = line.split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+    if (phoneIdx === -1 || !cols[phoneIdx]) {
+      invalid.push({ row: i + 1, reason: 'Coluna "phone" ausente ou vazia' });
+      continue;
+    }
+    const rawPhone = cols[phoneIdx].replace(/\D/g, '');
+    if (rawPhone.length < 8) {
+      invalid.push({ row: i + 1, reason: `Telefone inválido: "${cols[phoneIdx]}"` });
+      continue;
+    }
+    valid.push({
+      phone: rawPhone,
+      name: nameIdx !== -1 ? cols[nameIdx] || undefined : undefined,
+      email: emailIdx !== -1 ? cols[emailIdx] || undefined : undefined,
+    });
+  }
+
+  return { valid, invalid };
+}
+
+function buildTemplateCsv(): string {
+  return 'phone,name,email\n5511999990001,João Silva,joao@exemplo.com\n5511999990002,Maria Santos,';
+}
+
+// ─────────────────────────────────────────────
+// Variable chips
+// ─────────────────────────────────────────────
+
+const VARIABLE_CHIPS = [
+  { label: '{name}', value: '{name}' },
+  { label: '{first_name}', value: '{first_name}' },
+  { label: '{phone}', value: '{phone}' },
+  { label: '{email}', value: '{email}' },
+];
+
+function insertAtCursor(
+  ref: React.RefObject<HTMLTextAreaElement>,
+  text: string,
+  value: string,
+  onChange: (v: string) => void
+) {
+  const el = ref.current;
+  if (!el) return;
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  const newVal = value.slice(0, start) + text + value.slice(end);
+  onChange(newVal);
+  // Restore cursor after React re-render
+  requestAnimationFrame(() => {
+    el.selectionStart = el.selectionEnd = start + text.length;
+    el.focus();
+  });
+}
+
+// ─────────────────────────────────────────────
+// Props
+// ─────────────────────────────────────────────
+
+interface CampaignWizardProps {
+  onClose: () => void;
+  onCampaignCreated?: () => void;
+  campaign?: Campaign;
+}
+
+// ─────────────────────────────────────────────
+// State shape
+// ─────────────────────────────────────────────
+
+interface WizardState {
+  name: string;
+  description: string;
+  whatsapp_instance_id: string;
+  message_type: MessageType;
+  message_template: string;
+  media_url: string | null;
+  media_caption: string;
+  audience_type: AudienceType;
+  // CSV
+  csvRows: CsvRow[];
+  csvInvalid: Array<{ row: number; reason: string }>;
+  csvFileName: string;
+  csvFileUrl: string | null;
+  // Tags
+  selectedTagIds: string[];
+  // Contact list
+  selectedContactIds: string[];
+  contactSearch: string;
+  contactStageFilter: string;
+  // Schedule
+  sendMode: 'immediate' | 'scheduled';
+  scheduledDate: Date | null;
+  scheduledTime: string;
+  timezone: string;
+  // Dispatch settings
+  delay_between_messages: number;
+  respect_business_hours: boolean;
+  business_hours_start: string;
+  business_hours_end: string;
+  daily_send_limit: string;
+}
+
+function initState(campaign?: Campaign): WizardState {
+  return {
+    name: campaign?.name ?? '',
+    description: campaign?.description ?? '',
+    whatsapp_instance_id: campaign?.whatsapp_instance_id ?? '',
+    message_type: campaign?.message_type ?? 'text',
+    message_template: campaign?.message_template ?? '',
+    media_url: campaign?.media_url ?? null,
+    media_caption: campaign?.media_caption ?? '',
+    audience_type: campaign?.audience_type ?? 'tags',
+    csvRows: [],
+    csvInvalid: [],
+    csvFileName: '',
+    csvFileUrl: null,
+    selectedTagIds: campaign?.target_tags ?? [],
+    selectedContactIds:
+      (campaign?.audience_config as { contact_ids?: string[] } | null)?.contact_ids ?? [],
+    contactSearch: '',
+    contactStageFilter: 'all',
+    sendMode: campaign?.scheduled_at ? 'scheduled' : 'immediate',
+    scheduledDate: campaign?.scheduled_at ? new Date(campaign.scheduled_at) : null,
+    scheduledTime: campaign?.scheduled_at
+      ? format(new Date(campaign.scheduled_at), 'HH:mm')
+      : '09:00',
+    timezone: campaign?.timezone ?? 'America/Sao_Paulo',
+    delay_between_messages: campaign?.delay_between_messages ?? 5,
+    respect_business_hours: campaign?.respect_business_hours ?? false,
+    business_hours_start: campaign?.business_hours_start ?? '09:00',
+    business_hours_end: campaign?.business_hours_end ?? '18:00',
+    daily_send_limit: campaign?.daily_send_limit?.toString() ?? '',
+  };
+}
+
+const STEPS = ['Conteúdo', 'Público', 'Agendamento', 'Revisão'];
+
+// ─────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────
+
+export const CampaignWizard = ({
+  onClose,
+  onCampaignCreated,
+  campaign,
+}: CampaignWizardProps) => {
+  const isEdit = !!campaign;
+  const tenantId = useTenantId();
+  const { toast } = useToast();
+  const { createCampaign, updateCampaign, scheduleCampaign } = useCampaignMutations();
+
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState<WizardState>(() => initState(campaign));
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  // Data from Supabase
+  const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [stages, setStages] = useState<FunnelStage[]>([]);
-  const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
-  const { toast } = useToast();
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactCount, setContactCount] = useState(0);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
-  // Form data
-  const [campaignData, setCampaignData] = useState({
-    name: '',
-    description: '',
-    message_template: '',
-    whatsapp_instance_id: '',
-    target_tags: [] as string[],
-    target_stages: [] as string[],
-    scheduled_at: null as Date | null,
-    delay_between_messages: 30,
-    media_url: '',
-    enable_message_randomization: false,
-    min_delay_seconds: 0,
-    max_delay_seconds: 15,
-    message_templates: [] as string[]
-  });
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [previewData, setPreviewData] = useState({
-    estimatedContacts: 0,
-    estimatedDuration: '0 min',
-  });
-
-  useEffect(() => {
-    loadData();
+  const set = useCallback(<K extends keyof WizardState>(key: K, value: WizardState[K]) => {
+    setState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  // ── Load reference data ────────────────────
   useEffect(() => {
-    if (step === 3) {
-      updatePreview();
-    }
-  }, [campaignData.target_tags, campaignData.target_stages, campaignData.delay_between_messages]);
+    if (!tenantId) return;
+    void (async () => {
+      const [{ data: inst }, { data: tgs }, { data: stgs }] = await Promise.all([
+        supabase
+          .from('whatsapp_instances')
+          .select('id, name, status')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true),
+        supabase
+          .from('tags')
+          .select('id, name, color')
+          .eq('tenant_id', tenantId),
+        supabase
+          .from('funnel_stages')
+          .select('id, name, color')
+          .eq('tenant_id', tenantId)
+          .order('order'),
+      ]);
+      setInstances((inst ?? []).map((i) => ({ ...i, status: i.status ?? '' })));
+      setTags((tgs ?? []).map((t) => ({ ...t, color: t.color ?? '' })));
+      setStages((stgs ?? []).map((s) => ({ ...s, color: s.color ?? '' })));
+    })();
+  }, [tenantId]);
 
-  const loadData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
-
-      // Load tags
-      const { data: tagsData } = await supabase
-        .from('tags')
-        .select('id, name, color')
-        .eq('tenant_id', profile.tenant_id);
-
-      if (tagsData) setTags(tagsData);
-
-      // Load stages
-      const { data: stagesData } = await supabase
-        .from('funnel_stages')
-        .select('id, name, color')
-        .eq('tenant_id', profile.tenant_id)
-        .order('order');
-
-      if (stagesData) setStages(stagesData);
-
-      // Load WhatsApp instances
-      const { data: instancesData } = await supabase
-        .from('whatsapp_instances')
-        .select('id, name, status')
-        .eq('tenant_id', profile.tenant_id)
-        .eq('is_active', true);
-
-      if (instancesData) setInstances(instancesData);
-
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-  };
-
-  const updatePreview = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
-
-      // Count contacts that match criteria
-      let query = supabase
+  // ── Load contacts (contact_list audience) ──
+  useEffect(() => {
+    if (state.audience_type !== 'contact_list' || !tenantId) return;
+    void (async () => {
+      setLoadingContacts(true);
+      const { data } = await supabase
         .from('contacts')
-        .select('id', { count: 'exact' })
-        .eq('tenant_id', profile.tenant_id)
-        .eq('is_blocked', false)
-        .eq('opt_out_mass_message', false);
+        .select('id, name, phone, current_stage_id')
+        .eq('tenant_id', tenantId)
+        .order('name');
+      setContacts(data ?? []);
+      setLoadingContacts(false);
+    })();
+  }, [state.audience_type, tenantId]);
 
-      // Apply tag filters
-      if (campaignData.target_tags.length > 0) {
-        const { data: contactIdsWithTags } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', campaignData.target_tags);
-          
-        if (contactIdsWithTags) {
-          const contactIds = contactIdsWithTags.map(ct => ct.contact_id);
-          query = query.in('id', contactIds);
-        }
+  // ── Tag audience contact count ─────────────
+  useEffect(() => {
+    if (state.audience_type !== 'tags' || !tenantId) return;
+    void (async () => {
+      if (state.selectedTagIds.length === 0) {
+        setContactCount(0);
+        return;
       }
+      const { data: ctRows } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', state.selectedTagIds);
+      const ids = [...new Set((ctRows ?? []).map((r: { contact_id: string }) => r.contact_id))];
+      setContactCount(ids.length);
+    })();
+  }, [state.selectedTagIds, state.audience_type, tenantId]);
 
-      // Apply stage filters  
-      if (campaignData.target_stages.length > 0) {
-        query = query.in('current_stage_id', campaignData.target_stages);
-      }
+  // ── Helpers ────────────────────────────────
 
-      const { count } = await query;
-      
-      const estimatedContacts = count || 0;
-      const estimatedDurationMinutes = Math.ceil((estimatedContacts * campaignData.delay_between_messages) / 60);
-      
-      setPreviewData({
-        estimatedContacts,
-        estimatedDuration: estimatedDurationMinutes > 60 
-          ? `${Math.floor(estimatedDurationMinutes / 60)}h ${estimatedDurationMinutes % 60}min`
-          : `${estimatedDurationMinutes} min`,
-      });
+  const totalContacts =
+    state.audience_type === 'csv_import'
+      ? state.csvRows.length
+      : state.audience_type === 'tags'
+      ? contactCount
+      : state.selectedContactIds.length;
 
-    } catch (error) {
-      console.error('Error updating preview:', error);
-    }
+  const estimatedDuration = () => {
+    const secs = totalContacts * state.delay_between_messages;
+    if (secs < 60) return `${secs}s`;
+    if (secs < 3600) return `${Math.ceil(secs / 60)} min`;
+    const h = Math.floor(secs / 3600);
+    const m = Math.ceil((secs % 3600) / 60);
+    return `${h}h ${m}min`;
   };
 
-  const handleNext = () => {
-    if (step < 4) {
-      setStep(step + 1);
-    }
+  const scheduledAt = (): string | null => {
+    if (state.sendMode !== 'scheduled' || !state.scheduledDate) return null;
+    const [hh, mm] = state.scheduledTime.split(':');
+    const d = new Date(state.scheduledDate);
+    d.setHours(Number(hh), Number(mm), 0, 0);
+    return d.toISOString();
   };
 
-  const handlePrevious = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+  const scheduleLabel = (): string => {
+    const at = scheduledAt();
+    if (!at) return 'Envio imediato';
+    const d = new Date(at);
+    const days = differenceInDays(d, new Date());
+    const hours = differenceInHours(d, new Date()) % 24;
+    const mins = differenceInMinutes(d, new Date()) % 60;
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (mins > 0) parts.push(`${mins}min`);
+    return parts.length ? `em ${parts.join(' ')} (${format(d, "dd/MM HH:mm", { locale: ptBR })})` : 'Agora';
   };
 
-  const handleTagToggle = (tagId: string) => {
-    setCampaignData(prev => ({
-      ...prev,
-      target_tags: prev.target_tags.includes(tagId)
-        ? prev.target_tags.filter(id => id !== tagId)
-        : [...prev.target_tags, tagId]
-    }));
-  };
-
-  const handleStageToggle = (stageId: string) => {
-    setCampaignData(prev => ({
-      ...prev,
-      target_stages: prev.target_stages.includes(stageId)
-        ? prev.target_stages.filter(id => id !== stageId)
-        : [...prev.target_stages, stageId]
-    }));
-  };
-
-  const handleScheduleCampaign = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) throw new Error('Perfil não encontrado');
-
-      // Create campaign
-      const { data: campaign, error } = await supabase
-        .from('mass_message_campaigns')
-        .insert({
-          tenant_id: user.user_metadata.tenant_id,
-          name: campaignData.name,
-          description: campaignData.description,
-          message_template: campaignData.message_template,
-          whatsapp_instance_id: campaignData.whatsapp_instance_id,
-          target_tags: campaignData.target_tags,
-          target_stages: campaignData.target_stages,
-          scheduled_at: campaignData.scheduled_at?.toISOString(),
-          delay_between_messages: campaignData.delay_between_messages,
-          media_url: campaignData.media_url || null,
-          enable_message_randomization: campaignData.enable_message_randomization,
-          min_delay_seconds: campaignData.min_delay_seconds,
-          max_delay_seconds: campaignData.max_delay_seconds,
-          message_templates: campaignData.message_templates.filter(t => t.trim() !== '')
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Schedule campaign messages
-      const { data: scheduledCount, error: scheduleError } = await supabase
-        .rpc('schedule_campaign_messages', {
-          p_campaign_id: campaign.id
-        });
-
-      if (scheduleError) throw scheduleError;
-
-      toast({
-        title: "Campanha Criada",
-        description: `Campanha agendada com sucesso! ${scheduledCount} mensagens foram programadas.`,
-      });
-
-      onCampaignCreated();
-      onClose();
-
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Falha ao criar campanha",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Step validation ────────────────────────
 
   const canProceed = () => {
-    switch (step) {
-      case 1:
-        return campaignData.name.trim() && campaignData.message_template.trim();
-      case 2:
-        return campaignData.whatsapp_instance_id;
-      case 3:
-        return true; // Optional targeting
-      case 4:
-        return true;
-      default:
-        return false;
+    if (step === 1) {
+      const ok = state.name.trim().length > 0 && state.whatsapp_instance_id;
+      if (state.message_type === 'text') return ok && state.message_template.trim().length > 0;
+      return ok && !!state.media_url;
+    }
+    if (step === 2) {
+      if (state.audience_type === 'csv_import') return state.csvRows.length > 0;
+      if (state.audience_type === 'tags') return state.selectedTagIds.length > 0;
+      if (state.audience_type === 'contact_list') return state.selectedContactIds.length > 0;
+    }
+    if (step === 3) {
+      if (state.sendMode === 'scheduled') return !!state.scheduledDate;
+    }
+    return true;
+  };
+
+  // ── Media upload ───────────────────────────
+
+  const handleMediaUpload = async (file: File, bucket: 'campaign-media' | 'campaign-imports') => {
+    if (!tenantId) return;
+    setUploading(true);
+    setUploadProgress(10);
+    try {
+      const path = `${tenantId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error } = await supabase.storage.from(bucket).upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      setUploadProgress(80);
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      setUploadProgress(100);
+      return { url: data.publicUrl, path };
+    } catch (err) {
+      logger.error('Falha no upload de mídia', { error: (err as Error).message });
+      toast({
+        title: 'Erro no upload',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
     }
   };
 
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome da Campanha *</Label>
-              <Input
-                id="name"
-                placeholder="Ex: Promoção Black Friday 2024"
-                value={campaignData.name}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, name: e.target.value }))}
-              />
-            </div>
+  // ── CSV upload + parse ─────────────────────
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
-              <Input
-                id="description"
-                placeholder="Descrição opcional da campanha"
-                value={campaignData.description}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, description: e.target.value }))}
-              />
-            </div>
+  const handleCsvFile = async (file: File) => {
+    if (!tenantId) return;
+    const text = await file.text();
+    const result = parseCsv(text);
+    set('csvRows', result.valid);
+    set('csvInvalid', result.invalid);
+    set('csvFileName', file.name);
 
-            <div className="space-y-2">
-              <Label htmlFor="message">Mensagem *</Label>
-              <Textarea
-                id="message"
-                placeholder="Olá {{nome}}! 🎉 Temos uma promoção especial para você..."
-                rows={6}
-                value={campaignData.message_template}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, message_template: e.target.value }))}
-              />
-              <div className="text-xs text-muted-foreground">
-                Use <code>{'{{nome}}'}</code> e <code>{'{{telefone}}'}</code> para personalizar.
-                Use <code>{'{'}</code>opção1|opção2<code>{'}'}</code> para variações (spintax).
-              </div>
-            </div>
+    // Upload to campaign-imports bucket
+    const uploaded = await handleMediaUpload(file, 'campaign-imports');
+    if (uploaded) {
+      set('csvFileUrl', uploaded.url);
+      // Insert campaign_imports row asynchronously (table not in generated types yet)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (supabase as any).from('campaign_imports').insert({
+        tenant_id: tenantId,
+        file_name: file.name,
+        file_url: uploaded.url,
+        total_rows: result.valid.length + result.invalid.length,
+        valid_rows: result.valid.length,
+        invalid_rows: result.invalid.length,
+        status: 'processed',
+        contacts: result.valid as unknown as Record<string, unknown>[],
+        errors: result.invalid as unknown as Record<string, unknown>[],
+      });
+    }
+  };
 
-            <div className="space-y-2">
-              <Label htmlFor="media">URL da Mídia (opcional)</Label>
-              <Input
-                id="media"
-                placeholder="https://exemplo.com/imagem.jpg"
-                value={campaignData.media_url}
-                onChange={(e) => setCampaignData(prev => ({ ...prev, media_url: e.target.value }))}
-              />
-            </div>
-          </div>
-        );
+  // ── Save / submit ──────────────────────────
 
-      case 2:
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Instância do WhatsApp *</Label>
-              <Select
-                value={campaignData.whatsapp_instance_id}
-                onValueChange={(value) => setCampaignData(prev => ({ ...prev, whatsapp_instance_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma instância" />
-                </SelectTrigger>
-                <SelectContent>
-                  {instances.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      <div className="flex items-center gap-2">
-                        {instance.name}
-                        <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
-                          {instance.status}
-                        </Badge>
-                      </div>
+  const buildPayload = (status: 'draft' | 'active' | 'scheduled'): CampaignCreateInput => {
+    const at = scheduledAt();
+
+    const audienceConfig: Record<string, unknown> =
+      state.audience_type === 'csv_import'
+        ? {
+            file_url: state.csvFileUrl,
+            total_contacts: state.csvRows.length,
+            contacts: state.csvRows,
+          }
+        : state.audience_type === 'tags'
+        ? { tag_ids: state.selectedTagIds }
+        : { contact_ids: state.selectedContactIds };
+
+    return {
+      name: state.name.trim(),
+      description: state.description.trim() || null,
+      whatsapp_instance_id: state.whatsapp_instance_id,
+      message_type: state.message_type,
+      message_template: state.message_template,
+      media_url: state.media_url,
+      media_caption: state.media_caption || null,
+      audience_type: state.audience_type,
+      audience_config: audienceConfig,
+      target_tags:
+        state.audience_type === 'tags' ? state.selectedTagIds : [],
+      target_stages: [],
+      delay_between_messages: state.delay_between_messages,
+      min_delay_seconds: Math.max(0, state.delay_between_messages - 2),
+      max_delay_seconds: state.delay_between_messages + 2,
+      respect_business_hours: state.respect_business_hours,
+      business_hours_start: state.respect_business_hours ? state.business_hours_start : null,
+      business_hours_end: state.respect_business_hours ? state.business_hours_end : null,
+      daily_send_limit: state.daily_send_limit ? parseInt(state.daily_send_limit) : null,
+      timezone: state.timezone,
+      scheduled_at: at,
+      status,
+    };
+  };
+
+  const handleSaveDraft = async () => {
+    setSaving(true);
+    try {
+      const payload = buildPayload('draft');
+      if (isEdit && campaign) {
+        await updateCampaign.mutateAsync({ id: campaign.id, input: payload });
+      } else {
+        await createCampaign.mutateAsync(payload);
+      }
+      onCampaignCreated?.();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    try {
+      const status = state.sendMode === 'scheduled' ? 'scheduled' : 'active';
+      const payload = buildPayload(status);
+
+      let campaignId: string;
+      if (isEdit && campaign) {
+        const updated = await updateCampaign.mutateAsync({ id: campaign.id, input: payload });
+        campaignId = updated.id;
+      } else {
+        const created = await createCampaign.mutateAsync(payload);
+        campaignId = created.id;
+      }
+      await scheduleCampaign.mutateAsync(campaignId);
+      onCampaignCreated?.();
+      onClose();
+    } catch (err) {
+      logger.error('Erro ao confirmar campanha', { error: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Filtered contacts ──────────────────────
+
+  const filteredContacts = contacts.filter((c) => {
+    const q = state.contactSearch.toLowerCase();
+    const matchText =
+      !q ||
+      (c.name ?? '').toLowerCase().includes(q) ||
+      c.phone.includes(q);
+    const matchStage =
+      state.contactStageFilter === 'all' ||
+      c.current_stage_id === state.contactStageFilter;
+    return matchText && matchStage;
+  });
+
+  // ─────────────────────────────────────────────
+  // Render steps
+  // ─────────────────────────────────────────────
+
+  const renderStep1 = () => (
+    <div className="space-y-5">
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="campaign-name">Nome da Campanha *</Label>
+        <Input
+          id="campaign-name"
+          placeholder="Ex: Promoção Junho 2025"
+          value={state.name}
+          onChange={(e) => set('name', e.target.value)}
+        />
+      </div>
+
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="campaign-desc">Descrição</Label>
+        <Input
+          id="campaign-desc"
+          placeholder="Descrição opcional"
+          value={state.description}
+          onChange={(e) => set('description', e.target.value)}
+        />
+      </div>
+
+      {/* Instance */}
+      <div className="space-y-2">
+        <Label>Instância do WhatsApp *</Label>
+        <Select
+          value={state.whatsapp_instance_id}
+          onValueChange={(v) => set('whatsapp_instance_id', v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione uma instância" />
+          </SelectTrigger>
+          <SelectContent>
+            {instances
+              .filter((i) => i.status === 'open')
+              .map((i) => (
+                <SelectItem key={i.id} value={i.id}>
+                  {i.name}
+                </SelectItem>
+              ))}
+            {instances.filter((i) => i.status !== 'open').length > 0 && (
+              <>
+                {instances
+                  .filter((i) => i.status !== 'open')
+                  .map((i) => (
+                    <SelectItem key={i.id} value={i.id} disabled>
+                      {i.name} (desconectada)
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-              {instances.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma instância do WhatsApp encontrada. Configure uma instância primeiro.
-                </p>
-              )}
-            </div>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+        {instances.length === 0 && (
+          <p className="text-xs text-muted-foreground">Nenhuma instância ativa encontrada.</p>
+        )}
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="delay">Delay entre Mensagens (segundos)</Label>
-              <Input
-                id="delay"
-                type="number"
-                min="10"
-                max="300"
-                value={campaignData.delay_between_messages}
-                onChange={(e) => setCampaignData(prev => ({ 
-                  ...prev, 
-                  delay_between_messages: parseInt(e.target.value) || 30 
-                }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Recomendado: 30-60 segundos para evitar bloqueios
-              </p>
-            </div>
+      {/* Message type cards */}
+      <div className="space-y-2">
+        <Label>Tipo de Mensagem *</Label>
+        <div className="grid grid-cols-3 gap-3">
+          {(
+            [
+              { type: 'text', icon: <MessageSquare className="h-5 w-5" />, label: 'Texto' },
+              { type: 'image', icon: <ImageIcon className="h-5 w-5" />, label: 'Imagem' },
+              { type: 'video', icon: <Video className="h-5 w-5" />, label: 'Vídeo' },
+            ] as const
+          ).map(({ type, icon, label }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => set('message_type', type)}
+              className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors ${
+                state.message_type === type
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              {icon}
+              <span className="text-sm font-medium">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="randomization"
-                  checked={campaignData.enable_message_randomization}
-                  onChange={(e) => setCampaignData(prev => ({
-                    ...prev,
-                    enable_message_randomization: e.target.checked
-                  }))}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor="randomization" className="text-sm font-medium">
-                  Ativar randomização para evitar bloqueios
-                </Label>
-              </div>
-              
-              {campaignData.enable_message_randomization && (
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="min-delay">Delay mínimo (segundos)</Label>
-                      <Input
-                        id="min-delay"
-                        type="number"
-                        min="0"
-                        max="15"
-                        value={campaignData.min_delay_seconds}
-                        onChange={(e) => setCampaignData(prev => ({
-                          ...prev,
-                          min_delay_seconds: parseInt(e.target.value) || 0
-                        }))}
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="max-delay">Delay máximo (segundos)</Label>
-                      <Input
-                        id="max-delay"
-                        type="number"
-                        min="0"
-                        max="15"
-                        value={campaignData.max_delay_seconds}
-                        onChange={(e) => setCampaignData(prev => ({
-                          ...prev,
-                          max_delay_seconds: parseInt(e.target.value) || 15
-                        }))}
-                        placeholder="15"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Delay randômico de {campaignData.min_delay_seconds}-{campaignData.max_delay_seconds} segundos será aplicado antes de cada envio
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <Label>Mensagens alternativas (opcional)</Label>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Adicione diferentes versões da mensagem para alternar aleatoriamente
-                    </p>
-                    {campaignData.message_templates.map((template, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={template}
-                          onChange={(e) => {
-                            const newTemplates = [...campaignData.message_templates];
-                            newTemplates[index] = e.target.value;
-                            setCampaignData(prev => ({
-                              ...prev,
-                              message_templates: newTemplates
-                            }));
-                          }}
-                          placeholder={`Mensagem alternativa ${index + 1}`}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newTemplates = campaignData.message_templates.filter((_, i) => i !== index);
-                            setCampaignData(prev => ({
-                              ...prev,
-                              message_templates: newTemplates
-                            }));
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setCampaignData(prev => ({
-                          ...prev,
-                          message_templates: [...prev.message_templates, '']
-                        }));
-                      }}
-                      className="w-full"
-                    >
-                      + Adicionar mensagem alternativa
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+      {/* Text content */}
+      {state.message_type === 'text' && (
+        <div className="space-y-2">
+          <Label htmlFor="message-template">Mensagem *</Label>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {VARIABLE_CHIPS.map((chip) => (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() =>
+                  insertAtCursor(
+                    textareaRef as React.RefObject<HTMLTextAreaElement>,
+                    chip.value,
+                    state.message_template,
+                    (v) => set('message_template', v)
+                  )
+                }
+                className="px-2 py-0.5 text-xs rounded-full bg-muted border border-border hover:bg-primary/10 hover:border-primary transition-colors"
+              >
+                {chip.label}
+              </button>
+            ))}
           </div>
-        );
+          <Textarea
+            id="message-template"
+            ref={textareaRef}
+            placeholder="Olá {name}! Temos uma oferta especial para você..."
+            rows={6}
+            value={state.message_template}
+            onChange={(e) => set('message_template', e.target.value)}
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{state.message_template.length} / 4096 caracteres</span>
+          </div>
+          {/* WhatsApp preview bubble */}
+          {state.message_template && (
+            <div className="mt-3 flex justify-end">
+              <div className="max-w-xs bg-green-100 dark:bg-green-900 rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap shadow-sm">
+                {state.message_template.replace(/{name}/g, 'João').replace(/{first_name}/g, 'João').replace(/{phone}/g, '5511999990001').replace(/{email}/g, 'joao@exemplo.com')}
+                <div className="text-xs text-green-700 dark:text-green-400 text-right mt-1">10:30 ✓✓</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      case 3:
-        return (
-          <div className="space-y-6">
+      {/* Media upload — image */}
+      {state.message_type === 'image' && (
+        <MediaUploadSection
+          accept="image/jpeg,image/png,image/webp"
+          maxMB={5}
+          label="Imagem *"
+          hint="JPG, PNG ou WEBP até 5MB"
+          mediaUrl={state.media_url}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          onFile={async (file) => {
+            const r = await handleMediaUpload(file, 'campaign-media');
+            if (r) set('media_url', r.url);
+          }}
+          onClear={() => set('media_url', null)}
+        >
+          {state.media_url && (
+            <img
+              src={state.media_url}
+              alt="Preview"
+              className="mt-2 rounded-md max-h-40 object-contain"
+            />
+          )}
+          <div className="mt-3 space-y-2">
+            <Label htmlFor="img-caption">Legenda</Label>
+            <div className="flex flex-wrap gap-1 mb-1">
+              {VARIABLE_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => set('media_caption', state.media_caption + chip.value)}
+                  className="px-2 py-0.5 text-xs rounded-full bg-muted border hover:bg-primary/10 transition-colors"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <Input
+              id="img-caption"
+              placeholder="Legenda opcional"
+              value={state.media_caption}
+              onChange={(e) => set('media_caption', e.target.value)}
+            />
+          </div>
+        </MediaUploadSection>
+      )}
+
+      {/* Media upload — video */}
+      {state.message_type === 'video' && (
+        <MediaUploadSection
+          accept="video/mp4"
+          maxMB={50}
+          label="Vídeo *"
+          hint="MP4 até 50MB"
+          mediaUrl={state.media_url}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          onFile={async (file) => {
+            const r = await handleMediaUpload(file, 'campaign-media');
+            if (r) set('media_url', r.url);
+          }}
+          onClear={() => set('media_url', null)}
+        >
+          {state.media_url && (
+            <video src={state.media_url} controls className="mt-2 rounded-md max-h-40 w-full" />
+          )}
+          <div className="mt-3 space-y-2">
+            <Label htmlFor="vid-caption">Legenda</Label>
+            <Input
+              id="vid-caption"
+              placeholder="Legenda opcional"
+              value={state.media_caption}
+              onChange={(e) => set('media_caption', e.target.value)}
+            />
+          </div>
+        </MediaUploadSection>
+      )}
+    </div>
+  );
+
+  const renderStep2 = () => (
+    <div className="space-y-5">
+      {/* Audience type cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {(
+          [
+            { type: 'csv_import', icon: <Upload className="h-5 w-5" />, label: 'CSV' },
+            { type: 'tags', icon: <Tags className="h-5 w-5" />, label: 'Tags' },
+            { type: 'contact_list', icon: <ListChecks className="h-5 w-5" />, label: 'Contatos' },
+          ] as const
+        ).map(({ type, icon, label }) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => set('audience_type', type)}
+            className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors ${
+              state.audience_type === type
+                ? 'border-primary bg-primary/5 text-primary'
+                : 'border-border hover:border-primary/50'
+            }`}
+          >
+            {icon}
+            <span className="text-sm font-medium">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* CSV */}
+      {state.audience_type === 'csv_import' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Importar CSV</Label>
+            <button
+              type="button"
+              onClick={() => {
+                const blob = new Blob([buildTemplateCsv()], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'modelo-campanha.csv';
+                a.click();
+              }}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Download className="h-3 w-3" />
+              Baixar modelo
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Colunas esperadas: <code>phone</code> (obrigatório), <code>name</code>, <code>email</code>
+          </p>
+          <DragDropCsv
+            fileName={state.csvFileName}
+            onFile={handleCsvFile}
+          />
+          {state.csvRows.length > 0 && (
             <Alert>
-              <Info className="h-4 w-4" />
+              <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                Defina o público-alvo. Se nenhum filtro for selecionado, a campanha será enviada para todos os contatos ativos.
+                <strong>{state.csvRows.length}</strong> contatos válidos
+                {state.csvInvalid.length > 0 && (
+                  <span className="text-orange-600 ml-2">
+                    / {state.csvInvalid.length} inválidos
+                  </span>
+                )}
               </AlertDescription>
             </Alert>
-
-            <div className="space-y-4">
-              <div>
-                <Label className="text-base font-medium">Tags</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Selecione as tags dos contatos que devem receber a campanha
+          )}
+          {state.csvInvalid.length > 0 && (
+            <div className="max-h-32 overflow-y-auto space-y-1">
+              {state.csvInvalid.slice(0, 10).map((e, i) => (
+                <p key={i} className="text-xs text-red-600">
+                  Linha {e.row}: {e.reason}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      variant={campaignData.target_tags.includes(tag.id) ? 'default' : 'outline'}
-                      className="cursor-pointer"
-                      onClick={() => handleTagToggle(tag.id)}
-                    >
-                      {tag.name}
-                    </Badge>
-                  ))}
-                  {tags.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhuma tag encontrada</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-base font-medium">Estágios do Funil</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Selecione os estágios do funil que devem receber a campanha
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {stages.map((stage) => (
-                    <Badge
-                      key={stage.id}
-                      variant={campaignData.target_stages.includes(stage.id) ? 'default' : 'outline'}
-                      className="cursor-pointer"
-                      onClick={() => handleStageToggle(stage.id)}
-                    >
-                      {stage.name}
-                    </Badge>
-                  ))}
-                  {stages.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhum estágio encontrado</p>
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
+          )}
+          {state.csvRows.length > 0 && (
+            <div className="border rounded-md overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-2">Telefone</th>
+                    <th className="text-left p-2">Nome</th>
+                    <th className="text-left p-2">Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.csvRows.slice(0, 5).map((r, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-2">{r.phone}</td>
+                      <td className="p-2">{r.name ?? '—'}</td>
+                      <td className="p-2">{r.email ?? '—'}</td>
+                    </tr>
+                  ))}
+                  {state.csvRows.length > 5 && (
+                    <tr className="border-t">
+                      <td colSpan={3} className="p-2 text-center text-muted-foreground">
+                        + {state.csvRows.length - 5} mais contatos
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Prévia da Campanha
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Contatos Estimados</p>
-                    <p className="text-2xl font-bold">{previewData.estimatedContacts}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Duração Estimada</p>
-                    <p className="text-2xl font-bold">{previewData.estimatedDuration}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Tags */}
+      {state.audience_type === 'tags' && (
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-2 block">Selecione as Tags</Label>
+            <div className="flex flex-wrap gap-2 min-h-[40px]">
+              {tags.map((tag) => {
+                const selected = state.selectedTagIds.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() =>
+                      set(
+                        'selectedTagIds',
+                        selected
+                          ? state.selectedTagIds.filter((id) => id !== tag.id)
+                          : [...state.selectedTagIds, tag.id]
+                      )
+                    }
+                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                      selected
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border hover:border-primary'
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                );
+              })}
+              {tags.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhuma tag cadastrada.</p>
+              )}
+            </div>
           </div>
-        );
+          {state.selectedTagIds.length > 0 && (
+            <Alert>
+              <Users className="h-4 w-4" />
+              <AlertDescription>
+                <strong>{contactCount}</strong> contatos encontrados para as tags selecionadas.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
 
-      case 4:
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Agendamento</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={campaignData.scheduled_at ? 'outline' : 'default'}
-                  onClick={() => setCampaignData(prev => ({ ...prev, scheduled_at: null }))}
-                >
-                  Enviar Agora
-                </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant={campaignData.scheduled_at ? 'default' : 'outline'}>
-                      <CalendarIcon className="h-4 w-4 mr-2" />
-                      Agendar
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={campaignData.scheduled_at || undefined}
-                      onSelect={(date) => setCampaignData(prev => ({ 
-                        ...prev, 
-                        scheduled_at: date || null 
-                      }))}
-                      disabled={(date) => date < new Date()}
+      {/* Contact list */}
+      {state.audience_type === 'contact_list' && (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome ou telefone"
+                className="pl-8"
+                value={state.contactSearch}
+                onChange={(e) => set('contactSearch', e.target.value)}
+              />
+            </div>
+            <Select value={state.contactStageFilter} onValueChange={(v) => set('contactStageFilter', v)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Estágio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os estágios</SelectItem>
+                {stages.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {state.selectedContactIds.length} selecionado(s) de {filteredContacts.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() =>
+                  set('selectedContactIds', filteredContacts.map((c) => c.id))
+                }
+              >
+                Selecionar todos
+              </button>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:underline"
+                onClick={() => set('selectedContactIds', [])}
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+          {loadingContacts ? (
+            <p className="text-sm text-muted-foreground">Carregando contatos...</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto border rounded-md divide-y">
+              {filteredContacts.map((c) => {
+                const selected = state.selectedContactIds.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={(checked) =>
+                        set(
+                          'selectedContactIds',
+                          checked
+                            ? [...state.selectedContactIds, c.id]
+                            : state.selectedContactIds.filter((id) => id !== c.id)
+                        )
+                      }
                     />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              {campaignData.scheduled_at && (
-                <p className="text-sm text-muted-foreground">
-                  Agendado para: {format(campaignData.scheduled_at, 'dd/MM/yyyy')}
+                    <div>
+                      <p className="text-sm font-medium">{c.name ?? c.phone}</p>
+                      {c.name && (
+                        <p className="text-xs text-muted-foreground">{c.phone}</p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+              {filteredContacts.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground text-center">
+                  Nenhum contato encontrado.
                 </p>
               )}
             </div>
+          )}
+        </div>
+      )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Resumo da Campanha</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div><strong>Nome:</strong> {campaignData.name}</div>
-                <div><strong>Mensagem:</strong> {campaignData.message_template.substring(0, 100)}...</div>
-                <div><strong>Público:</strong> {previewData.estimatedContacts} contatos</div>
-                <div><strong>Duração:</strong> {previewData.estimatedDuration}</div>
-                <div><strong>Agendamento:</strong> {campaignData.scheduled_at ? format(campaignData.scheduled_at, 'dd/MM/yyyy') : 'Envio imediato'}</div>
-                {campaignData.enable_message_randomization && (
-                  <>
-                    <div><strong>Randomização:</strong> Ativada</div>
-                    <div><strong>Delay randômico:</strong> {campaignData.min_delay_seconds}-{campaignData.max_delay_seconds} segundos</div>
-                    {campaignData.message_templates.length > 0 && (
-                      <div><strong>Mensagens alternativas:</strong> {campaignData.message_templates.filter(t => t.trim() !== '').length} variações</div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+      {/* Total estimate */}
+      {totalContacts > 0 && (
+        <p className="text-sm font-medium text-center text-muted-foreground">
+          Esta campanha será enviada para{' '}
+          <strong className="text-foreground">{totalContacts}</strong> contato
+          {totalContacts !== 1 ? 's' : ''}.
+        </p>
+      )}
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      {/* Send mode */}
+      <div className="space-y-3">
+        <Label>Quando enviar?</Label>
+        <div className="grid grid-cols-2 gap-3">
+          {(
+            [
+              { mode: 'immediate', label: 'Enviar imediatamente' },
+              { mode: 'scheduled', label: 'Agendar' },
+            ] as const
+          ).map(({ mode, label }) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => set('sendMode', mode)}
+              className={`rounded-lg border p-4 text-sm font-medium transition-colors ${
+                state.sendMode === mode
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date + time picker */}
+      {state.sendMode === 'scheduled' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Data *</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  {state.scheduledDate
+                    ? format(state.scheduledDate, 'dd/MM/yyyy', { locale: ptBR })
+                    : 'Selecionar data'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={state.scheduledDate ?? undefined}
+                  onSelect={(d) => set('scheduledDate', d ?? null)}
+                  disabled={(d) => d < new Date()}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
-        );
+          <div className="space-y-2">
+            <Label htmlFor="sched-time">Hora</Label>
+            <Input
+              id="sched-time"
+              type="time"
+              value={state.scheduledTime}
+              onChange={(e) => set('scheduledTime', e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
-      default:
-        return null;
-    }
+      {state.sendMode === 'scheduled' && state.scheduledDate && (
+        <p className="text-sm text-blue-600 font-medium">{scheduleLabel()}</p>
+      )}
+
+      {/* Dispatch settings */}
+      <div className="space-y-4 border rounded-lg p-4">
+        <h4 className="font-medium">Configurações de Disparo</h4>
+
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <Label>Intervalo entre mensagens</Label>
+            <span className="text-sm font-medium">{state.delay_between_messages}s</span>
+          </div>
+          <Slider
+            min={3}
+            max={10}
+            step={1}
+            value={[state.delay_between_messages]}
+            onValueChange={([v]) => set('delay_between_messages', v ?? state.delay_between_messages)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Duração estimada: {estimatedDuration()} para {totalContacts} contatos
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="biz-hours"
+            checked={state.respect_business_hours}
+            onCheckedChange={(c) => set('respect_business_hours', !!c)}
+          />
+          <Label htmlFor="biz-hours">Respeitar horário comercial</Label>
+        </div>
+
+        {state.respect_business_hours && (
+          <div className="grid grid-cols-2 gap-4 pl-6">
+            <div className="space-y-1">
+              <Label htmlFor="bh-start">Início</Label>
+              <Input
+                id="bh-start"
+                type="time"
+                value={state.business_hours_start}
+                onChange={(e) => set('business_hours_start', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bh-end">Fim</Label>
+              <Input
+                id="bh-end"
+                type="time"
+                value={state.business_hours_end}
+                onChange={(e) => set('business_hours_end', e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1">
+          <Label htmlFor="daily-limit">Limite diário de envios (opcional)</Label>
+          <Input
+            id="daily-limit"
+            type="number"
+            min="1"
+            placeholder="Ex: 200"
+            value={state.daily_send_limit}
+            onChange={(e) => set('daily_send_limit', e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => {
+    const instance = instances.find((i) => i.id === state.whatsapp_instance_id);
+    const audienceLabel =
+      state.audience_type === 'csv_import'
+        ? `CSV — ${state.csvRows.length} contatos`
+        : state.audience_type === 'tags'
+        ? `Tags — ${contactCount} contatos`
+        : `Lista — ${state.selectedContactIds.length} contatos`;
+
+    return (
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <SummaryRow label="Campanha" value={state.name} />
+          <SummaryRow label="Instância" value={instance?.name ?? '—'} />
+          <SummaryRow label="Tipo" value={state.message_type} />
+          <SummaryRow label="Público" value={audienceLabel} />
+          <SummaryRow label="Envio" value={scheduleLabel()} />
+          <SummaryRow label="Intervalo" value={`${state.delay_between_messages}s`} />
+        </div>
+
+        {/* Message preview */}
+        {state.message_type === 'text' && state.message_template && (
+          <div>
+            <Label className="mb-2 block">Prévia da Mensagem</Label>
+            <div className="flex justify-end">
+              <div className="max-w-xs bg-green-100 dark:bg-green-900 rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap shadow-sm">
+                {state.message_template
+                  .replace(/{name}/g, 'João')
+                  .replace(/{first_name}/g, 'João')
+                  .replace(/{phone}/g, '5511999990001')
+                  .replace(/{email}/g, 'joao@exemplo.com')}
+                <div className="text-xs text-green-700 dark:text-green-400 text-right mt-1">
+                  10:30 ✓✓
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {state.media_url && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Mídia ({state.message_type}) anexada à campanha.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+    );
   };
+
+  const stepContent = [renderStep1, renderStep2, renderStep3, renderStep4];
+
+  // ─────────────────────────────────────────────
+  // Layout
+  // ─────────────────────────────────────────────
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Nova Campanha de Mensagens
+            <Send className="h-5 w-5" />
+            {isEdit ? 'Editar Campanha' : 'Nova Campanha'}
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        
-        {/* Progress bar */}
-        <div className="flex items-center gap-2 mt-4">
-          {[1, 2, 3, 4].map((stepNumber) => (
-            <div
-              key={stepNumber}
-              className={`h-2 flex-1 rounded ${
-                stepNumber <= step ? 'bg-primary' : 'bg-muted'
-              }`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between text-sm text-muted-foreground mt-1">
-          <span>Conteúdo</span>
-          <span>Configuração</span>
-          <span>Público</span>
-          <span>Agendamento</span>
+
+        {/* Progress */}
+        <div className="mt-4 space-y-1">
+          <div className="flex gap-1">
+            {STEPS.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  i < step ? 'bg-primary' : 'bg-muted'
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            {STEPS.map((label, i) => (
+              <span key={i} className={i + 1 === step ? 'text-primary font-medium' : ''}>
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
       </CardHeader>
 
       <CardContent>
-        {renderStep()}
+        {stepContent[step - 1]?.()}
 
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
-            onClick={handlePrevious}
+            onClick={() => setStep((s) => s - 1)}
             disabled={step === 1}
           >
             Anterior
@@ -701,27 +1259,26 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
 
           <div className="flex gap-2">
             {step === 4 ? (
-              <Button
-                onClick={handleScheduleCampaign}
-                disabled={loading || !canProceed()}
-              >
-                {loading ? (
-                  <>
-                    <Clock className="h-4 w-4 mr-2 animate-spin" />
-                    Criando...
-                  </>
-                ) : (
-                  <>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleSaveDraft}
+                  disabled={saving || !state.name.trim()}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Salvar como Rascunho
+                </Button>
+                <Button onClick={handleConfirm} disabled={saving || !canProceed()}>
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
                     <Send className="h-4 w-4 mr-2" />
-                    Criar Campanha
-                  </>
-                )}
-              </Button>
+                  )}
+                  {state.sendMode === 'scheduled' ? 'Confirmar e Agendar' : 'Confirmar e Disparar'}
+                </Button>
+              </>
             ) : (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-              >
+              <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
                 Próximo
               </Button>
             )}
@@ -731,3 +1288,155 @@ export const CampaignWizard = ({ onClose, onCampaignCreated }: CampaignWizardPro
     </Card>
   );
 };
+
+// ─────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────
+
+interface MediaUploadSectionProps {
+  accept: string;
+  maxMB: number;
+  label: string;
+  hint: string;
+  mediaUrl: string | null;
+  uploading: boolean;
+  uploadProgress: number;
+  onFile: (file: File) => void;
+  onClear: () => void;
+  children?: React.ReactNode;
+}
+
+function MediaUploadSection({
+  accept,
+  maxMB,
+  label,
+  hint,
+  mediaUrl,
+  uploading,
+  uploadProgress,
+  onFile,
+  onClear,
+  children,
+}: MediaUploadSectionProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleFile = (file: File) => {
+    if (file.size > maxMB * 1024 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: `Tamanho máximo: ${maxMB}MB`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    onFile(file);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+      {!mediaUrl ? (
+        <div
+          className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+          }}
+        >
+          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Arraste ou clique para selecionar</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-0 top-0 z-10"
+            onClick={onClear}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          {children}
+        </div>
+      )}
+      {uploading && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span>Enviando...</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <Progress value={uploadProgress} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DragDropCsvProps {
+  fileName: string;
+  onFile: (file: File) => void;
+}
+
+function DragDropCsv({ fileName, onFile }: DragDropCsvProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) onFile(file);
+      }}
+    >
+      {fileName ? (
+        <div className="flex flex-col items-center gap-1">
+          <CheckCircle className="h-8 w-8 text-green-500" />
+          <p className="text-sm font-medium">{fileName}</p>
+          <p className="text-xs text-muted-foreground">Clique para substituir</p>
+        </div>
+      ) : (
+        <>
+          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Arraste o arquivo CSV ou clique para selecionar</p>
+        </>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onFile(file);
+        }}
+      />
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium">{value}</p>
+    </div>
+  );
+}

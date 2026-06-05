@@ -26,7 +26,9 @@ export const CampaignSchema = z.object({
   message_type: MessageTypeSchema.default('text'),
   media_url: CommonSchemas.url,
   
-  status: CommonSchemas.campaignStatus.default('draft'),
+  status: z.enum(['draft', 'scheduled', 'active', 'paused', 'completed', 'cancelled'], {
+    errorMap: () => ({ message: 'Status de campanha inválido' }),
+  }).default('draft'),
   
   scheduled_at: CommonSchemas.dateTime,
   started_at: CommonSchemas.dateTime,
