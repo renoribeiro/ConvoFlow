@@ -15,6 +15,8 @@ interface Message {
   tenant_id: string;
   whatsapp_instance_id?: string;
   is_from_bot: boolean;
+  source: string | null;
+  campaign_id: string | null;
 }
 
 interface MessagesPage {
@@ -53,7 +55,9 @@ export const useMessages = ({ contactId, pageSize = 50, enabled = true }: UseMes
           contact_id,
           tenant_id,
           whatsapp_instance_id,
-          is_from_bot
+          is_from_bot,
+          source,
+          campaign_id
         `)
         .eq('tenant_id', tenant.id)
         .eq('contact_id', contactId)
@@ -118,7 +122,9 @@ export const useRecentMessages = (contactId: string, limit: number = 20) => {
           contact_id,
           tenant_id,
           whatsapp_instance_id,
-          is_from_bot
+          is_from_bot,
+          source,
+          campaign_id
         `)
         .eq('tenant_id', tenant.id)
         .eq('contact_id', contactId)

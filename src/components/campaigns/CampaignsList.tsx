@@ -8,6 +8,7 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { Pagination } from '@/components/shared/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { CampaignReportsModal } from './CampaignReportsModal';
+import { CampaignDetailsModal } from './CampaignDetailsModal';
 import {
   Send,
   Edit,
@@ -23,6 +24,7 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Video,
+  Eye,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -121,6 +123,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
     name: string;
   } | null>(null);
   const [reportCampaignId, setReportCampaignId] = useState<string | null>(null);
+  const [detailsCampaignId, setDetailsCampaignId] = useState<string | null>(null);
 
   const pagination = usePagination({ totalItems: campaigns.length, initialItemsPerPage: 6 });
 
@@ -167,6 +170,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
             campaign={campaign}
             onEdit={onEdit}
             onViewReport={(id) => setReportCampaignId(id)}
+            onViewDetails={(id) => setDetailsCampaignId(id)}
             onDelete={(id, name) => setDeleteTarget({ id, name })}
             onPause={(id) =>
               setCampaignStatus.mutate({ campaignId: id, action: 'pause' })
@@ -221,6 +225,11 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
           onClose={() => setReportCampaignId(null)}
         />
       )}
+
+      <CampaignDetailsModal
+        campaignId={detailsCampaignId}
+        onClose={() => setDetailsCampaignId(null)}
+      />
     </>
   );
 };
@@ -233,6 +242,7 @@ interface CampaignCardProps {
   campaign: Campaign;
   onEdit: (c: Campaign) => void;
   onViewReport: (id: string) => void;
+  onViewDetails: (id: string) => void;
   onDelete: (id: string, name: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -244,6 +254,7 @@ function CampaignCard({
   campaign,
   onEdit,
   onViewReport,
+  onViewDetails,
   onDelete,
   onPause,
   onResume,
@@ -299,12 +310,16 @@ function CampaignCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {isDraft && (
+              {(isDraft || isScheduled || isPaused || isActive) && (
                 <DropdownMenuItem onClick={() => onEdit(campaign)}>
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={() => onViewDetails(campaign.id)}>
+                <Eye className="mr-2 h-4 w-4" />
+                Ver detalhes
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onViewReport(campaign.id)}>
                 <BarChart2 className="mr-2 h-4 w-4" />
                 Ver Relatório

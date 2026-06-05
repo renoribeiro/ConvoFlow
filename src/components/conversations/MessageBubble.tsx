@@ -38,6 +38,13 @@ export type RenderableMessage = {
     content?: string | null;
     sender?: string | null;
   } | null;
+  /** Identifies the send origin: 'campaign', 'chatbot', or null for manual. */
+  source?: string | null;
+  /** When source === 'campaign', this links to mass_message_campaigns.id. */
+  campaign_id?: string | null;
+  /** Resolved campaign name — optionally injected by the parent. */
+  campaign_name?: string | null;
+  is_from_bot?: boolean | null;
 };
 
 const StatusIcon = ({ status }: { status: RenderableMessage['status'] }) => {
@@ -182,6 +189,33 @@ function DeletedPlaceholder() {
   );
 }
 
+function OriginBadge({ message }: { message: RenderableMessage }) {
+  if (message.direction !== 'outbound') return null;
+
+  const source = message.source;
+
+  if (source === 'campaign') {
+    const label = message.campaign_name
+      ? `Campanha: ${message.campaign_name}`
+      : 'Campanha';
+    return (
+      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+        {label}
+      </span>
+    );
+  }
+
+  if (source === 'chatbot' || message.is_from_bot) {
+    return (
+      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+        Chatbot
+      </span>
+    );
+  }
+
+  return null;
+}
+
 interface MessageBubbleProps {
   message: RenderableMessage;
   /**
@@ -266,9 +300,12 @@ export function MessageBubble({ message, showQuoted = true, onReply }: MessageBu
         {renderBody()}
 
         <div className="flex items-center justify-between gap-3 mt-2">
-          <span className="text-[10px] opacity-70">
-            {format(new Date(message.created_at), "dd/MM HH:mm", { locale: ptBR })}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] opacity-70">
+              {format(new Date(message.created_at), "dd/MM HH:mm", { locale: ptBR })}
+            </span>
+            <OriginBadge message={message} />
+          </div>
           {isOutbound && (
             <span className="flex items-center gap-1">
               {message.status === 'failed' ? (

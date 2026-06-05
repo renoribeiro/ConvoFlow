@@ -62,7 +62,7 @@ import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter, pickActiveInstance } from '@/hooks/useWhatsAppApi';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
 import { uploadWhatsAppMedia, detectMediaTypeFromMime } from '@/services/whatsapp/media-upload';
 import { MessageBubble, type RenderableMessage } from './MessageBubble';
@@ -242,6 +242,33 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     return ms > 24 * 60 * 60 * 1000;
   }, [capabilities?.requiresTemplateOutsideWindow, lastInboundAt]);
 
+  // Collect unique campaign_ids from messages so we can resolve their names.
+  const campaignIds = useMemo(() => {
+    const ids = new Set<string>();
+    messages.forEach((m: any) => {
+      if (m.campaign_id) ids.add(m.campaign_id as string);
+    });
+    return [...ids];
+  }, [messages]);
+
+  const { data: campaignNames } = useQuery({
+    queryKey: ['campaign-names', ...campaignIds],
+    queryFn: async () => {
+      if (campaignIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from('mass_message_campaigns')
+        .select('id, name')
+        .in('id', campaignIds);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((row: { id: string; name: string }) => {
+        map[row.id] = row.name;
+      });
+      return map;
+    },
+    enabled: campaignIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Hook precisa ficar ANTES dos early returns para manter contagem estável.
   const renderable: RenderableMessage[] = useMemo(() => {
     return messages.map((m: any) => ({
@@ -254,8 +281,12 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
       media_url: m.media_url ?? null,
       metadata: null,
       quoted: null,
+      source: m.source ?? null,
+      campaign_id: m.campaign_id ?? null,
+      campaign_name: m.campaign_id && campaignNames ? (campaignNames[m.campaign_id] ?? null) : null,
+      is_from_bot: m.is_from_bot ?? null,
     }));
-  }, [messages]);
+  }, [messages, campaignNames]);
 
   // Early returns APÓS todos os hooks
   if (!conversationId) {

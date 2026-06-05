@@ -115,12 +115,16 @@ const campaignKeys = {
   all: (tenantId: string) => [QUERY_KEYS.CAMPAIGNS, tenantId] as const,
   byStatus: (tenantId: string, status: string) =>
     [QUERY_KEYS.CAMPAIGNS, tenantId, status] as const,
+  byId: (tenantId: string, id: string) =>
+    [QUERY_KEYS.CAMPAIGNS, tenantId, 'detail', id] as const,
   metrics: (tenantId: string) =>
     [QUERY_KEYS.CAMPAIGNS, tenantId, 'metrics'] as const,
   globalStats: (tenantId: string) =>
     [QUERY_KEYS.CAMPAIGNS, tenantId, 'global-stats'] as const,
   reportMetrics: (tenantId: string, period: string, statusFilter: string) =>
     [QUERY_KEYS.CAMPAIGNS, tenantId, 'report-metrics', period, statusFilter] as const,
+  executions: (tenantId: string, campaignId: string) =>
+    [QUERY_KEYS.CAMPAIGNS, tenantId, 'executions', campaignId] as const,
 };
 
 // ─────────────────────────────────────────────
@@ -160,6 +164,67 @@ export function useCampaignsByStatus(status: CampaignStatus | 'paused') {
     },
     enabled: !!tenantId,
     refetchInterval: status === 'active' ? 30_000 : undefined,
+  });
+}
+
+/** Fetch a single campaign by id (full row — all columns). */
+export function useCampaignById(id: string | null) {
+  const tenantId = useTenantId();
+
+  return useQuery({
+    queryKey: campaignKeys.byId(tenantId ?? '', id ?? ''),
+    queryFn: async () => {
+      if (!tenantId || !id) throw new Error('tenant_id e id obrigatórios');
+
+      const { data, error } = await supabase
+        .from('mass_message_campaigns')
+        .select('*, whatsapp_instance:whatsapp_instances(name, status)')
+        .eq('id', id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (error) throw error;
+      return data as unknown as Campaign;
+    },
+    enabled: !!tenantId && !!id,
+  });
+}
+
+export interface CampaignExecution {
+  id: string;
+  contact_name: string | null;
+  contact_identifier: string | null;
+  status: string;
+  error_message: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  updated_at: string;
+}
+
+/** Per-recipient executions for a campaign (last 50, desc by updated_at). */
+export function useCampaignExecutions(campaignId: string | null) {
+  const tenantId = useTenantId();
+
+  return useQuery({
+    queryKey: campaignKeys.executions(tenantId ?? '', campaignId ?? ''),
+    queryFn: async () => {
+      if (!tenantId || !campaignId) throw new Error('tenant_id e campaignId obrigatórios');
+
+      const { data, error } = await supabase
+        .from('campaign_executions')
+        .select(
+          'id, contact_name, contact_identifier, status, error_message, sent_at, delivered_at, read_at, updated_at'
+        )
+        .eq('campaign_id', campaignId)
+        .eq('tenant_id', tenantId)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return (data ?? []) as CampaignExecution[];
+    },
+    enabled: !!tenantId && !!campaignId,
   });
 }
 

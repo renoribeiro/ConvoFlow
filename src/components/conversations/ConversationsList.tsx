@@ -100,7 +100,7 @@ export const ConversationsList = ({
       last_message_at: conv.last_message_at,
       unread_count: conv.unread_count,
       is_group: isGroup,
-      contact_source: conv.contacts?.lead_sources?.name || 'Desconhecido',
+      contact_source: conv.contacts?.lead_sources?.name || null,
       contact_current_stage: (conv.contacts as any)?.funnel_stages?.name || conv.contacts?.stage?.name || null,
     };
   });
@@ -214,9 +214,11 @@ export const ConversationsList = ({
 
                     <div className="flex items-center justify-between">
                       <div className="flex gap-1 min-w-0">
-                        <Badge variant="secondary" className="text-xs truncate max-w-[80px]">
-                          {conversation.contact_source}
-                        </Badge>
+                        {conversation.contact_source && (
+                          <Badge variant="secondary" className="text-xs truncate max-w-[80px]">
+                            {conversation.contact_source}
+                          </Badge>
+                        )}
                         {conversation.contact_current_stage && (
                           <Badge variant="outline" className="text-xs truncate max-w-[80px]">
                             {conversation.contact_current_stage}

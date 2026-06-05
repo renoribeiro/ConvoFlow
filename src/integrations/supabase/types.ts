@@ -2062,10 +2062,10 @@ export type Database = {
       }
       mass_message_campaigns: {
         Row: {
-          audience_config: Json
-          audience_type: string
-          business_hours_end: string
-          business_hours_start: string
+          audience_config: Json | null
+          audience_type: string | null
+          business_hours_end: string | null
+          business_hours_start: string | null
           cancelled_at: string | null
           completed_at: string | null
           created_at: string
@@ -2074,21 +2074,21 @@ export type Database = {
           delay_between_messages: number | null
           delivered_count: number
           description: string | null
-          enable_message_randomization: boolean
+          enable_message_randomization: boolean | null
           failed_count: number | null
           id: string
-          max_delay_seconds: number
+          max_delay_seconds: number | null
           media_caption: string | null
           media_url: string | null
           message_template: string
-          message_templates: Json
-          message_type: string
-          min_delay_seconds: number
+          message_templates: Json | null
+          message_type: string | null
+          min_delay_seconds: number | null
           name: string
           paused_at: string | null
           read_count: number
           replied_count: number
-          respect_business_hours: boolean
+          respect_business_hours: boolean | null
           scheduled_at: string | null
           sent_count: number | null
           started_at: string | null
@@ -2096,16 +2096,16 @@ export type Database = {
           target_stages: string[] | null
           target_tags: string[] | null
           tenant_id: string
-          timezone: string
+          timezone: string | null
           total_recipients: number | null
           updated_at: string
           whatsapp_instance_id: string
         }
         Insert: {
-          audience_config?: Json
-          audience_type?: string
-          business_hours_end?: string
-          business_hours_start?: string
+          audience_config?: Json | null
+          audience_type?: string | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           cancelled_at?: string | null
           completed_at?: string | null
           created_at?: string
@@ -2114,21 +2114,21 @@ export type Database = {
           delay_between_messages?: number | null
           delivered_count?: number
           description?: string | null
-          enable_message_randomization?: boolean
+          enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
-          max_delay_seconds?: number
+          max_delay_seconds?: number | null
           media_caption?: string | null
           media_url?: string | null
           message_template: string
-          message_templates?: Json
-          message_type?: string
-          min_delay_seconds?: number
+          message_templates?: Json | null
+          message_type?: string | null
+          min_delay_seconds?: number | null
           name: string
           paused_at?: string | null
           read_count?: number
           replied_count?: number
-          respect_business_hours?: boolean
+          respect_business_hours?: boolean | null
           scheduled_at?: string | null
           sent_count?: number | null
           started_at?: string | null
@@ -2136,16 +2136,16 @@ export type Database = {
           target_stages?: string[] | null
           target_tags?: string[] | null
           tenant_id: string
-          timezone?: string
+          timezone?: string | null
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id: string
         }
         Update: {
-          audience_config?: Json
-          audience_type?: string
-          business_hours_end?: string
-          business_hours_start?: string
+          audience_config?: Json | null
+          audience_type?: string | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           cancelled_at?: string | null
           completed_at?: string | null
           created_at?: string
@@ -2154,21 +2154,21 @@ export type Database = {
           delay_between_messages?: number | null
           delivered_count?: number
           description?: string | null
-          enable_message_randomization?: boolean
+          enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
-          max_delay_seconds?: number
+          max_delay_seconds?: number | null
           media_caption?: string | null
           media_url?: string | null
           message_template?: string
-          message_templates?: Json
-          message_type?: string
-          min_delay_seconds?: number
+          message_templates?: Json | null
+          message_type?: string | null
+          min_delay_seconds?: number | null
           name?: string
           paused_at?: string | null
           read_count?: number
           replied_count?: number
-          respect_business_hours?: boolean
+          respect_business_hours?: boolean | null
           scheduled_at?: string | null
           sent_count?: number | null
           started_at?: string | null
@@ -2176,7 +2176,7 @@ export type Database = {
           target_stages?: string[] | null
           target_tags?: string[] | null
           tenant_id?: string
-          timezone?: string
+          timezone?: string | null
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id?: string
@@ -2298,6 +2298,7 @@ export type Database = {
           is_from_bot: boolean | null
           media_url: string | null
           message_type: string
+          source: string | null
           status: string | null
           tenant_id: string
           whatsapp_instance_id: string
@@ -2314,6 +2315,7 @@ export type Database = {
           is_from_bot?: boolean | null
           media_url?: string | null
           message_type: string
+          source?: string | null
           status?: string | null
           tenant_id: string
           whatsapp_instance_id: string
@@ -2330,11 +2332,19 @@ export type Database = {
           is_from_bot?: boolean | null
           media_url?: string | null
           message_type?: string
+          source?: string | null
           status?: string | null
           tenant_id?: string
           whatsapp_instance_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_campaign_id_fk"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "mass_message_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_campaign_id_fkey"
             columns: ["campaign_id"]
