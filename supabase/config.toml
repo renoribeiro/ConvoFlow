@@ -56,3 +56,9 @@ verify_jwt = true
 # verification is disabled. Origin is validated inside the handler via
 # the CHATBOT_ENGINE_SECRET shared secret (x-internal-secret header).
 verify_jwt = false
+
+[functions.process-campaign-dispatch]
+# Invoked by pg_cron (anon bearer) and optionally by super admins.
+# Authentication relies on SUPABASE_SERVICE_ROLE_KEY inside the handler;
+# the function itself does not require a user JWT at the gateway level.
+verify_jwt = false

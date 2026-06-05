@@ -327,6 +327,13 @@ async function processIncomingMessage(
     status: 'received',
   })
 
+  // Campaign reply tracking — isolated so it never disrupts message processing.
+  try {
+    await markCampaignExecutionReplied(supabase, phone, logger);
+  } catch (replyErr: any) {
+    logger.warn('Campaign reply tracking failed (non-fatal)', { error: replyErr.message });
+  }
+
   // Trigger automation via RPC (v1 bots only — patched RPC ignores v2 bots).
   try {
     await supabase.rpc('process_incoming_message', {
@@ -479,7 +486,98 @@ async function processMessageUpdate(supabase: SupabaseClient, instanceName: stri
       .eq('evolution_message_id', key.id);
 
     logger.info('Updated message status', { id: key.id, status });
+
+    // Campaign execution ACK — isolated so any failure never disrupts the above.
+    // Evolution MESSAGES_UPDATE: update.status = DELIVERY_ACK → delivered, READ/PLAYED → read.
+    // We match campaign_executions by provider_message_id = key.id.
+    try {
+      if (status === 'delivered' || status === 'read') {
+        await updateCampaignExecutionAck(supabase, key.id, status, logger);
+      }
+    } catch (ackErr: any) {
+      logger.warn('Campaign ACK update failed (non-fatal)', { id: key.id, error: ackErr.message });
+    }
   }
+}
+
+/**
+ * Find a campaign_execution by provider_message_id and set delivered/read status.
+ * Then recompute metrics for the affected campaign.
+ * Entirely isolated — caller must wrap in try/catch.
+ */
+async function updateCampaignExecutionAck(
+  supabase: SupabaseClient,
+  providerMessageId: string,
+  ackStatus: 'delivered' | 'read',
+  logger: any,
+) {
+  const { data: exec } = await supabase
+    .from('campaign_executions')
+    .select('id, campaign_id, status')
+    .eq('provider_message_id', providerMessageId)
+    .maybeSingle();
+
+  if (!exec) return;
+
+  // Only advance status forward (sent → delivered → read)
+  const statusOrder: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+  if ((statusOrder[exec.status] ?? 0) >= (statusOrder[ackStatus] ?? 0)) return;
+
+  const updatePayload: Record<string, any> = {
+    status: ackStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (ackStatus === 'delivered') updatePayload.delivered_at = new Date().toISOString();
+  if (ackStatus === 'read') updatePayload.read_at = new Date().toISOString();
+
+  await supabase.from('campaign_executions').update(updatePayload).eq('id', exec.id);
+
+  await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: exec.campaign_id });
+
+  logger.info('Campaign execution ACK updated', {
+    executionId: exec.id,
+    campaignId: exec.campaign_id,
+    ackStatus,
+    providerMessageId,
+  });
+}
+
+/**
+ * When an inbound message arrives, check if this phone has a recent campaign
+ * execution in (sent|delivered|read) within the last 7 days and mark it replied.
+ * Isolated — caller wraps in try/catch.
+ */
+async function markCampaignExecutionReplied(
+  supabase: SupabaseClient,
+  phone: string,
+  logger: any,
+) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: exec } = await supabase
+    .from('campaign_executions')
+    .select('id, campaign_id, status')
+    .eq('contact_identifier', phone)
+    .in('status', ['sent', 'delivered', 'read'])
+    .gte('sent_at', sevenDaysAgo)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!exec) return;
+
+  await supabase.from('campaign_executions').update({
+    status: 'replied',
+    replied_at: new Date().toISOString(),
+  }).eq('id', exec.id);
+
+  await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: exec.campaign_id });
+
+  logger.info('Campaign execution marked replied', {
+    executionId: exec.id,
+    campaignId: exec.campaign_id,
+    phone: DataSanitizer.sanitizePhoneNumber(phone),
+  });
 }
 
 async function processMessageDelete(supabase: SupabaseClient, instanceName: string, deleteData: any, logger: any) {

@@ -1,214 +1,137 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { CampaignWizard } from './CampaignWizardNew';
-import { CampaignReportsModal } from './CampaignReportsModal';
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { Pagination } from '@/components/shared/Pagination';
 import { usePagination } from '@/hooks/usePagination';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Send, Edit, Trash2, Clock, Users, MoreHorizontal } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { CampaignReportsModal } from './CampaignReportsModal';
+import {
+  Send,
+  Edit,
+  Trash2,
+  Clock,
+  Users,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Copy,
+  BarChart2,
+  XCircle,
+  MessageSquare,
+  Image as ImageIcon,
+  Video,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { CampaignCardSkeleton } from '@/components/shared/Skeleton';
-import { logger } from '@/lib/logger';
+import {
+  useCampaignsByStatus,
+  useCampaignMutations,
+  type Campaign,
+  type CampaignStatus,
+} from '@/hooks/useCampaigns';
 
-interface Campaign {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-  total_recipients: number;
-  sent_count: number;
-  failed_count: number;
-  created_at: string;
-  scheduled_at?: string;
-  started_at?: string;
-  completed_at?: string;
+// ─────────────────────────────────────────────
+// Status helpers
+// ─────────────────────────────────────────────
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Ativa',
+  paused: 'Pausada',
+  scheduled: 'Agendada',
+  completed: 'Concluída',
+  cancelled: 'Cancelada',
+  draft: 'Rascunho',
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  active: 'bg-green-100 text-green-800 border-green-200',
+  paused: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  scheduled: 'bg-blue-100 text-blue-800 border-blue-200',
+  completed: 'bg-purple-100 text-purple-800 border-purple-200',
+  cancelled: 'bg-red-100 text-red-800 border-red-200',
+  draft: 'bg-gray-100 text-gray-700 border-gray-200',
+};
+
+const MESSAGE_TYPE_ICON: Record<string, React.ReactNode> = {
+  text: <MessageSquare className="h-4 w-4" />,
+  image: <ImageIcon className="h-4 w-4" />,
+  video: <Video className="h-4 w-4" />,
+  document: <Send className="h-4 w-4" />,
+  audio: <Send className="h-4 w-4" />,
+};
+
+// ─────────────────────────────────────────────
+// Date helpers
+// ─────────────────────────────────────────────
+
+function relativeDate(dateString?: string | null): string {
+  if (!dateString) return 'N/A';
+  const diff = Date.now() - new Date(dateString).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return 'Hoje';
+  if (days === 1) return 'Ontem';
+  if (days < 7) return `${days} dias atrás`;
+  if (days < 30) return `${Math.floor(days / 7)} sem. atrás`;
+  return `${Math.floor(days / 30)} meses atrás`;
 }
 
-type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+function countdownLabel(dateString?: string | null): string {
+  if (!dateString) return '';
+  const diff = new Date(dateString).getTime() - Date.now();
+  if (diff <= 0) return 'Agora';
+  const d = Math.floor(diff / 86_400_000);
+  const h = Math.floor((diff % 86_400_000) / 3_600_000);
+  const m = Math.floor((diff % 3_600_000) / 60_000);
+  if (d > 0) return `em ${d}d ${h}h`;
+  if (h > 0) return `em ${h}h ${m}min`;
+  return `em ${m}min`;
+}
 
-const CAMPAIGN_STATUS_MAP: Record<string, StatusVariant> = {
-  active: 'info',
-  completed: 'success',
-  failed: 'danger',
-  draft: 'neutral',
-  scheduled: 'warning',
-};
-
-const CAMPAIGN_STATUS_LABELS: Record<string, string> = {
-  active: 'Ativa',
-  completed: 'Concluída',
-  failed: 'Falhou',
-  draft: 'Rascunho',
-  scheduled: 'Agendada',
-};
+// ─────────────────────────────────────────────
+// Props
+// ─────────────────────────────────────────────
 
 interface CampaignsListProps {
-  status: string;
-  onEdit: (id: string) => void;
+  status: CampaignStatus | 'active'; // 'active' tab includes paused
+  onEdit: (campaign: Campaign) => void;
 }
 
+// ─────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────
+
 export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showWizard, setShowWizard] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{
-    isOpen: boolean;
-    campaignId: string | null;
-    campaignName: string;
-  }>({ isOpen: false, campaignId: null, campaignName: '' });
-  const [isDeleting, setIsDeleting] = useState(false);
-  const { toast } = useToast();
+  const { data: campaigns = [], isLoading } = useCampaignsByStatus(
+    status as CampaignStatus
+  );
+  const { setCampaignStatus, duplicateCampaign, deleteCampaign } =
+    useCampaignMutations();
 
-  // Configurar paginação
-  const pagination = usePagination({
-    totalItems: campaigns.length,
-    initialItemsPerPage: 6
-  });
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [reportCampaignId, setReportCampaignId] = useState<string | null>(null);
 
-  // Aplicar paginação às campanhas
-  const paginatedCampaigns = useMemo(() => {
-    const startIndex = pagination.startIndex;
-    const endIndex = startIndex + pagination.itemsPerPage;
-    return campaigns.slice(startIndex, endIndex);
+  const pagination = usePagination({ totalItems: campaigns.length, initialItemsPerPage: 6 });
+
+  const paginated = useMemo(() => {
+    return campaigns.slice(
+      pagination.startIndex,
+      pagination.startIndex + pagination.itemsPerPage
+    );
   }, [campaigns, pagination.startIndex, pagination.itemsPerPage]);
 
-  useEffect(() => {
-    loadCampaigns();
-  }, [status]);
-
-  const loadCampaigns = async () => {
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
-
-      const { data: campaignsData, error } = await supabase
-        .from('mass_message_campaigns')
-        .select('*')
-        .eq('tenant_id', profile.tenant_id)
-        .eq('status', status)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setCampaigns(campaignsData || []);
-    } catch (error) {
-      logger.error('Erro ao carregar campanhas', { error: error instanceof Error ? error.message : 'Erro desconhecido' });
-      toast({
-        title: "Erro",
-        description: "Falha ao carregar campanhas",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getProgress = (campaign: Campaign) => {
-    if (campaign.total_recipients === 0) return 0;
-    return Math.round((campaign.sent_count / campaign.total_recipients) * 100);
-  };
-
-  const getSuccessRate = (campaign: Campaign) => {
-    if (campaign.sent_count === 0) return 0;
-    return Math.round(((campaign.sent_count - campaign.failed_count) / campaign.sent_count) * 100);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Hoje';
-    if (diffDays === 1) return 'Ontem';
-    if (diffDays < 7) return `${diffDays} dias atrás`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} semanas atrás`;
-    return `${Math.floor(diffDays / 30)} meses atrás`;
-  };
-
-  const handleDeleteClick = (campaignId: string, campaignName: string) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      campaignId,
-      campaignName
-    });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteConfirmation.campaignId) return;
-
-    try {
-      setIsDeleting(true);
-      
-      logger.info('Iniciando exclusão de campanha', {
-        category: 'campaign_management',
-        action: 'delete_campaign',
-        campaignId: deleteConfirmation.campaignId,
-        campaignName: deleteConfirmation.campaignName
-      });
-
-      const { error } = await supabase
-        .from('mass_message_campaigns')
-        .delete()
-        .eq('id', deleteConfirmation.campaignId);
-
-      if (error) throw error;
-
-      logger.info('Campanha excluída com sucesso', {
-        category: 'campaign_management',
-        action: 'delete_campaign',
-        campaignId: deleteConfirmation.campaignId,
-        campaignName: deleteConfirmation.campaignName,
-        status: 'success'
-      });
-
-      toast({
-        title: 'Campanha excluída',
-        description: 'A campanha foi excluída com sucesso.',
-      });
-
-      setDeleteConfirmation({ isOpen: false, campaignId: null, campaignName: '' });
-      await loadCampaigns();
-    } catch (error) {
-      logger.error('Erro ao excluir campanha', {
-        category: 'campaign_management',
-        action: 'delete_campaign',
-        campaignId: deleteConfirmation.campaignId,
-        campaignName: deleteConfirmation.campaignName,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
-      });
-
-      toast({
-        title: 'Erro ao excluir campanha',
-        description: 'Ocorreu um erro ao excluir a campanha. Tente novamente.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteConfirmation({ isOpen: false, campaignId: null, campaignName: '' });
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
@@ -219,107 +142,47 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   }
 
   if (campaigns.length === 0) {
+    const emptyLabels: Record<string, string> = {
+      active: 'ativas ou pausadas',
+      scheduled: 'agendadas',
+      completed: 'concluídas',
+      cancelled: 'canceladas',
+      draft: 'em rascunho',
+    };
     return (
-      <>
-        <EmptyState
-          icon={<Send className="w-10 h-10" />}
-          title="Nenhuma campanha encontrada"
-          description={`Não há campanhas ${status === 'draft' ? 'em rascunho' : status === 'active' ? 'ativas' : status} no momento.`}
-          action={{ label: 'Nova Campanha', onClick: () => setShowWizard(true) }}
-        />
-        {showWizard && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <CampaignWizard
-              onClose={() => setShowWizard(false)}
-              onCampaignCreated={loadCampaigns}
-            />
-          </div>
-        )}
-      </>
+      <EmptyState
+        icon={<Send className="w-10 h-10" />}
+        title="Nenhuma campanha encontrada"
+        description={`Não há campanhas ${emptyLabels[status] ?? status} no momento.`}
+      />
     );
   }
 
   return (
     <>
       <div className="space-y-4">
-        {paginatedCampaigns.map((campaign) => (
-          <Card key={campaign.id} className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-lg">{campaign.name}</h3>
-                  {campaign.description && (
-                    <p className="text-sm text-muted-foreground">{campaign.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={CAMPAIGN_STATUS_MAP[campaign.status] ?? 'neutral'}>
-                    {CAMPAIGN_STATUS_LABELS[campaign.status] ?? campaign.status}
-                  </StatusBadge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(campaign.id)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => handleDeleteClick(campaign.id, campaign.name)}
-                        className="text-red-600"
-                        disabled={isDeleting}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{getProgress(campaign)}%</div>
-                  <div className="text-xs text-muted-foreground">Progresso</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold flex items-center justify-center gap-1">
-                    <Users className="h-4 w-4" />
-                    {campaign.total_recipients}
-                  </div>
-                  <div className="text-xs text-muted-foreground">Total</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">{campaign.sent_count}</div>
-                  <div className="text-xs text-muted-foreground">Enviadas</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{getSuccessRate(campaign)}%</div>
-                  <div className="text-xs text-muted-foreground">Taxa de Sucesso</div>
-                </div>
-              </div>
-
-              <Progress value={getProgress(campaign)} className="mb-2" />
-              
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Criada {formatDate(campaign.created_at)}
-                </span>
-                {campaign.scheduled_at && (
-                  <span>Agendada para {formatDate(campaign.scheduled_at)}</span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        {paginated.map((campaign) => (
+          <CampaignCard
+            key={campaign.id}
+            campaign={campaign}
+            onEdit={onEdit}
+            onViewReport={(id) => setReportCampaignId(id)}
+            onDelete={(id, name) => setDeleteTarget({ id, name })}
+            onPause={(id) =>
+              setCampaignStatus.mutate({ campaignId: id, action: 'pause' })
+            }
+            onResume={(id) =>
+              setCampaignStatus.mutate({ campaignId: id, action: 'resume' })
+            }
+            onCancel={(id) =>
+              setCampaignStatus.mutate({ campaignId: id, action: 'cancel' })
+            }
+            onDuplicate={(c) => duplicateCampaign.mutate(c)}
+          />
         ))}
       </div>
 
-      {/* Paginação */}
-      {campaigns.length > 0 && (
+      {campaigns.length > pagination.itemsPerPage && (
         <div className="mt-6">
           <Pagination
             currentPage={pagination.currentPage}
@@ -328,33 +191,225 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
             itemsPerPage={pagination.itemsPerPage}
             onPageChange={pagination.goToPage}
             onItemsPerPageChange={pagination.setItemsPerPage}
-            showItemsPerPage={true}
+            showItemsPerPage
             itemsPerPageOptions={[3, 6, 12, 24]}
           />
         </div>
       )}
 
-      {showWizard && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <CampaignWizard 
-            onClose={() => setShowWizard(false)}
-            onCampaignCreated={loadCampaigns}
-          />
-        </div>
-      )}
-      
       <ConfirmationDialog
-        isOpen={deleteConfirmation.isOpen}
-        onClose={handleDeleteCancel}
-        onConfirm={handleDeleteConfirm}
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteCampaign.mutate(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
         title="Excluir Campanha"
-        description={`Tem certeza que deseja excluir a campanha "${deleteConfirmation.campaignName}"? Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.`}
+        description={`Tem certeza que deseja excluir a campanha "${deleteTarget?.name ?? ''}"? Esta ação não pode ser desfeita.`}
         confirmText="Excluir"
         cancelText="Cancelar"
         variant="destructive"
-        isLoading={isDeleting}
+        isLoading={deleteCampaign.isPending}
         icon={<Trash2 className="h-5 w-5 text-red-500" />}
       />
+
+      {reportCampaignId && (
+        <CampaignReportsModal
+          isOpen
+          onClose={() => setReportCampaignId(null)}
+        />
+      )}
     </>
   );
 };
+
+// ─────────────────────────────────────────────
+// CampaignCard
+// ─────────────────────────────────────────────
+
+interface CampaignCardProps {
+  campaign: Campaign;
+  onEdit: (c: Campaign) => void;
+  onViewReport: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
+  onPause: (id: string) => void;
+  onResume: (id: string) => void;
+  onCancel: (id: string) => void;
+  onDuplicate: (c: Campaign) => void;
+}
+
+function CampaignCard({
+  campaign,
+  onEdit,
+  onViewReport,
+  onDelete,
+  onPause,
+  onResume,
+  onCancel,
+  onDuplicate,
+}: CampaignCardProps) {
+  const total = campaign.total_recipients ?? 0;
+  const sent = campaign.sent_count ?? 0;
+  const delivered = campaign.delivered_count ?? 0;
+  const read = campaign.read_count ?? 0;
+  const progress = total > 0 ? Math.round((sent / total) * 100) : 0;
+
+  const isDraft = campaign.status === 'draft';
+  const isActive = campaign.status === 'active';
+  const isPaused = campaign.status === 'paused';
+  const isScheduled = campaign.status === 'scheduled';
+  const isCompleted = campaign.status === 'completed';
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-6">
+        {/* Header row */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-muted-foreground">
+                {MESSAGE_TYPE_ICON[campaign.message_type ?? 'text']}
+              </span>
+              <h3 className="font-semibold text-lg truncate">{campaign.name}</h3>
+              <Badge
+                variant="outline"
+                className={`text-xs ${STATUS_CLASS[campaign.status] ?? ''}`}
+              >
+                {STATUS_LABEL[campaign.status] ?? campaign.status}
+              </Badge>
+            </div>
+            {campaign.description && (
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                {campaign.description}
+              </p>
+            )}
+            {campaign.whatsapp_instance && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Instância: {campaign.whatsapp_instance.name}
+              </p>
+            )}
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="ml-2 flex-shrink-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isDraft && (
+                <DropdownMenuItem onClick={() => onEdit(campaign)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onViewReport(campaign.id)}>
+                <BarChart2 className="mr-2 h-4 w-4" />
+                Ver Relatório
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDuplicate(campaign)}>
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicar
+              </DropdownMenuItem>
+              {isActive && (
+                <DropdownMenuItem onClick={() => onPause(campaign.id)}>
+                  <Pause className="mr-2 h-4 w-4" />
+                  Pausar
+                </DropdownMenuItem>
+              )}
+              {isPaused && (
+                <DropdownMenuItem onClick={() => onResume(campaign.id)}>
+                  <Play className="mr-2 h-4 w-4" />
+                  Retomar
+                </DropdownMenuItem>
+              )}
+              {(isActive || isPaused || isScheduled) && (
+                <DropdownMenuItem
+                  onClick={() => onCancel(campaign.id)}
+                  className="text-red-600"
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Cancelar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(campaign.id, campaign.name)}
+                className="text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Metrics row */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          <Metric value={total} label="Total" icon={<Users className="h-3 w-3" />} />
+          <Metric value={sent} label="Enviadas" />
+          <Metric value={delivered} label="Entregues" />
+          <Metric value={read} label="Lidas" />
+        </div>
+
+        {/* Progress bar — only when relevant */}
+        {(isActive || isPaused || isCompleted) && total > 0 && (
+          <div className="mb-3">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Progresso</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress
+              value={progress}
+              className={isActive ? 'animate-pulse' : undefined}
+            />
+          </div>
+        )}
+
+        {/* Footer row */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {isDraft ? `Editado ${relativeDate(campaign.updated_at)}` : `Criado ${relativeDate(campaign.created_at)}`}
+          </span>
+          <div className="flex items-center gap-3">
+            {isScheduled && campaign.scheduled_at && (
+              <span className="text-blue-600 font-medium">
+                Agendado {countdownLabel(campaign.scheduled_at)}
+              </span>
+            )}
+            {isCompleted && campaign.completed_at && (
+              <span>Concluído {relativeDate(campaign.completed_at)}</span>
+            )}
+            {isDraft && (
+              <Button size="sm" variant="outline" onClick={() => onEdit(campaign)}>
+                <Edit className="h-3 w-3 mr-1" />
+                Continuar editando
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface MetricProps {
+  value: number;
+  label: string;
+  icon?: React.ReactNode;
+}
+
+function Metric({ value, label, icon }: MetricProps) {
+  return (
+    <div className="text-center">
+      <div className="text-xl font-bold flex items-center justify-center gap-1">
+        {icon}
+        {value.toLocaleString('pt-BR')}
+      </div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
