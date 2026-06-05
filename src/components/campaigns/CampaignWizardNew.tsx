@@ -243,6 +243,11 @@ export const CampaignWizard = ({
   campaign,
 }: CampaignWizardProps) => {
   const isEdit = !!campaign;
+  // In-progress = any status other than draft; skip re-dispatch on save
+  const isInProgress =
+    isEdit &&
+    campaign.status !== 'draft' &&
+    campaign.status != null;
   const tenantId = useTenantId();
   const { toast } = useToast();
   const { createCampaign, updateCampaign, scheduleCampaign } = useCampaignMutations();
@@ -506,6 +511,21 @@ export const CampaignWizard = ({
   const handleConfirm = async () => {
     setSaving(true);
     try {
+      if (isInProgress && campaign) {
+        // Campaign is already dispatched — only update the row, don't re-schedule
+        await updateCampaign.mutateAsync({
+          id: campaign.id,
+          input: buildPayload(campaign.status as 'active' | 'scheduled' | 'draft'),
+        });
+        toast({
+          title: 'Alterações salvas',
+          description: 'Os envios ainda pendentes usarão a nova configuração.',
+        });
+        onCampaignCreated?.();
+        onClose();
+        return;
+      }
+
       const status = state.sendMode === 'scheduled' ? 'scheduled' : 'active';
       const payload = buildPayload(status);
 
@@ -1274,7 +1294,11 @@ export const CampaignWizard = ({
                   ) : (
                     <Send className="h-4 w-4 mr-2" />
                   )}
-                  {state.sendMode === 'scheduled' ? 'Confirmar e Agendar' : 'Confirmar e Disparar'}
+                  {isInProgress
+                    ? 'Salvar alterações'
+                    : state.sendMode === 'scheduled'
+                    ? 'Confirmar e Agendar'
+                    : 'Confirmar e Disparar'}
                 </Button>
               </>
             ) : (

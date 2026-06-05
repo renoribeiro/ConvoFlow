@@ -3,29 +3,32 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { CampaignsList } from '@/components/campaigns/CampaignsList';
 import { CampaignWizard } from '@/components/campaigns/CampaignWizardNew';
 import { CampaignReportsModal } from '@/components/campaigns/CampaignReportsModal';
-import { Plus, Send, Clock, BarChart3, TrendingUp } from 'lucide-react';
+import { Plus, Send, Clock, BarChart3, TrendingUp, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCampaignGlobalStats } from '@/hooks/useCampaigns';
+import { useCampaignGlobalStats, useCampaignById } from '@/hooks/useCampaigns';
 import type { Campaign } from '@/hooks/useCampaigns';
 
 export default function Campaigns() {
   const [showWizard, setShowWizard] = useState(false);
-  const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
+  const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
   const [showReports, setShowReports] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useCampaignGlobalStats();
 
+  // Fetch the full row when editing — the list query only fetches a subset of columns.
+  const { data: editCampaign, isLoading: editLoading } = useCampaignById(editCampaignId);
+
   const handleEdit = (campaign: Campaign) => {
-    setEditCampaign(campaign);
+    setEditCampaignId(campaign.id);
     setShowWizard(true);
   };
 
   const handleCloseWizard = () => {
     setShowWizard(false);
-    setEditCampaign(null);
+    setEditCampaignId(null);
   };
 
   return (
@@ -85,10 +88,16 @@ export default function Campaigns() {
       </div>
 
       {showWizard ? (
-        <CampaignWizard
-          onClose={handleCloseWizard}
-          campaign={editCampaign ?? undefined}
-        />
+        editLoading && editCampaignId ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <CampaignWizard
+            onClose={handleCloseWizard}
+            campaign={editCampaign ?? undefined}
+          />
+        )
       ) : (
         <Tabs defaultValue="active" className="space-y-6">
           <TabsList>

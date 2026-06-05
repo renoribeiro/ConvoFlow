@@ -8,6 +8,7 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { Pagination } from '@/components/shared/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { CampaignReportsModal } from './CampaignReportsModal';
+import { CampaignDetailsModal } from './CampaignDetailsModal';
 import {
   Send,
   Edit,
@@ -23,6 +24,7 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Video,
+  Eye,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -113,7 +115,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   const { data: campaigns = [], isLoading } = useCampaignsByStatus(
     status as CampaignStatus
   );
-  const { setCampaignStatus, duplicateCampaign, deleteCampaign } =
+  const { setCampaignStatus, duplicateCampaign, deleteCampaign, scheduleCampaign } =
     useCampaignMutations();
 
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -121,6 +123,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
     name: string;
   } | null>(null);
   const [reportCampaignId, setReportCampaignId] = useState<string | null>(null);
+  const [detailsCampaignId, setDetailsCampaignId] = useState<string | null>(null);
 
   const pagination = usePagination({ totalItems: campaigns.length, initialItemsPerPage: 6 });
 
@@ -167,6 +170,9 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
             campaign={campaign}
             onEdit={onEdit}
             onViewReport={(id) => setReportCampaignId(id)}
+            onViewDetails={(id) => setDetailsCampaignId(id)}
+            onDispatchNow={(id) => scheduleCampaign.mutate(id)}
+            isDispatching={scheduleCampaign.isPending}
             onDelete={(id, name) => setDeleteTarget({ id, name })}
             onPause={(id) =>
               setCampaignStatus.mutate({ campaignId: id, action: 'pause' })
@@ -221,6 +227,11 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
           onClose={() => setReportCampaignId(null)}
         />
       )}
+
+      <CampaignDetailsModal
+        campaignId={detailsCampaignId}
+        onClose={() => setDetailsCampaignId(null)}
+      />
     </>
   );
 };
@@ -233,6 +244,9 @@ interface CampaignCardProps {
   campaign: Campaign;
   onEdit: (c: Campaign) => void;
   onViewReport: (id: string) => void;
+  onViewDetails: (id: string) => void;
+  onDispatchNow: (id: string) => void;
+  isDispatching: boolean;
   onDelete: (id: string, name: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -244,6 +258,9 @@ function CampaignCard({
   campaign,
   onEdit,
   onViewReport,
+  onViewDetails,
+  onDispatchNow,
+  isDispatching,
   onDelete,
   onPause,
   onResume,
@@ -261,6 +278,8 @@ function CampaignCard({
   const isPaused = campaign.status === 'paused';
   const isScheduled = campaign.status === 'scheduled';
   const isCompleted = campaign.status === 'completed';
+  // "Disparar agora" only when nothing was actually sent yet (the backend guard also enforces this).
+  const canDispatch = sent === 0 && (isDraft || isScheduled || isActive);
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -292,19 +311,35 @@ function CampaignCard({
             )}
           </div>
 
+          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+          {canDispatch && (
+            <Button
+              size="sm"
+              onClick={() => onDispatchNow(campaign.id)}
+              disabled={isDispatching}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Send className="h-4 w-4 mr-1" />
+              {isDispatching ? 'Disparando...' : 'Disparar agora'}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="ml-2 flex-shrink-0">
+              <Button variant="ghost" size="sm">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {isDraft && (
+              {(isDraft || isScheduled || isPaused || isActive) && (
                 <DropdownMenuItem onClick={() => onEdit(campaign)}>
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={() => onViewDetails(campaign.id)}>
+                <Eye className="mr-2 h-4 w-4" />
+                Ver detalhes
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onViewReport(campaign.id)}>
                 <BarChart2 className="mr-2 h-4 w-4" />
                 Ver Relatório
@@ -344,6 +379,7 @@ function CampaignCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         {/* Metrics row */}
