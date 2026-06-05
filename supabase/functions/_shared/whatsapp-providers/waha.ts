@@ -64,6 +64,60 @@ export class WahaProvider implements IWhatsAppProvider {
         }
     }
 
+    /**
+     * Send media via WAHA API.
+     *
+     * image   → POST /api/sendImage   (SKILL.md §3.2)
+     * video   → POST /api/sendVideo   (SKILL.md §3.3)
+     * document→ POST /api/sendFile    (SKILL.md §3.4)
+     * audio   → POST /api/sendVoice   (SKILL.md §3.5) — prefers ogg/opus PTT
+     *
+     * All endpoints share the same body shape:
+     *   { session, chatId, file: { url, filename, mimetype }, caption? }
+     */
+    async sendMedia(
+        to: string,
+        mediaUrl: string,
+        options: { caption?: string; mediaType: 'image' | 'video' | 'document' | 'audio'; fileName?: string },
+    ): Promise<any> {
+        const { caption, mediaType, fileName } = options;
+
+        const endpointMap: Record<string, string> = {
+            image: '/api/sendImage',
+            video: '/api/sendVideo',
+            document: '/api/sendFile',
+            audio: '/api/sendVoice',
+        };
+
+        const mimetypeMap: Record<string, string> = {
+            image: 'image/jpeg',
+            video: 'video/mp4',
+            document: 'application/octet-stream',
+            audio: 'audio/ogg; codecs=opus',
+        };
+
+        const endpoint = endpointMap[mediaType];
+        const mimetype = mimetypeMap[mediaType];
+        const resolvedFileName = fileName || `media.${mediaType === 'image' ? 'jpg' : mediaType === 'video' ? 'mp4' : mediaType === 'audio' ? 'ogg' : 'bin'}`;
+
+        const body: Record<string, unknown> = {
+            session: this.config.instanceName,
+            chatId: this.formatChatId(to),
+            file: {
+                url: mediaUrl,
+                filename: resolvedFileName,
+                mimetype,
+            },
+        };
+
+        if (caption) body.caption = caption;
+
+        // audio: request server-side conversion to ogg/opus (WAHA Plus feature)
+        if (mediaType === 'audio') body.convert = true;
+
+        return this.request(endpoint, { method: 'POST', body });
+    }
+
     async sendMessage(to: string, content: string, options?: SendMessageOptions): Promise<any> {
         return this.request('/api/sendText', {
             method: 'POST',

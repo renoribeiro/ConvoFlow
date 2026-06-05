@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createLogger } from '../_shared/logger.ts'
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts'
 import {
@@ -177,16 +177,27 @@ serve(async (req) => {
             message: content,
           }, logger);
         }
+
+        // Campaign reply tracking — isolated so it never disrupts message handling.
+        // WAHA SKILL.md §4.2: inbound "message" event, payload.from = "<phone>@c.us".
+        try {
+          await markCampaignExecutionReplied(supabase, phone, logger);
+        } catch (replyErr: any) {
+          logger.warn('WAHA campaign reply tracking failed (non-fatal)', { error: replyErr.message });
+        }
       }
     } else if (payload.event === 'message.ack' || payload.event === 'message.status') {
       const ackData = payload.payload;
-      // Waha ack: 1=sent, 2=received, 3=read, 4=played
-      // Waha status: sent, delivered, read, etc.
+      // WAHA SKILL.md §4.1: message.ack event.
+      // ack numeric values: 1=server, 2=device/received, 3=read, 4=played
+      // Some WAHA versions also send ackName: 'DEVICE' | 'READ' | 'PLAYED'
+      // or a string status field.
 
       let status = 'sent';
       let id = ackData.id;
 
-      // Normalize Waha ID if it's an object or string
+      // Normalize WAHA message ID — can be string or object with _serialized.
+      // SKILL.md §4.2: payload.id = "false_5511...@c.us_3EB0XXXX"
       if (typeof id === 'object' && id._serialized) id = id._serialized;
 
       if (ackData.ack) {
@@ -198,9 +209,19 @@ serve(async (req) => {
 
       await supabase.from('messages')
         .update({ status: status, updated_at: new Date().toISOString() })
-        .eq('evolution_message_id', id); // We store Waha ID in this column
+        .eq('evolution_message_id', id); // We store WAHA ID in this column
 
       logger.info('Message status updated', { id, status });
+
+      // Campaign execution ACK tracking — isolated.
+      // Map ack numeric/status to our campaign execution status.
+      try {
+        if (status === 'delivered' || status === 'read') {
+          await updateCampaignExecutionAck(supabase, String(id), status as 'delivered' | 'read', logger);
+        }
+      } catch (ackErr: any) {
+        logger.warn('WAHA campaign ACK update failed (non-fatal)', { id, error: ackErr.message });
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -271,4 +292,90 @@ function invokeChatbotEngine(
   } catch (_e) {
     // best-effort; ignore
   }
+}
+
+// ─── Campaign helpers (isolated) ─────────────────────────────────────────────
+
+/**
+ * Find a campaign_execution by provider_message_id and advance to
+ * delivered or read. Then recompute metrics for the campaign.
+ * Caller must wrap in try/catch — any DB error must not surface to the caller.
+ *
+ * WAHA SKILL.md §4.1: message.ack event — ack=2 → delivered, ack>=3 → read.
+ */
+async function updateCampaignExecutionAck(
+  supabase: SupabaseClient,
+  providerMessageId: string,
+  ackStatus: 'delivered' | 'read',
+  logger: any,
+) {
+  const { data: exec } = await supabase
+    .from('campaign_executions')
+    .select('id, campaign_id, status')
+    .eq('provider_message_id', providerMessageId)
+    .maybeSingle();
+
+  if (!exec) return;
+
+  // Only advance forward
+  const statusOrder: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+  if ((statusOrder[exec.status] ?? 0) >= (statusOrder[ackStatus] ?? 0)) return;
+
+  const updatePayload: Record<string, any> = {
+    status: ackStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (ackStatus === 'delivered') updatePayload.delivered_at = new Date().toISOString();
+  if (ackStatus === 'read') updatePayload.read_at = new Date().toISOString();
+
+  await supabase.from('campaign_executions').update(updatePayload).eq('id', exec.id);
+  await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: exec.campaign_id });
+
+  logger.info('Campaign execution ACK updated (WAHA)', {
+    executionId: exec.id,
+    campaignId: exec.campaign_id,
+    ackStatus,
+    providerMessageId,
+  });
+}
+
+/**
+ * When an inbound message arrives, find the most recent campaign_execution
+ * for this phone in status (sent|delivered|read) within the last 7 days and
+ * mark it replied.
+ * Caller must wrap in try/catch.
+ *
+ * WAHA SKILL.md §4.2: inbound "message" event, payload.from = "<phone>@c.us".
+ */
+async function markCampaignExecutionReplied(
+  supabase: SupabaseClient,
+  phone: string,
+  logger: any,
+) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: exec } = await supabase
+    .from('campaign_executions')
+    .select('id, campaign_id, status')
+    .eq('contact_identifier', phone)
+    .in('status', ['sent', 'delivered', 'read'])
+    .gte('sent_at', sevenDaysAgo)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!exec) return;
+
+  await supabase.from('campaign_executions').update({
+    status: 'replied',
+    replied_at: new Date().toISOString(),
+  }).eq('id', exec.id);
+
+  await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: exec.campaign_id });
+
+  logger.info('Campaign execution marked replied (WAHA)', {
+    executionId: exec.id,
+    campaignId: exec.campaign_id,
+    phone: DataSanitizer.sanitizePhoneNumber(phone),
+  });
 }
