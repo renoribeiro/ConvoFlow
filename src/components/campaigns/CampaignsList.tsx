@@ -115,7 +115,7 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
   const { data: campaigns = [], isLoading } = useCampaignsByStatus(
     status as CampaignStatus
   );
-  const { setCampaignStatus, duplicateCampaign, deleteCampaign } =
+  const { setCampaignStatus, duplicateCampaign, deleteCampaign, scheduleCampaign } =
     useCampaignMutations();
 
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -171,6 +171,8 @@ export const CampaignsList = ({ status, onEdit }: CampaignsListProps) => {
             onEdit={onEdit}
             onViewReport={(id) => setReportCampaignId(id)}
             onViewDetails={(id) => setDetailsCampaignId(id)}
+            onDispatchNow={(id) => scheduleCampaign.mutate(id)}
+            isDispatching={scheduleCampaign.isPending}
             onDelete={(id, name) => setDeleteTarget({ id, name })}
             onPause={(id) =>
               setCampaignStatus.mutate({ campaignId: id, action: 'pause' })
@@ -243,6 +245,8 @@ interface CampaignCardProps {
   onEdit: (c: Campaign) => void;
   onViewReport: (id: string) => void;
   onViewDetails: (id: string) => void;
+  onDispatchNow: (id: string) => void;
+  isDispatching: boolean;
   onDelete: (id: string, name: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -255,6 +259,8 @@ function CampaignCard({
   onEdit,
   onViewReport,
   onViewDetails,
+  onDispatchNow,
+  isDispatching,
   onDelete,
   onPause,
   onResume,
@@ -272,6 +278,8 @@ function CampaignCard({
   const isPaused = campaign.status === 'paused';
   const isScheduled = campaign.status === 'scheduled';
   const isCompleted = campaign.status === 'completed';
+  // "Disparar agora" only when nothing was actually sent yet (the backend guard also enforces this).
+  const canDispatch = sent === 0 && (isDraft || isScheduled || isActive);
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -303,9 +311,21 @@ function CampaignCard({
             )}
           </div>
 
+          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+          {canDispatch && (
+            <Button
+              size="sm"
+              onClick={() => onDispatchNow(campaign.id)}
+              disabled={isDispatching}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Send className="h-4 w-4 mr-1" />
+              {isDispatching ? 'Disparando...' : 'Disparar agora'}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="ml-2 flex-shrink-0">
+              <Button variant="ghost" size="sm">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -359,6 +379,7 @@ function CampaignCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         {/* Metrics row */}
