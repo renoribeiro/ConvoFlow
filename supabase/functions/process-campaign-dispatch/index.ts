@@ -463,6 +463,30 @@ serve(async (req) => {
         sent++
         touchedCampaigns.add(campaign_id)
 
+        // Mirror the campaign message into the Conversas thread, tagged by origin, so the
+        // conversation shows it came from a campaign. Non-fatal: never affect the send result.
+        if (exec.contact_id) {
+          try {
+            const msgContent = campaign.message_type === 'text'
+              ? finalText
+              : (finalText.trim() || finalCaption)
+            await supabase.from('messages').insert({
+              contact_id: exec.contact_id,
+              tenant_id: exec.tenant_id,
+              whatsapp_instance_id: instanceRow.id,
+              direction: 'outbound',
+              message_type: campaign.message_type ?? 'text',
+              content: msgContent,
+              evolution_message_id: msgId,
+              status: 'sent',
+              source: 'campaign',
+              campaign_id: campaign.id,
+            })
+          } catch (_mirrorErr) {
+            // thread mirroring is best-effort
+          }
+        }
+
         // Bump daily count
         if (campaign.daily_send_limit != null) {
           dailySentMap.set(campaign_id, (dailySentMap.get(campaign_id) ?? 0) + 1)

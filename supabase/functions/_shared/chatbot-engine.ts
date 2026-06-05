@@ -1167,6 +1167,7 @@ async function sendBotMessage(
         content: text,
         status: 'sent',
         is_from_bot: true,
+        source: 'chatbot',
       }) as unknown as Promise<void>);
   } catch (err) {
     logger.warn('Failed to persist outbound bot message row', { error: String(err) });

@@ -271,6 +271,31 @@ async function handleIncomingMessage(
       phone,
       message: content,
     }, logger);
+
+    // Campaign reply tracking (additive, isolated). If this contact has a recently-sent
+    // campaign message, an inbound reply marks that execution as 'replied'.
+    try {
+      const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      const { data: rexecs } = await supabase
+        .from('campaign_executions')
+        .select('id, campaign_id')
+        .eq('contact_id', contactId)
+        .in('status', ['sent', 'delivered', 'read'])
+        .gte('sent_at', since)
+        .order('sent_at', { ascending: false })
+        .limit(1);
+      const rex = rexecs?.[0] as { id: string; campaign_id: string } | undefined;
+      if (rex) {
+        await supabase
+          .from('campaign_executions')
+          .update({ status: 'replied', replied_at: new Date().toISOString() })
+          .eq('id', rex.id);
+        await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: rex.campaign_id });
+        logger.info('Campaign execution marked replied', { execution: rex.id });
+      }
+    } catch (e) {
+      logger.warn('Campaign reply mapping failed', { error: (e as Error).message });
+    }
   } else {
     logger.warn('Meta: could not resolve contact_id for chatbot engine', { phone });
   }
@@ -294,6 +319,36 @@ async function handleStatusUpdate(
     .eq('evolution_message_id', messageId);
 
   logger.info('Meta message status updated', { id: messageId, status: normalized });
+
+  // Campaign delivery/read tracking (additive, isolated — never disrupt status handling).
+  // The wamid we stored as campaign_executions.provider_message_id on send equals status.id.
+  try {
+    if (normalized === 'delivered' || normalized === 'read') {
+      const { data: execs } = await supabase
+        .from('campaign_executions')
+        .select('id, campaign_id, status')
+        .eq('provider_message_id', messageId)
+        .limit(1);
+      const exec = execs?.[0] as { id: string; campaign_id: string; status: string } | undefined;
+      if (exec) {
+        // Never downgrade (read -> delivered) on out-of-order acks.
+        const rank: Record<string, number> = {
+          pending: 0, processing: 0, skipped: 0, failed: 1, sent: 1, delivered: 2, read: 3, replied: 4,
+        };
+        if ((rank[normalized] ?? 0) > (rank[exec.status] ?? 0)) {
+          const patch: Record<string, unknown> = { status: normalized };
+          const nowIso = new Date().toISOString();
+          if (normalized === 'delivered') patch.delivered_at = nowIso;
+          if (normalized === 'read') { patch.read_at = nowIso; patch.delivered_at = nowIso; }
+          await supabase.from('campaign_executions').update(patch).eq('id', exec.id);
+          await supabase.rpc('recompute_campaign_metrics', { p_campaign_id: exec.campaign_id });
+          logger.info('Campaign execution ack mapped', { execution: exec.id, status: normalized });
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn('Campaign ack mapping failed', { error: (e as Error).message });
+  }
 }
 
 function extractMessageContent(msg: any): string {
