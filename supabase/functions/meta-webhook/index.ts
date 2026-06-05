@@ -315,7 +315,7 @@ async function handleStatusUpdate(
 
   await supabase
     .from('messages')
-    .update({ status: normalized, updated_at: new Date().toISOString() })
+    .update({ status: normalized })
     .eq('evolution_message_id', messageId);
 
   logger.info('Meta message status updated', { id: messageId, status: normalized });
