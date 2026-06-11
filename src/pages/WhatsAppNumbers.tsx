@@ -98,7 +98,7 @@ export default function WhatsAppNumbers() {
   const updateInstanceMutation = useSupabaseMutation({
     table: 'whatsapp_instances',
     operation: 'update',
-    invalidateKeys: [['whatsapp-instances']]
+    invalidateQueries: [['whatsapp-instances']]
   });
 
   // Verificação automática de status a cada 30 segundos

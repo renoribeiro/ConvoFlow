@@ -19,7 +19,7 @@ export const useWhatsAppInstances = () => {
   const { tenant } = useTenant();
 
   const { data: instances = [], isLoading, error } = useQuery({
-    queryKey: ['whatsapp-instances', tenant?.id],
+    queryKey: ['whatsapp-instances-summary', tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
 
