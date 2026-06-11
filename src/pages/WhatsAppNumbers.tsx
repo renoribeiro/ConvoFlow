@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
@@ -20,6 +23,9 @@ import { WebhookConfigModal } from '@/components/whatsapp/WebhookConfigModal';
 import { WebhookDashboard } from '@/components/webhook/WebhookDashboard';
 import { EnvironmentDebug } from '@/components/debug/EnvironmentDebug';
 import { SupabaseDebug } from '@/components/debug/SupabaseDebug';
+import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -59,9 +65,15 @@ export default function WhatsAppNumbers() {
   const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [refreshingInstance, setRefreshingInstance] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('instances');
-  
+
+  const [registeringInstance, setRegisteringInstance] = useState<string | null>(null);
+  const [pinDialogInstance, setPinDialogInstance] = useState<WhatsAppInstance | null>(null);
+  const [pinValue, setPinValue] = useState('');
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+
   const { tenant, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { connectInstance, disconnectInstance, getQRCode, refreshInstanceStatus } = useEvolutionApi();
   const { verifyConnection: verifyMetaConnection } = useMetaApi();
 
@@ -258,6 +270,66 @@ export default function WhatsAppNumbers() {
   const handleDelete = (instance: WhatsAppInstance) => {
     setSelectedInstance(instance);
     setShowDeleteModal(true);
+  };
+
+  const doRegisterNumber = async (instance: WhatsAppInstance, pin?: string) => {
+    try {
+      const body: Record<string, string> = { instanceId: instance.id };
+      if (pin) body.pin = pin;
+
+      const { data, error } = await supabase.functions.invoke('register-meta-number', { body });
+
+      if (error) {
+        logger.error('register-meta-number invoke error', { instanceId: instance.id, error });
+        toast({ title: 'Erro', description: 'Falha ao chamar o serviço de registro.', variant: 'destructive' });
+        return;
+      }
+
+      if (data?.pin_required) {
+        setPinDialogInstance(instance);
+        setPinValue('');
+        return;
+      }
+
+      if (!data?.success) {
+        toast({ title: 'Erro ao registrar', description: data?.error ?? 'Erro desconhecido.', variant: 'destructive' });
+        return;
+      }
+
+      const pinInfo = data.pin ? ` PIN de verificação em duas etapas: ${data.pin} — guarde este PIN.` : '';
+      toast({ title: 'Número registrado!', description: `Registro concluído com sucesso.${pinInfo}` });
+
+      if (data.warning) {
+        toast({ title: 'Aviso', description: data.warning, variant: 'destructive' });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido';
+      logger.error('register-meta-number falhou', { instanceId: instance.id, message });
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    }
+  };
+
+  const handleRegisterNumber = async (instance: WhatsAppInstance) => {
+    setRegisteringInstance(instance.id);
+    try {
+      await doRegisterNumber(instance);
+    } finally {
+      setRegisteringInstance(null);
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    if (!pinDialogInstance || pinValue.length !== 6) return;
+    setPinSubmitting(true);
+    try {
+      await doRegisterNumber(pinDialogInstance, pinValue);
+      setPinDialogInstance(null);
+      setPinValue('');
+    } finally {
+      setPinSubmitting(false);
+    }
   };
 
   const resetModals = () => {
@@ -547,14 +619,27 @@ export default function WhatsAppNumbers() {
                         )}
 
                       {instance.provider === 'official' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => verifyMetaConnection(instance.id)}
-                          title="Testar conexão Meta"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => verifyMetaConnection(instance.id)}
+                            title="Testar conexão Meta"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRegisterNumber(instance)}
+                            disabled={registeringInstance === instance.id}
+                            title="Registrar número na Cloud API"
+                          >
+                            {registeringInstance === instance.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <KeyRound className="h-4 w-4" />}
+                          </Button>
+                        </>
                       )}
 
                       <Button
@@ -597,6 +682,39 @@ export default function WhatsAppNumbers() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo de PIN para registro Meta */}
+      <Dialog open={!!pinDialogInstance} onOpenChange={(open) => { if (!open) { setPinDialogInstance(null); setPinValue(''); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>PIN necessário</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Este número já possui um PIN de verificação em duas etapas configurado. Informe o PIN de 6 dígitos para prosseguir com o registro.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="register-pin">PIN (6 dígitos)</Label>
+            <Input
+              id="register-pin"
+              value={pinValue}
+              onChange={(e) => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              maxLength={6}
+              inputMode="numeric"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPinDialogInstance(null); setPinValue(''); }} disabled={pinSubmitting}>
+              Cancelar
+            </Button>
+            <Button onClick={handlePinSubmit} disabled={pinValue.length !== 6 || pinSubmitting}>
+              {pinSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modais */}
       <CreateInstanceModal

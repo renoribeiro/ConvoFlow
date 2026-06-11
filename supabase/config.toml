@@ -68,3 +68,8 @@ verify_jwt = false
 # Authentication relies on SUPABASE_SERVICE_ROLE_KEY inside the handler;
 # the function itself does not require a user JWT at the gateway level.
 verify_jwt = false
+
+[functions.register-meta-number]
+# Registers an already-onboarded Meta WhatsApp phone number (SKILL.md §6.3).
+# Called from an authenticated user session; JWT verification is required.
+verify_jwt = true
