@@ -247,17 +247,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // -------------------------------------------------------------------------
-    // Step 4: Phone number registration (/register) is NOT performed here.
-    //
-    // The /register endpoint (SKILL.md §6.3) requires a 6-digit 2FA PIN that
-    // the business owner must provide explicitly. Calling it without the correct
-    // PIN would lock the number. A separate "register phone" flow (with PIN
-    // input) must be implemented as a follow-up step — see SKILL.md §6.1–6.3.
-    // Until /register is called, outbound messages from this number will return
-    // error 133010 ("Telefone não registrado").
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
     // Step 5: Create the whatsapp_instances row.
     //
     // connection_config keys mirror what the rest of the codebase expects:
@@ -325,18 +314,160 @@ Deno.serve(async (req: Request) => {
 
     logger.info('Meta access token stored in Vault', { instance_id: insertedInstanceId });
 
-    // Success — return the instance data to the caller.
-    return jsonResponse(
-      {
-        success: true,
-        instance: inserted,
-      },
-      200,
-    );
+    // -------------------------------------------------------------------------
+    // Step 7: Auto-register the phone number on the Cloud API (best-effort).
+    //
+    // SKILL.md §6.3: POST /{phoneNumberId}/register
+    //   Body: { messaging_product: "whatsapp", pin: "<6-digit>" }
+    //   Authorization: Bearer {accessToken}  ← in-memory token, NOT re-read from Vault.
+    //
+    // Error handling mirrors register-meta-number/index.ts:
+    //   133015 (already registered) → idempotent success, store PIN in config.
+    //   136024 (PIN already set)    → non-fatal warn, leave fallback button enabled.
+    //   Any other error             → non-fatal warn, leave fallback button enabled.
+    //
+    // A failure here NEVER rolls back or fails the onboarding. The outer try/catch
+    // already handles rollback for the fatal steps above; this inner try/catch is
+    // self-contained and only logs.
+    // -------------------------------------------------------------------------
+    let autoRegistered = false;
+    let autoRegisterPin: string | undefined;
+
+    // Meta error codes — same constants as register-meta-number.
+    const META_ERR_ALREADY_REGISTERED = 133015;
+    const META_ERR_PIN_ALREADY_SET = 136024;
+
+    try {
+      // Generate a random 6-digit numeric PIN using the Deno crypto API.
+      const pinBuf = new Uint32Array(1);
+      crypto.getRandomValues(pinBuf);
+      const generatedPin = String(pinBuf[0] % 1_000_000).padStart(6, '0');
+
+      const registerUrl =
+        `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/register`;
+
+      logger.info('Auto-registering phone number (best-effort)', {
+        instance_id: insertedInstanceId,
+        phone_number_id: phoneNumberId,
+        // Never log generatedPin or accessToken in plain log fields.
+      });
+
+      const registerRes = await fetch(registerUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          pin: generatedPin,
+        }),
+      });
+
+      const registerData: { success?: boolean; error?: { message: string; code?: number; type?: string; fbtrace_id?: string } } =
+        await registerRes.json();
+
+      const metaErr = registerData.error;
+
+      if (metaErr) {
+        const errCode = metaErr.code;
+
+        if (errCode === META_ERR_ALREADY_REGISTERED) {
+          // 133015 — number is already active on WhatsApp; treat as success.
+          logger.info('Auto-register: number already registered (133015) — idempotent success', {
+            instance_id: insertedInstanceId,
+          });
+          autoRegistered = true;
+          autoRegisterPin = generatedPin;
+        } else if (errCode === META_ERR_PIN_ALREADY_SET) {
+          // 136024 — number has an existing PIN we don't know. Non-fatal; user
+          // must click the manual "Registrar número" button and supply the PIN.
+          logger.warn('Auto-register: PIN already set on number (136024) — manual registration required', {
+            instance_id: insertedInstanceId,
+            meta_code: errCode,
+            fbtrace_id: metaErr.fbtrace_id,
+          });
+        } else {
+          // Any other Meta error — log details (no secrets) and continue.
+          logger.warn('Auto-register: Meta returned error (non-fatal)', {
+            instance_id: insertedInstanceId,
+            meta_code: errCode,
+            meta_type: metaErr.type,
+            http_status: registerRes.status,
+            fbtrace_id: metaErr.fbtrace_id,
+          });
+        }
+      } else if (registerData.success) {
+        // Clean success from Meta.
+        logger.info('Auto-register: phone number registered successfully', {
+          instance_id: insertedInstanceId,
+          phone_number_id: phoneNumberId,
+        });
+        autoRegistered = true;
+        autoRegisterPin = generatedPin;
+      } else {
+        // Unexpected shape (no error, no success flag).
+        logger.warn('Auto-register: unexpected Meta response shape (non-fatal)', {
+          instance_id: insertedInstanceId,
+          http_status: registerRes.status,
+        });
+      }
+
+      // If registration succeeded (or was already done), persist the PIN in
+      // connection_config so register-meta-number can reuse it for re-registration.
+      if (autoRegistered && autoRegisterPin) {
+        const updatedConfig = {
+          ...connectionConfig,
+          registerPin: autoRegisterPin,
+        };
+
+        const { error: configUpdateError } = await supabaseAdmin
+          .from('whatsapp_instances')
+          .update({
+            // @ts-ignore connection_config may not yet be in generated types
+            connection_config: updatedConfig,
+          })
+          .eq('id', insertedInstanceId);
+
+        if (configUpdateError) {
+          // DB update failure is also non-fatal — registration already succeeded on Meta's side.
+          logger.warn('Auto-register: failed to persist registerPin to connection_config (non-fatal)', {
+            instance_id: insertedInstanceId,
+            error: configUpdateError.message,
+          });
+        } else {
+          logger.info('Auto-register: registerPin persisted to connection_config', {
+            instance_id: insertedInstanceId,
+          });
+        }
+      }
+    } catch (autoRegErr: any) {
+      // Network or parse error — entirely non-fatal.
+      logger.warn('Auto-register: unexpected error during registration step (non-fatal)', {
+        instance_id: insertedInstanceId,
+        error: autoRegErr?.message,
+      });
+    }
+
+    // Success — return the instance data plus auto-registration outcome.
+    // The frontend can use `registered` to hide/show the manual "Registrar número" button.
+    const successPayload: Record<string, any> = {
+      success: true,
+      instance: inserted,
+      registered: autoRegistered,
+    };
+    if (autoRegistered && autoRegisterPin) {
+      successPayload.registerPin = autoRegisterPin;
+    }
+
+    return jsonResponse(successPayload, 200);
   } catch (err: any) {
     // -------------------------------------------------------------------------
-    // Step 7: Rollback — if the instance row was already inserted, delete it
-    // so the user can retry without accumulating orphaned rows.
+    // Rollback — if the instance row was already inserted, delete it so the
+    // user can retry without accumulating orphaned rows.
+    //
+    // Only reached if a fatal step (1–6) threw. Step 7 (auto-register) has its
+    // own inner try/catch and never propagates errors to this block.
     //
     // Mirrors the rollback pattern in useMetaApi.tsx (client-side) and the
     // spirit of whatsapp-meta-setup's error handling.
