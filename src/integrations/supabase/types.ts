@@ -1316,6 +1316,11 @@ export type Database = {
           name: string | null
           notes: string | null
           opt_out_mass_message: boolean | null
+          opt_in_mass_message: boolean | null
+          opt_in_source: string | null
+          opt_in_at: string | null
+          opt_out_at: string | null
+          opt_out_source: string | null
           phone: string
           source_details: Json | null
           stage_entered_at: string | null
@@ -1337,6 +1342,11 @@ export type Database = {
           name?: string | null
           notes?: string | null
           opt_out_mass_message?: boolean | null
+          opt_in_mass_message?: boolean | null
+          opt_in_source?: string | null
+          opt_in_at?: string | null
+          opt_out_at?: string | null
+          opt_out_source?: string | null
           phone: string
           source_details?: Json | null
           stage_entered_at?: string | null
@@ -1358,6 +1368,11 @@ export type Database = {
           name?: string | null
           notes?: string | null
           opt_out_mass_message?: boolean | null
+          opt_in_mass_message?: boolean | null
+          opt_in_source?: string | null
+          opt_in_at?: string | null
+          opt_out_at?: string | null
+          opt_out_source?: string | null
           phone?: string
           source_details?: Json | null
           stage_entered_at?: string | null
@@ -2100,6 +2115,11 @@ export type Database = {
           total_recipients: number | null
           updated_at: string
           whatsapp_instance_id: string
+          require_opt_in: boolean
+          is_template: boolean
+          template_name: string | null
+          template_language: string | null
+          template_params: Json | null
         }
         Insert: {
           audience_config?: Json | null
@@ -2140,6 +2160,11 @@ export type Database = {
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id: string
+          require_opt_in?: boolean
+          is_template?: boolean
+          template_name?: string | null
+          template_language?: string | null
+          template_params?: Json | null
         }
         Update: {
           audience_config?: Json | null
@@ -2180,6 +2205,11 @@ export type Database = {
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id?: string
+          require_opt_in?: boolean
+          is_template?: boolean
+          template_name?: string | null
+          template_language?: string | null
+          template_params?: Json | null
         }
         Relationships: [
           {
@@ -4056,6 +4086,13 @@ export type Database = {
           webhook_last_error: string | null
           webhook_retry_count: number | null
           webhook_url: string | null
+          registered_at: string | null
+          quality_rating: string | null
+          messaging_limit_tier: string | null
+          account_review_status: string | null
+          is_restricted: boolean
+          restriction_info: Json | null
+          health_updated_at: string | null
         }
         Insert: {
           automation_enabled?: boolean | null
@@ -4082,6 +4119,13 @@ export type Database = {
           webhook_last_error?: string | null
           webhook_retry_count?: number | null
           webhook_url?: string | null
+          registered_at?: string | null
+          quality_rating?: string | null
+          messaging_limit_tier?: string | null
+          account_review_status?: string | null
+          is_restricted?: boolean
+          restriction_info?: Json | null
+          health_updated_at?: string | null
         }
         Update: {
           automation_enabled?: boolean | null
@@ -4108,6 +4152,13 @@ export type Database = {
           webhook_last_error?: string | null
           webhook_retry_count?: number | null
           webhook_url?: string | null
+          registered_at?: string | null
+          quality_rating?: string | null
+          messaging_limit_tier?: string | null
+          account_review_status?: string | null
+          is_restricted?: boolean
+          restriction_info?: Json | null
+          health_updated_at?: string | null
         }
         Relationships: [
           {

@@ -21,6 +21,29 @@ export interface IWhatsAppProvider {
         mediaUrl: string,
         options: { caption?: string; mediaType: 'image' | 'video' | 'document' | 'audio'; fileName?: string },
     ): Promise<any>;
+    /**
+     * Send a pre-approved WhatsApp template message (Meta Cloud API only).
+     * Optional on other providers — throws "not implemented" if called on them.
+     *
+     * Per SKILL.md §2.12: templates bypass the 24-hour service window and are
+     * the ONLY outbound option when no customer-initiated message exists in
+     * the last 24h.
+     *
+     * @param to            E.164 phone number (with or without leading +).
+     * @param templateName  Exact name of the APPROVED template on the WABA.
+     * @param language      BCP-47 language code, e.g. 'pt_BR'.
+     * @param bodyParams    Ordered list of strings to fill {{1}}, {{2}}, … in
+     *                      the template body component. Pass [] if the template
+     *                      body has no variable placeholders.
+     * @param options       Reserved for future header/button params extensions.
+     */
+    sendTemplate?(
+        to: string,
+        templateName: string,
+        language: string,
+        bodyParams: string[],
+        options?: Record<string, any>,
+    ): Promise<any>;
     fetchHistory?(limit: number): Promise<any[]>;
 }
 

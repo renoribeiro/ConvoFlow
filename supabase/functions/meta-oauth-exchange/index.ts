@@ -414,7 +414,11 @@ Deno.serve(async (req: Request) => {
       }
 
       // If registration succeeded (or was already done), persist the PIN in
-      // connection_config so register-meta-number can reuse it for re-registration.
+      // connection_config and stamp registered_at (warm-up baseline) so that
+      // process-campaign-dispatch can calculate the warm-up cap correctly.
+      // registered_at is only set if still null — it must not be overwritten
+      // on re-registration so the warm-up window is always relative to the
+      // first successful registration.
       if (autoRegistered && autoRegisterPin) {
         const updatedConfig = {
           ...connectionConfig,
@@ -426,17 +430,21 @@ Deno.serve(async (req: Request) => {
           .update({
             // @ts-ignore connection_config may not yet be in generated types
             connection_config: updatedConfig,
+            // @ts-ignore registered_at may not yet be in generated types
+            registered_at: new Date().toISOString(),
           })
-          .eq('id', insertedInstanceId);
+          .eq('id', insertedInstanceId)
+          // Only stamp registered_at on the very first registration
+          .is('registered_at', null);
 
         if (configUpdateError) {
           // DB update failure is also non-fatal — registration already succeeded on Meta's side.
-          logger.warn('Auto-register: failed to persist registerPin to connection_config (non-fatal)', {
+          logger.warn('Auto-register: failed to persist registerPin/registered_at to connection_config (non-fatal)', {
             instance_id: insertedInstanceId,
             error: configUpdateError.message,
           });
         } else {
-          logger.info('Auto-register: registerPin persisted to connection_config', {
+          logger.info('Auto-register: registerPin and registered_at persisted', {
             instance_id: insertedInstanceId,
           });
         }

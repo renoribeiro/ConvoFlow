@@ -152,6 +152,16 @@ serve(async (req) => {
     for (const entry of entries) {
       const changes: any[] = Array.isArray(entry.changes) ? entry.changes : [];
       for (const change of changes) {
+        // V7: reaja a sinais de saúde/restrição da conta — antes o app os ignorava
+        // e só descobria a restrição pelo e-mail da Meta.
+        if (change.field === 'account_update') {
+          await handleAccountUpdate(supabase, entry, change.value || {}, logger);
+          continue;
+        }
+        if (change.field === 'phone_number_quality_update') {
+          await handlePhoneQualityUpdate(supabase, change.value || {}, logger);
+          continue;
+        }
         if (change.field !== 'messages') continue;
 
         const value = change.value || {};
@@ -201,6 +211,53 @@ serve(async (req) => {
   }
 });
 
+/**
+ * V4: Opt-out automático por palavra-chave.
+ * Normaliza o texto (trim, lowercase, remove acentos e pontuação) e verifica
+ * se é exatamente uma das palavras/expressões de descadastro.
+ * Se sim, chama set_contact_opt_out_by_phone — idempotente e best-effort.
+ * Cf. whatsapp-policies/SKILL.md §1.4.
+ */
+async function checkOptOutKeyword(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  phone: string,
+  rawText: string,
+  logger: ReturnType<typeof createLogger>,
+): Promise<void> {
+  const OPT_OUT_KEYWORDS = new Set([
+    'parar', 'pare', 'sair', 'cancelar', 'cancelar inscricao',
+    'descadastrar', 'stop', 'unsubscribe', 'nao quero receber',
+    'nao quero receber', 'remover',
+  ]);
+
+  // Normaliza: lowercase, trim, remove acentos, remove pontuação.
+  const normalized = rawText
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove diacríticos
+    .replace(/[^\w\s]/g, '')         // remove pontuação
+    .trim();
+
+  if (!OPT_OUT_KEYWORDS.has(normalized)) return;
+
+  try {
+    await supabase.rpc('set_contact_opt_out_by_phone', {
+      p_tenant: tenantId,
+      p_phone: phone,
+      p_source: 'keyword',
+    });
+    logger.info('Opt-out registrado por palavra-chave (Meta)', {
+      tenantId,
+      phone: DataSanitizer.sanitizePhoneNumber(phone),
+      keyword: normalized,
+    });
+  } catch (err: any) {
+    logger.warn('set_contact_opt_out_by_phone falhou (best-effort)', { error: err.message });
+  }
+}
+
 async function handleIncomingMessage(
   supabase: ReturnType<typeof createClient>,
   instance: { id: string; tenant_id: string },
@@ -217,6 +274,11 @@ async function handleIncomingMessage(
   if (!content || !messageId) {
     logger.info('Skipping Meta message without text content', { type: msg.type });
     return;
+  }
+
+  // V4: checagem de opt-out por palavra-chave — apenas mensagens de texto puro.
+  if (msg.type === 'text' && msg.text?.body) {
+    await checkOptOutKeyword(supabase, instance.tenant_id, rawPhone, msg.text.body, logger);
   }
 
   // Webhooks are at-least-once. Drop duplicates before invoking the RPC so we
@@ -348,6 +410,154 @@ async function handleStatusUpdate(
     }
   } catch (e) {
     logger.warn('Campaign ack mapping failed', { error: (e as Error).message });
+  }
+}
+
+/**
+ * V7: account_update — banimento/restrição/review da WABA inteira.
+ * `entry.id` é o WABA id; resolvemos todas as instâncias daquele WABA.
+ * Eventos típicos: ACCOUNT_RESTRICTION, ACCOUNT_VIOLATION, DISABLED_UPDATE,
+ * ACCOUNT_REVIEW_UPDATE, ACCOUNT_UPDATE_BAN. Não confiamos numa lista fixa —
+ * tratamos como restrição qualquer evento que cite ban/restrict/violat/disable.
+ */
+async function handleAccountUpdate(
+  supabase: ReturnType<typeof createClient>,
+  entry: any,
+  value: any,
+  logger: ReturnType<typeof createLogger>,
+) {
+  const wabaId: string | undefined = entry?.id;
+  if (!wabaId) return;
+
+  const event: string = String(value?.event || value?.decision || 'ACCOUNT_UPDATE');
+  const lowered = event.toLowerCase();
+  const restricted =
+    /(ban|restrict|violat|disable|reject)/.test(lowered) ||
+    !!value?.ban_info || (Array.isArray(value?.restriction_info) && value.restriction_info.length > 0);
+
+  const { data: instances } = await supabase
+    .from('whatsapp_instances')
+    .select('id, tenant_id, name')
+    .eq('provider', 'official')
+    .filter('connection_config->>wabaId', 'eq', wabaId);
+
+  if (!instances || instances.length === 0) {
+    logger.warn('account_update: nenhuma instância para o WABA', { wabaId, event });
+    return;
+  }
+
+  for (const inst of instances as Array<{ id: string; tenant_id: string; name: string }>) {
+    await supabase
+      .from('whatsapp_instances')
+      .update({
+        account_review_status: event,
+        is_restricted: restricted,
+        restriction_info: value,
+        health_updated_at: new Date().toISOString(),
+        ...(restricted ? { status: 'restricted' } : {}),
+      })
+      .eq('id', inst.id);
+
+    logger.warn('account_update aplicado', { instance: inst.id, event, restricted });
+
+    await notifyInstanceAdmins(
+      supabase,
+      inst,
+      restricted ? 'Conta WhatsApp restrita pela Meta' : 'Atualização da conta WhatsApp (Meta)',
+      restricted
+        ? `O número "${inst.name}" foi RESTRITO pela Meta (${event}). Pare os envios e revise a conformidade (.agent/skills/whatsapp-policies/SKILL.md).`
+        : `A conta do número "${inst.name}" mudou de estado na Meta (${event}).`,
+      restricted ? 'error' : 'warning',
+      { source: 'meta-webhook', kind: 'account_update', event },
+    );
+  }
+}
+
+/**
+ * V7: phone_number_quality_update — green/yellow/red e mudança de tier.
+ * `value.display_phone_number`, `value.event` (ex. ONBOARDING/UPGRADE/DOWNGRADE/
+ * FLAGGED/UNFLAGGED), `value.current_limit`.
+ */
+async function handlePhoneQualityUpdate(
+  supabase: ReturnType<typeof createClient>,
+  value: any,
+  logger: ReturnType<typeof createLogger>,
+) {
+  const phoneNumberId: string | undefined = value?.metadata?.phone_number_id;
+  const display: string | undefined = value?.display_phone_number;
+  const event: string = String(value?.event || '');
+  const limit: string | undefined = value?.current_limit;
+  const quality: string | undefined = value?.quality_rating || value?.current_quality_rating;
+
+  let query = supabase
+    .from('whatsapp_instances')
+    .select('id, tenant_id, name')
+    .eq('provider', 'official');
+  query = phoneNumberId
+    ? query.filter('connection_config->>phoneNumberId', 'eq', phoneNumberId)
+    : query.eq('phone_number', display ?? '__none__');
+
+  const { data: instance } = await query.maybeSingle();
+  if (!instance) {
+    logger.warn('phone_number_quality_update: instância não encontrada', { phoneNumberId, display });
+    return;
+  }
+
+  const inst = instance as { id: string; tenant_id: string; name: string };
+  const flagged = /(flag|downgrade)/i.test(event) || quality === 'RED';
+
+  await supabase
+    .from('whatsapp_instances')
+    .update({
+      ...(quality ? { quality_rating: quality } : {}),
+      ...(limit ? { messaging_limit_tier: limit } : {}),
+      health_updated_at: new Date().toISOString(),
+    })
+    .eq('id', inst.id);
+
+  logger.info('phone_number_quality_update aplicado', { instance: inst.id, event, quality, limit });
+
+  if (flagged) {
+    await notifyInstanceAdmins(
+      supabase,
+      inst,
+      'Qualidade do número WhatsApp caiu',
+      `O número "${inst.name}" teve queda de qualidade na Meta (${event}${quality ? `, rating ${quality}` : ''}). Reduza envios e melhore a conformidade para não ser restrito.`,
+      'warning',
+      { source: 'meta-webhook', kind: 'phone_number_quality_update', event, quality },
+    );
+  }
+}
+
+/**
+ * Notifica super_admins (global) + usuários do tenant dono da instância.
+ */
+async function notifyInstanceAdmins(
+  supabase: ReturnType<typeof createClient>,
+  inst: { tenant_id: string },
+  title: string,
+  message: string,
+  type: 'info' | 'success' | 'warning' | 'error',
+  metadata: Record<string, unknown>,
+) {
+  try {
+    const { data: supers } = await supabase.from('profiles').select('user_id').eq('role', 'super_admin');
+    const { data: tenantUsers } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('tenant_id', inst.tenant_id);
+
+    const userIds = new Set<string>();
+    for (const p of [...(supers ?? []), ...(tenantUsers ?? [])]) {
+      const uid = (p as { user_id: string | null }).user_id;
+      if (uid) userIds.add(uid);
+    }
+
+    if (userIds.size === 0) return;
+    const rows = [...userIds].map((uid) => ({ user_id: uid, title, message, type, metadata }));
+    await supabase.from('notifications').insert(rows);
+  } catch (e) {
+    // Notificação é best-effort — nunca derrube o processamento do webhook.
   }
 }
 

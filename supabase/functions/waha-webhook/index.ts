@@ -142,6 +142,12 @@ serve(async (req) => {
       const phone = DataSanitizer.sanitizePhoneNumber(rawPhone);
       const content = msg.body || '';
 
+      // V4: opt-out por palavra-chave — apenas mensagens de texto puro.
+      // WAHA SKILL.md §4.2: type='chat' indica texto simples.
+      if (phone && content && (msg.type === 'chat' || !msg.type)) {
+        await checkOptOutKeyword(supabase, instance.tenant_id, phone, content, logger);
+      }
+
       if (phone && content) {
         // v1 bots (patched RPC ignores v2 bots). The RPC resolves/creates the
         // contact by (phone, tenant) and RETURNS its id — use that directly.
@@ -237,6 +243,53 @@ serve(async (req) => {
     })
   }
 })
+
+/**
+ * V4: Opt-out automático por palavra-chave (WAHA).
+ * Normaliza o texto (trim, lowercase, remove acentos e pontuação) e verifica
+ * se é exatamente uma das palavras/expressões de descadastro.
+ * Se sim, chama set_contact_opt_out_by_phone — idempotente e best-effort.
+ * Cf. whatsapp-policies/SKILL.md §1.4 e waha/SKILL.md §10 (regras de uso).
+ */
+async function checkOptOutKeyword(
+  supabase: SupabaseClient,
+  tenantId: string,
+  phone: string,
+  rawText: string,
+  logger: any,
+): Promise<void> {
+  const OPT_OUT_KEYWORDS = new Set([
+    'parar', 'pare', 'sair', 'cancelar', 'cancelar inscricao',
+    'descadastrar', 'stop', 'unsubscribe', 'nao quero receber',
+    'nao quero receber', 'remover',
+  ]);
+
+  // Normaliza: lowercase, trim, remove acentos, remove pontuação.
+  const normalized = rawText
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove diacríticos
+    .replace(/[^\w\s]/g, '')         // remove pontuação
+    .trim();
+
+  if (!OPT_OUT_KEYWORDS.has(normalized)) return;
+
+  try {
+    await supabase.rpc('set_contact_opt_out_by_phone', {
+      p_tenant: tenantId,
+      p_phone: phone,
+      p_source: 'keyword',
+    });
+    logger.info('Opt-out registrado por palavra-chave (WAHA)', {
+      tenantId,
+      phone: DataSanitizer.sanitizePhoneNumber(phone),
+      keyword: normalized,
+    });
+  } catch (err: any) {
+    logger.warn('set_contact_opt_out_by_phone falhou (best-effort)', { error: err.message });
+  }
+}
 
 /**
  * Fire-and-forget invocation of the process-chatbot-message Edge Function.

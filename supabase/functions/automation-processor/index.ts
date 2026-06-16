@@ -427,7 +427,7 @@ async function scheduleSendMessage(
 ): Promise<boolean> {
   try {
     let messageContent = '';
-    
+
     // Verificar se há template ou mensagem personalizada
     if (stepConfig.message_template_id) {
       const { data: template } = await supabaseClient
@@ -435,17 +435,61 @@ async function scheduleSendMessage(
         .select('content')
         .eq('id', stepConfig.message_template_id)
         .single();
-      
+
       if (template) {
         messageContent = template.content;
       }
     } else if (stepConfig.custom_message) {
       messageContent = stepConfig.custom_message;
     }
-    
+
     if (!messageContent) {
       logger.error('No message content found');
       return false;
+    }
+
+    // Gate de janela de 24h — bloqueio proativo para instâncias oficiais (Meta Cloud API).
+    // Cf. meta-cloud-api/SKILL.md §8.3 e whatsapp-policies/SKILL.md §1.2.
+    // Resolve instância pelo contato e verifica se é official antes de enfileirar.
+    // Fail-open: se não conseguirmos resolver a instância, deixamos prosseguir
+    // (o job-worker fará a verificação novamente antes do envio real).
+    try {
+      const { data: contact } = await supabaseClient
+        .from('contacts')
+        .select('phone, whatsapp_instance_id')
+        .eq('id', contactId)
+        .maybeSingle();
+
+      if (contact?.whatsapp_instance_id && contact?.phone) {
+        const { data: inst } = await supabaseClient
+          .from('whatsapp_instances')
+          .select('id, provider')
+          .eq('id', contact.whatsapp_instance_id)
+          .maybeSingle();
+
+        if (inst && (inst.provider ?? 'evolution') === 'official') {
+          const { data: withinWindow, error: windowError } = await supabaseClient.rpc(
+            'is_within_service_window',
+            { p_instance_id: inst.id, p_phone: contact.phone }
+          );
+          if (windowError) {
+            logger.warn('Automation: is_within_service_window RPC falhou — fail-open', {
+              instanceId: inst.id,
+              error: windowError.message,
+            });
+          } else if (withinWindow === false) {
+            logger.warn('Automation: envio proativo bloqueado — fora da janela de 24h (instância oficial)', {
+              contactId,
+              instanceId: inst.id,
+            });
+            return false;
+          }
+        }
+      }
+    } catch (windowCheckErr: any) {
+      logger.warn('Automation: verificação de janela de 24h falhou — fail-open', {
+        error: windowCheckErr.message,
+      });
     }
 
     // NOTE: a tabela `scheduled_messages` foi removida do schema. Esta

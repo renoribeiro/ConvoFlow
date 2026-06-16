@@ -29,6 +29,8 @@ interface Contact {
   created_at: string;
   updated_at: string;
   is_blocked?: boolean;
+  opt_in_mass_message?: boolean | null;
+  opt_out_mass_message?: boolean | null;
   stage?: {
     name: string;
     color: string;
@@ -175,6 +177,36 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
     errorMessage: 'Erro ao excluir contato. Tente novamente.'
   });
 
+  const consentMutation = useSupabaseMutation({
+    table: 'contacts',
+    operation: 'update',
+    invalidateQueries: [['contacts']],
+    successMessage: 'Consentimento atualizado!',
+    errorMessage: 'Erro ao atualizar consentimento.',
+  });
+
+  const handleToggleOptIn = async (contactId: string, current: boolean | null | undefined) => {
+    try {
+      await consentMutation.mutateAsync({
+        data: { opt_in_mass_message: !current },
+        options: { filter: { column: 'id', operator: 'eq', value: contactId } },
+      });
+    } catch (err) {
+      logger.error('Erro ao alterar opt-in do contato', { contactId, error: (err as Error).message });
+    }
+  };
+
+  const handleToggleOptOut = async (contactId: string, current: boolean | null | undefined) => {
+    try {
+      await consentMutation.mutateAsync({
+        data: { opt_out_mass_message: !current },
+        options: { filter: { column: 'id', operator: 'eq', value: contactId } },
+      });
+    } catch (err) {
+      logger.error('Erro ao alterar opt-out do contato', { contactId, error: (err as Error).message });
+    }
+  };
+
   const handleDeleteClick = (contactId: string, contactName: string) => {
     setDeleteConfirmation({
       isOpen: true,
@@ -284,7 +316,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                 <TableHead>Estágio</TableHead>
                 <TableHead>Fonte</TableHead>
                 <TableHead>Tags</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Consentimento</TableHead>
                 <TableHead>Última Interação</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
@@ -356,12 +388,60 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge 
-                      variant={contact.is_blocked ? 'secondary' : 'default'}
-                      className={contact.is_blocked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}
-                    >
-                      {contact.is_blocked ? 'Bloqueado' : 'Ativo'}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      {contact.is_blocked ? (
+                        <Badge variant="secondary" className="bg-red-100 text-red-800 w-fit">
+                          Bloqueado
+                        </Badge>
+                      ) : contact.opt_in_mass_message ? (
+                        <button
+                          type="button"
+                          title="Clique para remover opt-in"
+                          onClick={() => handleToggleOptIn(contact.id, contact.opt_in_mass_message)}
+                          disabled={consentMutation.isPending}
+                          className="w-fit"
+                        >
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer w-fit">
+                            Opt-in
+                          </Badge>
+                        </button>
+                      ) : contact.opt_out_mass_message ? (
+                        <button
+                          type="button"
+                          title="Clique para remover opt-out"
+                          onClick={() => handleToggleOptOut(contact.id, contact.opt_out_mass_message)}
+                          disabled={consentMutation.isPending}
+                          className="w-fit"
+                        >
+                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 cursor-pointer w-fit">
+                            Opt-out
+                          </Badge>
+                        </button>
+                      ) : (
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            title="Marcar como opt-in"
+                            onClick={() => handleToggleOptIn(contact.id, false)}
+                            disabled={consentMutation.isPending}
+                          >
+                            <Badge variant="outline" className="hover:bg-green-50 cursor-pointer text-xs">
+                              + Opt-in
+                            </Badge>
+                          </button>
+                          <button
+                            type="button"
+                            title="Marcar como opt-out"
+                            onClick={() => handleToggleOptOut(contact.id, false)}
+                            disabled={consentMutation.isPending}
+                          >
+                            <Badge variant="outline" className="hover:bg-yellow-50 cursor-pointer text-xs">
+                              Opt-out
+                            </Badge>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {contact.conversations && contact.conversations.length > 0 && contact.conversations[0].last_message_at ? (

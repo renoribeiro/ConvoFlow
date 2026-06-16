@@ -36,6 +36,11 @@ interface Campaign {
   business_hours_end: string | null
   daily_send_limit: number | null
   timezone: string | null
+  // Template fields (Meta Cloud API compliance — SKILL.md §2.12)
+  is_template: boolean | null
+  template_name: string | null
+  template_language: string | null
+  template_params: string[] | null
 }
 
 interface CampaignExecution {
@@ -274,6 +279,7 @@ serve(async (req) => {
     const campaignMap = new Map<string, Campaign>()
     const instanceMap = new Map<string, any>()   // campaign_id → instance row
     const dailySentMap = new Map<string, number>() // campaign_id → count today
+    const outboundTodayMap = new Map<string, number>() // instance_id → outbound today (warm-up cache)
     const skippedCampaigns = new Set<string>()
 
     for (const cid of uniqueCampaignIds) {
@@ -403,7 +409,211 @@ serve(async (req) => {
         continue
       }
 
-      // 4c. Pick message template
+      // 4b-bis. Gates específicos para número OFICIAL (Meta Cloud API).
+      // Não se aplica a Evolution/WAHA (provider != 'official').
+      const isOfficial = (instanceRow.provider ?? 'evolution') === 'official'
+      const isTemplate = isOfficial && (campaign.is_template === true)
+
+      if (isOfficial) {
+        // Gate A (V6): Warm-up — cap de destinatários/dia baseado em dias desde registered_at.
+        // Calcula o cap uma vez por instância por invocação (cache em outboundTodayMap).
+        const registeredAt = instanceRow.registered_at || instanceRow.created_at
+        const daysSinceRegistered = registeredAt
+          ? Math.floor((Date.now() - new Date(registeredAt).getTime()) / 86_400_000)
+          : 999
+        let warmupCap: number | null = null
+        if (daysSinceRegistered < 2) warmupCap = 50
+        else if (daysSinceRegistered < 4) warmupCap = 250
+        else if (daysSinceRegistered < 7) warmupCap = 1000
+        // else: sem cap extra de warm-up (só os limites normais de campanha se aplicam)
+
+        if (warmupCap !== null) {
+          // Busca outbound today somente se ainda não cacheado para esta instância
+          if (!outboundTodayMap.has(instanceRow.id)) {
+            const { data: outboundCount, error: outboundErr } = await supabase.rpc(
+              'instance_outbound_today',
+              { p_instance_id: instanceRow.id },
+            )
+            if (outboundErr) {
+              logger.warn('instance_outbound_today falhou — ignorando cap warm-up', {
+                instance_id: instanceRow.id, error: outboundErr.message,
+              })
+              // Não bloquear em caso de falha de RPC — fail open para warm-up
+              outboundTodayMap.set(instanceRow.id, 0)
+            } else {
+              outboundTodayMap.set(instanceRow.id, outboundCount ?? 0)
+            }
+          }
+          const outboundToday = outboundTodayMap.get(instanceRow.id) ?? 0
+          if (outboundToday >= warmupCap) {
+            await supabase.from('campaign_executions').update({
+              status: 'skipped',
+              error_message:
+                `Limite de warm-up atingido: o número foi registrado há ${daysSinceRegistered} dia(s) e o cap diário para esta fase é ${warmupCap} mensagens. ` +
+                `Aguarde a próxima janela ou avance na fase de warm-up.`,
+              attempts: exec.attempts + 1,
+            }).eq('id', exec.id)
+            touchedCampaigns.add(campaign_id)
+            processed--
+            continue
+          }
+          // Incrementa o contador em memória para evitar re-fetch por execução
+          outboundTodayMap.set(instanceRow.id, outboundToday + 1)
+        }
+
+        // Gate B (V1/V3): Janela de 24h — somente para campanhas free-form (não template).
+        // Política: fora da janela de 24h, número oficial só pode enviar template
+        // aprovado. Campanha free-form para contato frio = violação + erro 131047 +
+        // sinal de spam. Pula o envio em vez de violar.
+        // Templates (is_template=true) ficam isentos deste gate (SKILL.md §8.3).
+        if (!isTemplate) {
+          const { data: inWindow, error: windowErr } = await supabase.rpc('is_within_service_window', {
+            p_instance_id: instanceRow.id,
+            p_phone: phone,
+          })
+          if (windowErr) {
+            logger.warn('is_within_service_window falhou — bloqueando por precaução', {
+              executionId: exec.id, error: windowErr.message,
+            })
+          }
+          if (windowErr || !inWindow) {
+            await supabase.from('campaign_executions').update({
+              status: 'skipped',
+              error_message:
+                'Bloqueado por conformidade: fora da janela de 24h. Número oficial (Meta) só pode disparar template aprovado em massa.',
+              attempts: exec.attempts + 1,
+            }).eq('id', exec.id)
+            touchedCampaigns.add(campaign_id)
+            processed--
+            continue
+          }
+        }
+      }
+
+      // 4c. Pick message template / build variables
+      const variables = buildVariables(
+        contactName || phone,
+        phone,
+        contactEmail,
+      )
+
+      // 4c-template. Para campanhas de template Meta, os parâmetros do body são
+      // processados com processSpintax+buildVariables (mesmo formato que campanhas normais).
+      if (isTemplate) {
+        if (!campaign.template_name) {
+          await supabase.from('campaign_executions').update({
+            status: 'failed',
+            failed_at: new Date().toISOString(),
+            error_message: 'Campanha marcada como template mas sem template_name configurado.',
+            attempts: exec.attempts + 1,
+          }).eq('id', exec.id)
+          failed++
+          processed--
+          touchedCampaigns.add(campaign_id)
+          continue
+        }
+
+        // 4e-template. Envio via sendTemplate (somente MetaProvider)
+        try {
+          const provider = await ProviderFactory.getProvider(instanceRow, supabase)
+
+          if (typeof (provider as any).sendTemplate !== 'function') {
+            throw new Error(
+              `O provider '${instanceRow.provider}' não suporta sendTemplate. ` +
+              `Campanhas de template exigem provider='official'.`,
+            )
+          }
+
+          // Substitui variáveis em cada item de template_params
+          const rawParams = Array.isArray(campaign.template_params) ? campaign.template_params : []
+          const bodyParams = rawParams.map((param) => processSpintax(param, variables))
+
+          const result = await (provider as any).sendTemplate(
+            phone,
+            campaign.template_name,
+            campaign.template_language || 'pt_BR',
+            bodyParams,
+          )
+
+          const msgId = extractMessageId(result)
+
+          await supabase.from('campaign_executions').update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            provider_message_id: msgId,
+            error_message: null,
+          }).eq('id', exec.id)
+
+          sent++
+          touchedCampaigns.add(campaign_id)
+
+          if (exec.contact_id) {
+            const { error: mirrorErr } = await supabase.from('messages').insert({
+              contact_id: exec.contact_id,
+              tenant_id: exec.tenant_id,
+              whatsapp_instance_id: instanceRow.id,
+              direction: 'outbound',
+              message_type: 'text',
+              content: `[Template: ${campaign.template_name}] ${bodyParams.join(' | ')}`,
+              evolution_message_id: msgId,
+              status: 'sent',
+              source: 'campaign',
+              campaign_id: campaign.id,
+            })
+            if (mirrorErr) {
+              logger.warn('Espelhamento de mensagem de template falhou', {
+                campaign: campaign_id, error: mirrorErr.message,
+              })
+            }
+          }
+
+          if (campaign.daily_send_limit != null) {
+            dailySentMap.set(campaign_id, (dailySentMap.get(campaign_id) ?? 0) + 1)
+          }
+
+          logger.info('Template execution sent', {
+            executionId: exec.id,
+            campaign: campaign_id,
+            phone: DataSanitizer.sanitizePhoneNumber(phone),
+            templateName: campaign.template_name,
+            msgId,
+          })
+        } catch (sendErr: any) {
+          const attempts = exec.attempts + 1
+          const maxAttempts = 3
+
+          logger.warn('Template execution send failed', {
+            executionId: exec.id, campaign: campaign_id, attempts, error: sendErr.message,
+          })
+
+          if (attempts >= maxAttempts) {
+            await supabase.from('campaign_executions').update({
+              status: 'failed',
+              failed_at: new Date().toISOString(),
+              attempts,
+              error_message: sendErr.message,
+            }).eq('id', exec.id)
+            failed++
+          } else {
+            await supabase.from('campaign_executions').update({
+              status: 'pending',
+              attempts,
+              error_message: sendErr.message,
+            }).eq('id', exec.id)
+          }
+
+          touchedCampaigns.add(campaign_id)
+        }
+
+        // Inter-send delay e próximo item
+        if (Date.now() - startTime < BUDGET_MS - 5000) {
+          const delayMs = resolveDelay(campaign)
+          await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 4000)))
+        }
+        continue
+      }
+
+      // 4c (free-form). Pick message template
       let rawMessage: string
       if (
         campaign.enable_message_randomization &&
@@ -417,11 +627,6 @@ serve(async (req) => {
       }
 
       // 4d. Substitute variables then run spintax
-      const variables = buildVariables(
-        contactName || phone,
-        phone,
-        contactEmail,
-      )
       const finalText = processSpintax(rawMessage, variables)
 
       // For media campaigns, caption follows same substitution path
@@ -429,7 +634,7 @@ serve(async (req) => {
         ? processSpintax(campaign.media_caption, variables)
         : ''
 
-      // 4e. Send via provider
+      // 4e. Send via provider (free-form)
       try {
         const provider = await ProviderFactory.getProvider(instanceRow, supabase)
 

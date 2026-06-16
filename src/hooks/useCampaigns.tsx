@@ -105,6 +105,11 @@ export interface CampaignCreateInput {
   timezone?: string;
   scheduled_at?: string | null;
   status?: CampaignStatus;
+  require_opt_in?: boolean;
+  is_template?: boolean;
+  template_name?: string | null;
+  template_language?: string;
+  template_params?: string[] | null;
 }
 
 // ─────────────────────────────────────────────

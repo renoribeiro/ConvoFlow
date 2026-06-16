@@ -73,3 +73,9 @@ verify_jwt = false
 # Registers an already-onboarded Meta WhatsApp phone number (SKILL.md §6.3).
 # Called from an authenticated user session; JWT verification is required.
 verify_jwt = true
+
+[functions.policy-watch]
+# Vigia das políticas de uso aceitável do WhatsApp/Meta. Invocado pelo pg_cron
+# (anon bearer) e opcionalmente por super admins; autentica internamente via
+# SUPABASE_SERVICE_ROLE_KEY (mesmo padrão de process-campaign-dispatch).
+verify_jwt = false

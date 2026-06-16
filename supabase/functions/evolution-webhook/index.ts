@@ -310,6 +310,19 @@ async function processIncomingMessage(
 
   if (!contact) return;
 
+  // V4: opt-out por palavra-chave — apenas mensagens de texto puro.
+  // Verifica antes do processamento normal; é idempotente e best-effort.
+  // Evolution API: texto está em message.conversation ou message.extendedTextMessage.text.
+  if (messageType === 'text') {
+    const rawText: string =
+      messageData.message?.conversation ||
+      messageData.message?.extendedTextMessage?.text ||
+      '';
+    if (rawText) {
+      await checkOptOutKeyword(supabase, instance.tenant_id, phone, rawText, logger);
+    }
+  }
+
   // O trigger BEFORE INSERT handle_message_conversation agora busca conversa
   // por (contact, tenant) — sem filtrar por instância — então não há mais
   // risco de violar a UNIQUE constraint. Conversas mantêm o whatsapp_instance_id
@@ -357,6 +370,53 @@ async function processIncomingMessage(
     phone,
     message: rawMessageContent,
   }, logger);
+}
+
+/**
+ * V4: Opt-out automático por palavra-chave (Evolution API).
+ * Normaliza o texto (trim, lowercase, remove acentos e pontuação) e verifica
+ * se é exatamente uma das palavras/expressões de descadastro.
+ * Se sim, chama set_contact_opt_out_by_phone — idempotente e best-effort.
+ * Cf. whatsapp-policies/SKILL.md §1.4 e evolution-v2/SKILL.md §9 (regras de uso).
+ */
+async function checkOptOutKeyword(
+  supabase: SupabaseClient,
+  tenantId: string,
+  phone: string,
+  rawText: string,
+  logger: any,
+): Promise<void> {
+  const OPT_OUT_KEYWORDS = new Set([
+    'parar', 'pare', 'sair', 'cancelar', 'cancelar inscricao',
+    'descadastrar', 'stop', 'unsubscribe', 'nao quero receber',
+    'nao quero receber', 'remover',
+  ]);
+
+  // Normaliza: lowercase, trim, remove acentos, remove pontuação.
+  const normalized = rawText
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove diacríticos
+    .replace(/[^\w\s]/g, '')         // remove pontuação
+    .trim();
+
+  if (!OPT_OUT_KEYWORDS.has(normalized)) return;
+
+  try {
+    await supabase.rpc('set_contact_opt_out_by_phone', {
+      p_tenant: tenantId,
+      p_phone: phone,
+      p_source: 'keyword',
+    });
+    logger.info('Opt-out registrado por palavra-chave (Evolution)', {
+      tenantId,
+      phone: DataSanitizer.sanitizePhoneNumber(phone),
+      keyword: normalized,
+    });
+  } catch (err: any) {
+    logger.warn('set_contact_opt_out_by_phone falhou (best-effort)', { error: err.message });
+  }
 }
 
 /**

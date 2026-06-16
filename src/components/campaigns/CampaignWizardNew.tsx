@@ -58,6 +58,7 @@ interface WhatsAppInstance {
   id: string;
   name: string;
   status: string;
+  provider: string | null;
 }
 
 interface Contact {
@@ -196,6 +197,11 @@ interface WizardState {
   business_hours_start: string;
   business_hours_end: string;
   daily_send_limit: string;
+  require_opt_in: boolean;
+  is_template: boolean;
+  template_name: string;
+  template_language: string;
+  template_params: string[];
 }
 
 function initState(campaign?: Campaign): WizardState {
@@ -228,6 +234,11 @@ function initState(campaign?: Campaign): WizardState {
     business_hours_start: campaign?.business_hours_start ?? '09:00',
     business_hours_end: campaign?.business_hours_end ?? '18:00',
     daily_send_limit: campaign?.daily_send_limit?.toString() ?? '',
+    require_opt_in: false,
+    is_template: false,
+    template_name: '',
+    template_language: 'pt_BR',
+    template_params: [],
   };
 }
 
@@ -266,6 +277,9 @@ export const CampaignWizard = ({
   const [contactCount, setContactCount] = useState(0);
   const [loadingContacts, setLoadingContacts] = useState(false);
 
+  const selectedInstance = instances.find((i) => i.id === state.whatsapp_instance_id) ?? null;
+  const isOfficialProvider = selectedInstance?.provider === 'official';
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const set = useCallback(<K extends keyof WizardState>(key: K, value: WizardState[K]) => {
@@ -279,7 +293,7 @@ export const CampaignWizard = ({
       const [{ data: inst }, { data: tgs }, { data: stgs }] = await Promise.all([
         supabase
           .from('whatsapp_instances')
-          .select('id, name, status')
+          .select('id, name, status, provider')
           .eq('tenant_id', tenantId)
           .eq('is_active', true),
         supabase
@@ -292,7 +306,7 @@ export const CampaignWizard = ({
           .eq('tenant_id', tenantId)
           .order('order'),
       ]);
-      setInstances((inst ?? []).map((i) => ({ ...i, status: i.status ?? '' })));
+      setInstances((inst ?? []).map((i) => ({ ...i, status: i.status ?? '', provider: i.provider ?? null })));
       setTags((tgs ?? []).map((t) => ({ ...t, color: t.color ?? '' })));
       setStages((stgs ?? []).map((s) => ({ ...s, color: s.color ?? '' })));
     })();
@@ -375,6 +389,7 @@ export const CampaignWizard = ({
   const canProceed = () => {
     if (step === 1) {
       const ok = state.name.trim().length > 0 && state.whatsapp_instance_id;
+      if (isOfficialProvider && state.is_template) return ok && state.template_name.trim().length > 0;
       if (state.message_type === 'text') return ok && state.message_template.trim().length > 0;
       return ok && !!state.media_url;
     }
@@ -488,6 +503,11 @@ export const CampaignWizard = ({
       daily_send_limit: state.daily_send_limit ? parseInt(state.daily_send_limit) : null,
       timezone: state.timezone,
       scheduled_at: at,
+      require_opt_in: state.require_opt_in,
+      is_template: isOfficialProvider && state.is_template,
+      template_name: isOfficialProvider && state.is_template ? state.template_name.trim() : null,
+      template_language: state.template_language || 'pt_BR',
+      template_params: isOfficialProvider && state.is_template && state.template_params.length > 0 ? state.template_params : null,
       status,
     };
   };
@@ -624,6 +644,140 @@ export const CampaignWizard = ({
           <p className="text-xs text-muted-foreground">Nenhuma instância ativa encontrada.</p>
         )}
       </div>
+
+      {/* Opt-in requirement toggle */}
+      <div className="flex items-center gap-3">
+        <Checkbox
+          id="require-opt-in"
+          checked={state.require_opt_in}
+          onCheckedChange={(c) => set('require_opt_in', !!c)}
+        />
+        <Label htmlFor="require-opt-in" className="cursor-pointer">
+          Exigir opt-in (só enviar para contatos que consentiram)
+        </Label>
+      </div>
+
+      {/* Send type — only for official (Meta Cloud API) instances */}
+      {isOfficialProvider && (
+        <div className="space-y-3">
+          <Label>Tipo de envio</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => set('is_template', true)}
+              className={`flex flex-col items-start gap-1 rounded-lg border p-4 transition-colors text-left ${
+                state.is_template
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <span className="text-sm font-medium">Template aprovado</span>
+              <span className="text-xs text-muted-foreground">Recomendado para Meta Cloud API</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => set('is_template', false)}
+              className={`flex flex-col items-start gap-1 rounded-lg border p-4 transition-colors text-left ${
+                !state.is_template
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <span className="text-sm font-medium">Texto livre</span>
+              <span className="text-xs text-muted-foreground">Apenas dentro da janela de 24h</span>
+            </button>
+          </div>
+          {!state.is_template && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Mensagens de texto livre só são entregues dentro da janela de 24h após a última
+                interação do contato. Envios fora dessa janela são bloqueados pelo WhatsApp e podem
+                resultar em restrições ao número.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
+      {/* Template fields — official provider + is_template */}
+      {isOfficialProvider && state.is_template && (
+        <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+          <h4 className="font-medium text-sm">Configuração do Template</h4>
+
+          <div className="space-y-2">
+            <Label htmlFor="template-name">Nome do template *</Label>
+            <Input
+              id="template-name"
+              placeholder="Ex: pedido_confirmado"
+              value={state.template_name}
+              onChange={(e) => set('template_name', e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Nome exato do template aprovado no Gerenciador do WhatsApp Business.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="template-language">Idioma do template</Label>
+            <Select
+              value={state.template_language}
+              onValueChange={(v) => set('template_language', v)}
+            >
+              <SelectTrigger id="template-language">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
+                <SelectItem value="en_US">English (US)</SelectItem>
+                <SelectItem value="es">Español</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Parâmetros do corpo</Label>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => set('template_params', [...state.template_params, ''])}
+              >
+                + Adicionar parâmetro
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Valores para {'{{1}}'}, {'{{2}}'}, etc. Pode usar {'{name}'}, {'{first_name}'}, {'{phone}'}, {'{email}'}.
+            </p>
+            {state.template_params.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">Nenhum parâmetro adicionado.</p>
+            )}
+            {state.template_params.map((param, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <span className="text-xs text-muted-foreground w-6 shrink-0">
+                  {`{{${idx + 1}}}`}
+                </span>
+                <Input
+                  value={param}
+                  placeholder={`Ex: {name}`}
+                  onChange={(e) => {
+                    const updated = [...state.template_params];
+                    updated[idx] = e.target.value;
+                    set('template_params', updated);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => set('template_params', state.template_params.filter((_, i) => i !== idx))}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Message type cards */}
       <div className="space-y-2">
@@ -1191,6 +1345,15 @@ export const CampaignWizard = ({
           <SummaryRow label="Público" value={audienceLabel} />
           <SummaryRow label="Envio" value={scheduleLabel()} />
           <SummaryRow label="Intervalo" value={`${state.delay_between_messages}s`} />
+          {state.require_opt_in && (
+            <SummaryRow label="Opt-in" value="Apenas contatos com consentimento" />
+          )}
+          {isOfficialProvider && (
+            <SummaryRow
+              label="Tipo de envio"
+              value={state.is_template ? `Template: ${state.template_name || '—'}` : 'Texto livre'}
+            />
+          )}
         </div>
 
         {/* Message preview */}
