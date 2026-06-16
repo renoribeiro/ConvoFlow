@@ -298,21 +298,46 @@ Deno.serve(async (req: Request) => {
   // re-registration (e.g. migration) can reuse it.
   // Set status to 'open' — matching what meta-oauth-exchange and
   // whatsapp-meta-setup set on a successfully connected official instance.
+  // registered_at is stamped only if still null so the warm-up baseline always
+  // reflects the first successful registration and is not reset on re-registration.
   const updatedConfig: Record<string, any> = {
     ...cfg,
     registerPin: chosenPin,
   };
 
+  const now = new Date().toISOString();
+
+  // Step 1: update everything except registered_at on all rows (idempotent fields).
   const { error: updateError } = await supabaseAdmin
     .from('whatsapp_instances')
     .update({
       // @ts-ignore connection_config may not yet be in generated types
       connection_config: updatedConfig,
       status: 'open',
-      last_connected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_connected_at: now,
+      updated_at: now,
     })
     .eq('id', instanceId);
+
+  // Step 2: stamp registered_at only if it is still null.
+  if (!updateError) {
+    const { error: regAtError } = await supabaseAdmin
+      .from('whatsapp_instances')
+      .update({
+        // @ts-ignore registered_at may not yet be in generated types
+        registered_at: now,
+      })
+      .eq('id', instanceId)
+      .is('registered_at', null);
+
+    if (regAtError) {
+      // Non-fatal: registered_at is used for warm-up tracking only.
+      logger.warn('Failed to stamp registered_at (non-fatal)', {
+        instance_id: instanceId,
+        error: regAtError.message,
+      });
+    }
+  }
 
   if (updateError) {
     // Registration succeeded on Meta's side — log and report the DB failure

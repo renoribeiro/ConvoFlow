@@ -177,7 +177,36 @@ async function processSendMessage(supabase: SupabaseClient, jobData: JobData, te
   if (instanceError || !instance) {
     throw new Error(`Instance not found: ${instanceName} (Tenant: ${tenantId})`);
   }
-  
+
+  // Gate de janela de 24h — obrigatório para instâncias oficiais (Meta Cloud API).
+  // Cf. meta-cloud-api/SKILL.md §8.3 e whatsapp-policies/SKILL.md §1.2.
+  // Em erro de RPC, fazemos fail-open (a Meta rejeita com 131047 se realmente fora da janela).
+  if ((instance.provider ?? 'evolution') === 'official') {
+    try {
+      const { data: withinWindow, error: windowError } = await supabase.rpc(
+        'is_within_service_window',
+        { p_instance_id: instance.id, p_phone: phone }
+      );
+      if (windowError) {
+        logger.warn('is_within_service_window RPC falhou — prosseguindo (fail-open)', {
+          instanceId: instance.id,
+          error: windowError.message,
+        });
+      } else if (withinWindow === false) {
+        throw new Error(
+          'Fora da janela de 24h: número oficial exige template aprovado.'
+        );
+      }
+    } catch (windowErr: any) {
+      // Se a exceção foi criada por nós (fora da janela), propaga.
+      if (windowErr.message?.startsWith('Fora da janela')) throw windowErr;
+      // Falha de RPC: fail-open.
+      logger.warn('is_within_service_window falhou inesperadamente — fail-open', {
+        error: windowErr.message,
+      });
+    }
+  }
+
   // 2. Instantiate Provider
   const provider = await ProviderFactory.getProvider(instance, supabase);
 

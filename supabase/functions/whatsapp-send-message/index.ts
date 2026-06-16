@@ -20,7 +20,7 @@ import { buildCorsHeaders } from '../_shared/validation.ts';
 
 interface SendRequest {
   instance_id: string;
-  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'location' | 'reaction';
+  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'location' | 'reaction' | 'template';
   to: string;
   // text
   text?: string;
@@ -41,6 +41,13 @@ interface SendRequest {
   emoji?: string;
   // reply
   quoted_message_id?: string;
+  // template (Meta Cloud API §2.12 — bypass 24h window)
+  template_name?: string;
+  template_language?: string;
+  /** Pass the full components array directly (header, body, buttons, etc.). */
+  template_components?: Record<string, any>[];
+  /** Shorthand: ordered body-only param strings (filled into {{1}}, {{2}}, …). */
+  template_body_params?: string[];
 }
 
 const DEFAULT_GRAPH_VERSION = 'v20.0';
@@ -116,6 +123,34 @@ Deno.serve(async (req: Request) => {
   const graphVersion: string = cfg.graphApiVersion || DEFAULT_GRAPH_VERSION;
   if (!phoneNumberId) {
     return jsonResponse({ ok: false, error: 'connection_config.phoneNumberId ausente' }, 500);
+  }
+
+  // Compliance (SKILL meta-cloud-api §10.2): fora da janela de 24h, número oficial
+  // só pode enviar TEMPLATE aprovado. Bloqueia free-form proativamente em vez de
+  // deixar a Meta rejeitar com 131047 — cada rejeição é sinal negativo de qualidade.
+  // Reações e templates ficam isentos: reações são respostas a mensagens recebidas;
+  // templates são o mecanismo explícito da Meta para contato fora da janela.
+  // Em erro de RPC, deixamos passar (o mapeamento reativo de 131047 abaixo é a rede de segurança).
+  if (body.type !== 'reaction' && body.type !== 'template') {
+    const { data: inWindow, error: windowErr } = await supabaseAdmin.rpc(
+      'is_within_service_window',
+      { p_instance_id: instance.id, p_phone: body.to },
+    );
+    if (windowErr) {
+      logger.warn('is_within_service_window indisponível — seguindo sem bloqueio', {
+        instance_id: instance.id, error: windowErr.message,
+      });
+    } else if (!inWindow) {
+      logger.info('Envio bloqueado: fora da janela de 24h', { instance_id: instance.id, type: body.type });
+      return jsonResponse(
+        {
+          ok: false,
+          code: 131047,
+          error: 'Fora da janela de 24h: este contato não te enviou mensagem nas últimas 24h. Envie um template aprovado para reabrir a conversa.',
+        },
+        400,
+      );
+    }
   }
 
   // Token do Vault
@@ -197,6 +232,40 @@ Deno.serve(async (req: Request) => {
       metaBody.type = 'reaction';
       metaBody.reaction = { message_id: body.message_id, emoji: body.emoji ?? '' };
       break;
+
+    case 'template': {
+      // Template messages — SKILL.md §2.12.
+      // Bypass the 24h window check (handled above by exclusion from the gate).
+      // The template must be APPROVED on the WABA before sending.
+      if (!body.template_name) {
+        return jsonResponse({ ok: false, error: 'template_name obrigatório para type=template' }, 400);
+      }
+      const tplLanguage = body.template_language || 'pt_BR';
+
+      let tplComponents: Record<string, any>[];
+      if (Array.isArray(body.template_components) && body.template_components.length > 0) {
+        // Caller supplied a full components array (header, body, buttons, etc.)
+        tplComponents = body.template_components;
+      } else if (Array.isArray(body.template_body_params) && body.template_body_params.length > 0) {
+        // Shorthand: build a body component from the ordered param strings
+        tplComponents = [
+          {
+            type: 'body',
+            parameters: body.template_body_params.map((t: string) => ({ type: 'text', text: t })),
+          },
+        ];
+      } else {
+        tplComponents = [];
+      }
+
+      metaBody.type = 'template';
+      metaBody.template = {
+        name: body.template_name,
+        language: { code: tplLanguage },
+        components: tplComponents,
+      };
+      break;
+    }
 
     default:
       return jsonResponse({ ok: false, error: `Tipo "${body.type}" não suportado` }, 501);
