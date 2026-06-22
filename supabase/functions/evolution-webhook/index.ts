@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createLogger } from '../_shared/logger.ts'
+import { stopSequencesOnReply } from '../_shared/followup-reply.ts'
 import {
   validatePhoneNumber,
   validateInstanceName,
@@ -346,6 +347,9 @@ async function processIncomingMessage(
   } catch (replyErr: any) {
     logger.warn('Campaign reply tracking failed (non-fatal)', { error: replyErr.message });
   }
+
+  // Follow-up: pausa sequências ativas do contato ao detectar resposta (não-fatal).
+  await stopSequencesOnReply(supabase, contact.id, logger);
 
   // Trigger automation via RPC (v1 bots only — patched RPC ignores v2 bots).
   try {

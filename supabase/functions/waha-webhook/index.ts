@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createLogger } from '../_shared/logger.ts'
+import { stopSequencesOnReply } from '../_shared/followup-reply.ts'
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts'
 import {
   checkRateLimitDb,
@@ -182,6 +183,9 @@ serve(async (req) => {
             phone,
             message: content,
           }, logger);
+
+          // Follow-up: pausa sequências ativas do contato ao detectar resposta (não-fatal).
+          await stopSequencesOnReply(supabase, contactId, logger);
         }
 
         // Campaign reply tracking — isolated so it never disrupts message handling.
