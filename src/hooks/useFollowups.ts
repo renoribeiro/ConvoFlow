@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useTenant } from '@/contexts/TenantContext'
-import type {
-  IndividualFollowup,
-  FollowupStats,
-  CreateFollowupData,
-  UpdateFollowupData
-} from '@/integrations/supabase/types'
+import {
+  effectiveStatus,
+  type IndividualFollowup,
+  type FollowupStats,
+  type FollowupStatus,
+  type CreateFollowupData,
+  type UpdateFollowupData,
+} from '@/lib/followups/types'
 import { toast } from 'sonner'
 
 export interface UseFollowupsReturn {
@@ -18,9 +20,15 @@ export interface UseFollowupsReturn {
   updateFollowup: (id: string, data: UpdateFollowupData) => Promise<boolean>
   deleteFollowup: (id: string) => Promise<boolean>
   completeFollowup: (id: string) => Promise<boolean>
+  cancelFollowup: (id: string) => Promise<boolean>
   getFollowupsByStatus: (status: string) => IndividualFollowup[]
   getOverdueFollowups: () => IndividualFollowup[]
   refreshFollowups: () => Promise<void>
+}
+
+/** Anexa effective_status (espelho de v_followups) a cada follow-up. */
+function withEffectiveStatus(rows: IndividualFollowup[]): IndividualFollowup[] {
+  return rows.map((f) => ({ ...f, effective_status: effectiveStatus(f) }))
 }
 
 export function useFollowups(): UseFollowupsReturn {
@@ -29,23 +37,21 @@ export function useFollowups(): UseFollowupsReturn {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Calculate stats from followups
+  // Estatísticas usam o status EFETIVO (overdue calculado), consistente com o banco.
+  const eff = (f: IndividualFollowup): FollowupStatus =>
+    f.effective_status ?? effectiveStatus(f)
   const stats: FollowupStats = {
     total: followups.length,
-    pending: followups.filter(f => f.status === 'pending').length,
-    completed: followups.filter(f => f.status === 'completed').length,
-    overdue: followups.filter(f => {
-      if (f.status === 'completed') return false
-      const dueDate = new Date(f.due_date)
-      const now = new Date()
-      return dueDate < now
-    }).length
+    pending: followups.filter((f) => eff(f) === 'pending').length,
+    scheduled: followups.filter((f) => eff(f) === 'scheduled').length,
+    in_progress: followups.filter((f) => eff(f) === 'in_progress').length,
+    completed: followups.filter((f) => eff(f) === 'completed').length,
+    cancelled: followups.filter((f) => eff(f) === 'cancelled').length,
+    overdue: followups.filter((f) => eff(f) === 'overdue').length,
   }
 
-  // Fetch followups from Supabase
   const fetchFollowups = async () => {
     if (!tenant?.id) return
-
     try {
       setLoading(true)
       setError(null)
@@ -63,11 +69,8 @@ export function useFollowups(): UseFollowupsReturn {
         .eq('tenant_id', tenant.id)
         .order('due_date', { ascending: true })
 
-      if (fetchError) {
-        throw fetchError
-      }
-
-      setFollowups(data || [])
+      if (fetchError) throw fetchError
+      setFollowups(withEffectiveStatus((data as IndividualFollowup[]) || []))
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar follow-ups'
       setError(errorMessage)
@@ -77,31 +80,32 @@ export function useFollowups(): UseFollowupsReturn {
     }
   }
 
-  // Create new followup
   const createFollowup = async (data: CreateFollowupData): Promise<IndividualFollowup | null> => {
     if (!tenant?.id) {
-      toast.error('Tenant não encontrado')
+      toast.error('Conta não encontrada')
       return null
     }
-
     try {
+      // Status inicial coerente com o modo: agendado entra como 'scheduled'
+      // (para o followup-processor disparar); demais como 'pending'.
+      const derivedStatus =
+        (data as { status?: string }).status ??
+        (data.mode === 'scheduled' ? 'scheduled' : 'pending')
+
       const { data: newFollowup, error: createError } = await supabase
         .from('individual_followups')
         .insert({
           ...data,
           tenant_id: tenant.id,
-          status: 'pending'
+          status: derivedStatus,
         })
         .select()
         .single()
 
-      if (createError) {
-        throw createError
-      }
-
+      if (createError) throw createError
       await refreshFollowups()
       toast.success('Follow-up criado com sucesso!')
-      return newFollowup
+      return newFollowup as IndividualFollowup
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao criar follow-up'
       toast.error(errorMessage)
@@ -109,7 +113,6 @@ export function useFollowups(): UseFollowupsReturn {
     }
   }
 
-  // Update followup
   const updateFollowup = async (id: string, data: UpdateFollowupData): Promise<boolean> => {
     try {
       const { error: updateError } = await supabase
@@ -118,10 +121,7 @@ export function useFollowups(): UseFollowupsReturn {
         .eq('id', id)
         .eq('tenant_id', tenant?.id)
 
-      if (updateError) {
-        throw updateError
-      }
-
+      if (updateError) throw updateError
       await refreshFollowups()
       toast.success('Follow-up atualizado com sucesso!')
       return true
@@ -132,7 +132,6 @@ export function useFollowups(): UseFollowupsReturn {
     }
   }
 
-  // Delete followup
   const deleteFollowup = async (id: string): Promise<boolean> => {
     try {
       const { error: deleteError } = await supabase
@@ -141,10 +140,7 @@ export function useFollowups(): UseFollowupsReturn {
         .eq('id', id)
         .eq('tenant_id', tenant?.id)
 
-      if (deleteError) {
-        throw deleteError
-      }
-
+      if (deleteError) throw deleteError
       await refreshFollowups()
       toast.success('Follow-up excluído com sucesso!')
       return true
@@ -155,42 +151,41 @@ export function useFollowups(): UseFollowupsReturn {
     }
   }
 
-  // Complete followup
+  // Conclui marcando completed_at (usado por métricas/relatórios).
   const completeFollowup = async (id: string): Promise<boolean> => {
-    return updateFollowup(id, { status: 'completed' })
-  }
-
-  // Get followups by status
-  const getFollowupsByStatus = (status: string): IndividualFollowup[] => {
-    return followups.filter(f => f.status === status)
-  }
-
-  // Get overdue followups
-  const getOverdueFollowups = (): IndividualFollowup[] => {
-    const now = new Date()
-    return followups.filter(f => {
-      if (f.status === 'completed') return false
-      const dueDate = new Date(f.due_date)
-      return dueDate < now
+    return updateFollowup(id, {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
     })
   }
 
-  // Refresh followups
+  const cancelFollowup = async (id: string): Promise<boolean> => {
+    return updateFollowup(id, {
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+    })
+  }
+
+  // Filtra pelo status efetivo (assim "overdue" funciona mesmo sem flip no banco).
+  const getFollowupsByStatus = (status: string): IndividualFollowup[] => {
+    return followups.filter((f) => eff(f) === status)
+  }
+
+  const getOverdueFollowups = (): IndividualFollowup[] => {
+    return followups.filter((f) => eff(f) === 'overdue')
+  }
+
   const refreshFollowups = async () => {
     await fetchFollowups()
   }
 
-  // Load followups on mount and when tenant changes
   useEffect(() => {
-    if (tenant?.id) {
-      fetchFollowups()
-    }
+    if (tenant?.id) fetchFollowups()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id])
 
-  // Set up real-time subscription
   useEffect(() => {
     if (!tenant?.id) return
-
     const subscription = supabase
       .channel('individual_followups_changes')
       .on(
@@ -199,18 +194,18 @@ export function useFollowups(): UseFollowupsReturn {
           event: '*',
           schema: 'public',
           table: 'individual_followups',
-          filter: `tenant_id=eq.${tenant.id}`
+          filter: `tenant_id=eq.${tenant.id}`,
         },
         () => {
-          // Refresh followups when changes occur
           fetchFollowups()
-        }
+        },
       )
       .subscribe()
 
     return () => {
       subscription.unsubscribe()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id])
 
   return {
@@ -222,8 +217,9 @@ export function useFollowups(): UseFollowupsReturn {
     updateFollowup,
     deleteFollowup,
     completeFollowup,
+    cancelFollowup,
     getFollowupsByStatus,
     getOverdueFollowups,
-    refreshFollowups
+    refreshFollowups,
   }
 }

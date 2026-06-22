@@ -20,7 +20,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Calendar, Trash2, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { IndividualFollowup, UpdateFollowupData } from '@/integrations/supabase/types'
+import type { IndividualFollowup, UpdateFollowupData } from '@/lib/followups/types'
 
 interface FollowupEditModalProps {
   followup: IndividualFollowup | null

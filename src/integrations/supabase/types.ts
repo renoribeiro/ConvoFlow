@@ -1315,11 +1315,11 @@ export type Database = {
           lead_source_id: string | null
           name: string | null
           notes: string | null
-          opt_out_mass_message: boolean | null
-          opt_in_mass_message: boolean | null
-          opt_in_source: string | null
           opt_in_at: string | null
+          opt_in_mass_message: boolean
+          opt_in_source: string | null
           opt_out_at: string | null
+          opt_out_mass_message: boolean | null
           opt_out_source: string | null
           phone: string
           source_details: Json | null
@@ -1341,11 +1341,11 @@ export type Database = {
           lead_source_id?: string | null
           name?: string | null
           notes?: string | null
-          opt_out_mass_message?: boolean | null
-          opt_in_mass_message?: boolean | null
-          opt_in_source?: string | null
           opt_in_at?: string | null
+          opt_in_mass_message?: boolean
+          opt_in_source?: string | null
           opt_out_at?: string | null
+          opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
           phone: string
           source_details?: Json | null
@@ -1367,11 +1367,11 @@ export type Database = {
           lead_source_id?: string | null
           name?: string | null
           notes?: string | null
-          opt_out_mass_message?: boolean | null
-          opt_in_mass_message?: boolean | null
-          opt_in_source?: string | null
           opt_in_at?: string | null
+          opt_in_mass_message?: boolean
+          opt_in_source?: string | null
           opt_out_at?: string | null
+          opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
           phone?: string
           source_details?: Json | null
@@ -1663,6 +1663,230 @@ export type Database = {
           },
         ]
       }
+      followup_sequence_enrollments: {
+        Row: {
+          assigned_to: string | null
+          contact_id: string
+          created_at: string
+          current_step: number
+          enrolled_at: string
+          id: string
+          next_run_at: string | null
+          sequence_id: string
+          status: string
+          stopped_at: string | null
+          stopped_reason: string | null
+          tenant_id: string
+          updated_at: string
+          waiting_on_followup_id: string | null
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          contact_id: string
+          created_at?: string
+          current_step?: number
+          enrolled_at?: string
+          id?: string
+          next_run_at?: string | null
+          sequence_id: string
+          status?: string
+          stopped_at?: string | null
+          stopped_reason?: string | null
+          tenant_id: string
+          updated_at?: string
+          waiting_on_followup_id?: string | null
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          contact_id?: string
+          created_at?: string
+          current_step?: number
+          enrolled_at?: string
+          id?: string
+          next_run_at?: string | null
+          sequence_id?: string
+          status?: string
+          stopped_at?: string | null
+          stopped_reason?: string | null
+          tenant_id?: string
+          updated_at?: string
+          waiting_on_followup_id?: string | null
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_sequence_enrollments_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "followup_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_waiting_on_followup_id_fkey"
+            columns: ["waiting_on_followup_id"]
+            isOneToOne: false
+            referencedRelation: "individual_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_waiting_on_followup_id_fkey"
+            columns: ["waiting_on_followup_id"]
+            isOneToOne: false
+            referencedRelation: "v_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_enrollments_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      followup_sequence_steps: {
+        Row: {
+          action_type: string
+          created_at: string
+          delay_amount: number
+          delay_unit: string
+          id: string
+          message_body: string | null
+          sequence_id: string
+          step_order: number
+          task_priority: string | null
+          task_title: string | null
+          template_language: string | null
+          template_name: string | null
+          template_params: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          delay_amount?: number
+          delay_unit?: string
+          id?: string
+          message_body?: string | null
+          sequence_id: string
+          step_order: number
+          task_priority?: string | null
+          task_title?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          delay_amount?: number
+          delay_unit?: string
+          id?: string
+          message_body?: string | null
+          sequence_id?: string
+          step_order?: number
+          task_priority?: string | null
+          task_title?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "followup_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequence_steps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      followup_sequences: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          stop_on_reply: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          stop_on_reply?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          stop_on_reply?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_sequences_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_sequences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_stages: {
         Row: {
           color: string | null
@@ -1709,51 +1933,114 @@ export type Database = {
       }
       individual_followups: {
         Row: {
+          assigned_to: string | null
+          attempts: number
+          cancelled_at: string | null
+          completed_at: string | null
           contact_id: string
           created_at: string
+          created_by_automation: boolean
           due_date: string
+          error_message: string | null
           id: string
+          last_sent_at: string | null
+          message_body: string | null
+          mode: string
           notes: string | null
+          parent_followup_id: string | null
           priority: string
+          provider_message_id: string | null
           recurring: boolean | null
           recurring_count: number | null
+          recurring_end_date: string | null
+          recurring_interval: number | null
           recurring_type: string | null
+          scheduled_at: string | null
+          sequence_enrollment_id: string | null
+          sequence_step_order: number | null
+          source: string | null
           status: string | null
+          tags: string[]
           task: string
+          template_language: string | null
+          template_name: string | null
+          template_params: Json | null
           tenant_id: string
           type: string
           updated_at: string
           whatsapp_instance_id: string | null
         }
         Insert: {
+          assigned_to?: string | null
+          attempts?: number
+          cancelled_at?: string | null
+          completed_at?: string | null
           contact_id: string
           created_at?: string
+          created_by_automation?: boolean
           due_date: string
+          error_message?: string | null
           id?: string
+          last_sent_at?: string | null
+          message_body?: string | null
+          mode?: string
           notes?: string | null
+          parent_followup_id?: string | null
           priority: string
+          provider_message_id?: string | null
           recurring?: boolean | null
           recurring_count?: number | null
+          recurring_end_date?: string | null
+          recurring_interval?: number | null
           recurring_type?: string | null
+          scheduled_at?: string | null
+          sequence_enrollment_id?: string | null
+          sequence_step_order?: number | null
+          source?: string | null
           status?: string | null
+          tags?: string[]
           task: string
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
           tenant_id: string
           type: string
           updated_at?: string
           whatsapp_instance_id?: string | null
         }
         Update: {
+          assigned_to?: string | null
+          attempts?: number
+          cancelled_at?: string | null
+          completed_at?: string | null
           contact_id?: string
           created_at?: string
+          created_by_automation?: boolean
           due_date?: string
+          error_message?: string | null
           id?: string
+          last_sent_at?: string | null
+          message_body?: string | null
+          mode?: string
           notes?: string | null
+          parent_followup_id?: string | null
           priority?: string
+          provider_message_id?: string | null
           recurring?: boolean | null
           recurring_count?: number | null
+          recurring_end_date?: string | null
+          recurring_interval?: number | null
           recurring_type?: string | null
+          scheduled_at?: string | null
+          sequence_enrollment_id?: string | null
+          sequence_step_order?: number | null
+          source?: string | null
           status?: string | null
+          tags?: string[]
           task?: string
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
           tenant_id?: string
           type?: string
           updated_at?: string
@@ -1761,10 +2048,38 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "individual_followups_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "individual_followups_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_parent_followup_id_fkey"
+            columns: ["parent_followup_id"]
+            isOneToOne: false
+            referencedRelation: "individual_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_parent_followup_id_fkey"
+            columns: ["parent_followup_id"]
+            isOneToOne: false
+            referencedRelation: "v_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_sequence_enrollment_fk"
+            columns: ["sequence_enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "followup_sequence_enrollments"
             referencedColumns: ["id"]
           },
           {
@@ -2092,6 +2407,7 @@ export type Database = {
           enable_message_randomization: boolean | null
           failed_count: number | null
           id: string
+          is_template: boolean
           max_delay_seconds: number | null
           media_caption: string | null
           media_url: string | null
@@ -2103,6 +2419,7 @@ export type Database = {
           paused_at: string | null
           read_count: number
           replied_count: number
+          require_opt_in: boolean
           respect_business_hours: boolean | null
           scheduled_at: string | null
           sent_count: number | null
@@ -2110,16 +2427,14 @@ export type Database = {
           status: string | null
           target_stages: string[] | null
           target_tags: string[] | null
+          template_language: string | null
+          template_name: string | null
+          template_params: Json | null
           tenant_id: string
           timezone: string | null
           total_recipients: number | null
           updated_at: string
           whatsapp_instance_id: string
-          require_opt_in: boolean
-          is_template: boolean
-          template_name: string | null
-          template_language: string | null
-          template_params: Json | null
         }
         Insert: {
           audience_config?: Json | null
@@ -2137,6 +2452,7 @@ export type Database = {
           enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
+          is_template?: boolean
           max_delay_seconds?: number | null
           media_caption?: string | null
           media_url?: string | null
@@ -2148,6 +2464,7 @@ export type Database = {
           paused_at?: string | null
           read_count?: number
           replied_count?: number
+          require_opt_in?: boolean
           respect_business_hours?: boolean | null
           scheduled_at?: string | null
           sent_count?: number | null
@@ -2155,16 +2472,14 @@ export type Database = {
           status?: string | null
           target_stages?: string[] | null
           target_tags?: string[] | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
           tenant_id: string
           timezone?: string | null
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id: string
-          require_opt_in?: boolean
-          is_template?: boolean
-          template_name?: string | null
-          template_language?: string | null
-          template_params?: Json | null
         }
         Update: {
           audience_config?: Json | null
@@ -2182,6 +2497,7 @@ export type Database = {
           enable_message_randomization?: boolean | null
           failed_count?: number | null
           id?: string
+          is_template?: boolean
           max_delay_seconds?: number | null
           media_caption?: string | null
           media_url?: string | null
@@ -2193,6 +2509,7 @@ export type Database = {
           paused_at?: string | null
           read_count?: number
           replied_count?: number
+          require_opt_in?: boolean
           respect_business_hours?: boolean | null
           scheduled_at?: string | null
           sent_count?: number | null
@@ -2200,16 +2517,14 @@ export type Database = {
           status?: string | null
           target_stages?: string[] | null
           target_tags?: string[] | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
           tenant_id?: string
           timezone?: string | null
           total_recipients?: number | null
           updated_at?: string
           whatsapp_instance_id?: string
-          require_opt_in?: boolean
-          is_template?: boolean
-          template_name?: string | null
-          template_language?: string | null
-          template_params?: Json | null
         }
         Relationships: [
           {
@@ -2373,13 +2688,6 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "mass_message_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
           {
@@ -4062,21 +4370,28 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          account_review_status: string | null
           automation_enabled: boolean | null
           connection_config: Json | null
           created_at: string
           evolution_api_key: string | null
           evolution_api_url: string | null
+          health_updated_at: string | null
           id: string
           instance_key: string
           is_active: boolean | null
+          is_restricted: boolean
           last_connected_at: string | null
+          messaging_limit_tier: string | null
           name: string
           phone_number: string | null
           profile_name: string | null
           profile_picture_url: string | null
           provider: string | null
           qr_code: string | null
+          quality_rating: string | null
+          registered_at: string | null
+          restriction_info: Json | null
           status: string | null
           tenant_id: string
           updated_at: string
@@ -4086,30 +4401,30 @@ export type Database = {
           webhook_last_error: string | null
           webhook_retry_count: number | null
           webhook_url: string | null
-          registered_at: string | null
-          quality_rating: string | null
-          messaging_limit_tier: string | null
-          account_review_status: string | null
-          is_restricted: boolean
-          restriction_info: Json | null
-          health_updated_at: string | null
         }
         Insert: {
+          account_review_status?: string | null
           automation_enabled?: boolean | null
           connection_config?: Json | null
           created_at?: string
           evolution_api_key?: string | null
           evolution_api_url?: string | null
+          health_updated_at?: string | null
           id?: string
           instance_key: string
           is_active?: boolean | null
+          is_restricted?: boolean
           last_connected_at?: string | null
+          messaging_limit_tier?: string | null
           name: string
           phone_number?: string | null
           profile_name?: string | null
           profile_picture_url?: string | null
           provider?: string | null
           qr_code?: string | null
+          quality_rating?: string | null
+          registered_at?: string | null
+          restriction_info?: Json | null
           status?: string | null
           tenant_id: string
           updated_at?: string
@@ -4119,30 +4434,30 @@ export type Database = {
           webhook_last_error?: string | null
           webhook_retry_count?: number | null
           webhook_url?: string | null
-          registered_at?: string | null
-          quality_rating?: string | null
-          messaging_limit_tier?: string | null
-          account_review_status?: string | null
-          is_restricted?: boolean
-          restriction_info?: Json | null
-          health_updated_at?: string | null
         }
         Update: {
+          account_review_status?: string | null
           automation_enabled?: boolean | null
           connection_config?: Json | null
           created_at?: string
           evolution_api_key?: string | null
           evolution_api_url?: string | null
+          health_updated_at?: string | null
           id?: string
           instance_key?: string
           is_active?: boolean | null
+          is_restricted?: boolean
           last_connected_at?: string | null
+          messaging_limit_tier?: string | null
           name?: string
           phone_number?: string | null
           profile_name?: string | null
           profile_picture_url?: string | null
           provider?: string | null
           qr_code?: string | null
+          quality_rating?: string | null
+          registered_at?: string | null
+          restriction_info?: Json | null
           status?: string | null
           tenant_id?: string
           updated_at?: string
@@ -4152,13 +4467,6 @@ export type Database = {
           webhook_last_error?: string | null
           webhook_retry_count?: number | null
           webhook_url?: string | null
-          registered_at?: string | null
-          quality_rating?: string | null
-          messaging_limit_tier?: string | null
-          account_review_status?: string | null
-          is_restricted?: boolean
-          restriction_info?: Json | null
-          health_updated_at?: string | null
         }
         Relationships: [
           {
@@ -4169,6 +4477,86 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_policy_change_log: {
+        Row: {
+          detected_at: string
+          document_key: string
+          excerpt: string | null
+          http_status: number | null
+          id: string
+          new_hash: string | null
+          old_hash: string | null
+        }
+        Insert: {
+          detected_at?: string
+          document_key: string
+          excerpt?: string | null
+          http_status?: number | null
+          id?: string
+          new_hash?: string | null
+          old_hash?: string | null
+        }
+        Update: {
+          detected_at?: string
+          document_key?: string
+          excerpt?: string | null
+          http_status?: number | null
+          id?: string
+          new_hash?: string | null
+          old_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_policy_change_log_document_key_fkey"
+            columns: ["document_key"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_policy_documents"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      whatsapp_policy_documents: {
+        Row: {
+          created_at: string
+          is_active: boolean
+          key: string
+          label: string
+          last_changed_at: string | null
+          last_checked_at: string | null
+          last_error: string | null
+          last_hash: string | null
+          last_status_code: number | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          is_active?: boolean
+          key: string
+          label: string
+          last_changed_at?: string | null
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_hash?: string | null
+          last_status_code?: number | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          last_changed_at?: string | null
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_hash?: string | null
+          last_status_code?: number | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -4401,6 +4789,176 @@ export type Database = {
           },
         ]
       }
+      v_followups: {
+        Row: {
+          assigned_to: string | null
+          attempts: number | null
+          cancelled_at: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by_automation: boolean | null
+          due_date: string | null
+          effective_status: string | null
+          error_message: string | null
+          id: string | null
+          last_sent_at: string | null
+          message_body: string | null
+          mode: string | null
+          notes: string | null
+          parent_followup_id: string | null
+          priority: string | null
+          provider_message_id: string | null
+          recurring: boolean | null
+          recurring_count: number | null
+          recurring_end_date: string | null
+          recurring_interval: number | null
+          recurring_type: string | null
+          scheduled_at: string | null
+          sequence_enrollment_id: string | null
+          sequence_step_order: number | null
+          source: string | null
+          status: string | null
+          tags: string[] | null
+          task: string | null
+          template_language: string | null
+          template_name: string | null
+          template_params: Json | null
+          tenant_id: string | null
+          type: string | null
+          updated_at: string | null
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          attempts?: number | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by_automation?: boolean | null
+          due_date?: string | null
+          effective_status?: never
+          error_message?: string | null
+          id?: string | null
+          last_sent_at?: string | null
+          message_body?: string | null
+          mode?: string | null
+          notes?: string | null
+          parent_followup_id?: string | null
+          priority?: string | null
+          provider_message_id?: string | null
+          recurring?: boolean | null
+          recurring_count?: number | null
+          recurring_end_date?: string | null
+          recurring_interval?: number | null
+          recurring_type?: string | null
+          scheduled_at?: string | null
+          sequence_enrollment_id?: string | null
+          sequence_step_order?: number | null
+          source?: string | null
+          status?: string | null
+          tags?: string[] | null
+          task?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+          tenant_id?: string | null
+          type?: string | null
+          updated_at?: string | null
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          attempts?: number | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by_automation?: boolean | null
+          due_date?: string | null
+          effective_status?: never
+          error_message?: string | null
+          id?: string | null
+          last_sent_at?: string | null
+          message_body?: string | null
+          mode?: string | null
+          notes?: string | null
+          parent_followup_id?: string | null
+          priority?: string | null
+          provider_message_id?: string | null
+          recurring?: boolean | null
+          recurring_count?: number | null
+          recurring_end_date?: string | null
+          recurring_interval?: number | null
+          recurring_type?: string | null
+          scheduled_at?: string | null
+          sequence_enrollment_id?: string | null
+          sequence_step_order?: number | null
+          source?: string | null
+          status?: string | null
+          tags?: string[] | null
+          task?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+          tenant_id?: string | null
+          type?: string | null
+          updated_at?: string | null
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "individual_followups_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_parent_followup_id_fkey"
+            columns: ["parent_followup_id"]
+            isOneToOne: false
+            referencedRelation: "individual_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_parent_followup_id_fkey"
+            columns: ["parent_followup_id"]
+            isOneToOne: false
+            referencedRelation: "v_followups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_sequence_enrollment_fk"
+            columns: ["sequence_enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "followup_sequence_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "individual_followups_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       activate_essential_modules_for_tenant: {
@@ -4496,6 +5054,7 @@ export type Database = {
           }
       evaluate_alert_rules: { Args: never; Returns: undefined }
       finalize_completed_campaigns: { Args: never; Returns: number }
+      flip_overdue_followups: { Args: never; Returns: number }
       get_admin_users_data: {
         Args: never
         Returns: {
@@ -4597,6 +5156,10 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: undefined
       }
+      instance_outbound_today: {
+        Args: { p_instance_id: string }
+        Returns: number
+      }
       is_account_manager_safe: { Args: never; Returns: boolean }
       is_agencia: { Args: never; Returns: boolean }
       is_agencia_safe: { Args: never; Returns: boolean }
@@ -4611,11 +5174,16 @@ export type Database = {
         Returns: boolean
       }
       is_user_in_my_tenant: { Args: { target_id: string }; Returns: boolean }
+      is_within_service_window: {
+        Args: { p_instance_id: string; p_phone: string }
+        Returns: boolean
+      }
       mark_all_notifications_as_read: { Args: never; Returns: undefined }
       mark_notification_as_read: {
         Args: { notification_id: string }
         Returns: undefined
       }
+      notify_overdue_followups: { Args: never; Returns: undefined }
       process_chatbot_variables: {
         Args: {
           p_contact_id: string
@@ -4680,6 +5248,10 @@ export type Database = {
       set_campaign_status: {
         Args: { p_action: string; p_campaign_id: string }
         Returns: string
+      }
+      set_contact_opt_out_by_phone: {
+        Args: { p_phone: string; p_source?: string; p_tenant: string }
+        Returns: number
       }
       set_instance_meta_token: {
         Args: { p_instance_id: string; p_token: string }

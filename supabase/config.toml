@@ -79,3 +79,9 @@ verify_jwt = true
 # (anon bearer) e opcionalmente por super admins; autentica internamente via
 # SUPABASE_SERVICE_ROLE_KEY (mesmo padrão de process-campaign-dispatch).
 verify_jwt = false
+
+[functions.process-followup-dispatch]
+# Motor de follow-up dirigido por pg_cron (anon bearer); autentica internamente
+# via SUPABASE_SERVICE_ROLE_KEY (mesmo padrão de process-campaign-dispatch).
+# Dispara agendados, avança sequências e gera recorrências.
+verify_jwt = false

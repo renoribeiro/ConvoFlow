@@ -8,11 +8,11 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { CheckCircle, Clock, Phone, Mail, MessageSquare, Calendar, Edit, Trash2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useFollowups } from '@/hooks/useFollowups'
 import { FollowupEditModal } from '@/components/FollowupEditModal'
-import type { IndividualFollowup } from '@/integrations/supabase/types'
+import type { IndividualFollowup } from '@/lib/followups/types'
 import { toast } from 'sonner'
 
 interface FollowupsListProps {
-  status: 'pending' | 'today' | 'completed' | 'overdue'
+  status: 'pending' | 'today' | 'scheduled' | 'completed' | 'overdue'
   filters?: {
     search: string;
     type: string;
@@ -47,6 +47,9 @@ export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
       case 'pending':
         baseFollowups = getFollowupsByStatus('pending')
         break
+      case 'scheduled':
+        baseFollowups = getFollowupsByStatus('scheduled')
+        break
       case 'today':
         baseFollowups = followups.filter(f => {
           const dueDate = new Date(f.due_date)
@@ -70,10 +73,10 @@ export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
       // Search filter
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase()
-        const matchesSearch = 
+        const matchesSearch =
           followup.task.toLowerCase().includes(searchTerm) ||
-          followup.description?.toLowerCase().includes(searchTerm) ||
-          followup.contact?.name?.toLowerCase().includes(searchTerm)
+          followup.notes?.toLowerCase().includes(searchTerm) ||
+          (followup as any).contacts?.name?.toLowerCase().includes(searchTerm)
         if (!matchesSearch) return false
       }
 
@@ -135,7 +138,8 @@ export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
     switch (type) {
       case 'call': return <Phone className="w-4 h-4" />
       case 'email': return <Mail className="w-4 h-4" />
-      case 'message': return <MessageSquare className="w-4 h-4" />
+      case 'message':
+      case 'whatsapp': return <MessageSquare className="w-4 h-4" />
       case 'meeting': return <Calendar className="w-4 h-4" />
       case 'task': return <CheckCircle className="w-4 h-4" />
       default: return <Calendar className="w-4 h-4" />
@@ -165,7 +169,9 @@ export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
       case 'call': return 'Ligação'
       case 'email': return 'E-mail'
       case 'message': return 'Mensagem'
+      case 'whatsapp': return 'WhatsApp'
       case 'meeting': return 'Reunião'
+      case 'visit': return 'Visita'
       case 'task': return 'Tarefa'
       case 'other': return 'Outro'
       default: return type

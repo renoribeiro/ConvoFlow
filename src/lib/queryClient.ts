@@ -19,6 +19,8 @@ export const QUERY_KEYS = {
     CAMPAIGNS: 'campaigns',
     TEMPLATES: 'templates',
     AUTOMATIONS: 'automations',
+    FOLLOWUPS: 'followups',
+    FOLLOWUP_SEQUENCES: 'followup-sequences',
 
     // Static data - rarely changes
     TENANT: 'tenant',

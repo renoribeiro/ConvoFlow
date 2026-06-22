@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User, Loader2 } from 'lucide-react';
 import { useFollowups } from '@/hooks/useFollowups';
-import type { IndividualFollowup } from '@/integrations/supabase/types';
+import type { IndividualFollowup } from '@/lib/followups/types';
 
 interface FollowupCalendarModalProps {
   isOpen: boolean;
