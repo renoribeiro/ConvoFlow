@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,12 +10,18 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
-import { CalendarIcon, Clock, Phone, Mail, MessageSquare, User, Repeat, Loader2 } from 'lucide-react';
+import {
+  CalendarIcon, Clock, Phone, Mail, MessageSquare, User, Repeat, Loader2,
+  Hand, Send, Workflow, ShieldCheck, ShieldAlert,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useFollowups } from '@/hooks/useFollowups';
+import { useFollowupSequences } from '@/hooks/useFollowupSequences';
 import { useContacts } from '@/hooks/useContacts';
+import { supabase } from '@/integrations/supabase/client';
+import type { FollowupMode } from '@/lib/followups/types';
 import { toast } from 'sonner';
 
 interface FollowupSchedulerProps {
@@ -26,24 +31,30 @@ interface FollowupSchedulerProps {
 const followupTypes = [
   { id: 'call', name: 'Ligação', icon: Phone, description: 'Fazer uma ligação telefônica' },
   { id: 'email', name: 'Email', icon: Mail, description: 'Enviar um email' },
-  { id: 'whatsapp', name: 'WhatsApp', icon: MessageSquare, description: 'Enviar mensagem no WhatsApp' }
+  { id: 'whatsapp', name: 'WhatsApp', icon: MessageSquare, description: 'Enviar mensagem no WhatsApp' },
+];
+
+const modeOptions: { id: FollowupMode; name: string; icon: typeof Hand; description: string }[] = [
+  { id: 'manual', name: 'Manual', icon: Hand, description: 'Tarefa para você executar e concluir' },
+  { id: 'scheduled', name: 'Agendado', icon: Send, description: 'Envia WhatsApp automático na data/hora' },
+  { id: 'sequence', name: 'Sequência', icon: Workflow, description: 'Cadência automática de vários passos' },
 ];
 
 const taskTemplates = [
   'Ligar para apresentar nova proposta',
-  'Enviar material complementar por email', 
+  'Enviar material complementar por email',
   'Follow-up sobre proposta enviada',
   'Verificar interesse no produto/serviço',
   'Agendar reunião de apresentação',
-  'Solicitar feedback sobre atendimento'
+  'Solicitar feedback sobre atendimento',
 ];
 
-// Contacts will be loaded from useContacts hook
-
 export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
-  const { createFollowup, loading: followupLoading } = useFollowups();
+  const { createFollowup } = useFollowups();
+  const { sequences, loading: sequencesLoading, enrollContact } = useFollowupSequences();
   const { contacts, loading: contactsLoading } = useContacts();
-  
+
+  const [mode, setMode] = useState<FollowupMode>('manual');
   const [formData, setFormData] = useState({
     contactId: '',
     task: '',
@@ -52,193 +63,321 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
     date: undefined as Date | undefined,
     time: '',
     notes: '',
+    messageBody: '',
+    sequenceId: '',
     recurring: false,
     recurringType: 'weekly',
     recurringCount: 1,
-    whatsappInstanceId: ''
   });
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Janela de 24h: timestamp da última mensagem recebida do contato.
+  const [windowOpen, setWindowOpen] = useState<boolean | null>(null);
+
+  // Checa a janela de 24h ao escolher contato (modo agendado/sequência).
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      if (!formData.contactId || mode === 'manual') {
+        setWindowOpen(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('contact_id', formData.contactId)
+        .eq('direction', 'inbound')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!data?.created_at) {
+        setWindowOpen(false);
+        return;
+      }
+      const last = new Date(data.created_at).getTime();
+      setWindowOpen(Date.now() - last < 24 * 60 * 60 * 1000);
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.contactId, mode]);
+
+  const selectedContact = contacts.find((c) => c.id === formData.contactId);
+  const selectedType = followupTypes.find((t) => t.id === formData.type);
+
+  const validateForm = () => {
+    const e: Record<string, string> = {};
+    if (!formData.contactId) e.contactId = 'Selecione um contato';
+
+    if (mode === 'sequence') {
+      if (!formData.sequenceId) e.sequenceId = 'Selecione a sequência';
+      setErrors(e);
+      return Object.keys(e).length === 0;
+    }
+
+    if (mode === 'manual') {
+      if (!formData.task.trim()) e.task = 'Descrição da tarefa é obrigatória';
+      if (!formData.type) e.type = 'Selecione o tipo de follow-up';
+    }
+    if (mode === 'scheduled') {
+      if (!formData.messageBody.trim()) e.messageBody = 'Escreva a mensagem a enviar';
+    }
+
+    if (!formData.date) e.date = 'Selecione uma data';
+    if (!formData.time) {
+      e.time = 'Selecione um horário';
+    } else if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(formData.time)) {
+      e.time = 'Formato de horário inválido (HH:MM)';
+    }
+    if (formData.date && formData.time) {
+      const dt = new Date(formData.date);
+      const [h, m] = formData.time.split(':');
+      dt.setHours(parseInt(h), parseInt(m), 0, 0);
+      if (dt < new Date()) e.date = 'Data e horário não podem ser no passado';
+    }
+    if (formData.recurring && formData.recurringCount < 1) {
+      e.recurringCount = 'Número de repetições deve ser maior que 0';
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleSave = async () => {
     if (!validateForm()) {
       toast.error('Por favor, corrija os erros no formulário');
       return;
     }
-
     setIsSubmitting(true);
-    setErrors({});
-    
     try {
-      // Combine date and time into ISO string
+      // Modo SEQUÊNCIA: apenas inscreve o contato na cadência.
+      if (mode === 'sequence') {
+        const ok = await enrollContact({
+          sequenceId: formData.sequenceId,
+          contactId: formData.contactId,
+        });
+        if (ok) onClose();
+        return;
+      }
+
       const dueDateTime = new Date(formData.date!);
       const [hours, minutes] = formData.time.split(':');
       dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      
-      const followupData = {
+      const iso = dueDateTime.toISOString();
+
+      const base = {
         contact_id: formData.contactId,
-        task: formData.task,
-        type: formData.type,
         priority: formData.priority,
-        due_date: dueDateTime.toISOString(),
-        notes: formData.notes || undefined,
+        due_date: iso,
         recurring: formData.recurring,
-        recurring_type: formData.recurring ? formData.recurringType : undefined,
-        recurring_count: formData.recurring ? formData.recurringCount : undefined,
-        whatsapp_instance_id: formData.whatsappInstanceId || undefined
+        recurring_type: formData.recurring ? formData.recurringType : null,
+        recurring_count: formData.recurring ? formData.recurringCount : null,
       };
 
-      const result = await createFollowup(followupData);
-      
+      const payload =
+        mode === 'scheduled'
+          ? {
+              ...base,
+              mode: 'scheduled' as const,
+              type: 'whatsapp',
+              task: formData.task.trim() || 'Envio agendado de WhatsApp',
+              message_body: formData.messageBody,
+              scheduled_at: iso,
+              notes: formData.notes || null,
+            }
+          : {
+              ...base,
+              mode: 'manual' as const,
+              type: formData.type,
+              task: formData.task,
+              notes: formData.notes || null,
+            };
+
+      const result = await createFollowup(payload as never);
       if (result) {
-        toast.success('Follow-up agendado com sucesso!');
+        toast.success(mode === 'scheduled' ? 'Envio agendado!' : 'Follow-up criado!');
         onClose();
       }
     } catch (error) {
-      console.error('Erro ao agendar follow-up:', error);
-      toast.error('Erro ao agendar follow-up. Tente novamente.');
+      toast.error('Erro ao salvar follow-up. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const fillTemplate = (template: string) => {
-    setFormData({ ...formData, task: template });
-  };
+  const contactSelect = (
+    <div className="space-y-2">
+      <Label>Contato *</Label>
+      <Select
+        value={formData.contactId}
+        onValueChange={(v) => {
+          setFormData((p) => ({ ...p, contactId: v }));
+          setErrors((p) => ({ ...p, contactId: '' }));
+        }}
+        disabled={contactsLoading}
+      >
+        <SelectTrigger className={errors.contactId ? 'border-red-500' : ''}>
+          <SelectValue placeholder={contactsLoading ? 'Carregando contatos...' : 'Selecione um contato'} />
+        </SelectTrigger>
+        <SelectContent>
+          {contacts && contacts.length > 0 ? (
+            contacts.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>{c.name}</span>
+                  <span className="text-muted-foreground text-sm">({c.phone})</span>
+                </div>
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="no-contacts" disabled>
+              Nenhum contato encontrado
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+      {errors.contactId && <p className="text-sm text-red-500">{errors.contactId}</p>}
+    </div>
+  );
 
-  const selectedContact = contacts.find(c => c.id === formData.contactId);
-  const selectedType = followupTypes.find(t => t.id === formData.type);
+  const dateTimeFields = (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label>{mode === 'scheduled' ? 'Data do envio' : 'Data'}</Label>
+        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                'w-full justify-start text-left font-normal',
+                !formData.date && 'text-muted-foreground',
+                errors.date && 'border-red-500',
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {formData.date ? format(formData.date, 'PPP', { locale: ptBR }) : 'Selecionar data'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={formData.date}
+              onSelect={(date) => {
+                setFormData((p) => ({ ...p, date }));
+                setIsDatePickerOpen(false);
+                setErrors((p) => ({ ...p, date: '' }));
+              }}
+              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+              initialFocus
+              className="pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+        {errors.date && <p className="text-sm text-red-500 mt-1">{errors.date}</p>}
+      </div>
+      <div>
+        <Label htmlFor="time">{mode === 'scheduled' ? 'Hora do envio' : 'Hora'}</Label>
+        <div className="relative">
+          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            id="time"
+            type="time"
+            value={formData.time}
+            onChange={(e) => {
+              setFormData((p) => ({ ...p, time: e.target.value }));
+              setErrors((p) => ({ ...p, time: '' }));
+            }}
+            className={`pl-10 ${errors.time ? 'border-red-500' : ''}`}
+          />
+        </div>
+        {errors.time && <p className="text-sm text-red-500 mt-1">{errors.time}</p>}
+      </div>
+    </div>
+  );
 
- // Validation function
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.contactId) {
-      newErrors.contactId = 'Selecione um contato';
-    }
-    
-    if (!formData.task.trim()) {
-      newErrors.task = 'Descrição da tarefa é obrigatória';
-    }
-    
-    if (!formData.type) {
-      newErrors.type = 'Selecione o tipo de follow-up';
-    }
-    
-    if (!formData.date) {
-      newErrors.date = 'Selecione uma data';
-    }
-    
-    if (!formData.time) {
-      newErrors.time = 'Selecione um horário';
-    } else {
-      // Validate time format
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(formData.time)) {
-        newErrors.time = 'Formato de horário inválido (HH:MM)';
-      }
-    }
-    
-    // Validate date is not in the past
-    if (formData.date && formData.time) {
-      const selectedDateTime = new Date(formData.date);
-      const [hours, minutes] = formData.time.split(':');
-      selectedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      
-      if (selectedDateTime < new Date()) {
-        newErrors.date = 'Data e horário não podem ser no passado';
-      }
-    }
-    
-    if (formData.recurring && formData.recurringCount < 1) {
-      newErrors.recurringCount = 'Número de repetições deve ser maior que 0';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-  
-  const canSave = formData.contactId && formData.task.trim() && formData.type && formData.priority && formData.date && formData.time;
+  const recurrenceCard = (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Repeat className="w-5 h-5" /> Recorrência
+          </CardTitle>
+          <Switch
+            checked={formData.recurring}
+            onCheckedChange={(checked) => setFormData((p) => ({ ...p, recurring: checked }))}
+          />
+        </div>
+      </CardHeader>
+      {formData.recurring && (
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Frequência</Label>
+              <Select
+                value={formData.recurringType}
+                onValueChange={(v) => setFormData((p) => ({ ...p, recurringType: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Diário</SelectItem>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="recurringCount">Repetições</Label>
+              <Input
+                id="recurringCount"
+                type="number"
+                min="1"
+                max="365"
+                value={formData.recurringCount}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, recurringCount: parseInt(e.target.value) || 1 }))
+                }
+                className={errors.recurringCount ? 'border-red-500' : ''}
+              />
+              {errors.recurringCount && (
+                <p className="text-sm text-red-500 mt-1">{errors.recurringCount}</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar Novo Follow-up</DialogTitle>
+          <DialogTitle>Novo Follow-up</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Seleção de contato */}
-          <div className="space-y-2">
-            <Label htmlFor="contact">Contato *</Label>
-            <Select 
-              value={formData.contactId} 
-              onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, contactId: value }));
-                if (errors.contactId) {
-                  setErrors(prev => ({ ...prev, contactId: '' }));
-                }
-              }}
-              disabled={contactsLoading}
-            >
-              <SelectTrigger className={errors.contactId ? 'border-red-500' : ''}>
-                <SelectValue placeholder={contactsLoading ? "Carregando contatos..." : "Selecione um contato"} />
-              </SelectTrigger>
-              <SelectContent>
-                {contactsLoading ? (
-                  <SelectItem value="loading" disabled>
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Carregando contatos...</span>
-                    </div>
-                  </SelectItem>
-                ) : contacts && contacts.length > 0 ? (
-                  contacts.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        <span>{contact.name}</span>
-                        <span className="text-muted-foreground text-sm">({contact.phone})</span>
-                      </div>
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-contacts" disabled>
-                    <span className="text-muted-foreground">Nenhum contato encontrado</span>
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            {errors.contactId && (
-              <p className="text-sm text-red-500 mt-1">{errors.contactId}</p>
-            )}
-          </div>
-
-          {/* Tipo de follow-up */}
+          {/* Seletor de MODO */}
           <div>
-            <Label>Tipo de Follow-up</Label>
+            <Label>Como este follow-up vai funcionar?</Label>
             <div className="grid grid-cols-3 gap-3 mt-2">
-              {followupTypes.map((type) => {
-                const Icon = type.icon;
+              {modeOptions.map((m) => {
+                const Icon = m.icon;
                 return (
                   <Card
-                    key={type.id}
+                    key={m.id}
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      formData.type === type.id ? 'ring-2 ring-primary' : ''
-                    } ${errors.type ? 'border-red-500' : ''}`}
-                    onClick={() => {
-                      setFormData({...formData, type: type.id});
-                      if (errors.type) {
-                        setErrors(prev => ({ ...prev, type: '' }));
-                      }
-                    }}
+                      mode === m.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => setMode(m.id)}
                   >
                     <CardContent className="p-4 text-center">
                       <Icon className="w-6 h-6 mx-auto mb-2 text-primary" />
-                      <h4 className="font-medium text-sm">{type.name}</h4>
-                      <p className="text-xs text-muted-foreground mt-1">{type.description}</p>
+                      <h4 className="font-medium text-sm">{m.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">{m.description}</p>
                     </CardContent>
                   </Card>
                 );
@@ -246,232 +385,206 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
             </div>
           </div>
 
-          {/* Tarefa */}
-          <div>
-            <Label htmlFor="task">Descrição da Tarefa</Label>
-            <Textarea
-              id="task"
-              value={formData.task}
-              onChange={(e) => {
-                setFormData({...formData, task: e.target.value});
-                if (errors.task) {
-                  setErrors(prev => ({ ...prev, task: '' }));
-                }
-              }}
-              placeholder="Descreva o que deve ser feito..."
-              className={errors.task ? 'border-red-500' : ''}
-            />
-            {errors.task && (
-              <p className="text-sm text-red-500 mt-1">{errors.task}</p>
-            )}
-            <div className="mt-2">
-              <p className="text-sm text-muted-foreground mb-2">Templates sugeridos:</p>
-              <div className="flex flex-wrap gap-1">
-                {taskTemplates.map((template, index) => (
-                  <Badge
-                    key={index}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-accent text-xs"
-                    onClick={() => fillTemplate(template)}
-                  >
-                    {template}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
+          {contactSelect}
 
-          {/* Data e hora */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Data</Label>
-              <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.date && "text-muted-foreground",
-                      errors.date && "border-red-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.date ? format(formData.date, "PPP", { locale: ptBR }) : "Selecionar data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={formData.date}
-                    onSelect={(date) => {
-                      setFormData({...formData, date});
-                      setIsDatePickerOpen(false);
-                      if (errors.date) {
-                        setErrors(prev => ({ ...prev, date: '' }));
-                      }
-                    }}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.date && (
-                <p className="text-sm text-red-500 mt-1">{errors.date}</p>
+          {/* Indicador de janela de 24h (modos com envio) */}
+          {mode !== 'manual' && formData.contactId && windowOpen !== null && (
+            <div
+              className={cn(
+                'flex items-start gap-2 rounded-md border p-3 text-sm',
+                windowOpen
+                  ? 'border-green-200 bg-green-50 text-green-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800',
               )}
+            >
+              {windowOpen ? (
+                <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+              )}
+              <span>
+                {windowOpen
+                  ? 'Janela de 24h aberta — pode enviar mensagem livre.'
+                  : 'Fora da janela de 24h. Em número oficial (Meta), só template aprovado será entregue; o envio livre pode ser bloqueado por conformidade.'}
+              </span>
             </div>
+          )}
 
-            <div>
-              <Label htmlFor="time">Hora</Label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="time"
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => {
-                    setFormData({...formData, time: e.target.value});
-                    if (errors.time) {
-                      setErrors(prev => ({ ...prev, time: '' }));
-                    }
+          {/* MODO SEQUÊNCIA */}
+          {mode === 'sequence' && (
+            <div className="space-y-2">
+              <Label>Sequência *</Label>
+              {sequencesLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando sequências...
+                </div>
+              ) : sequences.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma sequência criada ainda. Crie uma em Follow-ups → Sequências.
+                </p>
+              ) : (
+                <Select
+                  value={formData.sequenceId}
+                  onValueChange={(v) => {
+                    setFormData((p) => ({ ...p, sequenceId: v }));
+                    setErrors((p) => ({ ...p, sequenceId: '' }));
                   }}
-                  className={`pl-10 ${errors.time ? 'border-red-500' : ''}`}
-                />
-              </div>
-              {errors.time && (
-                <p className="text-sm text-red-500 mt-1">{errors.time}</p>
+                >
+                  <SelectTrigger className={errors.sequenceId ? 'border-red-500' : ''}>
+                    <SelectValue placeholder="Selecione a sequência" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sequences
+                      .filter((s) => s.is_active)
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} ({s.steps.length} passos)
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               )}
+              {errors.sequenceId && <p className="text-sm text-red-500">{errors.sequenceId}</p>}
             </div>
-          </div>
+          )}
 
-          {/* Prioridade */}
-          <div>
-            <Label>Prioridade</Label>
-            <Select value={formData.priority} onValueChange={(value) => setFormData({...formData, priority: value})}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="medium">Média</SelectItem>
-                <SelectItem value="low">Baixa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Recorrência */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Repeat className="w-5 h-5" />
-                  Follow-up Recorrente
-                </CardTitle>
-                <Switch
-                  checked={formData.recurring}
-                  onCheckedChange={(checked) => setFormData({...formData, recurring: checked})}
-                />
-              </div>
-            </CardHeader>
-            {formData.recurring && (
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Frequência</Label>
-                    <Select value={formData.recurringType} onValueChange={(value) => setFormData({...formData, recurringType: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Diário</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="monthly">Mensal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="recurringCount">Repetições</Label>
-                    <Input
-                      id="recurringCount"
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={formData.recurringCount}
-                      onChange={(e) => {
-                        setFormData({...formData, recurringCount: parseInt(e.target.value) || 1});
-                        if (errors.recurringCount) {
-                          setErrors(prev => ({ ...prev, recurringCount: '' }));
-                        }
+          {/* MODO MANUAL: tipo da tarefa */}
+          {mode === 'manual' && (
+            <div>
+              <Label>Tipo de Follow-up</Label>
+              <div className="grid grid-cols-3 gap-3 mt-2">
+                {followupTypes.map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <Card
+                      key={type.id}
+                      className={`cursor-pointer transition-all hover:shadow-md ${
+                        formData.type === type.id ? 'ring-2 ring-primary' : ''
+                      } ${errors.type ? 'border-red-500' : ''}`}
+                      onClick={() => {
+                        setFormData((p) => ({ ...p, type: type.id }));
+                        setErrors((p) => ({ ...p, type: '' }));
                       }}
-                      className={errors.recurringCount ? 'border-red-500' : ''}
-                    />
-                    {errors.recurringCount && (
-                      <p className="text-sm text-red-500 mt-1">{errors.recurringCount}</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            )}
-          </Card>
+                    >
+                      <CardContent className="p-4 text-center">
+                        <Icon className="w-6 h-6 mx-auto mb-2 text-primary" />
+                        <h4 className="font-medium text-sm">{type.name}</h4>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+              {errors.type && <p className="text-sm text-red-500 mt-1">{errors.type}</p>}
+            </div>
+          )}
 
-          {/* Notas adicionais */}
-          <div>
-            <Label htmlFor="notes">Notas Adicionais</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-              placeholder="Informações extras sobre este follow-up..."
-            />
-          </div>
+          {/* MODO MANUAL: descrição da tarefa */}
+          {mode === 'manual' && (
+            <div>
+              <Label htmlFor="task">Descrição da Tarefa</Label>
+              <Textarea
+                id="task"
+                value={formData.task}
+                onChange={(e) => {
+                  setFormData((p) => ({ ...p, task: e.target.value }));
+                  setErrors((p) => ({ ...p, task: '' }));
+                }}
+                placeholder="Descreva o que deve ser feito..."
+                className={errors.task ? 'border-red-500' : ''}
+              />
+              {errors.task && <p className="text-sm text-red-500 mt-1">{errors.task}</p>}
+              <div className="mt-2">
+                <p className="text-sm text-muted-foreground mb-2">Modelos sugeridos:</p>
+                <div className="flex flex-wrap gap-1">
+                  {taskTemplates.map((t, i) => (
+                    <Badge
+                      key={i}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-accent text-xs"
+                      onClick={() => setFormData((p) => ({ ...p, task: t }))}
+                    >
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-          {/* Preview */}
-          {canSave && (
-            <Card className="bg-muted/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Preview do Follow-up</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium">{selectedContact?.name}</span>
-                  <span className="text-muted-foreground">({selectedContact?.phone})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedType && <selectedType.icon className="w-4 h-4 text-muted-foreground" />}
-                  <span>{formData.task}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                  <span>
-                    {formData.date && format(formData.date, "PPP", { locale: ptBR })} às {formData.time}
-                  </span>
-                </div>
-                {formData.recurring && (
-                  <div className="flex items-center gap-2">
-                    <Repeat className="w-4 h-4 text-muted-foreground" />
-                    <span>Repetir {formData.recurringType} por {formData.recurringCount} vezes</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* MODO AGENDADO: composição da mensagem */}
+          {mode === 'scheduled' && (
+            <div>
+              <Label htmlFor="messageBody">Mensagem a enviar</Label>
+              <Textarea
+                id="messageBody"
+                value={formData.messageBody}
+                onChange={(e) => {
+                  setFormData((p) => ({ ...p, messageBody: e.target.value }));
+                  setErrors((p) => ({ ...p, messageBody: '' }));
+                }}
+                placeholder="Olá {{primeiro_nome}}, tudo bem? ..."
+                rows={4}
+                className={errors.messageBody ? 'border-red-500' : ''}
+              />
+              {errors.messageBody && <p className="text-sm text-red-500 mt-1">{errors.messageBody}</p>}
+              <p className="text-xs text-muted-foreground mt-1">
+                Variáveis: {'{{contact_name}}'}, {'{{primeiro_nome}}'}, {'{{telefone}}'}
+              </p>
+            </div>
+          )}
+
+          {/* Data/hora — manual (vencimento) e agendado (envio) */}
+          {mode !== 'sequence' && dateTimeFields}
+
+          {/* Prioridade — manual e agendado */}
+          {mode !== 'sequence' && (
+            <div>
+              <Label>Prioridade</Label>
+              <Select
+                value={formData.priority}
+                onValueChange={(v) => setFormData((p) => ({ ...p, priority: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Recorrência — manual e agendado */}
+          {mode !== 'sequence' && recurrenceCard}
+
+          {/* Notas — manual e agendado */}
+          {mode !== 'sequence' && (
+            <div>
+              <Label htmlFor="notes">Notas Adicionais</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
+                placeholder="Informações extras sobre este follow-up..."
+              />
+            </div>
           )}
 
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={!canSave || isSubmitting || contactsLoading}
-            >
+            <Button onClick={handleSave} disabled={isSubmitting || contactsLoading}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Agendando...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
                 </>
+              ) : mode === 'sequence' ? (
+                'Inscrever na sequência'
+              ) : mode === 'scheduled' ? (
+                'Agendar envio'
               ) : (
-                'Agendar Follow-up'
+                'Criar follow-up'
               )}
             </Button>
           </div>
