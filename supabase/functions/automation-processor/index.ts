@@ -47,8 +47,15 @@ interface StepConfig {
   from_stage?: string;
   to_stage?: string;
   source?: string;
+  // schedule_followup extras
+  followup_mode?: string;     // 'manual' | 'scheduled'
+  followup_task?: string;     // título da tarefa (task NOT NULL no schema)
+  followup_priority?: string; // 'high' | 'medium' | 'low'
   [key: string]: unknown;
 }
+
+// Tipos de follow-up aceitos pelo CHECK de individual_followups.type.
+const FOLLOWUP_TYPES = ['call', 'email', 'whatsapp', 'meeting', 'visit', 'task', 'other'];
 
 interface AutomationStep {
   id: string;
@@ -539,7 +546,15 @@ async function changeFunnelStage(
   }
 }
 
-// Função para agendar follow-up
+// Função para agendar follow-up.
+//
+// Insere na tabela CONSOLIDADA individual_followups (a antiga `followups` nunca
+// existiu no banco — este step estava silenciosamente quebrado). Suporta dois
+// modos:
+//   - 'scheduled': cria um envio agendado (mode='scheduled', status='scheduled')
+//     que o followup-processor dispara via provider na data, respeitando a
+//     janela de 24h da Meta. Padrão quando há mensagem + tipo whatsapp.
+//   - 'manual': cria uma tarefa para o operador (mode='manual', status='pending').
 async function scheduleFollowup(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
@@ -547,30 +562,76 @@ async function scheduleFollowup(
   logger: any
 ): Promise<boolean> {
   try {
-    const delayHours = stepConfig.delay_hours || 24;
-    const followupType = stepConfig.followup_type || 'whatsapp';
-    const message = stepConfig.message || '';
-    
-    const scheduledFor = new Date();
-    scheduledFor.setHours(scheduledFor.getHours() + delayHours);
-    
-    const { error } = await supabaseClient
-      .from('followups')
-      .insert({
-        contact_id: contactId,
-        type: followupType,
-        message: message,
-        scheduled_for: scheduledFor.toISOString(),
-        status: 'scheduled',
-        created_by_automation: true
+    // Resolve a conta (tenant) e a instância a partir do contato — service_role
+    // ignora RLS, então precisamos do tenant_id explícito para isolar a inserção.
+    const { data: contact, error: contactErr } = await supabaseClient
+      .from('contacts')
+      .select('tenant_id, whatsapp_instance_id, name')
+      .eq('id', contactId)
+      .maybeSingle();
+
+    if (contactErr || !contact?.tenant_id) {
+      logger.error('schedule_followup: contato sem tenant_id — abortando', {
+        contactId,
+        error: contactErr?.message,
       });
-    
+      return false;
+    }
+
+    const delayHours = stepConfig.delay_hours ?? 24;
+    const rawType = (stepConfig.followup_type || 'whatsapp').toLowerCase();
+    const followupType = FOLLOWUP_TYPES.includes(rawType) ? rawType : 'whatsapp';
+    const message = (stepConfig.message || '').trim();
+    const priority = ['high', 'medium', 'low'].includes(stepConfig.followup_priority || '')
+      ? (stepConfig.followup_priority as string)
+      : 'medium';
+
+    // Modo: explícito > inferido. Com mensagem + whatsapp ⇒ envio agendado.
+    const mode =
+      stepConfig.followup_mode === 'manual' || stepConfig.followup_mode === 'scheduled'
+        ? stepConfig.followup_mode
+        : message && followupType === 'whatsapp'
+          ? 'scheduled'
+          : 'manual';
+
+    const due = new Date();
+    due.setHours(due.getHours() + delayHours);
+    const dueIso = due.toISOString();
+
+    // task é NOT NULL — usa título explícito, senão um rótulo derivado.
+    const task =
+      (stepConfig.followup_task || '').trim() ||
+      (message ? `Follow-up automático: ${message.slice(0, 80)}` : 'Follow-up automático');
+
+    const row: Record<string, unknown> = {
+      tenant_id: contact.tenant_id,
+      contact_id: contactId,
+      whatsapp_instance_id: contact.whatsapp_instance_id ?? null,
+      task,
+      due_date: dueIso,
+      priority,
+      type: followupType,
+      mode,
+      status: mode === 'scheduled' ? 'scheduled' : 'pending',
+      source: 'automation',
+      created_by_automation: true,
+    };
+
+    if (mode === 'scheduled') {
+      row.scheduled_at = dueIso;
+      row.message_body = message;
+    } else if (message) {
+      row.notes = message;
+    }
+
+    const { error } = await supabaseClient.from('individual_followups').insert(row);
+
     if (error) {
       logger.error('Error scheduling followup', { error });
       return false;
     }
-    
-    logger.info('Followup scheduled successfully');
+
+    logger.info('Followup scheduled successfully', { mode, type: followupType });
     return true;
   } catch (error: any) {
     logger.error('Error in scheduleFollowup', { error: error.message });
