@@ -5,7 +5,8 @@ import { FollowupsList } from '@/components/followups/FollowupsList'
 import { FollowupScheduler } from '@/components/followups/FollowupScheduler'
 import { FollowupCalendarModal } from '@/components/followups/FollowupCalendarModal'
 import { FollowupFilters } from '@/components/followups/FollowupFilters'
-import { Plus, Clock, CheckCircle, AlertCircle, Calendar, Filter } from 'lucide-react'
+import { SequencesManager } from '@/components/followups/SequencesManager'
+import { Plus, Clock, CheckCircle, AlertCircle, Calendar, Filter, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
@@ -65,7 +66,7 @@ export default function Followups() {
       />
 
       {/* Estatísticas Rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -118,6 +119,22 @@ export default function Followups() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm font-medium text-muted-foreground">Agendados</p>
+                {loading ? (
+                  <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl font-bold text-purple-600">{stats.scheduled}</p>
+                )}
+              </div>
+              <Send className="h-8 w-8 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-muted-foreground">Em Atraso</p>
                 {loading ? (
                   <div className="h-8 w-16 bg-muted rounded animate-pulse" />
@@ -143,8 +160,10 @@ export default function Followups() {
         <TabsList>
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
           <TabsTrigger value="today">Hoje</TabsTrigger>
-          <TabsTrigger value="completed">Concluídos</TabsTrigger>
+          <TabsTrigger value="scheduled">Agendados</TabsTrigger>
           <TabsTrigger value="overdue">Em Atraso</TabsTrigger>
+          <TabsTrigger value="completed">Concluídos</TabsTrigger>
+          <TabsTrigger value="sequences">Sequências</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending">
@@ -155,12 +174,20 @@ export default function Followups() {
           <FollowupsList status="today" filters={filters} />
         </TabsContent>
 
-        <TabsContent value="completed">
-          <FollowupsList status="completed" filters={filters} />
+        <TabsContent value="scheduled">
+          <FollowupsList status="scheduled" filters={filters} />
         </TabsContent>
 
         <TabsContent value="overdue">
           <FollowupsList status="overdue" filters={filters} />
+        </TabsContent>
+
+        <TabsContent value="completed">
+          <FollowupsList status="completed" filters={filters} />
+        </TabsContent>
+
+        <TabsContent value="sequences">
+          <SequencesManager />
         </TabsContent>
       </Tabs>
 
