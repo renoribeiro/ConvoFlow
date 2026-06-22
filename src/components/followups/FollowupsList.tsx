@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { CheckCircle, Clock, Phone, Mail, MessageSquare, Calendar, Edit, Trash2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useFollowups } from '@/hooks/useFollowups'
 import { FollowupEditModal } from '@/components/FollowupEditModal'
-import type { IndividualFollowup } from '@/integrations/supabase/types'
+import type { IndividualFollowup } from '@/lib/followups/types'
 import { toast } from 'sonner'
 
 interface FollowupsListProps {
