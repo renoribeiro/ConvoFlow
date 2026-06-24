@@ -329,11 +329,14 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                     <div className="flex items-center gap-3">
                       <Avatar className="w-8 h-8">
                         <AvatarFallback>
-                          {contact.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          {(contact.name?.trim()
+                            ? contact.name.trim().split(' ').map(n => n[0]).join('')
+                            : '?'
+                          ).slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-foreground">{contact.name}</p>
+                        <p className="font-medium text-foreground">{contact.name?.trim() || 'Contato sem nome'}</p>
                         <p className="text-sm text-muted-foreground">{contact.phone}</p>
                         {contact.email && (
                           <p className="text-xs text-muted-foreground">{contact.email}</p>
@@ -342,16 +345,16 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                     </div>
                   </TableCell>
                   <TableCell>
-                    {contact.funnel_stages ? (
-                      <Badge 
-                        style={{ 
-                          backgroundColor: `${contact.funnel_stages.color}20`,
-                          color: contact.funnel_stages.color,
-                          borderColor: contact.funnel_stages.color
+                    {contact.stage ? (
+                      <Badge
+                        style={{
+                          backgroundColor: `${contact.stage.color}20`,
+                          color: contact.stage.color,
+                          borderColor: contact.stage.color
                         }}
                         variant="outline"
                       >
-                        {contact.funnel_stages.name}
+                        {contact.stage.name}
                       </Badge>
                     ) : (
                       <Badge variant="secondary">Sem estágio</Badge>
@@ -468,7 +471,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleDeleteClick(contact.id, contact.name)}
+                          onClick={() => handleDeleteClick(contact.id, contact.name?.trim() || 'Contato sem nome')}
                           className="text-red-600"
                           disabled={deleteMutation.isPending}
                         >

@@ -334,7 +334,15 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
 
   const handleSaveContact = () => {
     if (!contact?.id) return;
-    updateContactMutation.mutate({ id: contact.id, ...editForm });
+    updateContactMutation.mutate({
+      data: {
+        name: editForm.name?.trim() || null,
+        phone: editForm.phone,
+        lead_source_id: editForm.lead_source_id || null,
+        current_stage_id: editForm.current_stage_id || null,
+      },
+      options: { filter: { column: 'id', operator: 'eq', value: contact.id } },
+    });
   };
 
   const handleArchive = () => {
