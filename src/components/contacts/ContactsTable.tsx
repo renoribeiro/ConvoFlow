@@ -1,6 +1,7 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { TagBadge } from '@/components/etiquetas/TagBadge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { TableSkeleton, Skeleton } from '@/components/shared/Skeleton';
@@ -315,7 +316,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                 <TableHead>Contato</TableHead>
                 <TableHead>Estágio</TableHead>
                 <TableHead>Fonte</TableHead>
-                <TableHead>Tags</TableHead>
+                <TableHead>Etiquetas</TableHead>
                 <TableHead>Consentimento</TableHead>
                 <TableHead>Última Interação</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -368,18 +369,11 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                       {contact.contact_tags && contact.contact_tags.length > 0 ? (
                         contact.contact_tags.map((contactTag) => (
                           contactTag.tags && (
-                            <Badge
+                            <TagBadge
                               key={contactTag.tag_id}
-                              variant="outline"
-                              style={{
-                                backgroundColor: `${contactTag.tags.color}20`,
-                                color: contactTag.tags.color,
-                                borderColor: contactTag.tags.color
-                              }}
-                              className="text-xs"
-                            >
-                              {contactTag.tags.name}
-                            </Badge>
+                              name={contactTag.tags.name}
+                              color={contactTag.tags.color}
+                            />
                           )
                         ))
                       ) : (

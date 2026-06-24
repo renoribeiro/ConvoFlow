@@ -11,9 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Loader2, X, Plus } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
-import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
 import { ContactSchema, ContactCreateSchema, ContactUpdateSchema } from '@/lib/validations/contact';
+import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
@@ -27,6 +29,9 @@ interface ContactModalProps {
 
 
 export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) => {
+  const { tenant } = useTenant();
+  const queryClient = useQueryClient();
+  const [isSavingTag, setIsSavingTag] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -201,23 +206,6 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     }
   });
 
-  // Mutation para criar nova tag
-  const createTagMutation = useSupabaseMutation({
-    table: 'tags',
-    operation: 'insert',
-    invalidateQueries: [['tags']],
-    successMessage: 'Tag criada com sucesso!',
-    errorMessage: 'Erro ao criar tag'
-  });
-
-  // Mutation para gerenciar associações de tags
-  const manageTagsMutation = useSupabaseMutation({
-    table: 'contact_tags',
-    operation: 'upsert',
-    invalidateQueries: [['contacts']],
-    errorMessage: 'Erro ao gerenciar tags do contato'
-  });
-
   useEffect(() => {
     if (contact && contactId) {
       setFormData({
@@ -260,45 +248,66 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
   const createNewTag = async () => {
     if (!newTagName.trim()) return;
-    
+
+    if (!tenant?.id) {
+      toast.error('Conta não carregada. Tente novamente.');
+      return;
+    }
+
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    
+
+    setIsSavingTag(true);
     try {
-      const result = await createTagMutation.mutateAsync({        name: newTagName.trim(),        color: randomColor      });
-      
-      if (result?.data?.[0]?.id) {
-        addTag(result.data[0].id);
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({ name: newTagName.trim(), color: randomColor, tenant_id: tenant.id })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      if (data?.id) {
+        addTag(data.id);
         setNewTagName('');
+        queryClient.invalidateQueries({ queryKey: ['tags'] });
+        toast.success('Tag criada com sucesso!');
       }
     } catch (error) {
-      console.error('Erro ao criar tag:', error);
+      logger.error('Erro ao criar tag', { error, name: newTagName.trim() });
+      toast.error('Erro ao criar tag');
+    } finally {
+      setIsSavingTag(false);
     }
   };
 
   const manageTags = async (contactId: string) => {
     try {
-      // Primeiro, remover todas as tags existentes do contato
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/contact_tags?contact_id=eq.${contactId}`, {
-        method: 'DELETE',
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      // Depois, adicionar as tags selecionadas
+      // Substitui o conjunto de tags do contato: remove as atuais e insere as selecionadas.
+      // Usa o cliente Supabase (sessão autenticada) para respeitar a RLS de contact_tags.
+      const { error: deleteError } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('contact_id', contactId);
+
+      if (deleteError) throw deleteError;
+
       if (selectedTags.length > 0) {
         const tagAssociations = selectedTags.map(tagId => ({
           contact_id: contactId,
           tag_id: tagId
         }));
-        
-        await manageTagsMutation.mutateAsync(tagAssociations);
+
+        const { error: insertError } = await supabase
+          .from('contact_tags')
+          .insert(tagAssociations);
+
+        if (insertError) throw insertError;
       }
     } catch (error) {
-      console.error('Erro ao gerenciar tags:', error);
+      logger.error('Erro ao gerenciar tags do contato', { error, contactId });
+      toast.error('Erro ao salvar as tags do contato');
+      throw error;
     }
   };
 
@@ -560,7 +569,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
             {/* Seção de Tags */}
             <div>
-              <Label>Tags</Label>
+              <Label>Etiquetas</Label>
               {tagsLoading ? (
                 <Skeleton className="h-20 w-full" />
               ) : (
@@ -596,7 +605,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                     disabled={isLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Adicionar tag existente..." />
+                      <SelectValue placeholder="Adicionar etiqueta existente..." />
                     </SelectTrigger>
                     <SelectContent>
                       {allTags
@@ -619,10 +628,10 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                   {/* Criar nova tag */}
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Nome da nova tag..."
+                      placeholder="Nome da nova etiqueta..."
                       value={newTagName}
                       onChange={(e) => setNewTagName(e.target.value)}
-                      disabled={isLoading || createTagMutation.isPending}
+                      disabled={isLoading || isSavingTag}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -635,9 +644,9 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                       variant="outline"
                       size="sm"
                       onClick={createNewTag}
-                      disabled={!newTagName.trim() || isLoading || createTagMutation.isPending}
+                      disabled={!newTagName.trim() || isLoading || isSavingTag}
                     >
-                      {createTagMutation.isPending ? (
+                      {isSavingTag ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Plus className="h-4 w-4" />

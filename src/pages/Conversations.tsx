@@ -9,7 +9,8 @@ import {
   type ConversationsFilterState,
 } from '@/components/conversations/ConversationFiltersModal';
 import { useConversationByContact, useCreateConversation } from '@/hooks/useConversations';
-import { Search, Filter } from 'lucide-react';
+import { EtiquetasManagerSheet } from '@/components/etiquetas/EtiquetasManagerSheet';
+import { Search, Filter, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ export default function Conversations() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
@@ -123,6 +125,10 @@ export default function Conversations() {
                   </Badge>
                 )}
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowEtiquetas(true)}>
+                <Tag className="w-4 h-4 mr-2" />
+                Etiquetas
+              </Button>
             </div>
           }
         />
@@ -154,6 +160,8 @@ export default function Conversations() {
         value={filters}
         onChange={setFilters}
       />
+
+      <EtiquetasManagerSheet open={showEtiquetas} onOpenChange={setShowEtiquetas} />
     </div>
   );
 }
