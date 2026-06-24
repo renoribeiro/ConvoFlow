@@ -11,6 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
+import { useTenantVariables } from '@/hooks/useTenantVariables';
+import { VariableTextField } from '@/components/shared/VariableTextField';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import {
   Workflow,
   Plus,
@@ -28,8 +31,27 @@ import {
   Filter,
   ArrowRight,
   Save,
-  X
+  X,
+  Variable,
+  UserCog
 } from 'lucide-react';
+
+// Opções de operador para gatilhos/condições baseados em variável.
+const OPERATOR_OPTIONS = [
+  { id: 'equals', name: 'é igual a' },
+  { id: 'contains', name: 'contém' },
+  { id: 'not_empty', name: 'está preenchida' },
+  { id: 'empty', name: 'está vazia' },
+];
+
+// Campos do contato que a ação "Atualizar Contato" pode escrever.
+const CONTACT_FIELD_OPTIONS = [
+  { id: 'name', name: 'Nome' },
+  { id: 'email', name: 'E-mail' },
+  { id: 'phone', name: 'Telefone' },
+  { id: 'tag', name: 'Tag' },
+  { id: 'custom', name: 'Campo personalizado' },
+];
 
 interface AutomationStep {
   id: string;
@@ -68,7 +90,8 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
   const [draggedStep, setDraggedStep] = useState<string | null>(null);
   
   const { toast } = useToast();
-  
+  const { customVariables } = useTenantVariables();
+
   // Query para buscar o fluxo existente
   const { data: existingFlowData } = useSupabaseQuery({
     table: 'automation_flows',
@@ -161,6 +184,17 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
         schedule_type: { type: 'select', label: 'Tipo', options: ['daily', 'weekly', 'monthly'] },
         time: { type: 'time', label: 'Horário' }
       }
+    },
+    {
+      id: 'variable_captured',
+      name: 'Variável Capturada',
+      description: 'Acionado em tempo real quando o chatbot captura ou atualiza uma variável (ex.: o nome do lead)',
+      icon: Variable,
+      config: {
+        variable_name: { type: 'variable', label: 'Variável' },
+        operator: { type: 'select', label: 'Condição (opcional)', options: OPERATOR_OPTIONS },
+        value: { type: 'text', label: 'Valor (apenas se "é igual a" / "contém")' }
+      }
     }
   ];
   
@@ -172,7 +206,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       icon: MessageSquare,
       config: {
         message_template_id: { type: 'select', label: 'Template', options: messageTemplates },
-        custom_message: { type: 'textarea', label: 'Mensagem personalizada' }
+        custom_message: { type: 'textarea_with_vars', label: 'Mensagem personalizada' }
       }
     },
     {
@@ -192,7 +226,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       config: {
         delay_hours: { type: 'number', label: 'Atraso (horas)' },
         followup_type: { type: 'select', label: 'Tipo', options: ['call', 'whatsapp', 'email'] },
-        message: { type: 'textarea', label: 'Mensagem' }
+        message: { type: 'textarea_with_vars', label: 'Mensagem' }
       }
     },
     {
@@ -201,7 +235,18 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       description: 'Adicionar tag ao contato',
       icon: Filter,
       config: {
-        tag_name: { type: 'text', label: 'Nome da tag' }
+        tag_name: { type: 'text_with_vars', label: 'Nome da tag' }
+      }
+    },
+    {
+      id: 'update_contact',
+      name: 'Atualizar Contato',
+      description: 'Atualiza um campo do contato (nome, e-mail, telefone, tag ou campo personalizado) com o valor de uma variável — em tempo real',
+      icon: UserCog,
+      config: {
+        field: { type: 'select', label: 'Campo', options: CONTACT_FIELD_OPTIONS },
+        custom_key: { type: 'text', label: 'Nome do campo personalizado (só para "Campo personalizado")' },
+        value: { type: 'text_with_vars', label: 'Valor' }
       }
     },
     {
@@ -243,6 +288,17 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       config: {
         keywords: { type: 'array', label: 'Palavras-chave' },
         case_sensitive: { type: 'boolean', label: 'Sensível a maiúsculas' }
+      }
+    },
+    {
+      id: 'variable_condition',
+      name: 'Variável',
+      description: 'Continua o fluxo apenas se a variável satisfizer a condição (senão o fluxo para)',
+      icon: Variable,
+      config: {
+        variable: { type: 'variable', label: 'Variável' },
+        operator: { type: 'select', label: 'Condição', options: OPERATOR_OPTIONS },
+        value: { type: 'text', label: 'Valor (para "é igual a" / "contém")' }
       }
     }
   ];
@@ -399,6 +455,45 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
             rows={3}
           />
         );
+      case 'text_with_vars':
+        return (
+          <VariableTextField
+            value={value || ''}
+            onChange={onChange}
+            customVariables={customVariables}
+            placeholder={field.label}
+          />
+        );
+      case 'textarea_with_vars':
+        return (
+          <VariableTextField
+            value={value || ''}
+            onChange={onChange}
+            customVariables={customVariables}
+            multiline
+            placeholder={field.label}
+          />
+        );
+      case 'variable':
+        return (
+          <Select value={value || ''} onValueChange={onChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione a variável" />
+            </SelectTrigger>
+            <SelectContent>
+              {customVariables.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  Nenhuma variável de chatbot encontrada. Crie um chatbot que colete dados (nó "Fazer Pergunta").
+                </div>
+              )}
+              {customVariables.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {'{' + name + '}'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       case 'number':
         return (
           <Input
@@ -521,8 +616,15 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
   };
   
   const selectedStepData = selectedStep ? flow.steps.find(s => s.id === selectedStep) : null;
-  const selectedStepType = selectedStepData ? 
+  const selectedStepType = selectedStepData ?
     [...actionTypes, ...conditionTypes].find(t => t.id === selectedStepData.config.type) : null;
+
+  // Chave de ajuda contextual para a etapa selecionada (namespace action:/condition:).
+  const selectedStepHelpKey = selectedStepData?.config?.type
+    ? (actionTypes.some(a => a.id === selectedStepData.config.type)
+        ? `action:${selectedStepData.config.type}`
+        : `condition:${selectedStepData.config.type}`)
+    : null;
   
   return (
     <div className="flex h-[80vh] gap-4">
@@ -704,7 +806,10 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
         {flow.trigger_type && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Configurar Gatilho</CardTitle>
+              <CardTitle className="text-lg flex items-center justify-between">
+                Configurar Gatilho
+                <FeatureHelp helpKey={`trigger:${flow.trigger_type}`} />
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {(() => {
@@ -733,7 +838,10 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
         {selectedStepData && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Configurar Etapa</CardTitle>
+              <CardTitle className="text-lg flex items-center justify-between">
+                Configurar Etapa
+                {selectedStepHelpKey && <FeatureHelp helpKey={selectedStepHelpKey} />}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>

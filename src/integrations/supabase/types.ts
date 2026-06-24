@@ -1305,6 +1305,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          custom_fields: Json
           current_flow_step_id_temp: string | null
           current_stage_id: string | null
           email: string | null
@@ -1331,6 +1332,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          custom_fields?: Json
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
           email?: string | null
@@ -1357,6 +1359,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          custom_fields?: Json
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
           email?: string | null
