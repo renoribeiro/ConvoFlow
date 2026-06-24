@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,8 +102,6 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
     enabled: !!flowId
   });
 
-  const existingFlow = existingFlowData?.[0];
-  
   // Query para buscar templates de mensagem
   const { data: messageTemplates = [], refetch: refetchTemplates } = useSupabaseQuery({
     table: 'message_templates',
@@ -139,12 +137,30 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
     successMessage: flowId ? 'Fluxo atualizado!' : 'Fluxo criado!'
   });
   
-  // Carregar fluxo existente
-  useState(() => {
-    if (existingFlow && existingFlow.length > 0) {
-      setFlow(existingFlow[0]);
-    }
-  }, [existingFlow]);
+  // Carregar fluxo existente no formulário (ao editar).
+  useEffect(() => {
+    const row = existingFlowData?.[0] as Record<string, any> | undefined;
+    if (!row) return;
+
+    // steps/trigger_config são jsonb; toleramos legados salvos como string (JSON.stringify).
+    const parseJson = <T,>(value: unknown, fallback: T): T => {
+      if (value == null) return fallback;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value) as T; } catch { return fallback; }
+      }
+      return value as T;
+    };
+
+    setFlow({
+      id: row.id,
+      name: row.name ?? '',
+      description: row.description ?? '',
+      active: !!row.active,
+      trigger_type: row.trigger_type ?? '',
+      trigger_config: parseJson<Record<string, any>>(row.trigger_config, {}),
+      steps: parseJson<AutomationStep[]>(row.steps, []),
+    });
+  }, [existingFlowData]);
   
   const triggerTypes = [
     {
@@ -413,13 +429,15 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
         return;
       }
 
+      // steps/trigger_config são colunas JSONB — gravamos objeto/array direto.
+      // (Antes ia JSON.stringify, que dupla-codificava e quebrava o matching no backend.)
       const dataToSave = {
-        name: flow.name,
+        name: flow.name.trim(),
         description: flow.description || '',
         active: flow.active,
         trigger_type: flow.trigger_type,
-        steps: JSON.stringify(flow.steps),
-        trigger_config: JSON.stringify(flow.trigger_config)
+        steps: flow.steps,
+        trigger_config: flow.trigger_config
       };
       
       console.log('Dados para salvar:', dataToSave);
