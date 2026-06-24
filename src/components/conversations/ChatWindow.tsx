@@ -36,7 +36,6 @@ import {
   MoreVertical,
   AlertCircle,
   Edit,
-  User,
   Tag,
   RefreshCw,
   Archive,
@@ -66,6 +65,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
 import { uploadWhatsAppMedia, detectMediaTypeFromMime } from '@/services/whatsapp/media-upload';
 import { MessageBubble, type RenderableMessage } from './MessageBubble';
+import { LeadTagsDialog } from '@/components/etiquetas/LeadTagsDialog';
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -79,6 +79,7 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<RenderableMessage | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
@@ -98,6 +99,13 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const { data: conversation, isLoading: conversationLoading, error: conversationError } = useConversation(conversationId || '');
   const contact = conversation?.contacts;
   const contactId = conversation?.contact_id;
+  const contactTagIds = useMemo(
+    () =>
+      ((contact as any)?.contact_tags ?? [])
+        .map((ct: any) => ct.tags?.id)
+        .filter(Boolean) as string[],
+    [contact],
+  );
   const conversationInstanceId = (conversation as any)?.whatsapp_instance_id ?? null;
 
   // Active instance + adapter — resolvido pelo provider correto da instância vinculada
@@ -586,13 +594,12 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="w-4 h-4 mr-2" />
-                Ver Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsTagDialogOpen(true)}
+                disabled={!contactId}
+              >
                 <Tag className="w-4 h-4 mr-2" />
-                Alterar Etapa
+                Etiquetar
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -803,6 +810,15 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {contactId && (
+        <LeadTagsDialog
+          open={isTagDialogOpen}
+          onOpenChange={setIsTagDialogOpen}
+          contactId={contactId}
+          currentTagIds={contactTagIds}
+        />
+      )}
     </div>
   );
 };
