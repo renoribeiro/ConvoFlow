@@ -1,57 +1,36 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
 import { useTenantVariables } from '@/hooks/useTenantVariables';
-import { VariableTextField } from '@/components/shared/VariableTextField';
-import { FeatureHelp } from '@/components/shared/FeatureHelp';
+import { ZoomIn, ZoomOut, Maximize, MousePointerClick } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+import { AutomationAnalytics } from './AutomationAnalytics';
+import { StepCard } from './StepCard';
+import { FlowConnector } from './FlowConnector';
+import { StepConfigPanel } from './StepConfigPanel';
+import { BuilderHeader } from './BuilderHeader';
+import { EmptyBuilder } from './EmptyBuilder';
+import { useAutomationStats } from './useAutomationStats';
 import {
-  Workflow,
-  Plus,
-  Trash2,
-  Play,
-  Pause,
-  Settings,
-  MessageSquare,
-  Clock,
-  Users,
-  Target,
-  Mail,
-  Phone,
-  Calendar,
-  Filter,
-  ArrowRight,
-  Save,
-  X,
-  Variable,
-  UserCog
-} from 'lucide-react';
-
-// Opções de operador para gatilhos/condições baseados em variável.
-const OPERATOR_OPTIONS = [
-  { id: 'equals', name: 'é igual a' },
-  { id: 'contains', name: 'contém' },
-  { id: 'not_empty', name: 'está preenchida' },
-  { id: 'empty', name: 'está vazia' },
-];
-
-// Campos do contato que a ação "Atualizar Contato" pode escrever.
-const CONTACT_FIELD_OPTIONS = [
-  { id: 'name', name: 'Nome' },
-  { id: 'email', name: 'E-mail' },
-  { id: 'phone', name: 'Telefone' },
-  { id: 'tag', name: 'Tag' },
-  { id: 'custom', name: 'Campo personalizado' },
-];
+  getCatalogEntry,
+  UNKNOWN_ENTRY,
+  TRIGGERS,
+  type CatalogEntry,
+  type StepCategory,
+} from './automationCatalog';
+import { validateConfig, validateStep } from './stepValidation';
 
 interface AutomationStep {
   id: string;
@@ -76,6 +55,48 @@ interface AutomationBuilderProps {
   onClose: () => void;
 }
 
+const TRIGGER_SEL = '__trigger__';
+
+/** Resumo curto de uma etapa/gatilho para o subtítulo do card. */
+function summarize(
+  entry: CatalogEntry,
+  config: Record<string, any>,
+  ctx: { funnelStages: { id: string; name: string }[]; messageTemplates: { id: string; name: string }[] },
+): string {
+  const stageName = (id: string) => ctx.funnelStages.find((s) => s.id === id)?.name || '—';
+  const tplName = (id: string) => ctx.messageTemplates.find((t) => t.id === id)?.name || '—';
+  switch (entry.key) {
+    case 'send_message':
+      return config.custom_message?.trim() || (config.message_template_id ? `Template: ${tplName(config.message_template_id)}` : '');
+    case 'add_tag':
+      return config.tag_name ? `Tag: ${config.tag_name}` : '';
+    case 'update_contact':
+      return config.value ? `${config.field === 'custom' ? config.custom_key : config.field || 'campo'} = ${config.value}` : '';
+    case 'change_funnel_stage':
+      return config.stage_id ? `Para: ${stageName(config.stage_id)}` : '';
+    case 'schedule_followup':
+      return config.delay_hours ? `${config.followup_type || 'whatsapp'} em ${config.delay_hours}h` : '';
+    case 'delay':
+      return config.delay_value ? `Aguardar ${config.delay_value} ${config.delay_type || ''}` : '';
+    case 'variable_condition':
+      return config.variable ? `{${config.variable}} ${config.operator || ''} ${config.value || ''}`.trim() : '';
+    case 'contact_has_tag':
+      return config.tag_name ? `Tem tag: ${config.tag_name}` : '';
+    case 'contact_in_stage':
+      return config.stage_id ? `Em: ${stageName(config.stage_id)}` : '';
+    case 'message_contains':
+      return Array.isArray(config.keywords) && config.keywords.length ? config.keywords.join(', ') : '';
+    case 'variable_captured':
+      return config.variable_name ? `Quando {${config.variable_name}} for capturada` : '';
+    case 'message_received':
+      return Array.isArray(config.keywords) && config.keywords.length ? `Palavras: ${config.keywords.join(', ')}` : 'Qualquer mensagem';
+    case 'funnel_stage_changed':
+      return config.to_stage ? `→ ${stageName(config.to_stage)}` : '';
+    default:
+      return '';
+  }
+}
+
 export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) => {
   const [flow, setFlow] = useState<AutomationFlow>({
     name: '',
@@ -83,66 +104,48 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
     active: false,
     steps: [],
     trigger_type: '',
-    trigger_config: {}
+    trigger_config: {},
   });
-  
   const [selectedStep, setSelectedStep] = useState<string | null>(null);
-  const [draggedStep, setDraggedStep] = useState<string | null>(null);
   const [attemptedSave, setAttemptedSave] = useState(false);
-  
+  const [zoom, setZoom] = useState(1);
+  const [showHistory, setShowHistory] = useState(false);
+
   const { toast } = useToast();
   const { customVariables } = useTenantVariables();
+  const { byFlow } = useAutomationStats();
 
-  // Query para buscar o fluxo existente
   const { data: existingFlowData } = useSupabaseQuery({
     table: 'automation_flows',
     queryKey: ['automation-flow', flowId],
     select: '*',
     filters: flowId ? [{ column: 'id', operator: 'eq', value: flowId }] : [],
-    enabled: !!flowId
+    enabled: !!flowId,
   });
 
-  // Query para buscar templates de mensagem
-  const { data: messageTemplates = [], refetch: refetchTemplates } = useSupabaseQuery({
+  const { data: messageTemplates = [] } = useSupabaseQuery({
     table: 'message_templates',
     queryKey: ['message-templates'],
-    select: 'id, name, content'
+    select: 'id, name, content',
   });
-  
-  // Estados para criação de novo template
-  const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
-  const [newTemplateName, setNewTemplateName] = useState('');
-  const [newTemplateContent, setNewTemplateContent] = useState('');
-  
-  // Mutation para criar novo template
-  const createTemplateMutation = useSupabaseMutation({
-    table: 'message_templates',
-    operation: 'insert',
-    invalidateQueries: [['message-templates']],
-    successMessage: 'Template criado com sucesso!'
-  });
-  
-  // Query para buscar estágios do funil
+
   const { data: funnelStages = [] } = useSupabaseQuery({
     table: 'funnel_stages',
     queryKey: ['funnel-stages'],
-    select: 'id, name, color'
+    select: 'id, name, color',
   });
-  
-  // Mutation para salvar fluxo
+
   const saveFlowMutation = useSupabaseMutation({
     table: 'automation_flows',
     operation: flowId ? 'update' : 'insert',
     invalidateQueries: [['automation-flows']],
-    successMessage: flowId ? 'Fluxo atualizado!' : 'Fluxo criado!'
+    successMessage: flowId ? 'Fluxo atualizado!' : 'Fluxo criado!',
   });
-  
-  // Carregar fluxo existente no formulário (ao editar).
+
+  // Carregar fluxo existente (ao editar) — tolera jsonb legado salvo como string.
   useEffect(() => {
     const row = existingFlowData?.[0] as Record<string, any> | undefined;
     if (!row) return;
-
-    // steps/trigger_config são jsonb; toleramos legados salvos como string (JSON.stringify).
     const parseJson = <T,>(value: unknown, fallback: T): T => {
       if (value == null) return fallback;
       if (typeof value === 'string') {
@@ -150,7 +153,6 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       }
       return value as T;
     };
-
     setFlow({
       id: row.id,
       name: row.name ?? '',
@@ -161,751 +163,247 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
       steps: parseJson<AutomationStep[]>(row.steps, []),
     });
   }, [existingFlowData]);
-  
-  const triggerTypes = [
-    {
-      id: 'message_received',
-      name: 'Mensagem Recebida',
-      description: 'Acionado quando uma nova mensagem é recebida',
-      icon: MessageSquare,
-      config: {
-        keywords: { type: 'array', label: 'Palavras-chave' },
-        exact_match: { type: 'boolean', label: 'Correspondência exata' }
-      }
-    },
-    {
-      id: 'contact_created',
-      name: 'Novo Contato',
-      description: 'Acionado quando um novo contato é criado',
-      icon: Users,
-      config: {
-        source: { type: 'select', label: 'Fonte', options: ['whatsapp', 'website', 'manual'] }
-      }
-    },
-    {
-      id: 'funnel_stage_changed',
-      name: 'Mudança de Estágio',
-      description: 'Acionado quando um contato muda de estágio no funil',
-      icon: Target,
-      config: {
-        from_stage: { type: 'select', label: 'Do estágio', options: funnelStages },
-        to_stage: { type: 'select', label: 'Para o estágio', options: funnelStages }
-      }
-    },
-    {
-      id: 'scheduled_time',
-      name: 'Horário Agendado',
-      description: 'Acionado em horários específicos',
-      icon: Clock,
-      config: {
-        schedule_type: { type: 'select', label: 'Tipo', options: ['daily', 'weekly', 'monthly'] },
-        time: { type: 'time', label: 'Horário' }
-      }
-    },
-    {
-      id: 'variable_captured',
-      name: 'Variável Capturada',
-      description: 'Acionado em tempo real quando o chatbot captura ou atualiza uma variável (ex.: o nome do lead)',
-      icon: Variable,
-      config: {
-        variable_name: { type: 'variable', label: 'Variável' },
-        operator: { type: 'select', label: 'Condição (opcional)', options: OPERATOR_OPTIONS },
-        value: { type: 'text', label: 'Valor (apenas se "é igual a" / "contém")' }
-      }
-    }
-  ];
-  
-  const actionTypes = [
-    {
-      id: 'send_message',
-      name: 'Enviar Mensagem',
-      description: 'Enviar mensagem via WhatsApp',
-      icon: MessageSquare,
-      config: {
-        message_template_id: { type: 'select', label: 'Template', options: messageTemplates },
-        custom_message: { type: 'textarea_with_vars', label: 'Mensagem personalizada' }
-      }
-    },
-    {
-      id: 'change_funnel_stage',
-      name: 'Alterar Estágio',
-      description: 'Mover contato para outro estágio do funil',
-      icon: Target,
-      config: {
-        stage_id: { type: 'select', label: 'Novo estágio', options: funnelStages }
-      }
-    },
-    {
-      id: 'schedule_followup',
-      name: 'Agendar Follow-up',
-      description: 'Criar um follow-up automático',
-      icon: Calendar,
-      config: {
-        delay_hours: { type: 'number', label: 'Atraso (horas)' },
-        followup_type: { type: 'select', label: 'Tipo', options: ['call', 'whatsapp', 'email'] },
-        message: { type: 'textarea_with_vars', label: 'Mensagem' }
-      }
-    },
-    {
-      id: 'add_tag',
-      name: 'Adicionar Tag',
-      description: 'Adicionar tag ao contato',
-      icon: Filter,
-      config: {
-        tag_name: { type: 'text_with_vars', label: 'Nome da tag' }
-      }
-    },
-    {
-      id: 'update_contact',
-      name: 'Atualizar Contato',
-      description: 'Atualiza um campo do contato (nome, e-mail, telefone, tag ou campo personalizado) com o valor de uma variável — em tempo real',
-      icon: UserCog,
-      config: {
-        field: { type: 'select', label: 'Campo', options: CONTACT_FIELD_OPTIONS },
-        custom_key: { type: 'text', label: 'Nome do campo personalizado (só para "Campo personalizado")' },
-        value: { type: 'text_with_vars', label: 'Valor' }
-      }
-    },
-    {
-      id: 'delay',
-      name: 'Aguardar',
-      description: 'Adicionar um atraso antes da próxima ação',
-      icon: Clock,
-      config: {
-        delay_type: { type: 'select', label: 'Tipo', options: ['minutes', 'hours', 'days'] },
-        delay_value: { type: 'number', label: 'Valor' }
-      }
-    }
-  ];
-  
-  const conditionTypes = [
-    {
-      id: 'contact_has_tag',
-      name: 'Contato tem Tag',
-      description: 'Verificar se o contato possui uma tag específica',
-      icon: Filter,
-      config: {
-        tag_name: { type: 'text', label: 'Nome da tag' }
-      }
-    },
-    {
-      id: 'contact_in_stage',
-      name: 'Contato no Estágio',
-      description: 'Verificar se o contato está em um estágio específico',
-      icon: Target,
-      config: {
-        stage_id: { type: 'select', label: 'Estágio', options: funnelStages }
-      }
-    },
-    {
-      id: 'message_contains',
-      name: 'Mensagem Contém',
-      description: 'Verificar se a mensagem contém palavras específicas',
-      icon: MessageSquare,
-      config: {
-        keywords: { type: 'array', label: 'Palavras-chave' },
-        case_sensitive: { type: 'boolean', label: 'Sensível a maiúsculas' }
-      }
-    },
-    {
-      id: 'variable_condition',
-      name: 'Variável',
-      description: 'Continua o fluxo apenas se a variável satisfizer a condição (senão o fluxo para)',
-      icon: Variable,
-      config: {
-        variable: { type: 'variable', label: 'Variável' },
-        operator: { type: 'select', label: 'Condição', options: OPERATOR_OPTIONS },
-        value: { type: 'text', label: 'Valor (para "é igual a" / "contém")' }
-      }
-    }
-  ];
-  
-  const addStep = (type: 'action' | 'condition' | 'delay') => {
+
+  // ---- mutações de estado ----
+  const updateStepConfig = (stepId: string, key: string, value: any) => {
+    setFlow((prev) => ({
+      ...prev,
+      steps: prev.steps.map((s) => (s.id === stepId ? { ...s, config: { ...s.config, [key]: value } } : s)),
+    }));
+  };
+
+  const setStepSubtype = (stepId: string, subtype: string) => {
+    const entry = getCatalogEntry(subtype);
+    setFlow((prev) => ({
+      ...prev,
+      steps: prev.steps.map((s) =>
+        s.id === stepId
+          ? { ...s, type: (entry?.category ?? s.type) as AutomationStep['type'], config: { ...s.config, type: subtype } }
+          : s,
+      ),
+    }));
+  };
+
+  const handleInsert = (index: number, subtype: string) => {
+    const entry = getCatalogEntry(subtype);
+    if (!entry) return;
     const newStep: AutomationStep = {
       id: `step_${Date.now()}`,
-      type,
-      config: {},
-      position: { x: 0, y: flow.steps.length * 120 + 150 },
-      connections: []
+      type: entry.category as AutomationStep['type'],
+      config: { type: subtype },
+      position: { x: 0, y: 0 },
+      connections: [],
     };
-    
-    setFlow(prev => ({
-      ...prev,
-      steps: [...prev.steps, newStep]
-    }));
+    setFlow((prev) => {
+      const steps = [...prev.steps];
+      steps.splice(index, 0, newStep);
+      return { ...prev, steps };
+    });
+    setSelectedStep(newStep.id);
   };
-  
+
   const removeStep = (stepId: string) => {
-    setFlow(prev => ({
-      ...prev,
-      steps: prev.steps.filter(step => step.id !== stepId)
-    }));
-    
-    if (selectedStep === stepId) {
-      setSelectedStep(null);
-    }
+    setFlow((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== stepId) }));
+    if (selectedStep === stepId) setSelectedStep(null);
   };
-  
-  const updateStep = (stepId: string, updates: Partial<AutomationStep>) => {
-    setFlow(prev => ({
-      ...prev,
-      steps: prev.steps.map(step => 
-        step.id === stepId ? { ...step, ...updates } : step
-      )
-    }));
-  };
-  
-  const updateStepConfig = (stepId: string, key: string, value: any) => {
-    setFlow(prev => ({
-      ...prev,
-      steps: prev.steps.map(step => 
-        step.id === stepId 
-          ? { ...step, config: { ...step.config, [key]: value } }
-          : step
-      )
-    }));
-  };
-  
-  const createNewTemplate = async () => {
-    if (!newTemplateName.trim() || !newTemplateContent.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'Nome e conteúdo do template são obrigatórios',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      const templateData = {
-        name: newTemplateName.trim(),
-        content: newTemplateContent.trim(),
-        type: 'text',
-        channel: 'whatsapp',
-        category: 'automation',
-        status: 'active'
-      };
-      
-      const result = await createTemplateMutation.mutateAsync({ data: templateData });
-      
-      // Limpar formulário
-      setNewTemplateName('');
-      setNewTemplateContent('');
-      setShowNewTemplateForm(false);
-      
-      // Atualizar lista de templates
-      await refetchTemplates();
-      
-      // Selecionar o novo template criado
-      if (selectedStep && result?.data?.[0]?.id) {
-        updateStepConfig(selectedStep, 'message_template_id', result.data[0].id);
-      }
-      
-    } catch (error) {
-      console.error('Erro ao criar template:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar template de mensagem',
-        variant: 'destructive'
-      });
-    }
+
+  const handleTriggerChange = (triggerType: string) => {
+    setFlow((prev) => ({ ...prev, trigger_type: triggerType, trigger_config: {} }));
+    setSelectedStep(TRIGGER_SEL);
   };
 
   const handleSave = async () => {
     try {
       setAttemptedSave(true);
-
       const missing: string[] = [];
-      if (!flow.name.trim()) missing.push('dê um nome ao fluxo (campo no topo)');
+      if (!flow.name.trim()) missing.push('dê um nome ao fluxo');
       if (!flow.trigger_type) missing.push('escolha um gatilho');
       if (flow.steps.length === 0) missing.push('adicione pelo menos uma etapa');
-
       if (missing.length > 0) {
-        toast({
-          title: 'Faltou preencher',
-          description: `Para salvar: ${missing.join('; ')}.`,
-          variant: 'destructive'
-        });
+        toast({ title: 'Faltou preencher', description: `Para salvar: ${missing.join('; ')}.`, variant: 'destructive' });
         return;
       }
 
-      // steps/trigger_config são colunas JSONB — gravamos objeto/array direto.
-      // (Antes ia JSON.stringify, que dupla-codificava e quebrava o matching no backend.)
       const dataToSave = {
         name: flow.name.trim(),
         description: flow.description || '',
         active: flow.active,
         trigger_type: flow.trigger_type,
         steps: flow.steps,
-        trigger_config: flow.trigger_config
+        trigger_config: flow.trigger_config,
       };
-      
-      console.log('Dados para salvar:', dataToSave);
-      
+
       if (flowId) {
-        await saveFlowMutation.mutateAsync({
-          data: dataToSave,
-          options: { filter: { column: 'id', operator: 'eq', value: flowId } }
-        });
+        await saveFlowMutation.mutateAsync({ data: dataToSave, options: { filter: { column: 'id', operator: 'eq', value: flowId } } });
       } else {
         await saveFlowMutation.mutateAsync({ data: dataToSave });
       }
-      
       onClose();
-    } catch (error) {
-      console.error('Erro ao salvar fluxo:', error);
-      toast({
-        title: 'Erro',
-        description: `Erro ao salvar fluxo de automação: ${error.message || 'Erro desconhecido'}`,
-        variant: 'destructive'
-      });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: `Erro ao salvar fluxo: ${error?.message || 'desconhecido'}`, variant: 'destructive' });
     }
   };
-  
-  const renderConfigField = (field: any, value: any, onChange: (value: any) => void) => {
-    switch (field.type) {
-      case 'text':
-        return (
-          <Input
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.label}
-          />
-        );
-      case 'textarea':
-        return (
-          <Textarea
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.label}
-            rows={3}
-          />
-        );
-      case 'text_with_vars':
-        return (
-          <VariableTextField
-            value={value || ''}
-            onChange={onChange}
-            customVariables={customVariables}
-            placeholder={field.label}
-          />
-        );
-      case 'textarea_with_vars':
-        return (
-          <VariableTextField
-            value={value || ''}
-            onChange={onChange}
-            customVariables={customVariables}
-            multiline
-            placeholder={field.label}
-          />
-        );
-      case 'variable':
-        return (
-          <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a variável" />
-            </SelectTrigger>
-            <SelectContent>
-              {customVariables.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                  Nenhuma variável de chatbot encontrada. Crie um chatbot que colete dados (nó "Fazer Pergunta").
-                </div>
-              )}
-              {customVariables.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {'{' + name + '}'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      case 'number':
-        return (
-          <Input
-            type="number"
-            value={value || ''}
-            onChange={(e) => onChange(Number(e.target.value))}
-            placeholder={field.label}
-          />
-        );
-      case 'boolean':
-        return (
-          <div className="flex items-center space-x-2">
-            <Switch
-              checked={value || false}
-              onCheckedChange={onChange}
-            />
-            <Label>{field.label}</Label>
-          </div>
-        );
-      case 'select':
-        // Verificar se é o campo de template de mensagem para adicionar funcionalidade especial
-        if (field.label === 'Template') {
-          return (
-            <div className="space-y-2">
-              <Select value={value || ''} onValueChange={onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Selecione ${field.label.toLowerCase()}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {field.options?.map((option: any) => (
-                    <SelectItem key={option.id || option} value={option.id || option}>
-                      {option.name || option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {/* Botão para adicionar novo template */}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setShowNewTemplateForm(!showNewTemplateForm)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {showNewTemplateForm ? 'Cancelar' : 'Criar Novo Template'}
-              </Button>
-              
-              {/* Formulário para criar novo template */}
-              {showNewTemplateForm && (
-                <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
-                  <div>
-                    <Label>Nome do Template</Label>
-                    <Input
-                      value={newTemplateName}
-                      onChange={(e) => setNewTemplateName(e.target.value)}
-                      placeholder="Digite o nome do template"
-                    />
-                  </div>
-                  <div>
-                    <Label>Conteúdo</Label>
-                    <Textarea
-                      value={newTemplateContent}
-                      onChange={(e) => setNewTemplateContent(e.target.value)}
-                      placeholder="Digite o conteúdo da mensagem..."
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={createNewTemplate}
-                      disabled={createTemplateMutation.isPending || !newTemplateName.trim() || !newTemplateContent.trim()}
-                      className="flex-1"
-                    >
-                      {createTemplateMutation.isPending ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
-                          Criando...
-                        </>
-                      ) : (
-                        'Criar Template'
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        }
-        
-        // Renderização padrão para outros selects
-        return (
-          <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger>
-              <SelectValue placeholder={`Selecione ${field.label.toLowerCase()}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options?.map((option: any) => (
-                <SelectItem key={option.id || option} value={option.id || option}>
-                  {option.name || option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      case 'array':
-        return (
-          <Input
-            value={Array.isArray(value) ? value.join(', ') : ''}
-            onChange={(e) => onChange(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-            placeholder={`${field.label} (separadas por vírgula)`}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-  
-  const selectedStepData = selectedStep ? flow.steps.find(s => s.id === selectedStep) : null;
-  const selectedStepType = selectedStepData ?
-    [...actionTypes, ...conditionTypes].find(t => t.id === selectedStepData.config.type) : null;
 
-  // Chave de ajuda contextual para a etapa selecionada (namespace action:/condition:).
-  const selectedStepHelpKey = selectedStepData?.config?.type
-    ? (actionTypes.some(a => a.id === selectedStepData.config.type)
-        ? `action:${selectedStepData.config.type}`
-        : `condition:${selectedStepData.config.type}`)
-    : null;
-  
-  return (
-    <div className="flex h-[80vh] gap-4">
-      {/* Canvas Principal */}
-      <div className="flex-1 bg-muted/20 rounded-lg p-4 relative overflow-auto">
-        <div className="absolute top-4 left-4 right-4 z-10">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="space-y-1">
-                    <Input
-                      value={flow.name}
-                      onChange={(e) => setFlow(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Nome do fluxo de automação *"
-                      className={`font-medium ${attemptedSave && !flow.name.trim() ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-                    />
-                    {attemptedSave && !flow.name.trim() && (
-                      <p className="text-xs text-destructive">Dê um nome para o fluxo antes de salvar.</p>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      checked={flow.active}
-                      onCheckedChange={(checked) => setFlow(prev => ({ ...prev, active: checked }))}
-                    />
-                    <Label>Ativo</Label>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button onClick={handleSave} disabled={saveFlowMutation.isPending}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {saveFlowMutation.isPending ? 'Salvando...' : 'Salvar'}
-                  </Button>
-                  <Button variant="outline" onClick={onClose}>
-                    <X className="h-4 w-4 mr-2" />
-                    Fechar
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+  // ---- dados derivados ----
+  const triggerEntry = getCatalogEntry(flow.trigger_type);
+  const ctx = { funnelStages, messageTemplates };
+  const stat = flowId ? byFlow.get(flowId) : undefined;
+
+  // painel: gatilho ou etapa selecionada
+  const selectedStepObj = selectedStep && selectedStep !== TRIGGER_SEL ? flow.steps.find((s) => s.id === selectedStep) : null;
+  const selectedEntry =
+    selectedStep === TRIGGER_SEL
+      ? triggerEntry
+      : selectedStepObj
+        ? getCatalogEntry(selectedStepObj.config.type) ?? UNKNOWN_ENTRY
+        : null;
+
+  const renderPanel = () => {
+    if (selectedStep === TRIGGER_SEL && triggerEntry) {
+      return (
+        <div className="flex h-full flex-col">
+          <div className="border-b p-3">
+            <Label className="text-xs">Tipo de gatilho</Label>
+            <Select value={flow.trigger_type} onValueChange={handleTriggerChange}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TRIGGERS.map((t) => (
+                  <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <StepConfigPanel
+              entry={triggerEntry}
+              config={flow.trigger_config}
+              onChange={(key, value) => setFlow((prev) => ({ ...prev, trigger_config: { ...prev.trigger_config, [key]: value } }))}
+              funnelStages={funnelStages}
+              messageTemplates={messageTemplates}
+              customVariables={customVariables}
+              attemptedSave={attemptedSave}
+            />
+          </div>
         </div>
-        
-        {/* Área do Canvas */}
-        <div className="mt-20 min-h-[600px] relative">
-          {/* Gatilho */}
-          <Card className="absolute top-0 left-1/2 transform -translate-x-1/2 w-64">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Play className="h-4 w-4 text-green-500" />
-                Gatilho
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select 
-                value={flow.trigger_type} 
-                onValueChange={(value) => setFlow(prev => ({ ...prev, trigger_type: value, trigger_config: {} }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um gatilho" />
-                </SelectTrigger>
-                <SelectContent>
-                  {triggerTypes.map((trigger) => (
-                    <SelectItem key={trigger.id} value={trigger.id}>
-                      {trigger.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-          
-          {/* Seta do gatilho */}
-          {flow.trigger_type && (
-            <div className="absolute top-24 left-1/2 transform -translate-x-1/2">
-              <ArrowRight className="h-6 w-6 text-muted-foreground rotate-90" />
+      );
+    }
+    if (selectedStepObj && selectedEntry) {
+      return (
+        <StepConfigPanel
+          entry={selectedEntry}
+          config={selectedStepObj.config}
+          onChange={(key, value) => updateStepConfig(selectedStepObj.id, key, value)}
+          onChangeType={(subtype) => setStepSubtype(selectedStepObj.id, subtype)}
+          funnelStages={funnelStages}
+          messageTemplates={messageTemplates}
+          customVariables={customVariables}
+          attemptedSave={attemptedSave}
+        />
+      );
+    }
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
+        <MousePointerClick className="h-6 w-6 opacity-50" />
+        <p>Clique no gatilho ou em uma etapa para configurar.</p>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-7rem)] flex-col gap-3">
+      <BuilderHeader
+        name={flow.name}
+        onNameChange={(v) => setFlow((p) => ({ ...p, name: v }))}
+        nameInvalid={attemptedSave && !flow.name.trim()}
+        active={flow.active}
+        onActiveChange={(v) => setFlow((p) => ({ ...p, active: v }))}
+        stat={stat}
+        onSave={handleSave}
+        saving={saveFlowMutation.isPending}
+        onClose={onClose}
+        onHistory={() => (flowId ? setShowHistory(true) : toast({ title: 'Salve o fluxo primeiro', description: 'O histórico aparece depois que o fluxo é salvo.' }))}
+      />
+
+      <div className="flex flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
+        {/* Canvas */}
+        <div className="relative flex-1 overflow-auto rounded-xl border bg-muted/20 bg-dot-thick-neutral-300 dark:bg-dot-thick-neutral-800">
+          {!flow.trigger_type ? (
+            <EmptyBuilder onPick={handleTriggerChange} />
+          ) : (
+            <div className="origin-top transition-transform" style={{ transform: `scale(${zoom})` }}>
+              <div className="flex flex-col items-center gap-0 py-8">
+                {/* Gatilho */}
+                {triggerEntry && (
+                  <StepCard
+                    isTrigger
+                    category="trigger"
+                    Icon={triggerEntry.Icon}
+                    title={triggerEntry.label}
+                    subtitle={summarize(triggerEntry, flow.trigger_config, ctx) || triggerEntry.description}
+                    status={validateConfig(triggerEntry, flow.trigger_config).complete ? 'complete' : 'incomplete'}
+                    selected={selectedStep === TRIGGER_SEL}
+                    onClick={() => setSelectedStep(TRIGGER_SEL)}
+                  />
+                )}
+
+                {/* Etapas */}
+                {flow.steps.map((step, i) => {
+                  const entry = getCatalogEntry(step.config.type) ?? UNKNOWN_ENTRY;
+                  const v = validateStep(step);
+                  return (
+                    <div key={step.id} className="flex flex-col items-center">
+                      <FlowConnector active={flow.active} onInsert={(sub) => handleInsert(i, sub)} />
+                      <StepCard
+                        category={(entry.category as StepCategory) ?? 'action'}
+                        Icon={entry.Icon}
+                        title={entry.label}
+                        subtitle={summarize(entry, step.config, ctx) || entry.description}
+                        status={v.complete ? 'complete' : 'incomplete'}
+                        selected={selectedStep === step.id}
+                        onClick={() => setSelectedStep(step.id)}
+                        onDelete={() => removeStep(step.id)}
+                      />
+                    </div>
+                  );
+                })}
+
+                {/* Conector final (adicionar etapa) */}
+                <FlowConnector active={flow.active} onInsert={(sub) => handleInsert(flow.steps.length, sub)} />
+              </div>
             </div>
           )}
-          
-          {/* Steps */}
-          {flow.steps.map((step, index) => {
-            const stepType = [...actionTypes, ...conditionTypes].find(t => t.id === step.config.type);
-            const Icon = stepType?.icon || Settings;
-            
-            return (
-              <div key={step.id}>
-                <Card 
-                  className={`absolute w-64 cursor-pointer transition-all hover:shadow-md ${
-                    selectedStep === step.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  style={{
-                    top: step.position.y,
-                    left: '50%',
-                    transform: 'translateX(-50%)'
-                  }}
-                  onClick={() => setSelectedStep(step.id)}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Icon className="h-4 w-4" />
-                        {stepType?.name || 'Configurar'}
-                      </CardTitle>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeStep(step.id);
-                        }}
-                        className="h-6 w-6 p-0"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground">
-                      {stepType?.description || 'Clique para configurar'}
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                {/* Seta para próximo step */}
-                {index < flow.steps.length - 1 && (
-                  <div 
-                    className="absolute"
-                    style={{
-                      top: step.position.y + 80,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      zIndex: 1
-                    }}
-                  >
-                    <ArrowRight className="h-6 w-6 text-muted-foreground rotate-90" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+
+          {/* Controles de zoom */}
+          {flow.trigger_type && (
+            <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
+              <button className="p-1.5 hover:bg-muted" title="Aproximar" aria-label="Aproximar" onClick={() => setZoom((z) => Math.min(1.3, +(z + 0.1).toFixed(2)))}>
+                <ZoomIn className="h-4 w-4" />
+              </button>
+              <button className="p-1.5 hover:bg-muted" title="Resetar zoom" aria-label="Resetar zoom" onClick={() => setZoom(1)}>
+                <Maximize className="h-4 w-4" />
+              </button>
+              <button className="p-1.5 hover:bg-muted" title="Afastar" aria-label="Afastar" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))}>
+                <ZoomOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Painel lateral */}
+        <aside className="shrink-0 overflow-hidden rounded-xl border bg-card lg:w-80">
+          {renderPanel()}
+        </aside>
       </div>
-      
-      {/* Painel Lateral */}
-      <div className="w-80 space-y-4">
-        {/* Adicionar Steps */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Adicionar Etapa</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => addStep('action')}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Ação
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => addStep('condition')}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Condição
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => addStep('delay')}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Atraso
-            </Button>
-          </CardContent>
-        </Card>
-        
-        {/* Configuração do Gatilho */}
-        {flow.trigger_type && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center justify-between">
-                Configurar Gatilho
-                <FeatureHelp helpKey={`trigger:${flow.trigger_type}`} />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(() => {
-                const trigger = triggerTypes.find(t => t.id === flow.trigger_type);
-                if (!trigger) return null;
-                
-                return Object.entries(trigger.config).map(([key, field]) => (
-                  <div key={key}>
-                    <Label>{field.label}</Label>
-                    {renderConfigField(
-                      field,
-                      flow.trigger_config[key],
-                      (value) => setFlow(prev => ({
-                        ...prev,
-                        trigger_config: { ...prev.trigger_config, [key]: value }
-                      }))
-                    )}
-                  </div>
-                ));
-              })()}
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Configuração do Step Selecionado */}
-        {selectedStepData && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center justify-between">
-                Configurar Etapa
-                {selectedStepHelpKey && <FeatureHelp helpKey={selectedStepHelpKey} />}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Tipo de Etapa</Label>
-                <Select 
-                  value={selectedStepData.config.type || ''} 
-                  onValueChange={(value) => updateStepConfig(selectedStep!, 'type', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(selectedStepData.type === 'action' ? actionTypes : conditionTypes).map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {selectedStepType && Object.entries(selectedStepType.config).map(([key, field]) => (
-                <div key={key}>
-                  <Label>{field.label}</Label>
-                  {renderConfigField(
-                    field,
-                    selectedStepData.config[key],
-                    (value) => updateStepConfig(selectedStep!, key, value)
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+
+      {/* Histórico */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Histórico de execuções</DialogTitle>
+          </DialogHeader>
+          {flowId && <AutomationAnalytics flowId={flowId} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
