@@ -140,7 +140,7 @@ export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps
         </div>
 
         <div>
-          <Label>Tags</Label>
+          <Label>Etiquetas</Label>
           {tagsLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-6 w-full" />

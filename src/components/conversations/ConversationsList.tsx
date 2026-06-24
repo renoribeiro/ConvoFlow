@@ -16,6 +16,7 @@ import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
 import { InstanceSelector } from './InstanceSelector';
 import { pickMessagePreview } from './MessageBubble';
+import { TagBadge } from '@/components/etiquetas/TagBadge';
 
 interface ConversationsListProps {
   searchQuery: string;
@@ -102,6 +103,9 @@ export const ConversationsList = ({
       is_group: isGroup,
       contact_source: conv.contacts?.lead_sources?.name || null,
       contact_current_stage: (conv.contacts as any)?.funnel_stages?.name || conv.contacts?.stage?.name || null,
+      tags: (conv.contacts?.contact_tags ?? [])
+        .map((ct: any) => ct.tags)
+        .filter(Boolean) as Array<{ id: string; name: string; color: string }>,
     };
   });
 
@@ -213,7 +217,7 @@ export const ConversationsList = ({
                     </p>
 
                     <div className="flex items-center justify-between">
-                      <div className="flex gap-1 min-w-0">
+                      <div className="flex gap-1 min-w-0 flex-wrap">
                         {conversation.contact_source && (
                           <Badge variant="secondary" className="text-xs truncate max-w-[80px]">
                             {conversation.contact_source}
@@ -222,6 +226,14 @@ export const ConversationsList = ({
                         {conversation.contact_current_stage && (
                           <Badge variant="outline" className="text-xs truncate max-w-[80px]">
                             {conversation.contact_current_stage}
+                          </Badge>
+                        )}
+                        {conversation.tags.slice(0, 2).map((tag) => (
+                          <TagBadge key={tag.id} name={tag.name} color={tag.color} />
+                        ))}
+                        {conversation.tags.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{conversation.tags.length - 2}
                           </Badge>
                         )}
                       </div>

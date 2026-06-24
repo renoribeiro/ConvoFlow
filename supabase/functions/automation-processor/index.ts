@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createLogger } from '../_shared/logger.ts';
 import { corsHeaders } from '../_shared/validation.ts';
+import { buildSendMessageJobData, normalizeTagName } from '../_shared/automation-actions.ts';
 
 interface AutomationTrigger {
   type: string;
@@ -425,7 +426,14 @@ async function executeStepByType(
   }
 }
 
-// Função para agendar envio de mensagem
+// Função para enviar mensagem via job_queue.
+//
+// O envio NÃO é feito aqui: enfileiramos um job 'send_message' em `job_queue`
+// (via RPC enqueue_job), que é consumido pelo `job-worker`. O worker resolve a
+// instância por `instance_key`, instancia o provider via ProviderFactory
+// (Evolution/WAHA/Meta Cloud) e faz o gate autoritativo da janela de 24h.
+// O payload precisa casar EXATAMENTE com `processSendMessage` do job-worker:
+// { instanceName (= instance_key), phone, message, contactId }.
 async function scheduleSendMessage(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
@@ -433,16 +441,14 @@ async function scheduleSendMessage(
   logger: any
 ): Promise<boolean> {
   try {
+    // 1. Resolver o conteúdo: template aprovado ou mensagem personalizada.
     let messageContent = '';
-
-    // Verificar se há template ou mensagem personalizada
     if (stepConfig.message_template_id) {
       const { data: template } = await supabaseClient
         .from('message_templates')
         .select('content')
         .eq('id', stepConfig.message_template_id)
-        .single();
-
+        .maybeSingle();
       if (template) {
         messageContent = template.content;
       }
@@ -451,66 +457,92 @@ async function scheduleSendMessage(
     }
 
     if (!messageContent) {
-      logger.error('No message content found');
+      logger.error('send_message: nenhum conteúdo de mensagem encontrado', { contactId });
       return false;
     }
 
-    // Gate de janela de 24h — bloqueio proativo para instâncias oficiais (Meta Cloud API).
-    // Cf. meta-cloud-api/SKILL.md §8.3 e whatsapp-policies/SKILL.md §1.2.
-    // Resolve instância pelo contato e verifica se é official antes de enfileirar.
-    // Fail-open: se não conseguirmos resolver a instância, deixamos prosseguir
-    // (o job-worker fará a verificação novamente antes do envio real).
-    try {
-      const { data: contact } = await supabaseClient
-        .from('contacts')
-        .select('phone, whatsapp_instance_id')
-        .eq('id', contactId)
-        .maybeSingle();
+    // 2. Resolver o contato → tenant, telefone e instância associada.
+    //    service_role ignora RLS; precisamos do tenant_id explícito para o job.
+    const { data: contact, error: contactErr } = await supabaseClient
+      .from('contacts')
+      .select('tenant_id, phone, whatsapp_instance_id')
+      .eq('id', contactId)
+      .maybeSingle();
 
-      if (contact?.whatsapp_instance_id && contact?.phone) {
-        const { data: inst } = await supabaseClient
-          .from('whatsapp_instances')
-          .select('id, provider')
-          .eq('id', contact.whatsapp_instance_id)
-          .maybeSingle();
-
-        if (inst && (inst.provider ?? 'evolution') === 'official') {
-          const { data: withinWindow, error: windowError } = await supabaseClient.rpc(
-            'is_within_service_window',
-            { p_instance_id: inst.id, p_phone: contact.phone }
-          );
-          if (windowError) {
-            logger.warn('Automation: is_within_service_window RPC falhou — fail-open', {
-              instanceId: inst.id,
-              error: windowError.message,
-            });
-          } else if (withinWindow === false) {
-            logger.warn('Automation: envio proativo bloqueado — fora da janela de 24h (instância oficial)', {
-              contactId,
-              instanceId: inst.id,
-            });
-            return false;
-          }
-        }
-      }
-    } catch (windowCheckErr: any) {
-      logger.warn('Automation: verificação de janela de 24h falhou — fail-open', {
-        error: windowCheckErr.message,
+    if (contactErr || !contact?.tenant_id || !contact?.phone) {
+      logger.error('send_message: contato sem tenant_id/telefone — abortando', {
+        contactId,
+        error: contactErr?.message,
       });
+      return false;
+    }
+    if (!contact.whatsapp_instance_id) {
+      logger.error('send_message: contato sem instância de WhatsApp associada', { contactId });
+      return false;
     }
 
-    // NOTE: a tabela `scheduled_messages` foi removida do schema. Esta
-    // ramificação ficou como código morto após o redesign do agendamento,
-    // que hoje passa pela `job_queue` consumida por `job-worker`. Até a
-    // reescrita desse step para enfileirar em `job_queue` com tenant_id
-    // e contact_id corretos, retornamos `false` para sinalizar que o
-    // step não foi executado (e evitamos erro de tabela inexistente em
-    // produção).
-    logger.warn('scheduleSendMessage step is not implemented yet', {
+    // 3. Resolver a instância → instance_key (o job-worker busca por instance_key, não por UUID).
+    const { data: instance, error: instErr } = await supabaseClient
+      .from('whatsapp_instances')
+      .select('id, instance_key, provider')
+      .eq('id', contact.whatsapp_instance_id)
+      .maybeSingle();
+
+    if (instErr || !instance?.instance_key) {
+      logger.error('send_message: instância não encontrada para o contato', {
+        contactId,
+        instanceId: contact.whatsapp_instance_id,
+        error: instErr?.message,
+      });
+      return false;
+    }
+
+    // 4. Gate proativo de 24h para instâncias oficiais (Meta Cloud API): evita
+    //    enfileirar um job fadado ao erro. O job-worker reverifica antes do envio.
+    //    Fail-open em erro de RPC (a Meta rejeita com 131047 se realmente fora da janela).
+    if ((instance.provider ?? 'evolution') === 'official') {
+      const { data: withinWindow, error: windowError } = await supabaseClient.rpc(
+        'is_within_service_window',
+        { p_instance_id: instance.id, p_phone: contact.phone }
+      );
+      if (windowError) {
+        logger.warn('send_message: is_within_service_window falhou — fail-open', {
+          instanceId: instance.id,
+          error: windowError.message,
+        });
+      } else if (withinWindow === false) {
+        logger.warn('send_message: bloqueado — fora da janela de 24h (instância oficial)', {
+          contactId,
+          instanceId: instance.id,
+        });
+        return false;
+      }
+    }
+
+    // 5. Enfileirar o job. enqueue_job é SECURITY DEFINER e popula tenant_id na linha.
+    const { error: enqueueError } = await supabaseClient.rpc('enqueue_job', {
+      p_tenant_id: contact.tenant_id,
+      p_job_type: 'send_message',
+      p_job_data: buildSendMessageJobData({
+        instanceKey: instance.instance_key,
+        phone: contact.phone,
+        message: messageContent,
+        contactId,
+      }),
+      p_priority: 5,
+    });
+
+    if (enqueueError) {
+      logger.error('send_message: falha ao enfileirar job', { error: enqueueError.message });
+      return false;
+    }
+
+    logger.info('send_message enfileirado no job_queue', {
       contactId,
+      instanceKey: instance.instance_key,
       messageLength: messageContent.length,
     });
-    return false;
+    return true;
   } catch (error: any) {
     logger.error('Error in scheduleSendMessage', { error: error.message });
     return false;
@@ -639,7 +671,12 @@ async function scheduleFollowup(
   }
 }
 
-// Função para adicionar tag ao contato
+// Função para adicionar tag ao contato.
+//
+// As tags NÃO ficam num array em `contacts` (essa coluna não existe). Elas vivem
+// na tabela `tags` (UNIQUE(tenant_id, name)) e são vinculadas ao contato pela
+// junction `contact_tags` (PK composta (contact_id, tag_id)). Resolvemos/criamos
+// a tag por nome dentro da conta e vinculamos de forma idempotente.
 async function addContactTag(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
@@ -647,44 +684,53 @@ async function addContactTag(
   logger: any
 ): Promise<boolean> {
   try {
-    const tagName = stepConfig.tag_name;
-    
+    const tagName = normalizeTagName(stepConfig.tag_name);
     if (!tagName) {
-      logger.error('No tag name provided');
+      logger.error('add_tag: nome da tag não informado');
       return false;
     }
-    
-    // Buscar tags existentes
-    const { data: contact } = await supabaseClient
+
+    // Resolver o tenant do contato — tags são por conta.
+    const { data: contact, error: contactErr } = await supabaseClient
       .from('contacts')
-      .select('tags')
+      .select('tenant_id')
       .eq('id', contactId)
-      .single();
-    
-    if (!contact) {
-      logger.error('Contact not found');
+      .maybeSingle();
+
+    if (contactErr || !contact?.tenant_id) {
+      logger.error('add_tag: contato sem tenant_id — abortando', {
+        contactId,
+        error: contactErr?.message,
+      });
       return false;
     }
-    
-    const existingTags = contact.tags || [];
-    
-    // Adicionar nova tag se não existir
-    if (!existingTags.includes(tagName)) {
-      const { error } = await supabaseClient
-        .from('contacts')
-        .update({ 
-          tags: [...existingTags, tagName],
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', contactId);
-      
-      if (error) {
-        logger.error('Error adding tag', { error });
-        return false;
-      }
+
+    // Resolver a tag existente ou criá-la (upsert por UNIQUE(tenant_id, name) — race-safe).
+    const { data: tag, error: tagErr } = await supabaseClient
+      .from('tags')
+      .upsert({ tenant_id: contact.tenant_id, name: tagName }, { onConflict: 'tenant_id,name' })
+      .select('id')
+      .single();
+
+    if (tagErr || !tag?.id) {
+      logger.error('add_tag: falha ao resolver/criar a tag', { error: tagErr?.message });
+      return false;
     }
-    
-    logger.info('Tag added successfully');
+
+    // Vincular via junction (idempotente — ignora se o vínculo já existe).
+    const { error: linkErr } = await supabaseClient
+      .from('contact_tags')
+      .upsert(
+        { contact_id: contactId, tag_id: tag.id },
+        { onConflict: 'contact_id,tag_id', ignoreDuplicates: true }
+      );
+
+    if (linkErr) {
+      logger.error('add_tag: falha ao vincular a tag ao contato', { error: linkErr.message });
+      return false;
+    }
+
+    logger.info('add_tag: tag vinculada ao contato', { contactId, tagName });
     return true;
   } catch (error: any) {
     logger.error('Error in addContactTag', { error: error.message });

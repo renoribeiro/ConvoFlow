@@ -19,6 +19,14 @@ interface Contact {
   lead_sources?: {
     name: string;
   };
+  contact_tags?: Array<{
+    tag_id: string;
+    tags: {
+      id: string;
+      name: string;
+      color: string;
+    } | null;
+  }>;
 }
 
 interface Conversation {
@@ -112,6 +120,14 @@ export const useConversations = ({
             ),
             lead_sources:lead_source_id (
               name
+            ),
+            contact_tags (
+              tag_id,
+              tags (
+                id,
+                name,
+                color
+              )
             )
           )
         `)
@@ -232,6 +248,14 @@ export const useRecentConversations = (limit: number = 5) => {
             ),
             lead_sources:lead_source_id (
               name
+            ),
+            contact_tags (
+              tag_id,
+              tags (
+                id,
+                name,
+                color
+              )
             )
           )
         `)
@@ -317,6 +341,14 @@ export const useConversation = (conversationId: string) => {
             ),
             lead_sources:lead_source_id (
               name
+            ),
+            contact_tags (
+              tag_id,
+              tags (
+                id,
+                name,
+                color
+              )
             )
           )
         `)
@@ -548,6 +580,14 @@ export const useConversationByContact = (contactId: string) => {
             ),
             lead_sources:lead_source_id (
               name
+            ),
+            contact_tags (
+              tag_id,
+              tags (
+                id,
+                name,
+                color
+              )
             )
           )
         `)

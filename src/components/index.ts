@@ -16,9 +16,6 @@ export { IntegrationManager } from './integrations/IntegrationManager';
 // Reports Components
 export { AdvancedReports } from './reports/AdvancedReports';
 
-// Automation Components
-export { WorkflowAutomation } from './automation/WorkflowAutomation';
-
 // Templates Components
 export { MessageTemplates } from './templates/MessageTemplates';
 
@@ -129,10 +126,6 @@ export const ReportsComponents = {
   AdvancedReports
 };
 
-export const AutomationComponents = {
-  WorkflowAutomation
-};
-
 export const TemplatesComponents = {
   MessageTemplates
 };
@@ -164,10 +157,7 @@ export const ConvoFlowComponents = {
   
   // Reports
   AdvancedReports,
-  
-  // Automation
-  WorkflowAutomation,
-  
+
   // Templates
   MessageTemplates,
   
@@ -218,12 +208,6 @@ export const ComponentMetadata = {
     description: 'Sistema de relatórios avançados e personalizáveis',
     category: 'Reports',
     features: ['Relatórios personalizados', 'Múltiplos tipos de gráfico', 'Filtros avançados', 'Exportação']
-  },
-  WorkflowAutomation: {
-    name: 'WorkflowAutomation',
-    description: 'Automação de workflows e processos',
-    category: 'Automation',
-    features: ['Criação de workflows', 'Triggers e condições', 'Ações automatizadas', 'Histórico de execuções']
   },
   MessageTemplates: {
     name: 'MessageTemplates',
