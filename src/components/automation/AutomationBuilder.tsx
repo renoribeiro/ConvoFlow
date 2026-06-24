@@ -88,6 +88,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
   
   const [selectedStep, setSelectedStep] = useState<string | null>(null);
   const [draggedStep, setDraggedStep] = useState<string | null>(null);
+  const [attemptedSave, setAttemptedSave] = useState(false);
   
   const { toast } = useToast();
   const { customVariables } = useTenantVariables();
@@ -396,15 +397,22 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
 
   const handleSave = async () => {
     try {
-      if (!flow.name || !flow.trigger_type) {
+      setAttemptedSave(true);
+
+      const missing: string[] = [];
+      if (!flow.name.trim()) missing.push('dê um nome ao fluxo (campo no topo)');
+      if (!flow.trigger_type) missing.push('escolha um gatilho');
+      if (flow.steps.length === 0) missing.push('adicione pelo menos uma etapa');
+
+      if (missing.length > 0) {
         toast({
-          title: 'Erro',
-          description: 'Nome e tipo de gatilho são obrigatórios',
+          title: 'Faltou preencher',
+          description: `Para salvar: ${missing.join('; ')}.`,
           variant: 'destructive'
         });
         return;
       }
-      
+
       const dataToSave = {
         name: flow.name,
         description: flow.description || '',
@@ -635,13 +643,16 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div>
+                  <div className="space-y-1">
                     <Input
                       value={flow.name}
                       onChange={(e) => setFlow(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Nome do fluxo de automação"
-                      className="font-medium"
+                      placeholder="Nome do fluxo de automação *"
+                      className={`font-medium ${attemptedSave && !flow.name.trim() ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                     />
+                    {attemptedSave && !flow.name.trim() && (
+                      <p className="text-xs text-destructive">Dê um nome para o fluxo antes de salvar.</p>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     <Switch
