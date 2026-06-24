@@ -3,6 +3,13 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { createLogger } from '../_shared/logger.ts';
 import { corsHeaders } from '../_shared/validation.ts';
 import { buildSendMessageJobData, normalizeTagName } from '../_shared/automation-actions.ts';
+import {
+  substituteVariables,
+  evaluateCondition,
+  buildAutomationVariableContext,
+  type VariableContext,
+  type ConditionOperator,
+} from '../_shared/variable-substitution.ts';
 
 interface AutomationTrigger {
   type: string;
@@ -31,6 +38,7 @@ interface AutomationExecution {
   status: string;
   current_step: number;
   execution_data: Record<string, unknown>;
+  trigger_data: Record<string, unknown>;
   automation_flows: AutomationFlow;
 }
 
@@ -57,6 +65,15 @@ interface StepConfig {
 
 // Tipos de follow-up aceitos pelo CHECK de individual_followups.type.
 const FOLLOWUP_TYPES = ['call', 'email', 'whatsapp', 'meeting', 'visit', 'task', 'other'];
+
+// Tipos de step que são CONDIÇÕES — controlam o fluxo (continua se verdadeiro,
+// para graciosamente se falso) em vez de executar uma ação.
+const CONDITION_STEP_TYPES = [
+  'variable_condition',
+  'contact_has_tag',
+  'contact_in_stage',
+  'message_contains',
+];
 
 interface AutomationStep {
   id: string;
@@ -194,6 +211,24 @@ async function shouldExecuteTrigger(
   logger: any
 ): Promise<boolean> {
   try {
+    // Gatilho por variável capturada (variable_captured).
+    // trigger_config: { variable_name, operator?, value? }
+    // trigger_data:   { variable_name, value, previous_value }
+    if (triggerConfig.variable_name) {
+      if (triggerData.variable_name !== triggerConfig.variable_name) {
+        return false;
+      }
+      const op = triggerConfig.operator as ConditionOperator | undefined;
+      if (op) {
+        return evaluateCondition(
+          op,
+          String(triggerData.value ?? ''),
+          triggerConfig.value as string | undefined,
+        );
+      }
+      return true;
+    }
+
     // Para gatilho de mensagem recebida
     if (triggerConfig.keywords && Array.isArray(triggerConfig.keywords)) {
       const messageText = (triggerData.message || '').toLowerCase();
@@ -302,7 +337,17 @@ async function executeNextStep(
 
     // Obter step atual
     const currentStep = steps[executionData.current_step];
-    
+    const effectiveType = currentStep.config.type || currentStep.type;
+
+    // Montar o contexto de variáveis da execução (contato + custom_fields + dados
+    // do gatilho). Usado para interpolar {variavel} nas ações e avaliar condições.
+    const varCtx = await buildExecutionContext(
+      supabaseClient,
+      executionData.contact_id,
+      executionData.trigger_data ?? {},
+      logger
+    );
+
     // Criar log do step
     const { data: stepLog, error: stepLogError } = await supabaseClient
       .from('automation_step_logs')
@@ -327,13 +372,59 @@ async function executeNextStep(
       .update({ status: 'running' })
       .eq('id', executionId);
 
+    // Condições controlam o fluxo (segue se verdadeira, para graciosamente se
+    // falsa). Por isso são tratadas aqui, e não via executeStepByType — que só
+    // retorna boolean (sucesso/erro) e marcaria "falso" como falha.
+    if (CONDITION_STEP_TYPES.includes(effectiveType)) {
+      const conditionMet = await evaluateConditionStep(
+        supabaseClient,
+        effectiveType,
+        currentStep.config,
+        executionData.contact_id,
+        varCtx,
+        executionData.trigger_data ?? {},
+        logger
+      );
+
+      if (stepLog) {
+        await supabaseClient
+          .from('automation_step_logs')
+          .update({
+            status: conditionMet ? 'completed' : 'skipped',
+            completed_at: new Date().toISOString(),
+            output_data: { conditionMet },
+          })
+          .eq('id', stepLog.id);
+      }
+
+      if (conditionMet) {
+        await supabaseClient
+          .from('automation_executions')
+          .update({ current_step: executionData.current_step + 1 })
+          .eq('id', executionId);
+        return await executeNextStep(supabaseClient, executionId, logger);
+      }
+
+      // Condição não satisfeita: encerra o fluxo sem marcar como falha.
+      await supabaseClient
+        .from('automation_executions')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', executionId);
+      logger.info('Automation stopped: condition not met', {
+        executionId,
+        step: executionData.current_step,
+      });
+      return true;
+    }
+
     // Executar o step baseado no tipo
     const stepResult = await executeStepByType(
       supabaseClient,
-      currentStep.config.type || currentStep.type,
+      effectiveType,
       currentStep.config,
       executionData.contact_id,
       executionData.execution_data,
+      varCtx,
       logger
     );
 
@@ -393,6 +484,7 @@ async function executeStepByType(
   stepConfig: StepConfig,
   contactId: string,
   executionData: Record<string, unknown>,
+  varCtx: VariableContext,
   logger: any
 ): Promise<boolean> {
   try {
@@ -400,28 +492,210 @@ async function executeStepByType(
 
     switch (stepType) {
       case 'send_message':
-        return await scheduleSendMessage(supabaseClient, stepConfig, contactId, logger);
-      
+        return await scheduleSendMessage(supabaseClient, stepConfig, contactId, varCtx, logger);
+
       case 'change_funnel_stage':
         return await changeFunnelStage(supabaseClient, stepConfig, contactId, logger);
-      
+
       case 'schedule_followup':
-        return await scheduleFollowup(supabaseClient, stepConfig, contactId, logger);
-      
+        return await scheduleFollowup(supabaseClient, stepConfig, contactId, varCtx, logger);
+
       case 'add_tag':
-        return await addContactTag(supabaseClient, stepConfig, contactId, logger);
-      
+        return await addContactTag(supabaseClient, stepConfig, contactId, varCtx, logger);
+
+      case 'update_contact':
+        return await updateContact(supabaseClient, stepConfig, contactId, varCtx, logger);
+
       case 'delay':
         // Para delays, apenas retornar true (implementação real precisaria de agendamento)
         logger.info('Delay step executed (simulated)');
         return true;
-      
+
       default:
         logger.error('Unknown step type', { stepType });
         return false;
     }
   } catch (error: any) {
     logger.error(`Error executing step type ${stepType}`, { error: error.message });
+    return false;
+  }
+}
+
+// Monta o contexto de substituição de variáveis a partir do contato (campos
+// padrão + custom_fields) e dos dados do gatilho. Reutilizável por todas as ações.
+async function buildExecutionContext(
+  supabaseClient: SupabaseClient,
+  contactId: string | null | undefined,
+  triggerData: Record<string, unknown>,
+  logger: any
+): Promise<VariableContext> {
+  let contact: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    custom_fields: Record<string, unknown> | null;
+  } | null = null;
+
+  if (contactId) {
+    const { data, error } = await supabaseClient
+      .from('contacts')
+      .select('name, phone, email, custom_fields')
+      .eq('id', contactId)
+      .maybeSingle();
+    if (error) {
+      logger.warn('buildExecutionContext: falha ao carregar contato', { contactId, error: error.message });
+    }
+    contact = (data as typeof contact) ?? null;
+  }
+
+  return buildAutomationVariableContext({
+    contactName: contact?.name ?? null,
+    phone: contact?.phone ?? null,
+    email: contact?.email ?? null,
+    customFields: contact?.custom_fields ?? null,
+    triggerData,
+  });
+}
+
+// Avalia uma condição baseada em variável: { variable, operator, value }.
+function evaluateVariableCondition(stepConfig: StepConfig, varCtx: VariableContext): boolean {
+  const variable = stepConfig.variable as string | undefined;
+  const operator = (stepConfig.operator as ConditionOperator) || 'not_empty';
+  const compareValue = stepConfig.value as string | undefined;
+  const variableValue = variable ? varCtx[variable] : '';
+  return evaluateCondition(operator, variableValue == null ? '' : String(variableValue), compareValue);
+}
+
+// Avalia qualquer tipo de condição do builder. Retorna true = segue o fluxo,
+// false = para o fluxo (encerramento gracioso, não falha).
+async function evaluateConditionStep(
+  supabaseClient: SupabaseClient,
+  type: string,
+  config: StepConfig,
+  contactId: string,
+  varCtx: VariableContext,
+  triggerData: Record<string, unknown>,
+  logger: any
+): Promise<boolean> {
+  try {
+    switch (type) {
+      case 'variable_condition':
+        return evaluateVariableCondition(config, varCtx);
+
+      case 'contact_has_tag': {
+        const tagName = normalizeTagName(config.tag_name as string | undefined);
+        if (!tagName || !contactId) return false;
+        const { data } = await supabaseClient
+          .from('contact_tags')
+          .select('tag_id, tags!inner(name)')
+          .eq('contact_id', contactId)
+          .eq('tags.name', tagName)
+          .limit(1);
+        return Array.isArray(data) && data.length > 0;
+      }
+
+      case 'contact_in_stage': {
+        const stageId = config.stage_id as string | undefined;
+        if (!stageId || !contactId) return false;
+        const { data } = await supabaseClient
+          .from('contacts')
+          .select('current_stage_id')
+          .eq('id', contactId)
+          .maybeSingle();
+        return !!data && data.current_stage_id === stageId;
+      }
+
+      case 'message_contains': {
+        const keywords = (config.keywords as string[]) || [];
+        const caseSensitive = !!config.case_sensitive;
+        const message = String((triggerData as Record<string, unknown>).message ?? '');
+        if (keywords.length === 0) return true;
+        const hay = caseSensitive ? message : message.toLowerCase();
+        return keywords.some((k) => {
+          const kw = caseSensitive ? k : k.toLowerCase();
+          return kw.trim() !== '' && hay.includes(kw);
+        });
+      }
+
+      default:
+        logger.warn('Unknown condition type — tratando como não satisfeita', { type });
+        return false;
+    }
+  } catch (error: any) {
+    logger.error('Error evaluating condition', { type, error: error.message });
+    return false;
+  }
+}
+
+// Ação: atualizar um campo do contato (Nome/E-mail/Telefone/Tag/Campo personalizado),
+// interpolando {variavel} no valor. Espelha o nó update_contact do chatbot e estende
+// para campos personalizados (contacts.custom_fields).
+async function updateContact(
+  supabaseClient: SupabaseClient,
+  stepConfig: StepConfig,
+  contactId: string,
+  varCtx: VariableContext,
+  logger: any
+): Promise<boolean> {
+  try {
+    const field = (stepConfig.field as string) || '';
+    const rawValue = substituteVariables((stepConfig.value as string) ?? '', varCtx);
+
+    if (field === 'tag') {
+      // Reaproveita o handler de tag (interpola tag_name = value).
+      return await addContactTag(
+        supabaseClient,
+        { tag_name: stepConfig.value as string | undefined } as StepConfig,
+        contactId,
+        varCtx,
+        logger,
+      );
+    }
+
+    if (['name', 'email', 'phone'].includes(field)) {
+      const { error } = await supabaseClient
+        .from('contacts')
+        .update({ [field]: rawValue, updated_at: new Date().toISOString() })
+        .eq('id', contactId);
+      if (error) {
+        logger.error('update_contact: falha ao atualizar campo padrão', { field, error: error.message });
+        return false;
+      }
+      logger.info('update_contact: campo atualizado', { field, contactId });
+      return true;
+    }
+
+    if (field === 'custom') {
+      const key = (stepConfig.custom_key as string) || '';
+      if (!key) {
+        logger.error('update_contact: custom_key não informado para campo personalizado');
+        return false;
+      }
+      const { data: existingRow } = await supabaseClient
+        .from('contacts')
+        .select('custom_fields')
+        .eq('id', contactId)
+        .maybeSingle();
+      const existing = ((existingRow?.custom_fields ?? {}) as Record<string, unknown>);
+      const { error } = await supabaseClient
+        .from('contacts')
+        .update({
+          custom_fields: { ...existing, [key]: rawValue },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+      if (error) {
+        logger.error('update_contact: falha ao atualizar custom_fields', { key, error: error.message });
+        return false;
+      }
+      logger.info('update_contact: custom_field atualizado', { key, contactId });
+      return true;
+    }
+
+    logger.error('update_contact: campo desconhecido', { field });
+    return false;
+  } catch (error: any) {
+    logger.error('Error in updateContact', { error: error.message });
     return false;
   }
 }
@@ -438,6 +712,7 @@ async function scheduleSendMessage(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
   contactId: string,
+  varCtx: VariableContext,
   logger: any
 ): Promise<boolean> {
   try {
@@ -460,6 +735,9 @@ async function scheduleSendMessage(
       logger.error('send_message: nenhum conteúdo de mensagem encontrado', { contactId });
       return false;
     }
+
+    // 1b. Interpolar {variavel} no conteúdo (nome, telefone, custom_fields, etc).
+    messageContent = substituteVariables(messageContent, varCtx);
 
     // 2. Resolver o contato → tenant, telefone e instância associada.
     //    service_role ignora RLS; precisamos do tenant_id explícito para o job.
@@ -591,6 +869,7 @@ async function scheduleFollowup(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
   contactId: string,
+  varCtx: VariableContext,
   logger: any
 ): Promise<boolean> {
   try {
@@ -613,7 +892,7 @@ async function scheduleFollowup(
     const delayHours = stepConfig.delay_hours ?? 24;
     const rawType = (stepConfig.followup_type || 'whatsapp').toLowerCase();
     const followupType = FOLLOWUP_TYPES.includes(rawType) ? rawType : 'whatsapp';
-    const message = (stepConfig.message || '').trim();
+    const message = substituteVariables(stepConfig.message || '', varCtx).trim();
     const priority = ['high', 'medium', 'low'].includes(stepConfig.followup_priority || '')
       ? (stepConfig.followup_priority as string)
       : 'medium';
@@ -632,7 +911,7 @@ async function scheduleFollowup(
 
     // task é NOT NULL — usa título explícito, senão um rótulo derivado.
     const task =
-      (stepConfig.followup_task || '').trim() ||
+      substituteVariables(stepConfig.followup_task || '', varCtx).trim() ||
       (message ? `Follow-up automático: ${message.slice(0, 80)}` : 'Follow-up automático');
 
     const row: Record<string, unknown> = {
@@ -681,10 +960,11 @@ async function addContactTag(
   supabaseClient: SupabaseClient,
   stepConfig: StepConfig,
   contactId: string,
+  varCtx: VariableContext,
   logger: any
 ): Promise<boolean> {
   try {
-    const tagName = normalizeTagName(stepConfig.tag_name);
+    const tagName = normalizeTagName(substituteVariables(stepConfig.tag_name ?? '', varCtx));
     if (!tagName) {
       logger.error('add_tag: nome da tag não informado');
       return false;

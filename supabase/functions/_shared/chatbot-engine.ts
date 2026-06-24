@@ -491,6 +491,10 @@ export interface EngineContext {
 export interface SupabaseClientLike {
   from(table: string): QueryBuilder;
   rpc(fn: string, args?: Record<string, unknown>): QueryBuilder;
+  /** Optional in tests; present on the real supabase-js client. */
+  functions?: {
+    invoke(fn: string, opts: { body: unknown }): Promise<{ data: unknown; error: unknown }>;
+  };
 }
 
 export interface QueryBuilder {
@@ -819,6 +823,10 @@ async function handleSessionReply(
     last_activity_at: new Date().toISOString(),
   });
 
+  // Persist captured variables to the contact and fire variable-driven
+  // automations in real time (non-fatal).
+  await onVariablesChanged(ctx, session.tenant_id, input.contact_id, session.variables, updatedVars);
+
   if (!nextNodeId) {
     await updateSession(supabase, session.id, { status: 'completed', ended_at: new Date().toISOString() });
     return;
@@ -905,11 +913,16 @@ async function continueFlow(
       sessionVariables: currentVars,
     });
 
+    const prevVars = currentVars;
     const result = await executeNode(node, varCtx, currentVars, input, session, allEdges, ctx);
 
     if (result.updatedVars) {
       currentVars = result.updatedVars;
     }
+
+    // Persist any newly set/changed variables to the contact and fire
+    // variable-driven automations in real time (non-fatal).
+    await onVariablesChanged(ctx, session.tenant_id, input.contact_id, prevVars, currentVars);
 
     // Persist state after each node.
     await updateSession(supabase, session.id, {
@@ -1183,6 +1196,104 @@ async function updateSession(
     .from('chatbot_sessions')
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', sessionId) as unknown as Promise<void>);
+}
+
+/**
+ * Mirror collected chatbot variables onto `contacts.custom_fields` so that
+ * automations (and any other consumer) can read them after the session ends.
+ * Read-modify-write merge; non-fatal.
+ */
+async function persistVariablesToContact(
+  ctx: EngineContext,
+  contactId: string,
+  patch: Record<string, string>,
+): Promise<void> {
+  const { supabase, logger } = ctx;
+  try {
+    const { data } = await (supabase
+      .from('contacts')
+      .select('custom_fields')
+      .eq('id', contactId)
+      .maybeSingle() as Promise<{ data: { custom_fields: Record<string, unknown> | null } | null; error: unknown }>);
+
+    const existing = (data?.custom_fields ?? {}) as Record<string, unknown>;
+    await (supabase
+      .from('contacts')
+      .update({ custom_fields: { ...existing, ...patch }, updated_at: new Date().toISOString() })
+      .eq('id', contactId) as unknown as Promise<void>);
+  } catch (err) {
+    logger.warn('Failed to persist variables to contact.custom_fields', { error: String(err) });
+  }
+}
+
+/**
+ * Fire the `variable_captured` automation trigger for a single variable change.
+ * Fire-and-forget via the edge function; non-fatal. Skipped in tests where the
+ * supabase client mock has no `functions` accessor.
+ */
+async function fireVariableCapturedAutomation(
+  ctx: EngineContext,
+  payload: {
+    tenant_id: string;
+    contact_id: string;
+    variable_name: string;
+    value: string;
+    previous_value: string | null;
+  },
+): Promise<void> {
+  const { supabase, logger } = ctx;
+  try {
+    if (!supabase.functions?.invoke) return;
+    await supabase.functions.invoke('automation-processor', {
+      body: {
+        trigger: {
+          type: 'variable_captured',
+          tenant_id: payload.tenant_id,
+          contact_id: payload.contact_id,
+          data: {
+            variable_name: payload.variable_name,
+            value: payload.value,
+            previous_value: payload.previous_value,
+          },
+        },
+      },
+    });
+  } catch (err) {
+    logger.warn('Failed to fire variable_captured automation', {
+      error: String(err),
+      variable: payload.variable_name,
+    });
+  }
+}
+
+/**
+ * Diff `prevVars` vs `nextVars`; for each changed key, persist it to the contact
+ * and fire the real-time `variable_captured` automation trigger. Non-fatal.
+ */
+async function onVariablesChanged(
+  ctx: EngineContext,
+  tenantId: string,
+  contactId: string,
+  prevVars: Record<string, string>,
+  nextVars: Record<string, string>,
+): Promise<void> {
+  const changed: Record<string, string> = {};
+  for (const [k, v] of Object.entries(nextVars)) {
+    if (prevVars[k] !== v) changed[k] = v;
+  }
+  if (Object.keys(changed).length === 0) return;
+
+  await persistVariablesToContact(ctx, contactId, changed);
+
+  for (const [k, v] of Object.entries(changed)) {
+    await fireVariableCapturedAutomation(ctx, {
+      tenant_id: tenantId,
+      contact_id: contactId,
+      variable_name: k,
+      value: v,
+      previous_value: prevVars[k] ?? null,
+    });
+  }
 }
 
 async function upsertContactTag(

@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { BLOCK_BY_TYPE } from '@/lib/chatbot/flowConstants';
 import type { ChatbotNodeType, ChatbotNodeData } from '@/types/chatbot-flow.types';
 import type { ChatbotVariableRow } from '@/types/chatbot-flow.types';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import SendTextPanel from './SendTextPanel';
 import AskQuestionPanel from './AskQuestionPanel';
 import ShowOptionsPanel from './ShowOptionsPanel';
@@ -67,6 +68,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, variables, onDa
       <div className={`flex items-center gap-2 px-4 py-3 ${block.headerClass}`}>
         <span>{block.emoji}</span>
         <span className="text-sm font-semibold text-white">{block.label}</span>
+        <div className="ml-auto text-white">
+          <FeatureHelp helpKey={type} className="text-white/80 hover:text-white hover:bg-white/20" />
+        </div>
       </div>
       <Separator />
       <ScrollArea className="flex-1">
