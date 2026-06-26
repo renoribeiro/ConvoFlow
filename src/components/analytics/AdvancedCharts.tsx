@@ -44,6 +44,7 @@ import {
 import { AnalyticsFilters } from './AdvancedFilters';
 import { useRealTimeChartData } from '@/hooks/useRealTimeAnalytics';
 import { cn } from '@/lib/utils';
+import { CHART_SERIES, BRAND_CHART } from '@/lib/chartColors';
 
 // Interfaces
 interface AdvancedChartsProps {
@@ -83,8 +84,8 @@ interface SourceData {
 
 // Funções de mock removidas
 
-// Cores para os gráficos
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0', '#ffb347'];
+// Paleta de cores para gráficos derivada da marca ConvoFlow
+const COLORS = CHART_SERIES;
 
 export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
   const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('line');
@@ -155,9 +156,9 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
               <Line
                 type="monotone"
                 dataKey={selectedMetric}
-                stroke="#8884d8"
+                stroke={BRAND_CHART.primary}
                 strokeWidth={2}
-                dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                dot={{ fill: BRAND_CHART.primary, strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6 }}
               />
             </>
@@ -167,14 +168,14 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             <Area
               type="monotone"
               dataKey={selectedMetric}
-              stroke="#8884d8"
-              fill="#8884d8"
+              stroke={BRAND_CHART.primary}
+              fill={BRAND_CHART.primary}
               fillOpacity={0.3}
             />
           )}
 
           {chartType === 'bar' && (
-            <Bar dataKey={selectedMetric} fill="#8884d8" radius={[4, 4, 0, 0]} />
+            <Bar dataKey={selectedMetric} fill={BRAND_CHART.primary} radius={[4, 4, 0, 0]} />
           )}
         </ChartComponent>
       </ResponsiveContainer>
@@ -487,7 +488,7 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                     <XAxis dataKey="leads" name="Leads" />
                     <YAxis dataKey="conversions" name="Conversões" />
                     <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                    <Scatter name="Dados" data={chartData} fill="#8884d8" />
+                    <Scatter name="Dados" data={chartData} fill={BRAND_CHART.primary} />
                   </ScatterChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -510,9 +511,9 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                     <Line
                       type="monotone"
                       dataKey="conversionRate"
-                      stroke="#82ca9d"
+                      stroke={CHART_SERIES[1]}
                       strokeWidth={2}
-                      dot={{ fill: '#82ca9d', strokeWidth: 2, r: 3 }}
+                      dot={{ fill: CHART_SERIES[1], strokeWidth: 2, r: 3 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>

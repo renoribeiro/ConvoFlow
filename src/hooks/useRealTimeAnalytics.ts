@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AnalyticsFilters } from '@/components/analytics/AdvancedFilters';
+import { getChartColor } from '@/lib/chartColors';
 
 // Interfaces
 interface RealTimeAnalyticsData {
@@ -220,19 +221,16 @@ export const useRealTimeAnalytics = ({
     return 'stable';
   };
 
-  // Função para obter cor do funil
-  const getFunnelColor = (index: number): string => {
-    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1'];
-    return colors[index % colors.length];
-  };
+  // Função para obter cor do funil — usa paleta da marca
+  const getFunnelColor = (index: number): string => getChartColor(index);
 
   // Função para obter dados padrão do funil
   const getDefaultFunnelData = (): FunnelStage[] => [
-    { name: 'Visitantes', value: 0, percentage: 0, color: '#8884d8', change: 0 },
-    { name: 'Leads', value: 0, percentage: 0, color: '#82ca9d', change: 0 },
-    { name: 'Qualificados', value: 0, percentage: 0, color: '#ffc658', change: 0 },
-    { name: 'Propostas', value: 0, percentage: 0, color: '#ff7300', change: 0 },
-    { name: 'Conversões', value: 0, percentage: 0, color: '#8dd1e1', change: 0 }
+    { name: 'Visitantes', value: 0, percentage: 0, color: getChartColor(0), change: 0 },
+    { name: 'Leads', value: 0, percentage: 0, color: getChartColor(1), change: 0 },
+    { name: 'Qualificados', value: 0, percentage: 0, color: getChartColor(2), change: 0 },
+    { name: 'Propostas', value: 0, percentage: 0, color: getChartColor(3), change: 0 },
+    { name: 'Conversões', value: 0, percentage: 0, color: getChartColor(4), change: 0 }
   ];
 
   // Função para obter data baseada no filtro

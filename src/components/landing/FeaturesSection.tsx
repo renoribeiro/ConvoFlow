@@ -24,7 +24,7 @@ export const FeaturesSection = () => {
       icon: MessageSquare,
       title: 'Multi-atendimento',
       description: 'Gerencie múltiplas conversas simultaneamente com interface intuitiva e organizada.',
-      color: 'bg-whatsapp-primary'
+      color: 'bg-brand-primary'
     },
     {
       icon: BarChart3,
@@ -82,7 +82,7 @@ export const FeaturesSection = () => {
         >
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4 px-4 sm:px-0">
             Tudo que você precisa para{' '}
-            <span className="text-whatsapp-primary">dominar o WhatsApp</span>
+            <span className="text-brand-primary">dominar o WhatsApp</span>
           </h2>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-4 sm:px-0">
             Recursos avançados desenvolvidos especificamente para maximizar 
@@ -98,13 +98,13 @@ export const FeaturesSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
               viewport={{ once: true }}
-              className="group p-6 rounded-xl border border-border hover:border-whatsapp-primary/50 transition-all duration-300 hover:shadow-lg bg-card"
+              className="group p-6 rounded-xl border border-border hover:border-brand-primary/50 transition-all duration-300 hover:shadow-lg bg-card"
             >
               <div className={`w-12 h-12 rounded-lg ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                 <feature.icon className="w-6 h-6 text-white" />
               </div>
               
-              <h3 className="text-xl font-semibold text-foreground mb-3 group-hover:text-whatsapp-primary transition-colors">
+              <h3 className="text-xl font-semibold text-foreground mb-3 group-hover:text-brand-primary transition-colors">
                 {feature.title}
               </h3>
               

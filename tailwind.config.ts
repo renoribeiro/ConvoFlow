@@ -62,11 +62,12 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// ConvoFlow Business Colors
-				whatsapp: {
-					primary: 'hsl(var(--whatsapp-primary))',
-					secondary: 'hsl(var(--whatsapp-secondary))',
-					light: 'hsl(var(--whatsapp-light))'
+				// ConvoFlow Brand Colors
+				brand: {
+					primary: 'hsl(var(--brand-primary))',
+					secondary: 'hsl(var(--brand-secondary))',
+					light: 'hsl(var(--brand-light))',
+					dark: 'hsl(var(--brand-dark))'
 				},
 				business: {
 					dark: 'hsl(var(--business-dark))',
@@ -89,10 +90,10 @@ export default {
 				'gradient-primary': 'var(--gradient-primary)',
 				'gradient-success': 'var(--gradient-success)',
 				'gradient-background': 'var(--gradient-background)',
-				// Dotted background patterns
-				'dot-thick-neutral-300': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%23d1d5db' fill-opacity='0.4' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`,
-				'dot-thick-neutral-800': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%23374151' fill-opacity='0.4' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`,
-				'dot-thick-whatsapp-primary': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%2325d366' fill-opacity='0.3' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`
+				// Dotted background patterns (nova paleta)
+				'dot-thick-neutral-300': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%23c9cdb0' fill-opacity='0.4' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`,
+				'dot-thick-neutral-800': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%2349511d' fill-opacity='0.4' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`,
+				'dot-thick-brand-primary': `url("data:image/svg+xml,%3csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='%23dae27c' fill-opacity='0.4' fill-rule='evenodd'%3e%3ccircle cx='2' cy='2' r='1'/%3e%3c/g%3e%3c/svg%3e")`
 			},
 			boxShadow: {
 				'soft': 'var(--shadow-soft)',
@@ -108,6 +109,10 @@ export default {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
+			},
+			fontFamily: {
+				display: ['"NewBlack Typeface"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+				sans: ['Inter', '"NewBlack Typeface"', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif']
 			},
 			keyframes: {
 				'accordion-down': {

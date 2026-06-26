@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CHART_STATUS } from '@/lib/chartColors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -125,10 +126,10 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
   }));
   
   const statusData = [
-    { name: 'Concluídas', value: completedExecutions, color: '#10b981' },
-    { name: 'Falharam', value: failedExecutions, color: '#ef4444' },
-    { name: 'Executando', value: runningExecutions, color: '#3b82f6' },
-    { name: 'Pendentes', value: pendingExecutions, color: '#f59e0b' }
+    { name: 'Concluídas', value: completedExecutions, color: CHART_STATUS.success },
+    { name: 'Falharam', value: failedExecutions, color: CHART_STATUS.error },
+    { name: 'Executando', value: runningExecutions, color: CHART_STATUS.info },
+    { name: 'Pendentes', value: pendingExecutions, color: CHART_STATUS.warning }
   ].filter(item => item.value > 0);
   
   const stepTypeData = stepLogs.reduce((acc, log) => {
@@ -234,10 +235,10 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Taxa de Sucesso</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUp className="h-4 w-4 text-status-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-status-success">
               {successRate.toFixed(1)}%
             </div>
             <Progress value={successRate} className="mt-2" />
@@ -247,10 +248,10 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tempo Médio</CardTitle>
-            <Clock className="h-4 w-4 text-blue-600" />
+            <Clock className="h-4 w-4 text-status-info" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-status-info">
               {formatDuration(averageExecutionTime)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -262,10 +263,10 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Taxa de Falha</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
+            <TrendingDown className="h-4 w-4 text-status-error" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-status-error">
               {failureRate.toFixed(1)}%
             </div>
             <Progress value={failureRate} className="mt-2" />
@@ -287,8 +288,8 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="completed" fill="#10b981" name="Concluídas" />
-                <Bar dataKey="failed" fill="#ef4444" name="Falharam" />
+                <Bar dataKey="completed" fill={CHART_STATUS.success} name="Concluídas" />
+                <Bar dataKey="failed" fill={CHART_STATUS.error} name="Falharam" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -345,8 +346,8 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
               <XAxis dataKey="type" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="completed" fill="#10b981" name="Concluídas" />
-              <Bar dataKey="failed" fill="#ef4444" name="Falharam" />
+              <Bar dataKey="completed" fill={CHART_STATUS.success} name="Concluídas" />
+              <Bar dataKey="failed" fill={CHART_STATUS.error} name="Falharam" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -363,26 +364,26 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
               const getStatusIcon = (status: string) => {
                 switch (status) {
                   case 'completed':
-                    return <CheckCircle className="h-4 w-4 text-green-600" />;
+                    return <CheckCircle className="h-4 w-4 text-status-success" />;
                   case 'failed':
-                    return <XCircle className="h-4 w-4 text-red-600" />;
+                    return <XCircle className="h-4 w-4 text-status-error" />;
                   case 'running':
-                    return <Activity className="h-4 w-4 text-blue-600" />;
+                    return <Activity className="h-4 w-4 text-status-info" />;
                   default:
-                    return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+                    return <AlertCircle className="h-4 w-4 text-status-warning" />;
                 }
               };
-              
+
               const getStatusColor = (status: string) => {
                 switch (status) {
                   case 'completed':
-                    return 'bg-green-100 text-green-800';
+                    return 'bg-status-success/15 text-status-success';
                   case 'failed':
-                    return 'bg-red-100 text-red-800';
+                    return 'bg-status-error/15 text-status-error';
                   case 'running':
-                    return 'bg-blue-100 text-blue-800';
+                    return 'bg-status-info/15 text-status-info';
                   default:
-                    return 'bg-yellow-100 text-yellow-800';
+                    return 'bg-status-warning/15 text-status-warning';
                 }
               };
               

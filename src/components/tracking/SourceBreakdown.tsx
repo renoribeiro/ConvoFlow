@@ -2,8 +2,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { DashboardCardSkeleton } from '@/components/shared/Skeleton';
+import { CHART_SERIES } from '@/lib/chartColors';
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6b7280', '#ec4899', '#f43f5e', '#14b8a6'];
+const COLORS = CHART_SERIES;
 
 interface SourceBreakdownProps {
   data?: any[];

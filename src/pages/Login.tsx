@@ -4,7 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, ArrowLeft } from 'lucide-react';
+import logoVertical from '@/assets/logos/logo-vertical.svg';
+import logoVerticalDark from '@/assets/logos/logo-vertical-dark.svg';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 
@@ -33,14 +35,14 @@ export default function Login() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center text-whatsapp-primary hover:text-whatsapp-secondary transition-colors mb-4">
+          <Link to="/" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar para home
           </Link>
           
           <div className="flex items-center justify-center mb-4">
-            <MessageSquare className="w-8 h-8 text-whatsapp-primary mr-3" />
-            <span className="text-2xl font-bold text-foreground">ConvoFlow</span>
+            <img src={logoVertical} alt="ConvoFlow" className="h-20 w-auto dark:hidden" />
+            <img src={logoVerticalDark} alt="ConvoFlow" className="h-20 w-auto hidden dark:block" />
           </div>
         </div>
 
@@ -94,7 +96,7 @@ export default function Login() {
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Não tem uma conta?{' '}
-                <Link to="/register" className="text-whatsapp-primary hover:text-whatsapp-secondary font-medium">
+                <Link to="/register" className="text-brand-primary hover:text-brand-secondary font-medium">
                   Criar conta gratuita
                 </Link>
               </p>

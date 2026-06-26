@@ -99,35 +99,35 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
       value: formatValue(metrics.activeVisitors, 'number'),
       change: calculateChange(metrics.activeVisitors, 'activeVisitors'),
       icon: Users,
-      color: 'text-blue-600'
+      color: 'text-status-info'
     },
     {
       title: 'Total de Leads',
       value: formatValue(metrics.totalLeads, 'number'),
       change: calculateChange(metrics.totalLeads, 'totalLeads'),
       icon: Target,
-      color: 'text-green-600'
+      color: 'text-status-success'
     },
     {
       title: 'Conversões',
       value: formatValue(metrics.totalConversions, 'number'),
       change: calculateChange(metrics.totalConversions, 'totalConversions'),
       icon: TrendingUp,
-      color: 'text-purple-600'
+      color: 'text-accent'
     },
     {
       title: 'Receita Total',
       value: formatValue(metrics.totalRevenue, 'currency'),
       change: calculateChange(metrics.totalRevenue, 'totalRevenue'),
       icon: DollarSign,
-      color: 'text-orange-600'
+      color: 'text-primary'
     },
     {
       title: 'Taxa de Conversão',
       value: formatValue(metrics.avgConversionRate, 'percentage'),
       change: calculateChange(metrics.avgConversionRate, 'avgConversionRate'),
       icon: Activity,
-      color: 'text-indigo-600'
+      color: 'text-status-info'
     }
   ] : [];
 
@@ -145,7 +145,7 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
     return (
       <Card className={className}>
         <CardContent className="p-6">
-          <div className="flex items-center gap-2 text-red-600">
+          <div className="flex items-center gap-2 text-status-error">
             <AlertTriangle className="h-5 w-5" />
             <span>Erro ao carregar métricas: {error}</span>
           </div>
@@ -206,11 +206,10 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
                   </div>
                   <div className={cn(
                     "h-8 w-8 rounded-full flex items-center justify-center",
-                    metric.color === 'text-blue-600' && "bg-blue-100",
-                    metric.color === 'text-green-600' && "bg-green-100",
-                    metric.color === 'text-purple-600' && "bg-purple-100",
-                    metric.color === 'text-orange-600' && "bg-orange-100",
-                    metric.color === 'text-indigo-600' && "bg-indigo-100"
+                    metric.color === 'text-status-info' && "bg-status-info/15",
+                    metric.color === 'text-status-success' && "bg-status-success/15",
+                    metric.color === 'text-accent' && "bg-accent/15",
+                    metric.color === 'text-primary' && "bg-primary/15"
                   )}>
                     <Icon className={cn("h-4 w-4", metric.color)} />
                   </div>
@@ -218,11 +217,11 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
                 <div className="flex items-center mt-2">
                   <TrendIcon className={cn(
                     "h-3 w-3 mr-1",
-                    isPositive ? "text-green-500" : "text-red-500"
+                    isPositive ? "text-status-success" : "text-status-error"
                   )} />
                   <span className={cn(
                     "text-xs",
-                    isPositive ? "text-green-600" : "text-red-600"
+                    isPositive ? "text-status-success" : "text-status-error"
                   )}>
                     {isPositive ? '+' : ''}{metric.change.toFixed(1)}%
                   </span>
@@ -283,7 +282,7 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
               <div>
                 <p className="text-muted-foreground">Status</p>
                 <Badge variant="default" className={cn(
-                  systemMetrics ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                  systemMetrics ? "bg-status-success/15 text-status-success" : "bg-status-error/15 text-status-error"
                 )}>
                   {systemMetrics ? (
                     <Wifi className="h-3 w-3 mr-1" />
@@ -308,9 +307,9 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Status do Serviço</span>
-              <Badge 
+              <Badge
                 variant={processingStatus.isRunning ? "default" : "secondary"}
-                className={processingStatus.isRunning ? "bg-green-100 text-green-800" : ""}
+                className={processingStatus.isRunning ? "bg-status-success/15 text-status-success" : ""}
               >
                 {processingStatus.isRunning ? 'Ativo' : 'Inativo'}
               </Badge>
@@ -329,7 +328,7 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
 
               <div className="flex items-center justify-between text-sm">
                 <span>Erros</span>
-                <span className={`font-semibold ${(processingStatus?.errors || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <span className={`font-semibold ${(processingStatus?.errors || 0) > 0 ? 'text-status-error' : 'text-status-success'}`}>
                   {formatNumber(processingStatus?.errors || 0)}
                 </span>
               </div>

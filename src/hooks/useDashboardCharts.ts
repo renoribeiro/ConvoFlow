@@ -2,6 +2,7 @@ import { useSupabaseQuery } from './useSupabaseQuery';
 import { useTenant } from '@/contexts/TenantContext';
 import { subDays, format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { CHART_SERIES } from '@/lib/chartColors';
 
 interface ChartDataPoint {
   date: string;
@@ -158,14 +159,8 @@ export const useDashboardCharts = (days: number = 7): DashboardChartsData => {
   
   // Processar dados dos canais
   const processChannelsData = (): ChannelData[] => {
-    const channelColors = [
-      '#10B981', // Verde
-      '#3B82F6', // Azul
-      '#F59E0B', // Amarelo
-      '#EF4444', // Vermelho
-      '#8B5CF6', // Roxo
-      '#06B6D4', // Ciano
-    ];
+    // Paleta de cores derivada da marca ConvoFlow
+    const channelColors = CHART_SERIES;
     
     const channelStats = channelsData.map((channel: any, index: number) => {
       const messageCount = channel.messages?.length || 0;

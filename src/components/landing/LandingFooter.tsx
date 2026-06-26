@@ -1,6 +1,7 @@
 
-import { MessageSquare, Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import logoHorizontalDark from '@/assets/logos/logo-horizontal-dark.svg';
 
 export const LandingFooter = () => {
   return (
@@ -10,8 +11,7 @@ export const LandingFooter = () => {
           {/* Company Info */}
           <div className="col-span-1 sm:col-span-2 md:col-span-2">
             <div className="flex items-center mb-4">
-              <MessageSquare className="w-6 sm:w-8 h-6 sm:h-8 text-whatsapp-primary mr-3" />
-              <span className="text-xl sm:text-2xl font-bold">ConvoFlow</span>
+              <img src={logoHorizontalDark} alt="ConvoFlow" className="h-7 sm:h-9 w-auto" />
             </div>
             <p className="text-sm sm:text-base text-gray-300 mb-4 sm:mb-6 max-w-md">
               A plataforma mais completa para automatizar e gerenciar seu WhatsApp Business. 
@@ -37,11 +37,11 @@ export const LandingFooter = () => {
           <div>
             <h3 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">Produto</h3>
             <ul className="space-y-2">
-              <li><a href="#features" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Funcionalidades</a></li>
-              <li><a href="#pricing" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Preços</a></li>
-              <li><Link to="/dashboard" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Dashboard</Link></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">API</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Integrações</a></li>
+              <li><a href="#features" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Funcionalidades</a></li>
+              <li><a href="#pricing" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Preços</a></li>
+              <li><Link to="/dashboard" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Dashboard</Link></li>
+              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">API</a></li>
+              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Integrações</a></li>
             </ul>
           </div>
 
@@ -49,11 +49,11 @@ export const LandingFooter = () => {
           <div>
             <h3 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">Suporte</h3>
             <ul className="space-y-2">
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Central de Ajuda</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Documentação</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Status</a></li>
-              <li><Link to="/login" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Login</Link></li>
-              <li><Link to="/register" className="text-sm sm:text-base text-gray-300 hover:text-whatsapp-primary transition-colors">Cadastro</Link></li>
+              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Central de Ajuda</a></li>
+              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Documentação</a></li>
+              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Status</a></li>
+              <li><Link to="/login" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Login</Link></li>
+              <li><Link to="/register" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Cadastro</Link></li>
             </ul>
           </div>
         </div>

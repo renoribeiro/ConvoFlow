@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
+import { TAG_PALETTE } from '@/lib/chartColors';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -254,8 +255,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
       return;
     }
 
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    const randomColor = TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)];
 
     setIsSavingTag(true);
     try {

@@ -73,8 +73,8 @@ export const RecentConversations = () => {
             onClick={() => handleConversationClick(conversation.id)}
           >
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                <MessageCircle className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-accent-foreground" />
               </div>
               
               <div className="flex-1 min-w-0">

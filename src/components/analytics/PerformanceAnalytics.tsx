@@ -113,13 +113,13 @@ const MetricCard = ({ metric }: { metric: SystemMetric }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'good':
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'text-status-success bg-status-success/10 border-status-success/30';
       case 'warning':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+        return 'text-status-warning bg-status-warning/10 border-status-warning/30';
       case 'critical':
-        return 'text-red-600 bg-red-50 border-red-200';
+        return 'text-status-error bg-status-error/10 border-status-error/30';
       default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
+        return 'text-muted-foreground bg-muted border-border';
     }
   };
 
@@ -199,15 +199,15 @@ const PerformanceChart = () => {
           
           <div className="grid grid-cols-3 gap-4 pt-4 border-t">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{mockPerformanceData.throughput}</div>
+              <div className="text-2xl font-bold text-status-info">{mockPerformanceData.throughput}</div>
               <div className="text-xs text-muted-foreground">Req/min</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{mockPerformanceData.responseTime}ms</div>
+              <div className="text-2xl font-bold text-status-success">{mockPerformanceData.responseTime}ms</div>
               <div className="text-xs text-muted-foreground">Resp. Time</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{mockPerformanceData.activeConnections}</div>
+              <div className="text-2xl font-bold text-accent">{mockPerformanceData.activeConnections}</div>
               <div className="text-xs text-muted-foreground">Conexões</div>
             </div>
           </div>
@@ -242,11 +242,11 @@ const SystemHealth = () => {
           {healthChecks.map((check, index) => (
             <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
               <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-status-success rounded-full"></div>
                 <span className="font-medium">{check.name}</span>
               </div>
               <div className="flex items-center space-x-2">
-                <Badge variant="outline" className="text-green-600 border-green-200">
+                <Badge variant="outline" className="text-status-success border-status-success/30">
                   {check.status}
                 </Badge>
                 <span className="text-sm text-muted-foreground">{check.latency}</span>
@@ -285,7 +285,7 @@ const AlertsPanel = () => {
       <CardContent>
         <div className="space-y-3">
           {alerts.map((alert) => (
-            <Alert key={alert.id} className={alert.type === 'warning' ? 'border-yellow-200 bg-yellow-50' : 'border-blue-200 bg-blue-50'}>
+            <Alert key={alert.id} className={alert.type === 'warning' ? 'border-status-warning/30 bg-status-warning/10' : 'border-status-info/30 bg-status-info/10'}>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 <div className="flex justify-between items-start">
@@ -349,28 +349,28 @@ export const PerformanceAnalytics = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <MessageSquare className="h-4 w-4 text-blue-500" />
+                      <MessageSquare className="h-4 w-4 text-status-info" />
                       <span className="text-sm">Mensagens Enviadas (24h)</span>
                     </div>
                     <span className="font-bold">2,847</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Users className="h-4 w-4 text-green-500" />
+                      <Users className="h-4 w-4 text-status-success" />
                       <span className="text-sm">Usuários Ativos</span>
                     </div>
                     <span className="font-bold">156</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Database className="h-4 w-4 text-purple-500" />
+                      <Database className="h-4 w-4 text-accent" />
                       <span className="text-sm">Consultas ao BD (min)</span>
                     </div>
                     <span className="font-bold">1,250</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Zap className="h-4 w-4 text-yellow-500" />
+                      <Zap className="h-4 w-4 text-status-warning" />
                       <span className="text-sm">Automações Executadas</span>
                     </div>
                     <span className="font-bold">89</span>

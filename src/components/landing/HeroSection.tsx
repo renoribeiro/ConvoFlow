@@ -16,9 +16,9 @@ export const HeroSection = () => {
               transition={{ duration: 0.8 }}
               className="mb-8"
             >
-              <div className="inline-flex items-center bg-whatsapp-light/50 rounded-full px-6 py-2 mb-8">
-                <MessageSquare className="w-4 h-4 text-whatsapp-primary mr-2" />
-                <span className="text-sm font-medium text-whatsapp-primary">
+              <div className="inline-flex items-center bg-brand-light/50 rounded-full px-6 py-2 mb-8">
+                <MessageSquare className="w-4 h-4 text-brand-primary mr-2" />
+                <span className="text-sm font-medium text-brand-primary">
                   Revolucione seu WhatsApp Business
                 </span>
               </div>
@@ -64,24 +64,24 @@ export const HeroSection = () => {
               className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto px-4 sm:px-0"
             >
               <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center w-16 h-16 bg-whatsapp-primary/10 rounded-full mb-4">
-                  <TrendingUp className="w-8 h-8 text-whatsapp-primary" />
+                <div className="flex items-center justify-center w-16 h-16 bg-brand-primary/10 rounded-full mb-4">
+                  <TrendingUp className="w-8 h-8 text-brand-primary" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">+300%</h3>
                 <p className="text-muted-foreground">Aumento em conversões</p>
               </div>
               
               <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center w-16 h-16 bg-whatsapp-primary/10 rounded-full mb-4">
-                  <Users className="w-8 h-8 text-whatsapp-primary" />
+                <div className="flex items-center justify-center w-16 h-16 bg-brand-primary/10 rounded-full mb-4">
+                  <Users className="w-8 h-8 text-brand-primary" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">50k+</h3>
                 <p className="text-muted-foreground">Empresas atendidas</p>
               </div>
               
               <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center w-16 h-16 bg-whatsapp-primary/10 rounded-full mb-4">
-                  <MessageSquare className="w-8 h-8 text-whatsapp-primary" />
+                <div className="flex items-center justify-center w-16 h-16 bg-brand-primary/10 rounded-full mb-4">
+                  <MessageSquare className="w-8 h-8 text-brand-primary" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">1M+</h3>
                 <p className="text-muted-foreground">Mensagens processadas</p>

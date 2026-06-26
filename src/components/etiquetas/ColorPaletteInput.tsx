@@ -1,13 +1,10 @@
 import { Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { TAG_PALETTE } from '@/lib/chartColors';
 
-/** Paleta padrão de cores de etiqueta. */
-export const TAG_COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
-  '#8B5CF6', '#06B6D4', '#84CC16', '#F97316',
-  '#EC4899', '#14B8A6', '#6366F1', '#64748B',
-] as const;
+/** Paleta padrão de cores de etiqueta — derivada de TAG_PALETTE (marca ConvoFlow). */
+export const TAG_COLORS = TAG_PALETTE;
 
 const HEX_RE = /^#([0-9a-f]{6})$/i;
 

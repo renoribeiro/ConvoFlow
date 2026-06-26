@@ -20,7 +20,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { 
+import {
   ActivityIcon,
   UsersIcon,
   TrendingUpIcon,
@@ -37,6 +37,7 @@ import {
   PauseIcon,
   RefreshCwIcon
 } from 'lucide-react';
+import { CHART_SERIES, CHART_STATUS } from '@/lib/chartColors';
 
 interface RealtimeData {
   timestamp: string;
@@ -101,7 +102,7 @@ const generateRealtimeData = (): RealtimeData => {
   };
 };
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const COLORS = CHART_SERIES;
 
 export function RealtimeAnalytics({ 
   autoRefresh = true, 
@@ -167,7 +168,7 @@ export function RealtimeAnalytics({
         change: calculateChange(current.visitors, previous.visitors),
         trend: getTrend(calculateChange(current.visitors, previous.visitors)),
         icon: UsersIcon,
-        color: '#3b82f6',
+        color: CHART_STATUS.info,
         unit: ''
       },
       {
@@ -177,7 +178,7 @@ export function RealtimeAnalytics({
         change: calculateChange(current.leads, previous.leads),
         trend: getTrend(calculateChange(current.leads, previous.leads)),
         icon: TrendingUpIcon,
-        color: '#10b981',
+        color: CHART_STATUS.success,
         target: 20,
         unit: ''
       },
@@ -188,7 +189,7 @@ export function RealtimeAnalytics({
         change: calculateChange(current.conversions, previous.conversions),
         trend: getTrend(calculateChange(current.conversions, previous.conversions)),
         icon: CheckCircleIcon,
-        color: '#f59e0b',
+        color: CHART_STATUS.warning,
         target: 8,
         unit: ''
       },
@@ -199,7 +200,7 @@ export function RealtimeAnalytics({
         change: calculateChange(current.pageViews, previous.pageViews),
         trend: getTrend(calculateChange(current.pageViews, previous.pageViews)),
         icon: EyeIcon,
-        color: '#8b5cf6',
+        color: CHART_SERIES[1],
         unit: ''
       },
       {
@@ -209,7 +210,7 @@ export function RealtimeAnalytics({
         change: calculateChange(current.interactions, previous.interactions),
         trend: getTrend(calculateChange(current.interactions, previous.interactions)),
         icon: MousePointerClickIcon,
-        color: '#ef4444',
+        color: CHART_STATUS.error,
         unit: ''
       }
     ] as LiveMetric[];
@@ -412,24 +413,24 @@ export function RealtimeAnalytics({
                       type="monotone"
                       dataKey="visitors"
                       stackId="1"
-                      stroke="#3b82f6"
-                      fill="#3b82f6"
+                      stroke={CHART_STATUS.info}
+                      fill={CHART_STATUS.info}
                       fillOpacity={0.6}
                     />
                     <Area
                       type="monotone"
                       dataKey="leads"
                       stackId="1"
-                      stroke="#10b981"
-                      fill="#10b981"
+                      stroke={CHART_STATUS.success}
+                      fill={CHART_STATUS.success}
                       fillOpacity={0.6}
                     />
                     <Area
                       type="monotone"
                       dataKey="conversions"
                       stackId="1"
-                      stroke="#f59e0b"
-                      fill="#f59e0b"
+                      stroke={CHART_STATUS.warning}
+                      fill={CHART_STATUS.warning}
                       fillOpacity={0.6}
                     />
                   </AreaChart>
@@ -522,7 +523,7 @@ export function RealtimeAnalytics({
                     <XAxis dataKey="name" />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#3b82f6" />
+                    <Bar dataKey="value" fill={CHART_STATUS.info} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

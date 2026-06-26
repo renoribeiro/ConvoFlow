@@ -218,37 +218,37 @@ const getActionIcon = (action: string) => {
 };
 
 const getActionColor = (action: string, success: boolean) => {
-  if (!success) return 'bg-red-50 text-red-700 border-red-200';
-  
+  if (!success) return 'bg-status-error/10 text-status-error border-status-error/30';
+
   switch (action) {
     case 'create':
-      return 'bg-green-50 text-green-700 border-green-200';
+      return 'bg-status-success/10 text-status-success border-status-success/30';
     case 'update':
     case 'edit':
-      return 'bg-blue-50 text-blue-700 border-blue-200';
+      return 'bg-status-info/10 text-status-info border-status-info/30';
     case 'delete':
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-status-error/10 text-status-error border-status-error/30';
     case 'view':
-      return 'bg-gray-50 text-gray-700 border-gray-200';
+      return 'bg-muted text-muted-foreground border-border';
     case 'export':
-      return 'bg-purple-50 text-purple-700 border-purple-200';
+      return 'bg-accent/10 text-accent border-accent/30';
     default:
-      return 'bg-gray-50 text-gray-700 border-gray-200';
+      return 'bg-muted text-muted-foreground border-border';
   }
 };
 
 const getRiskLevelColor = (level: string) => {
   switch (level) {
     case 'critical':
-      return 'bg-red-100 text-red-800';
+      return 'bg-status-error/15 text-status-error';
     case 'high':
-      return 'bg-orange-100 text-orange-800';
+      return 'bg-status-warning/15 text-status-warning';
     case 'medium':
-      return 'bg-yellow-100 text-yellow-800';
+      return 'bg-status-warning/10 text-status-warning';
     case 'low':
-      return 'bg-green-100 text-green-800';
+      return 'bg-status-success/15 text-status-success';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-muted text-muted-foreground';
   }
 };
 
@@ -312,7 +312,7 @@ const AuditEntry = ({ entry, onViewDetails }: { entry: AuditEntry; onViewDetails
               </p>
             )}
             {entry.error_message && (
-              <p className="text-sm text-red-600">{entry.error_message}</p>
+              <p className="text-sm text-status-error">{entry.error_message}</p>
             )}
           </div>
           
@@ -524,7 +524,7 @@ const AuditDetails = ({ entry, onClose }: { entry: AuditEntry | null; onClose: (
           </div>
           <div>
             <Label>Status</Label>
-            <Badge className={entry.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+            <Badge className={entry.success ? 'bg-status-success/15 text-status-success' : 'bg-status-error/15 text-status-error'}>
               {entry.success ? 'Sucesso' : 'Falha'}
             </Badge>
           </div>
@@ -561,7 +561,7 @@ const AuditDetails = ({ entry, onClose }: { entry: AuditEntry | null; onClose: (
         {entry.error_message && (
           <div>
             <Label>Mensagem de Erro</Label>
-            <Textarea value={entry.error_message} readOnly rows={2} className="text-red-600" />
+            <Textarea value={entry.error_message} readOnly rows={2} className="text-status-error" />
           </div>
         )}
         
@@ -613,31 +613,31 @@ const AuditStats = () => {
       </Card>
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-green-600">{stats.successful}</div>
+          <div className="text-2xl font-bold text-status-success">{stats.successful}</div>
           <div className="text-sm text-muted-foreground">Sucessos</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+          <div className="text-2xl font-bold text-status-error">{stats.failed}</div>
           <div className="text-sm text-muted-foreground">Falhas</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-red-600">{stats.critical}</div>
+          <div className="text-2xl font-bold text-status-error">{stats.critical}</div>
           <div className="text-sm text-muted-foreground">Críticos</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-orange-600">{stats.high}</div>
+          <div className="text-2xl font-bold text-status-warning">{stats.high}</div>
           <div className="text-sm text-muted-foreground">Alto Risco</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600">{stats.users}</div>
+          <div className="text-2xl font-bold text-status-info">{stats.users}</div>
           <div className="text-sm text-muted-foreground">Usuários</div>
         </CardContent>
       </Card>
@@ -820,9 +820,9 @@ export const AuditTrail = () => {
                           <span className="capitalize">{action.replace('_', ' ')}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
+                          <div className="w-24 bg-muted rounded-full h-2">
+                            <div
+                              className="bg-status-info h-2 rounded-full"
                               style={{ width: `${percentage}%` }}
                             ></div>
                           </div>
@@ -851,12 +851,12 @@ export const AuditTrail = () => {
                           <span className="capitalize">{level}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
+                          <div className="w-24 bg-muted rounded-full h-2">
+                            <div
                               className={`h-2 rounded-full ${
-                                level === 'critical' ? 'bg-red-600' :
-                                level === 'high' ? 'bg-orange-600' :
-                                level === 'medium' ? 'bg-yellow-600' : 'bg-green-600'
+                                level === 'critical' ? 'bg-status-error' :
+                                level === 'high' ? 'bg-status-warning' :
+                                level === 'medium' ? 'bg-status-warning' : 'bg-status-success'
                               }`}
                               style={{ width: `${percentage}%` }}
                             ></div>
@@ -882,8 +882,8 @@ export const AuditTrail = () => {
           
           <div className="grid grid-cols-1 gap-4">
             {mockAuditEntries.filter(e => e.risk_level === 'critical' || !e.success).map((entry) => (
-              <Alert key={entry.id} className="border-red-200">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+              <Alert key={entry.id} className="border-status-error/30">
+                <AlertTriangle className="h-4 w-4 text-status-error" />
                 <AlertDescription>
                   <div className="flex items-center justify-between">
                     <div>
