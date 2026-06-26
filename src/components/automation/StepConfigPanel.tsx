@@ -138,8 +138,11 @@ export const StepConfigPanel: React.FC<StepConfigPanelProps> = ({
     }
   };
 
-  const FieldRow = ({ field }: { field: CatalogField }) => (
-    <div className="space-y-1.5">
+  // IMPORTANTE: função que RETORNA JSX (chamada direta no .map), e não um
+  // componente <FieldRow/>. Definir um componente dentro do render faz o React
+  // remontar o input a cada tecla — o que tirava o foco/seleção ao digitar.
+  const renderFieldRow = (field: CatalogField) => (
+    <div key={field.key} className="space-y-1.5">
       {field.type !== 'boolean' && (
         <div className="flex items-center gap-1.5">
           <Label className="text-xs">
@@ -199,9 +202,7 @@ export const StepConfigPanel: React.FC<StepConfigPanelProps> = ({
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         <p className="text-xs text-muted-foreground">{entry.description}</p>
 
-        {mainFields.map((field) => (
-          <FieldRow key={field.key} field={field} />
-        ))}
+        {mainFields.map((field) => renderFieldRow(field))}
 
         {isSendMessage && (
           <>
@@ -222,9 +223,7 @@ export const StepConfigPanel: React.FC<StepConfigPanelProps> = ({
                 <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Opções avançadas</span>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-2">
-                {advancedFields.map((field) => (
-                  <FieldRow key={field.key} field={field} />
-                ))}
+                {advancedFields.map((field) => renderFieldRow(field))}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
