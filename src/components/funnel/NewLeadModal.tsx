@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CHART_STATUS } from '@/lib/chartColors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,11 +43,11 @@ export const NewLeadModal = ({ isOpen, onClose }: NewLeadModalProps) => {
 
   // Mock data para estágios do funil
   const funnelStages = [
-    { id: '1', name: 'Novo Lead', color: '#3b82f6' },
-    { id: '2', name: 'Qualificado', color: '#8b5cf6' },
-    { id: '3', name: 'Proposta', color: '#f59e0b' },
-    { id: '4', name: 'Negociação', color: '#ef4444' },
-    { id: '5', name: 'Fechado', color: '#10b981' }
+    { id: '1', name: 'Novo Lead', color: CHART_STATUS.info },
+    { id: '2', name: 'Qualificado', color: CHART_STATUS.neutral },
+    { id: '3', name: 'Proposta', color: CHART_STATUS.warning },
+    { id: '4', name: 'Negociação', color: CHART_STATUS.error },
+    { id: '5', name: 'Fechado', color: CHART_STATUS.success }
   ];
 
   const leadSources = [

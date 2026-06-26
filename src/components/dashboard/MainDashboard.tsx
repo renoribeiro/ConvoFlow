@@ -72,6 +72,7 @@ import {
 } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { CHART_SERIES, BRAND_CHART } from '@/lib/chartColors';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { toast } from 'sonner';
@@ -330,9 +331,9 @@ const OverviewCharts = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="messages" fill="#8884d8" name="Mensagens" />
-              <Bar dataKey="users" fill="#82ca9d" name="Usuários" />
-              <Bar dataKey="conversions" fill="#ffc658" name="Conversões" />
+              <Bar dataKey="messages" fill={CHART_SERIES[0]} name="Mensagens" />
+              <Bar dataKey="users" fill={CHART_SERIES[1]} name="Usuários" />
+              <Bar dataKey="conversions" fill={CHART_SERIES[2]} name="Conversões" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -540,7 +541,7 @@ export const MainDashboard = () => {
                   <XAxis dataKey="date" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#3B82F6" />
+                  <Bar dataKey="value" fill={BRAND_CHART.primary} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

@@ -46,7 +46,7 @@ export const TestimonialsSection = () => {
         >
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             O que nossos clientes{' '}
-            <span className="text-whatsapp-primary">estão dizendo</span>
+            <span className="text-brand-primary">estão dizendo</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
             Histórias reais de empresas que transformaram seus resultados com o ConvoFlow
@@ -63,7 +63,7 @@ export const TestimonialsSection = () => {
               viewport={{ once: true }}
               className="bg-card rounded-xl border border-border p-6 hover:shadow-lg transition-shadow duration-300 relative"
             >
-              <Quote className="absolute top-6 right-6 w-8 h-8 text-whatsapp-primary/20" />
+              <Quote className="absolute top-6 right-6 w-8 h-8 text-brand-primary/20" />
               
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-2xl mr-4">

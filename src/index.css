@@ -1,73 +1,136 @@
+/* Inter — corpo de texto (font-sans). NewBlack Typeface é usada como font-display. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ConvoFlow Design System - WhatsApp Business Theme
-All colors MUST be HSL. Semantic tokens for scalable theming.
+/* ConvoFlow Design System — Nova marca
+   Paleta: Lima #DAE27C · Creme #F9F9ED · Carvão #211E0B · Lilás #7777D8 · Oliva #49511D
+   Todas as cores em HSL (formato "H S% L%"). Tokens semânticos para theming escalável.
 */
+
+/* NewBlack Typeface — fonte de marca (display). WOFF2 primário, WOFF fallback. */
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-UltraLight.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-UltraLight.woff') format('woff');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-Light.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-Regular.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-Medium.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-SemiBold.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-SemiBold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-Bold.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NewBlack Typeface';
+  src: url('./assets/fonts/NewBlackTypeface-ExtraBold.woff2') format('woff2'),
+       url('./assets/fonts/NewBlackTypeface-ExtraBold.woff') format('woff');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
 
 @layer base {
   :root {
-    /* Core Brand Colors - WhatsApp Inspired */
-    --whatsapp-primary: 142 69% 58%; /* WhatsApp Green */
-    --whatsapp-secondary: 142 69% 48%; /* Darker Green */
-    --whatsapp-light: 142 69% 95%; /* Very Light Green */
-    
+    /* Core Brand Colors */
+    --brand-primary: 65 64% 69%;      /* #DAE27C — Lima (destaque principal) */
+    --brand-secondary: 240 55% 66%;   /* #7777D8 — Lilás (destaque secundário) */
+    --brand-light: 65 56% 90%;        /* Lima clara (fundos sutis) */
+    --brand-dark: 69 47% 22%;         /* #49511D — Oliva (apoio escuro) */
+
     /* Business Dashboard Colors */
-    --business-dark: 215 28% 17%; /* Dark Blue-Gray */
-    --business-medium: 215 16% 47%; /* Medium Gray */
-    --business-light: 215 16% 97%; /* Light Gray */
-    
-    /* Status Colors */
-    --success: 142 76% 36%; /* Success Green */
-    --warning: 43 89% 38%; /* Warning Orange */
-    --error: 0 84% 60%; /* Error Red */
-    --info: 221 83% 53%; /* Info Blue */
-    
+    --business-dark: 52 50% 9%;       /* #211E0B — Carvão */
+    --business-medium: 69 22% 38%;    /* Oliva média */
+    --business-light: 60 40% 95%;     /* Creme claro */
+
+    /* Status Colors (harmonizados com a nova paleta) */
+    --success: 84 46% 40%;            /* Verde-lima */
+    --warning: 38 92% 48%;            /* Âmbar */
+    --error: 0 75% 55%;               /* Vermelho */
+    --info: 240 55% 62%;              /* Lilás-azul (alinhado ao accent) */
+
     /* Light Theme Variables */
-    --background: 0 0% 100%;
-    --foreground: 215 28% 17%;
+    --background: 60 50% 95%;         /* #F9F9ED */
+    --foreground: 52 50% 9%;          /* #211E0B */
 
     --card: 0 0% 100%;
-    --card-foreground: 215 28% 17%;
+    --card-foreground: 52 50% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 28% 17%;
+    --popover-foreground: 52 50% 9%;
 
-    --primary: 142 69% 58%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 65 64% 69%;            /* #DAE27C */
+    --primary-foreground: 52 50% 9%;  /* texto escuro sobre a lima */
 
-    --secondary: 215 16% 97%;
-    --secondary-foreground: 215 28% 17%;
+    --secondary: 240 48% 94%;         /* Lilás bem claro */
+    --secondary-foreground: 240 40% 28%;
 
-    --muted: 215 16% 97%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 69 24% 90%;              /* Oliva bem clara */
+    --muted-foreground: 69 28% 32%;   /* Oliva (texto secundário) */
 
-    --accent: 142 69% 95%;
-    --accent-foreground: 142 69% 48%;
+    --accent: 240 55% 66%;            /* #7777D8 */
+    --accent-foreground: 60 50% 96%;  /* creme sobre lilás */
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 75% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 16% 91%;
-    --input: 215 16% 91%;
-    --ring: 142 69% 58%;
+    --border: 60 16% 84%;             /* cinza quente neutro */
+    --input: 60 16% 84%;
+    --ring: 65 64% 69%;               /* #DAE27C */
 
     /* Custom Business Variables */
-    --dashboard-bg: 215 16% 99%;
+    --dashboard-bg: 60 44% 97%;
     --sidebar-bg: 0 0% 100%;
     --navbar-bg: 0 0% 100%;
-    
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--whatsapp-primary)), hsl(var(--whatsapp-secondary)));
-    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(142 76% 26%));
+
+    /* Gradients (lima clara → verde-lima; texto escuro permanece legível) */
+    --gradient-primary: linear-gradient(135deg, hsl(65 64% 70%), hsl(74 54% 58%));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(84 46% 28%));
     --gradient-background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--dashboard-bg)));
-    
-    /* Shadows */
-    --shadow-soft: 0 2px 8px hsl(var(--whatsapp-primary) / 0.1);
-    --shadow-medium: 0 4px 16px hsl(var(--whatsapp-primary) / 0.15);
-    --shadow-strong: 0 8px 32px hsl(var(--whatsapp-primary) / 0.2);
-    
+
+    /* Shadows (tom da marca) */
+    --shadow-soft: 0 2px 8px hsl(var(--brand-dark) / 0.1);
+    --shadow-medium: 0 4px 16px hsl(var(--brand-dark) / 0.14);
+    --shadow-strong: 0 8px 32px hsl(var(--brand-dark) / 0.18);
+
     /* Animations */
     --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -75,76 +138,87 @@ All colors MUST be HSL. Semantic tokens for scalable theming.
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar (shadcn) */
+    --sidebar-background: 60 45% 97%;
+    --sidebar-foreground: 52 30% 20%;
+    --sidebar-primary: 65 64% 69%;
+    --sidebar-primary-foreground: 52 50% 9%;
+    --sidebar-accent: 65 42% 90%;
+    --sidebar-accent-foreground: 69 47% 22%;
+    --sidebar-border: 60 20% 87%;
+    --sidebar-ring: 65 64% 69%;
   }
 
   .dark {
+    /* Core Brand Colors (dark) */
+    --brand-primary: 65 64% 69%;
+    --brand-secondary: 240 55% 70%;
+    --brand-light: 69 30% 22%;
+    --brand-dark: 69 40% 30%;
+
+    --business-dark: 60 50% 95%;
+    --business-medium: 69 18% 60%;
+    --business-light: 55 18% 14%;
+
+    /* Status (dark, levemente mais vivos) */
+    --success: 84 48% 48%;
+    --warning: 38 92% 55%;
+    --error: 0 72% 58%;
+    --info: 240 60% 70%;
+
     /* Dark Theme Variables */
-    --background: 215 28% 7%;
-    --foreground: 0 0% 98%;
+    --background: 60 22% 7%;          /* carvão esverdeado */
+    --foreground: 60 50% 95%;         /* creme */
 
-    --card: 215 28% 10%;
-    --card-foreground: 0 0% 98%;
+    --card: 55 18% 11%;
+    --card-foreground: 60 50% 95%;
 
-    --popover: 215 28% 10%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 55 18% 11%;
+    --popover-foreground: 60 50% 95%;
 
-    --primary: 142 69% 58%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 65 64% 69%;
+    --primary-foreground: 52 50% 9%;
 
-    --secondary: 215 28% 15%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 240 22% 22%;
+    --secondary-foreground: 60 50% 95%;
 
-    --muted: 215 28% 15%;
-    --muted-foreground: 215 16% 65%;
+    --muted: 60 12% 16%;
+    --muted-foreground: 60 16% 66%;
 
-    --accent: 215 28% 15%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 240 55% 70%;
+    --accent-foreground: 52 50% 9%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 28% 20%;
-    --input: 215 28% 20%;
-    --ring: 142 69% 58%;
+    --border: 60 12% 20%;
+    --input: 60 12% 20%;
+    --ring: 65 64% 69%;
 
     /* Dark Business Variables */
-    --dashboard-bg: 215 28% 5%;
-    --sidebar-bg: 215 28% 10%;
-    --navbar-bg: 215 28% 10%;
-    
+    --dashboard-bg: 60 24% 5%;
+    --sidebar-bg: 55 18% 11%;
+    --navbar-bg: 55 18% 11%;
+
     /* Dark Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--whatsapp-primary)), hsl(var(--whatsapp-secondary)));
-    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(142 76% 26%));
+    --gradient-primary: linear-gradient(135deg, hsl(65 64% 70%), hsl(74 50% 56%));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(84 46% 26%));
     --gradient-background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--dashboard-bg)));
-    
+
     /* Dark Shadows */
     --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.3);
     --shadow-medium: 0 4px 16px hsl(0 0% 0% / 0.4);
     --shadow-strong: 0 8px 32px hsl(0 0% 0% / 0.5);
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar (shadcn, dark) */
+    --sidebar-background: 55 18% 11%;
+    --sidebar-foreground: 60 40% 90%;
+    --sidebar-primary: 65 64% 69%;
+    --sidebar-primary-foreground: 52 50% 9%;
+    --sidebar-accent: 60 12% 18%;
+    --sidebar-accent-foreground: 60 40% 90%;
+    --sidebar-border: 60 12% 20%;
+    --sidebar-ring: 65 64% 69%;
   }
 }
 
@@ -155,5 +229,10 @@ All colors MUST be HSL. Semantic tokens for scalable theming.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'NewBlack Typeface', 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 }

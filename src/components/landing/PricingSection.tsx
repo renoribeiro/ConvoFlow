@@ -47,7 +47,7 @@ export const PricingSection = () => {
           </Badge>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4 px-4 sm:px-0">
             Preço simples e{' '}
-            <span className="text-whatsapp-primary">transparente</span>
+            <span className="text-brand-primary">transparente</span>
           </h2>
           <p className="text-lg sm:text-xl text-muted-foreground px-4 sm:px-0">
             Sem pegadinhas, sem taxas ocultas. Pague apenas pelo que usar.
@@ -59,10 +59,10 @@ export const PricingSection = () => {
           whileInView={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
-          className="bg-card rounded-2xl border-2 border-whatsapp-primary/20 p-6 sm:p-8 md:p-12 relative overflow-hidden"
+          className="bg-card rounded-2xl border-2 border-brand-primary/20 p-6 sm:p-8 md:p-12 relative overflow-hidden"
         >
           {/* Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-whatsapp-primary/5 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/5 to-transparent" />
 
           <div className="relative z-10">
             {/* Price Calculator */}
@@ -135,8 +135,8 @@ export const PricingSection = () => {
                   viewport={{ once: true }}
                   className="flex items-center"
                 >
-                  <div className="w-5 h-5 rounded-full bg-whatsapp-primary flex items-center justify-center mr-3 flex-shrink-0">
-                    <Check className="w-3 h-3 text-white" />
+                  <div className="w-5 h-5 rounded-full bg-brand-primary flex items-center justify-center mr-3 flex-shrink-0">
+                    <Check className="w-3 h-3 text-primary-foreground" />
                   </div>
                   <span className="text-sm sm:text-base text-foreground">{feature}</span>
                 </motion.div>

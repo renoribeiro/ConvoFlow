@@ -55,7 +55,7 @@ export const FAQSection = () => {
         >
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             Perguntas{' '}
-            <span className="text-whatsapp-primary">Frequentes</span>
+            <span className="text-brand-primary">Frequentes</span>
           </h2>
           <p className="text-xl text-muted-foreground">
             Tire suas dúvidas sobre o ConvoFlow
@@ -71,7 +71,7 @@ export const FAQSection = () => {
           <Accordion type="single" collapsible className="w-full">
             {faqs.map((faq, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left hover:text-whatsapp-primary transition-colors">
+                <AccordionTrigger className="text-left hover:text-brand-primary transition-colors">
                   {faq.question}
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground leading-relaxed">

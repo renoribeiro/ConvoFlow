@@ -24,9 +24,9 @@ import {
   BarChart,
   Bar
 } from 'recharts';
-import { 
-  TrendingUpIcon, 
-  TrendingDownIcon, 
+import {
+  TrendingUpIcon,
+  TrendingDownIcon,
   TargetIcon,
   AwardIcon,
   AlertTriangleIcon,
@@ -34,6 +34,7 @@ import {
   ClockIcon,
   UsersIcon
 } from 'lucide-react';
+import { CHART_STATUS, BRAND_CHART } from '@/lib/chartColors';
 
 interface PerformanceData {
   metric: string;
@@ -164,10 +165,10 @@ const defaultData: PerformanceData[] = [
 ];
 
 const CATEGORY_COLORS = {
-  conversion: '#10b981',
-  quality: '#3b82f6',
-  efficiency: '#f59e0b',
-  engagement: '#8b5cf6'
+  conversion: CHART_STATUS.success,
+  quality: CHART_STATUS.info,
+  efficiency: CHART_STATUS.warning,
+  engagement: BRAND_CHART.secondary
 };
 
 const CATEGORY_ICONS = {
@@ -288,8 +289,8 @@ export function PerformanceMetricsChart({
             <Radar
               name="Performance"
               dataKey="value"
-              stroke="#3b82f6"
-              fill="#3b82f6"
+              stroke={CHART_STATUS.info}
+              fill={CHART_STATUS.info}
               fillOpacity={0.3}
               strokeWidth={2}
             />
@@ -297,8 +298,8 @@ export function PerformanceMetricsChart({
               <Radar
                 name="Benchmark"
                 dataKey="benchmark"
-                stroke="#6b7280"
-                fill="#6b7280"
+                stroke={CHART_STATUS.neutral}
+                fill={CHART_STATUS.neutral}
                 fillOpacity={0.1}
                 strokeWidth={1}
                 strokeDasharray="5 5"
@@ -474,7 +475,7 @@ export function PerformanceMetricsChart({
               <Line
                 type="monotone"
                 dataKey="target"
-                stroke="#6b7280"
+                stroke={CHART_STATUS.neutral}
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 name="Meta"

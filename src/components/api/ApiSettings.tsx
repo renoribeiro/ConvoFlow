@@ -600,13 +600,13 @@ const mockMetrics: ApiMetrics = {
 
 const getStatusBadge = (status: string) => {
   const variants = {
-    active: 'bg-green-100 text-green-800',
-    inactive: 'bg-gray-100 text-gray-800',
-    deprecated: 'bg-red-100 text-red-800',
-    beta: 'bg-blue-100 text-blue-800',
-    failed: 'bg-red-100 text-red-800',
-    expired: 'bg-orange-100 text-orange-800',
-    revoked: 'bg-red-100 text-red-800'
+    active: 'bg-status-success/15 text-status-success',
+    inactive: 'bg-muted text-muted-foreground',
+    deprecated: 'bg-status-error/15 text-status-error',
+    beta: 'bg-status-info/15 text-status-info',
+    failed: 'bg-status-error/15 text-status-error',
+    expired: 'bg-status-warning/15 text-status-warning',
+    revoked: 'bg-status-error/15 text-status-error'
   };
 
   const labels = {
@@ -628,11 +628,11 @@ const getStatusBadge = (status: string) => {
 
 const getMethodBadge = (method: string) => {
   const variants = {
-    GET: 'bg-green-100 text-green-800',
-    POST: 'bg-blue-100 text-blue-800',
-    PUT: 'bg-yellow-100 text-yellow-800',
-    DELETE: 'bg-red-100 text-red-800',
-    PATCH: 'bg-purple-100 text-purple-800'
+    GET: 'bg-status-success/15 text-status-success',
+    POST: 'bg-status-info/15 text-status-info',
+    PUT: 'bg-status-warning/15 text-status-warning',
+    DELETE: 'bg-status-error/15 text-status-error',
+    PATCH: 'bg-accent/15 text-accent'
   };
 
   return (
@@ -649,9 +649,9 @@ const EndpointCard = ({ endpoint, onEdit, onDelete, onTest }: {
   onTest: (endpoint: ApiEndpoint) => void;
 }) => {
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 99) return 'text-green-600';
-    if (rate >= 95) return 'text-yellow-600';
-    return 'text-red-600';
+    if (rate >= 99) return 'text-status-success';
+    if (rate >= 95) return 'text-status-warning';
+    return 'text-status-error';
   };
 
   return (
@@ -726,7 +726,7 @@ const EndpointCard = ({ endpoint, onEdit, onDelete, onTest }: {
             variant="outline"
             size="sm"
             onClick={() => onDelete(endpoint.id)}
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive/80"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -868,7 +868,7 @@ const ApiKeyCard = ({ apiKey, onEdit, onDelete, onToggleStatus }: {
             variant="outline"
             size="sm"
             onClick={() => onDelete(apiKey.id)}
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive/80"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -890,9 +890,9 @@ const WebhookCard = ({ webhook, onEdit, onDelete, onTest, onToggleStatus }: {
     : 0;
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 99) return 'text-green-600';
-    if (rate >= 95) return 'text-yellow-600';
-    return 'text-red-600';
+    if (rate >= 99) return 'text-status-success';
+    if (rate >= 95) return 'text-status-warning';
+    return 'text-status-error';
   };
 
   return (
@@ -919,11 +919,11 @@ const WebhookCard = ({ webhook, onEdit, onDelete, onTest, onToggleStatus }: {
         <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
           <div>
             <span className="text-muted-foreground">Sucessos:</span>
-            <span className="ml-2 font-medium text-green-600">{webhook.success_count.toLocaleString()}</span>
+            <span className="ml-2 font-medium text-status-success">{webhook.success_count.toLocaleString()}</span>
           </div>
           <div>
             <span className="text-muted-foreground">Falhas:</span>
-            <span className="ml-2 font-medium text-red-600">{webhook.failure_count.toLocaleString()}</span>
+            <span className="ml-2 font-medium text-status-error">{webhook.failure_count.toLocaleString()}</span>
           </div>
           <div>
             <span className="text-muted-foreground">Taxa de Sucesso:</span>
@@ -1001,7 +1001,7 @@ const WebhookCard = ({ webhook, onEdit, onDelete, onTest, onToggleStatus }: {
             variant="outline"
             size="sm"
             onClick={() => onDelete(webhook.id)}
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive/80"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -1361,8 +1361,8 @@ const ApiMetrics = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600" />
+              <div className="p-3 bg-status-info/15 rounded-lg">
+                <Activity className="h-6 w-6 text-status-info" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total de Requisições</p>
@@ -1371,12 +1371,12 @@ const ApiMetrics = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-green-600" />
+              <div className="p-3 bg-status-success/15 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-status-success" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Taxa de Sucesso</p>
@@ -1385,12 +1385,12 @@ const ApiMetrics = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Clock className="h-6 w-6 text-purple-600" />
+              <div className="p-3 bg-accent/15 rounded-lg">
+                <Clock className="h-6 w-6 text-accent" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tempo Médio</p>
@@ -1399,12 +1399,12 @@ const ApiMetrics = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
+              <div className="p-3 bg-primary/15 rounded-lg">
+                <TrendingUp className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Uptime</p>
@@ -1436,7 +1436,7 @@ const ApiMetrics = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Taxa de erro</span>
-                <span className="font-semibold text-red-600">{mockMetrics.error_rate.toFixed(2)}%</span>
+                <span className="font-semibold text-status-error">{mockMetrics.error_rate.toFixed(2)}%</span>
               </div>
             </div>
           </CardContent>
@@ -1454,11 +1454,11 @@ const ApiMetrics = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Mais lento</span>
-                <span className="font-semibold text-red-600">{mockMetrics.slowest_endpoint}</span>
+                <span className="font-semibold text-status-error">{mockMetrics.slowest_endpoint}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Mais rápido</span>
-                <span className="font-semibold text-green-600">{mockMetrics.fastest_endpoint}</span>
+                <span className="font-semibold text-status-success">{mockMetrics.fastest_endpoint}</span>
               </div>
             </div>
           </CardContent>
@@ -1479,18 +1479,18 @@ const ApiMetrics = () => {
             </Alert>
             
             {mockMetrics.error_rate > 5 && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <AlertDescription className="text-red-800">
+              <Alert className="border-status-error/30 bg-status-error/10">
+                <AlertTriangle className="h-4 w-4 text-status-error" />
+                <AlertDescription className="text-status-error">
                   Taxa de erro elevada detectada ({mockMetrics.error_rate.toFixed(2)}%). Verifique os logs para mais detalhes.
                 </AlertDescription>
               </Alert>
             )}
-            
+
             {mockMetrics.avg_response_time > 1000 && (
-              <Alert className="border-yellow-200 bg-yellow-50">
-                <Clock className="h-4 w-4 text-yellow-600" />
-                <AlertDescription className="text-yellow-800">
+              <Alert className="border-status-warning/30 bg-status-warning/10">
+                <Clock className="h-4 w-4 text-status-warning" />
+                <AlertDescription className="text-status-warning">
                   Tempo de resposta elevado detectado ({mockMetrics.avg_response_time}ms). Considere otimizar os endpoints.
                 </AlertDescription>
               </Alert>

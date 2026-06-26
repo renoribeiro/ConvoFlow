@@ -13,13 +13,13 @@ export default function TermsOfService() {
           transition={{ duration: 0.6 }}
         >
           <div className="text-center mb-8">
-            <Link to="/register" className="inline-flex items-center text-whatsapp-primary hover:text-whatsapp-secondary transition-colors mb-4">
+            <Link to="/register" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar para o registro
             </Link>
             
             <div className="flex items-center justify-center mb-4">
-              <MessageSquare className="w-8 h-8 text-whatsapp-primary mr-3" />
+              <MessageSquare className="w-8 h-8 text-brand-primary mr-3" />
               <span className="text-2xl font-bold text-foreground">ConvoFlow</span>
             </div>
           </div>

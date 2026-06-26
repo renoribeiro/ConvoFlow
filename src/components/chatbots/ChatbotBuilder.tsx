@@ -109,7 +109,7 @@ export const ChatbotBuilder = ({ botId, onSave }: ChatbotBuilderProps) => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+              <div className="p-2 bg-accent/15 text-accent rounded-lg">
                 <Bot className="h-5 w-5" />
               </div>
               <div>
@@ -316,9 +316,9 @@ export const ChatbotBuilder = ({ botId, onSave }: ChatbotBuilderProps) => {
                     Adicionar Resposta
                   </Button>
 
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">💡 Dicas para Variáveis</h4>
-                    <ul className="text-sm text-blue-700 space-y-1">
+                  <div className="p-4 bg-status-info/10 rounded-lg">
+                    <h4 className="font-medium text-foreground mb-2">Dicas para Variáveis</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
                       <li>• Use {`{{nome}}`} para o nome do contato</li>
                       <li>• Use {`{{telefone}}`} para o número do WhatsApp</li>
                       <li>• Use {`{{empresa}}`} para o nome da sua empresa</li>
@@ -343,13 +343,13 @@ export const ChatbotBuilder = ({ botId, onSave }: ChatbotBuilderProps) => {
                   {triggers.filter(t => t.phrase).map((trigger, index) => (
                     <div key={index} className="space-y-2">
                       <div className="flex justify-end">
-                        <div className="bg-blue-100 text-blue-900 px-3 py-2 rounded-lg max-w-xs text-sm">
+                        <div className="bg-accent/15 text-accent-foreground px-3 py-2 rounded-lg max-w-xs text-sm">
                           {trigger.phrase}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                        <div className="bg-gray-100 px-3 py-2 rounded-lg max-w-xs text-sm">
+                        <div className="bg-muted px-3 py-2 rounded-lg max-w-xs text-sm">
                           {responses[0]?.message.replace(/\{\{([^}]+)\}\}/g, '[VAR: $1]') || 'Sem resposta configurada'}
                         </div>
                       </div>

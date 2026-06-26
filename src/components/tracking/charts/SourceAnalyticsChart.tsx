@@ -27,6 +27,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { BRAND_CHART } from '@/lib/chartColors';
 
 interface SourceAnalyticsChartProps {
   data: Record<string, {
@@ -68,7 +69,7 @@ const SOURCE_COLORS = {
   'YouTube': '#ff0000',
   'Twitter': '#1da1f2',
   'TikTok': '#000000',
-  'WhatsApp': '#25d366',
+  'WhatsApp': BRAND_CHART.primary,
   'Other': '#6c757d'
 };
 
@@ -261,9 +262,9 @@ export const SourceAnalyticsChart = ({ data }: SourceAnalyticsChartProps) => {
                     tickFormatter={(value) => `${value.toFixed(1)}%`}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar 
-                    dataKey="conversionRate" 
-                    fill="#10b981" 
+                  <Bar
+                    dataKey="conversionRate"
+                    fill={BRAND_CHART.primary}
                     name="Taxa de Conversão (%)"
                     radius={[2, 2, 0, 0]}
                   />

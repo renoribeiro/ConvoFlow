@@ -17,11 +17,14 @@ import {
   Shield,
   Smartphone,
   UsersRound,
-  Menu,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import logoHorizontal from '@/assets/logos/logo-horizontal.svg';
+import logoHorizontalDark from '@/assets/logos/logo-horizontal-dark.svg';
+import iconGreen from '@/assets/logos/icon-green.svg';
+import iconWhite from '@/assets/logos/icon-white.svg';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -157,23 +160,32 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     >
       {/* Logo + toggle */}
       <div className="flex items-center h-12 px-3 border-b border-border flex-shrink-0">
-        {isOpen && (
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
-              <MessageSquare className="h-3.5 w-3.5 text-primary-foreground" />
-            </div>
-            <span className="font-semibold text-sm text-foreground truncate">ConvoFlow</span>
-          </div>
+        {isOpen ? (
+          <>
+            <NavLink to="/dashboard" className="flex items-center flex-1 min-w-0" aria-label="ConvoFlow">
+              <img src={logoHorizontal} alt="ConvoFlow" className="h-7 w-auto dark:hidden" />
+              <img src={logoHorizontalDark} alt="ConvoFlow" className="h-7 w-auto hidden dark:block" />
+            </NavLink>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggle}
+              className="h-8 w-8 flex-shrink-0"
+              aria-label="Recolher menu lateral"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <button
+            onClick={onToggle}
+            className="mx-auto flex items-center justify-center"
+            aria-label="Expandir menu lateral"
+          >
+            <img src={iconGreen} alt="ConvoFlow" className="h-7 w-7 dark:hidden" />
+            <img src={iconWhite} alt="ConvoFlow" className="h-7 w-7 hidden dark:block" />
+          </button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggle}
-          className={cn('h-8 w-8 flex-shrink-0', !isOpen && 'mx-auto')}
-          aria-label="Alternar menu lateral"
-        >
-          {isOpen ? <ChevronLeft className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </Button>
       </div>
 
       {/* Navigation */}

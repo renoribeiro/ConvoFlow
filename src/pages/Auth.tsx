@@ -4,11 +4,13 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import logoVertical from '@/assets/logos/logo-vertical.svg';
+import logoVerticalDark from '@/assets/logos/logo-vertical-dark.svg';
 
 export const Auth = () => {
   const { login, register, isLoading, session } = useAuth();
@@ -71,9 +73,10 @@ export const Auth = () => {
 
         <Card className="border-border/50 shadow-xl backdrop-blur-sm bg-card/95">
           <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              ConvoFlow
-            </CardTitle>
+            <div className="flex justify-center">
+              <img src={logoVertical} alt="ConvoFlow" className="h-20 w-auto dark:hidden" />
+              <img src={logoVerticalDark} alt="ConvoFlow" className="h-20 w-auto hidden dark:block" />
+            </div>
             <CardDescription>
               Entre na sua conta ou crie uma nova
             </CardDescription>

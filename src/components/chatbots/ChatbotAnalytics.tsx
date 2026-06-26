@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Bot, MessageSquare, TrendingUp, Clock, Users, Zap } from 'lucide-react';
 import { useChatbot } from '@/contexts/ChatbotContext';
+import { CHART_SERIES } from '@/lib/chartColors';
 
 interface ChatbotAnalyticsProps {
   chatbotId?: string;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const COLORS = CHART_SERIES;
 
 export const ChatbotAnalytics: React.FC<ChatbotAnalyticsProps> = ({ chatbotId }) => {
   const { chatbots, getChatbotAnalytics } = useChatbot();
@@ -176,8 +177,8 @@ export const ChatbotAnalytics: React.FC<ChatbotAnalyticsProps> = ({ chatbotId })
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="interactions" stroke="#8884d8" strokeWidth={2} />
-                <Line type="monotone" dataKey="success" stroke="#82ca9d" strokeWidth={2} />
+                <Line type="monotone" dataKey="interactions" stroke={CHART_SERIES[0]} strokeWidth={2} />
+                <Line type="monotone" dataKey="success" stroke={CHART_SERIES[1]} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -195,7 +196,7 @@ export const ChatbotAnalytics: React.FC<ChatbotAnalyticsProps> = ({ chatbotId })
                 <XAxis dataKey="trigger" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="#8884d8" />
+                <Bar dataKey="count" fill={CHART_SERIES[0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -215,8 +216,8 @@ export const ChatbotAnalytics: React.FC<ChatbotAnalyticsProps> = ({ chatbotId })
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip />
-                  <Bar yAxisId="left" dataKey="interactions" fill="#8884d8" name="Interações" />
-                  <Bar yAxisId="right" dataKey="successRate" fill="#82ca9d" name="Taxa de Sucesso %" />
+                  <Bar yAxisId="left" dataKey="interactions" fill={CHART_SERIES[0]} name="Interações" />
+                  <Bar yAxisId="right" dataKey="successRate" fill={CHART_SERIES[1]} name="Taxa de Sucesso %" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

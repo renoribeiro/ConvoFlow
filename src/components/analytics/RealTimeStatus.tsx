@@ -70,31 +70,31 @@ const RealTimeStatus: React.FC<RealTimeStatusProps> = ({
   const statusConfig = {
     connected: {
       icon: CheckCircle,
-      color: 'bg-green-100 text-green-800 border-green-200',
+      color: 'bg-status-success/15 text-status-success border-status-success/30',
       label: 'Conectado',
       description: 'Recebendo atualizações em tempo real'
     },
     disconnected: {
       icon: WifiOff,
-      color: 'bg-red-100 text-red-800 border-red-200',
+      color: 'bg-status-error/15 text-status-error border-status-error/30',
       label: 'Desconectado',
       description: 'Sem conexão com o servidor'
     },
     loading: {
       icon: RefreshCw,
-      color: 'bg-blue-100 text-blue-800 border-blue-200',
+      color: 'bg-status-info/15 text-status-info border-status-info/30',
       label: 'Carregando',
       description: 'Atualizando dados...'
     },
     paused: {
       icon: Pause,
-      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      color: 'bg-status-warning/15 text-status-warning border-status-warning/30',
       label: 'Pausado',
       description: 'Atualizações pausadas pelo usuário'
     },
     error: {
       icon: AlertCircle,
-      color: 'bg-red-100 text-red-800 border-red-200',
+      color: 'bg-status-error/15 text-status-error border-status-error/30',
       label: 'Erro',
       description: error || 'Erro desconhecido'
     }
@@ -197,9 +197,9 @@ const RealTimeStatus: React.FC<RealTimeStatusProps> = ({
           <TooltipTrigger asChild>
             <div className="flex items-center">
               {isConnected ? (
-                <Wifi className="h-3 w-3 text-green-600" />
+                <Wifi className="h-3 w-3 text-status-success" />
               ) : (
-                <WifiOff className="h-3 w-3 text-red-600" />
+                <WifiOff className="h-3 w-3 text-status-error" />
               )}
             </div>
           </TooltipTrigger>

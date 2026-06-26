@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 
 export const CTASection = () => {
   return (
-    <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-whatsapp-primary to-whatsapp-secondary relative overflow-hidden">
+    <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-brand-secondary to-brand-dark relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-30" 
            style={{
@@ -42,7 +42,7 @@ export const CTASection = () => {
               <Button 
                 size="xl" 
                 variant="secondary"
-                className="bg-white text-whatsapp-primary hover:bg-white/90 group w-full sm:w-auto"
+                className="bg-white text-brand-dark hover:bg-white/90 group w-full sm:w-auto"
               >
                 Começar Teste Gratuito
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />

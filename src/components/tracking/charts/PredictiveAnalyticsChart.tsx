@@ -23,17 +23,18 @@ import {
   Scatter,
   ReferenceLine
 } from 'recharts';
-import { 
-  TrendingUpIcon, 
-  TrendingDownIcon, 
-  BrainIcon, 
-  TargetIcon, 
+import {
+  TrendingUpIcon,
+  TrendingDownIcon,
+  BrainIcon,
+  TargetIcon,
   AlertTriangleIcon,
   InfoIcon,
   ZapIcon,
   CalendarIcon,
   DollarSignIcon
 } from 'lucide-react';
+import { CHART_STATUS } from '@/lib/chartColors';
 
 interface PredictiveData {
   date: string;
@@ -253,37 +254,37 @@ export function PredictiveAnalyticsChart({
             <Area
               dataKey="upperBound"
               stroke="none"
-              fill="#10b981"
+              fill={CHART_STATUS.success}
               fillOpacity={0.1}
               connectNulls={false}
             />
           )}
-          
+
           {/* Linha de dados históricos */}
           <Line
             dataKey="actual"
-            stroke="#3b82f6"
+            stroke={CHART_STATUS.info}
             strokeWidth={2}
-            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 3 }}
+            dot={{ fill: CHART_STATUS.info, strokeWidth: 2, r: 3 }}
             connectNulls={false}
             name="Dados Reais"
           />
-          
+
           {/* Linha de previsão */}
           <Line
             dataKey="predicted"
-            stroke="#10b981"
+            stroke={CHART_STATUS.success}
             strokeWidth={2}
             strokeDasharray="5 5"
-            dot={{ fill: '#10b981', strokeWidth: 2, r: 3 }}
+            dot={{ fill: CHART_STATUS.success, strokeWidth: 2, r: 3 }}
             connectNulls={false}
             name="Previsão"
           />
-          
+
           {/* Linha de separação entre histórico e previsão */}
-          <ReferenceLine 
-            x={historicalData[historicalData.length - 1]?.dateFormatted} 
-            stroke="#6b7280" 
+          <ReferenceLine
+            x={historicalData[historicalData.length - 1]?.dateFormatted}
+            stroke={CHART_STATUS.neutral}
             strokeDasharray="2 2"
           />
         </LineChart>
@@ -316,12 +317,12 @@ export function PredictiveAnalyticsChart({
               formatter={(value: number) => [`${value.toFixed(1)}%`, 'Variação']}
               labelFormatter={(label) => `Data: ${label}`}
             />
-            <Bar 
-              dataKey="change" 
-              fill={(entry: any) => entry.change >= 0 ? '#10b981' : '#ef4444'}
+            <Bar
+              dataKey="change"
+              fill={(entry: any) => entry.change >= 0 ? CHART_STATUS.success : CHART_STATUS.error}
               name="Variação %"
             />
-            <ReferenceLine y={0} stroke="#6b7280" />
+            <ReferenceLine y={0} stroke={CHART_STATUS.neutral} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -349,24 +350,24 @@ export function PredictiveAnalyticsChart({
             <Area
               dataKey="optimistic"
               stackId="1"
-              stroke="#10b981"
-              fill="#10b981"
+              stroke={CHART_STATUS.success}
+              fill={CHART_STATUS.success}
               fillOpacity={0.3}
               name="Cenário Otimista"
             />
             <Area
               dataKey="realistic"
               stackId="2"
-              stroke="#3b82f6"
-              fill="#3b82f6"
+              stroke={CHART_STATUS.info}
+              fill={CHART_STATUS.info}
               fillOpacity={0.5}
               name="Cenário Realista"
             />
             <Area
               dataKey="pessimistic"
               stackId="3"
-              stroke="#ef4444"
-              fill="#ef4444"
+              stroke={CHART_STATUS.error}
+              fill={CHART_STATUS.error}
               fillOpacity={0.3}
               name="Cenário Pessimista"
             />

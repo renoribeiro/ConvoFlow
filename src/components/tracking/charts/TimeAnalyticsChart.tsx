@@ -28,6 +28,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_STATUS } from '@/lib/chartColors';
 
 interface TimeAnalyticsChartProps {
   data: Record<string, { leads: number; conversions: number; revenue: number }>;
@@ -345,8 +346,8 @@ export const TimeAnalyticsChart = ({
                   <Area
                     type="monotone"
                     dataKey={selectedMetric}
-                    stroke="#3b82f6"
-                    fill="#3b82f6"
+                    stroke={CHART_STATUS.info}
+                    fill={CHART_STATUS.info}
                     fillOpacity={0.1}
                     strokeWidth={2}
                     name={selectedMetric === 'leads' ? 'Leads' : selectedMetric === 'conversions' ? 'Conversões' : 'Receita'}
@@ -381,9 +382,9 @@ export const TimeAnalyticsChart = ({
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar 
-                    dataKey={selectedMetric} 
-                    fill="#3b82f6" 
+                  <Bar
+                    dataKey={selectedMetric}
+                    fill={CHART_STATUS.info}
                     name={selectedMetric === 'leads' ? 'Leads' : selectedMetric === 'conversions' ? 'Conversões' : 'Receita'}
                     radius={[2, 2, 0, 0]}
                   />
@@ -421,8 +422,8 @@ export const TimeAnalyticsChart = ({
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar dataKey="avgLeads" fill="#3b82f6" name="Média de Leads" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="avgConversions" fill="#10b981" name="Média de Conversões" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="avgLeads" fill={CHART_STATUS.info} name="Média de Leads" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="avgConversions" fill={CHART_STATUS.success} name="Média de Conversões" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -448,17 +449,17 @@ export const TimeAnalyticsChart = ({
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="avgLeads" 
-                    stroke="#3b82f6" 
+                  <Line
+                    type="monotone"
+                    dataKey="avgLeads"
+                    stroke={CHART_STATUS.info}
                     strokeWidth={2}
                     name="Média de Leads"
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="avgConversions" 
-                    stroke="#10b981" 
+                  <Line
+                    type="monotone"
+                    dataKey="avgConversions"
+                    stroke={CHART_STATUS.success}
                     strokeWidth={2}
                     name="Média de Conversões"
                   />

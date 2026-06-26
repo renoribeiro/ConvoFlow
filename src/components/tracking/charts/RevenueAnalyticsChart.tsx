@@ -25,6 +25,7 @@ import {
   Users
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_STATUS } from '@/lib/chartColors';
 
 interface RevenueAnalyticsChartProps {
   data: Record<string, { leads: number; conversions: number; revenue: number }>;
@@ -190,8 +191,8 @@ export const RevenueAnalyticsChart = ({
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#3b82f6"
-                  fill="#3b82f6"
+                  stroke={CHART_STATUS.info}
+                  fill={CHART_STATUS.info}
                   fillOpacity={0.1}
                   strokeWidth={2}
                   name="Receita"
@@ -228,15 +229,15 @@ export const RevenueAnalyticsChart = ({
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar 
-                  dataKey="conversions" 
-                  fill="#10b981" 
+                <Bar
+                  dataKey="conversions"
+                  fill={CHART_STATUS.success}
                   name="Conversões"
                   radius={[2, 2, 0, 0]}
                 />
-                <Bar 
-                  dataKey="leads" 
-                  fill="#f59e0b" 
+                <Bar
+                  dataKey="leads"
+                  fill={CHART_STATUS.warning}
                   name="Leads"
                   radius={[2, 2, 0, 0]}
                   opacity={0.7}

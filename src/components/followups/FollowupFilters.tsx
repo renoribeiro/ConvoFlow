@@ -1,3 +1,4 @@
+import { CHART_STATUS } from '@/lib/chartColors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,9 +36,9 @@ const followupTypes = [
 ];
 
 const priorities = [
-  { value: 'low', label: 'Baixa', color: '#10b981' },
-  { value: 'medium', label: 'Média', color: '#f59e0b' },
-  { value: 'high', label: 'Alta', color: '#ef4444' }
+  { value: 'low', label: 'Baixa', color: CHART_STATUS.success },
+  { value: 'medium', label: 'Média', color: CHART_STATUS.warning },
+  { value: 'high', label: 'Alta', color: CHART_STATUS.error }
 ];
 
 const statuses = [

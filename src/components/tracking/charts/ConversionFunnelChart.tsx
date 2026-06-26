@@ -73,7 +73,7 @@ export const ConversionFunnelChart = ({
         percentage: 100,
         dropoffRate: 0,
         icon: <Users className="w-5 h-5" />,
-        color: 'bg-blue-500'
+        color: 'bg-status-info'
       },
       {
         name: 'Leads Gerados',
@@ -81,7 +81,7 @@ export const ConversionFunnelChart = ({
         percentage: totalVisitors > 0 ? (totalLeads / totalVisitors) * 100 : 0,
         dropoffRate: totalVisitors > 0 ? ((totalVisitors - totalLeads) / totalVisitors) * 100 : 0,
         icon: <Target className="w-5 h-5" />,
-        color: 'bg-green-500'
+        color: 'bg-brand-primary'
       },
       {
         name: 'Leads Qualificados',
@@ -89,7 +89,7 @@ export const ConversionFunnelChart = ({
         percentage: totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0,
         dropoffRate: totalLeads > 0 ? ((totalLeads - qualifiedLeads) / totalLeads) * 100 : 0,
         icon: <CheckCircle className="w-5 h-5" />,
-        color: 'bg-yellow-500'
+        color: 'bg-status-warning'
       },
       {
         name: 'Oportunidades',
@@ -97,7 +97,7 @@ export const ConversionFunnelChart = ({
         percentage: qualifiedLeads > 0 ? (opportunities / qualifiedLeads) * 100 : 0,
         dropoffRate: qualifiedLeads > 0 ? ((qualifiedLeads - opportunities) / qualifiedLeads) * 100 : 0,
         icon: <DollarSign className="w-5 h-5" />,
-        color: 'bg-orange-500'
+        color: 'bg-brand-dark'
       },
       {
         name: 'Conversões',
@@ -105,7 +105,7 @@ export const ConversionFunnelChart = ({
         percentage: opportunities > 0 ? (conversions / opportunities) * 100 : 0,
         dropoffRate: opportunities > 0 ? ((opportunities - conversions) / opportunities) * 100 : 0,
         icon: <CheckCircle className="w-5 h-5" />,
-        color: 'bg-purple-500'
+        color: 'bg-accent'
       }
     ];
 
@@ -174,7 +174,7 @@ export const ConversionFunnelChart = ({
                       
                       {index > 0 && (
                         <div className="flex items-center gap-2">
-                          <TrendingDown className="w-4 h-4 text-red-500" />
+                          <TrendingDown className="w-4 h-4 text-status-error" />
                           <Badge variant="destructive" className="text-xs">
                             -{stage.dropoffRate.toFixed(1)}% dropoff
                           </Badge>
@@ -204,9 +204,9 @@ export const ConversionFunnelChart = ({
             </div>
 
             {/* Insights e Recomendações */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-semibold text-blue-900 mb-2">💡 Insights e Oportunidades</h4>
-              <div className="space-y-2 text-sm text-blue-800">
+            <div className="mt-6 p-4 bg-status-info/10 rounded-lg border border-status-info/30">
+              <h4 className="font-semibold text-foreground mb-2">💡 Insights e Oportunidades</h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
                 {funnelData[1]?.dropoffRate > 70 && (
                   <p>• Alta taxa de abandono entre visitantes e leads. Considere otimizar landing pages.</p>
                 )}

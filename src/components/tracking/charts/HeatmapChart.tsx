@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CalendarIcon, ClockIcon, TrendingUpIcon, TrendingDownIcon, InfoIcon } from 'lucide-react';
 import { ResponsiveContainer, Cell } from 'recharts';
+import { BRAND_CHART } from '@/lib/chartColors';
 
 interface HeatmapData {
   hour: number;
@@ -26,11 +27,12 @@ interface HeatmapChartProps {
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+// Gradiente de intensidade em 5 paradas: lima claro → lima → oliva média → oliva → oliva escura
 const COLORS = {
-  low: '#f0f9ff',
-  medium: '#7dd3fc',
-  high: '#0284c7',
-  highest: '#0c4a6e'
+  low: '#f5f8d6',       // lima muito claro
+  medium: BRAND_CHART.primary,   // lima (primária)
+  high: '#8A8F3E',      // oliva média (CHART_SERIES[5])
+  highest: BRAND_CHART.support   // oliva escura (apoio)
 };
 
 // Dados de exemplo para demonstração

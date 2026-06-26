@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import logoHorizontal from '@/assets/logos/logo-horizontal.svg';
+import logoHorizontalDark from '@/assets/logos/logo-horizontal-dark.svg';
 
 export const LandingNavbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,8 +26,9 @@ export const LandingNavbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16 sm:h-18 md:h-20">
           <div className="flex items-center">
-            <Link to="/" className="text-2xl font-bold text-whatsapp-primary">
-              ConvoFlow
+            <Link to="/" aria-label="ConvoFlow" className="flex items-center">
+              <img src={logoHorizontal} alt="ConvoFlow" className="h-7 sm:h-8 w-auto dark:hidden" />
+              <img src={logoHorizontalDark} alt="ConvoFlow" className="h-7 sm:h-8 w-auto hidden dark:block" />
             </Link>
           </div>
 
