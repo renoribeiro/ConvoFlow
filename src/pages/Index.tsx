@@ -1,123 +1,134 @@
+import { useState } from 'react';
+import { MessageCircle, UserPlus, TrendingUp, Timer, Send, ChevronDown } from 'lucide-react';
+import { motion } from 'framer-motion';
 import {
-  MessageSquare,
-  Users,
-  Clock,
-  Target,
-  Zap,
-} from 'lucide-react';
-import { MetricCard } from '@/components/dashboard/MetricCard';
-import { RecentConversations } from '@/components/dashboard/RecentConversations';
-import { WhatsAppStatus } from '@/components/dashboard/WhatsAppStatus';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { EnhancedMetricCard } from '@/components/dashboard/EnhancedMetricCard';
+import { AttentionPanel } from '@/components/dashboard/AttentionPanel';
+import { ActivityChart } from '@/components/dashboard/ActivityChart';
+import { FunnelMini } from '@/components/dashboard/FunnelMini';
+import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
+import { WhatsAppStatusCompact } from '@/components/dashboard/WhatsAppStatusCompact';
+import { LeadSourcesChart } from '@/components/dashboard/LeadSourcesChart';
+import { AutomationsSummary } from '@/components/dashboard/AutomationsSummary';
+
+import { usePeriodFilter } from '@/hooks/usePeriodFilter';
+import { useDashboardKpis } from '@/hooks/useDashboardKpis';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
 const numberFmt = new Intl.NumberFormat('pt-BR');
-const TREND_LABEL = 'em relação ao período anterior';
-
-interface CardConfig {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ReactNode;
-  trend?: { value: number; isPositive: boolean; label: string };
-  href?: string;
-  loading: boolean;
-}
 
 const Index = () => {
-  const m = useDashboardMetrics();
+  const period = usePeriodFilter('7d');
+  const kpis = useDashboardKpis(period);
 
-  const cards: CardConfig[] = [
+  // Invalidação automática a cada 30s (polling/realtime via Evolution store).
+  useRealTimeUpdates();
+
+  // Seção de gráficos secundários: aberta por padrão em desktop, fechada em mobile.
+  const [secondaryOpen, setSecondaryOpen] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 768,
+  );
+
+  const cards = [
     {
       title: 'Conversas Ativas',
-      value: numberFmt.format(m.activeConversations),
-      description: 'Em andamento agora',
-      icon: <MessageSquare className="h-4 w-4" />,
+      value: numberFmt.format(kpis.activeConversations.value),
+      icon: <MessageCircle />,
+      metric: kpis.activeConversations,
       href: '/dashboard/conversations',
-      loading: m.loading.activeConversations,
     },
     {
       title: 'Novos Contatos',
-      value: numberFmt.format(m.newContacts),
-      description: 'Criados hoje',
-      icon: <Users className="h-4 w-4" />,
-      trend: {
-        value: m.contactsTrend,
-        isPositive: m.contactsTrend >= 0,
-        label: TREND_LABEL,
-      },
+      value: numberFmt.format(kpis.newContacts.value),
+      icon: <UserPlus />,
+      metric: kpis.newContacts,
       href: '/dashboard/contacts',
-      loading: m.loading.newContacts,
     },
     {
       title: 'Taxa de Conversão',
-      value: `${m.conversionRate.toFixed(1)}%`,
-      description: 'Contatos no estágio final',
-      icon: <Target className="h-4 w-4" />,
+      value: `${kpis.conversionRate.value.toFixed(1)}%`,
+      icon: <TrendingUp />,
+      metric: kpis.conversionRate,
       href: '/dashboard/funnel',
-      loading: m.loading.conversionRate,
     },
     {
-      title: 'Tempo Médio Resposta',
-      value: `${m.avgResponseTime.toFixed(1)} min`,
-      description: 'Primeira resposta — últimas 24h',
-      icon: <Clock className="h-4 w-4" />,
-      trend: {
-        value: m.responseTimeTrend,
-        isPositive: m.responseTimeTrend >= 0,
-        label: TREND_LABEL,
-      },
-      loading: m.loading.avgResponseTime,
+      title: 'Tempo Médio de Resposta',
+      value: `${kpis.avgResponseTime.value.toFixed(1)} min`,
+      icon: <Timer />,
+      metric: kpis.avgResponseTime,
     },
     {
       title: 'Mensagens Enviadas',
-      value: numberFmt.format(m.messagesSent),
-      description: 'Hoje',
-      icon: <Zap className="h-4 w-4" />,
-      trend: {
-        value: m.messagesTrend,
-        isPositive: m.messagesTrend >= 0,
-        label: TREND_LABEL,
-      },
-      loading: m.loading.messagesSent,
+      value: numberFmt.format(kpis.messagesSent.value),
+      icon: <Send />,
+      metric: kpis.messagesSent,
     },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Visão geral das suas conversas e métricas de WhatsApp"
-      />
+      <DashboardHeader period={period} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {cards.map((c) =>
-          c.loading ? (
-            <Skeleton key={c.title} className="h-[140px] w-full rounded-lg" />
-          ) : (
-            <MetricCard
-              key={c.title}
-              title={c.title}
-              value={c.value}
-              description={c.description}
-              icon={c.icon}
-              trend={c.trend}
-              href={c.href}
-              className="xl:col-span-1"
-            />
-          )
-        )}
+      {/* Seção 2 — KPI cards com sparkline + variação */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {cards.map((card, i) => (
+          <EnhancedMetricCard
+            key={card.title}
+            index={i}
+            title={card.title}
+            value={card.value}
+            icon={card.icon}
+            metric={card.metric}
+            href={card.href}
+          />
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <RecentConversations />
+      {/* Seção 3 — Precisa de Atenção */}
+      <AttentionPanel />
+
+      {/* Seção 4 — Grid principal */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <ActivityChart period={period} />
+          <FunnelMini />
         </div>
-        <div className="lg:col-span-1">
-          <WhatsAppStatus />
+        <div className="space-y-6 lg:col-span-1">
+          <ActivityFeed />
+          <WhatsAppStatusCompact />
         </div>
       </div>
+
+      {/* Seção 5 — Gráficos secundários (colapsável) */}
+      <Collapsible open={secondaryOpen} onOpenChange={setSecondaryOpen}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50">
+          <span>Análise detalhada</span>
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 text-muted-foreground transition-transform duration-200',
+              secondaryOpen && 'rotate-180',
+            )}
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          >
+            <LeadSourcesChart period={period} />
+            <AutomationsSummary period={period} />
+          </motion.div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 };

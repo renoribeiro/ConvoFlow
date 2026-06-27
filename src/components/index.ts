@@ -1,6 +1,3 @@
-// Dashboard Components
-export { MainDashboard } from './dashboard/MainDashboard';
-
 // Analytics Components
 export { PerformanceAnalytics } from './analytics/PerformanceAnalytics';
 
@@ -102,10 +99,6 @@ export type { NavigationMenuProps } from './ui/navigation-menu';
 export type { ResizableProps } from './ui/resizable';
 
 // Component Groups for easier organization
-export const DashboardComponents = {
-  MainDashboard
-};
-
 export const AnalyticsComponents = {
   PerformanceAnalytics
 };
@@ -140,9 +133,6 @@ export const BackupComponents = {
 
 // All main components in one object
 export const ConvoFlowComponents = {
-  // Dashboard
-  MainDashboard,
-  
   // Analytics
   PerformanceAnalytics,
   
@@ -173,12 +163,6 @@ export default ConvoFlowComponents;
 
 // Component metadata for documentation
 export const ComponentMetadata = {
-  MainDashboard: {
-    name: 'MainDashboard',
-    description: 'Dashboard principal com visão geral do sistema',
-    category: 'Dashboard',
-    features: ['Métricas em tempo real', 'Gráficos interativos', 'Ações rápidas', 'Alertas do sistema']
-  },
   PerformanceAnalytics: {
     name: 'PerformanceAnalytics',
     description: 'Análise detalhada de performance do sistema',

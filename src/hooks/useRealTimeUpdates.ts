@@ -13,11 +13,11 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
   const {
     enabled = true,
     interval = 30000, // 30 segundos por padrão
-    tables = ['messages', 'contacts', 'mass_message_campaigns', 'chatbots', 'whatsapp_instances']
+    tables = ['messages', 'contacts', 'mass_message_campaigns', 'chatbots', 'whatsapp_instances'],
   } = options;
 
   const queryClient = useQueryClient();
-  const { currentTenant } = useTenant();
+  const { tenant } = useTenant();
   const [isConnected, setIsConnected] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -27,39 +27,39 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
 
   // Função para invalidar queries relacionadas ao dashboard
   const invalidateDashboardQueries = () => {
-    if (!currentTenant) return;
+    if (!tenant) return;
 
-    // Invalidar queries de métricas
+    // Métricas / gráficos / atividade do dashboard
     queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-charts'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-attention'] });
     queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
+    queryClient.invalidateQueries({ queryKey: ['recent-messages'] });
+    queryClient.invalidateQueries({ queryKey: ['recent-contacts'] });
     queryClient.invalidateQueries({ queryKey: ['recent-conversations'] });
     queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
-    
-    // Invalidar contadores
-    queryClient.invalidateQueries({ queryKey: ['count', 'contacts'] });
-    queryClient.invalidateQueries({ queryKey: ['count', 'messages'] });
-    queryClient.invalidateQueries({ queryKey: ['count', 'mass_message_campaigns'] });
-    queryClient.invalidateQueries({ queryKey: ['count', 'chatbots'] });
-    
-    console.log('Dashboard queries invalidated for real-time update');
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-instances-summary'] });
+
+    // Contadores (todos — cobre conversations/contacts/messages/automation_flows…)
+    queryClient.invalidateQueries({ queryKey: ['count'] });
   };
 
   // Monitorar mudanças no Evolution Store
   useEffect(() => {
     const currentTime = Date.now();
-    if (currentTime - lastUpdateTime > 1000) { // Throttle para evitar muitas atualizações
-      console.log('Evolution store data changed, updating dashboard');
+    if (currentTime - lastUpdateTime > 1000) {
+      // Throttle para evitar muitas atualizações
       invalidateDashboardQueries();
       setLastUpdateTime(currentTime);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instances, messages, contacts, chats]);
 
   // Fallback para polling se WebSocket não estiver disponível
   useEffect(() => {
-    if (!enabled || !currentTenant) return;
+    if (!enabled || !tenant) return;
 
-    // Se há dados no Evolution Store, considerar conectado
+    // Se há dados no Evolution Store, considerar conectado via realtime
     if (instances.length > 0) {
       setIsConnected(true);
       if (intervalRef.current) {
@@ -70,8 +70,6 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
     }
 
     // Usar polling como fallback
-    console.log('Using polling for real-time updates (WebSocket not available)');
-    
     intervalRef.current = setInterval(() => {
       invalidateDashboardQueries();
     }, interval);
@@ -84,7 +82,8 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
         intervalRef.current = null;
       }
     };
-  }, [enabled, currentTenant, wsConnected, interval]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, tenant, instances.length, interval]);
 
   // Função manual para forçar atualização
   const forceUpdate = () => {
@@ -101,8 +100,8 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
   };
 
   const resume = () => {
-    if (!enabled || !currentTenant || instances.length > 0) return;
-    
+    if (!enabled || !tenant || instances.length > 0) return;
+
     intervalRef.current = setInterval(() => {
       invalidateDashboardQueries();
     }, interval);
@@ -115,6 +114,6 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
     isPolling: instances.length === 0 && isConnected,
     forceUpdate,
     pause,
-    resume
+    resume,
   };
 };
