@@ -46,11 +46,6 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
         id,
         name,
         phone
-      ),
-      profiles!messages_user_id_fkey(
-        id,
-        full_name,
-        avatar_url
       )
     `,
     filters: [
@@ -58,7 +53,8 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
     ],
     orderBy: [{ column: 'created_at', ascending: false }],
     limit: Math.ceil(limit * 0.4), // 40% das atividades
-    enabled: !!tenant
+    enabled: !!tenant,
+    silent: true
   });
   
   // Buscar contatos recentes
@@ -81,7 +77,8 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
     ],
     orderBy: [{ column: 'created_at', ascending: false }],
     limit: Math.ceil(limit * 0.3), // 30% das atividades
-    enabled: !!tenant
+    enabled: !!tenant,
+    silent: true
   });
   
   // Buscar campanhas recentes
@@ -102,7 +99,8 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
     ],
     orderBy: [{ column: 'created_at', ascending: false }],
     limit: Math.ceil(limit * 0.2), // 20% das atividades
-    enabled: !!tenant
+    enabled: !!tenant,
+    silent: true
   });
   
   // Buscar automações recentes
@@ -121,7 +119,8 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
     ],
     orderBy: [{ column: 'updated_at', ascending: false }],
     limit: Math.ceil(limit * 0.1), // 10% das atividades
-    enabled: !!tenant
+    enabled: !!tenant,
+    silent: true
   });
   
   // Processar e combinar todas as atividades
@@ -136,13 +135,9 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
         title: message.direction === 'inbound' ? 'Nova mensagem recebida' : 'Mensagem enviada',
         description: `${message.direction === 'inbound' ? 'De' : 'Para'} ${message.contacts?.name || 'Contato'}: ${message.content?.substring(0, 50)}${message.content?.length > 50 ? '...' : ''}`,
         timestamp: message.created_at,
-        status: message.status === 'sent' ? 'success' : 
-                message.status === 'pending' ? 'pending' : 
+        status: message.status === 'sent' ? 'success' :
+                message.status === 'pending' ? 'pending' :
                 message.status === 'failed' ? 'error' : 'warning',
-        user: message.profiles ? {
-          name: message.profiles.full_name || 'Sistema',
-          avatar: message.profiles.avatar_url
-        } : undefined,
         metadata: {
           contactName: message.contacts?.name,
         }

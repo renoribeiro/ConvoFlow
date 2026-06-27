@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
-import { EvolutionInstance } from '../types/evolution';
+import { EvolutionInstance } from '../types/evolution.types';
 import { EvolutionApiService } from '../services/evolutionApi';
 // WebhookHandler removido — webhooks são processados exclusivamente pela Edge Function server-side
 
@@ -191,7 +191,7 @@ const initialState = {
   lastUpdate: null,
 };
 
-export const useEvolutionStore = create<EvolutionState>()()
+export const useEvolutionStore = create<EvolutionState>()(
   devtools(
     persist(
       (set, get) => ({
@@ -752,6 +752,7 @@ export const useEvolutionStore = create<EvolutionState>()()
     {
       name: 'evolution-store',
     }
-  );
+  ),
+);
 
 export default useEvolutionStore;
