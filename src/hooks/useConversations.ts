@@ -110,8 +110,10 @@ export const useConversations = ({
             id,
             name,
             phone,
+            avatar_url,
             lead_source_id,
             current_stage_id,
+            last_interaction_at,
             created_at,
             updated_at,
             tenant_id,
@@ -330,14 +332,19 @@ export const useConversation = (conversationId: string) => {
             id,
             name,
             phone,
+            email,
             avatar_url,
+            notes,
+            custom_fields,
             lead_source_id,
             current_stage_id,
+            last_interaction_at,
             created_at,
             updated_at,
             tenant_id,
             stage:funnel_stages!contacts_current_stage_id_fkey (
-              name
+              name,
+              color
             ),
             lead_sources:lead_source_id (
               name

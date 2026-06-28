@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -8,20 +7,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Check,
-  CheckCheck,
-  Clock,
+  Bot,
   Download,
   ExternalLink,
   FileText,
   MapPin,
+  Megaphone,
   Mic,
   Trash2,
-  Video,
-  XCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MessageStatusIcon } from './MessageStatusIcon';
 
 export type RenderableMessage = {
   id: string;
@@ -47,22 +44,25 @@ export type RenderableMessage = {
   is_from_bot?: boolean | null;
 };
 
-const StatusIcon = ({ status }: { status: RenderableMessage['status'] }) => {
-  switch (status) {
-    case 'pending':
-      return <Clock className="w-3 h-3 opacity-60" aria-label="Pendente" />;
-    case 'sent':
-      return <Check className="w-3 h-3 opacity-70" aria-label="Enviado" />;
-    case 'delivered':
-      return <CheckCheck className="w-3 h-3 opacity-70" aria-label="Entregue" />;
-    case 'read':
-      return <CheckCheck className="w-3 h-3 text-sky-400" aria-label="Lido" />;
-    case 'failed':
-      return <XCircle className="w-3 h-3 text-destructive" aria-label="Falhou" />;
-    default:
-      return null;
-  }
-};
+/** Characters after which a text message gets a "Ver mais"/"Ver menos" toggle. */
+const LONG_MESSAGE_THRESHOLD = 500;
+
+/** Wraps occurrences of `term` (case-insensitive) in <mark> for in-conversation search. */
+function highlightText(text: string, term?: string): React.ReactNode {
+  if (!term || !term.trim()) return text;
+  const needle = term.trim();
+  const safe = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${safe})`, 'gi'));
+  return parts.map((part, i) =>
+    part.toLowerCase() === needle.toLowerCase() ? (
+      <mark key={i} className="bg-primary/30 text-foreground rounded-sm">
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
+}
 
 function tryParseMetadata(message: RenderableMessage): Record<string, any> {
   if (message.metadata) return message.metadata as Record<string, any>;
@@ -82,7 +82,7 @@ function MediaImage({ url, caption, onOpen }: { url: string; caption?: string | 
       <button
         type="button"
         onClick={onOpen}
-        className="block max-w-[280px] rounded-md overflow-hidden border border-border/40"
+        className="block max-w-[280px] rounded-lg overflow-hidden border border-border/40"
       >
         <img src={url} alt={caption ?? 'Imagem enviada'} className="max-h-[260px] w-auto object-cover" loading="lazy" />
       </button>
@@ -94,7 +94,7 @@ function MediaImage({ url, caption, onOpen }: { url: string; caption?: string | 
 function MediaVideo({ url, caption }: { url: string; caption?: string | null }) {
   return (
     <div className="space-y-2">
-      <video controls className="max-w-[280px] rounded-md border border-border/40" preload="metadata">
+      <video controls className="max-w-[280px] rounded-lg overflow-hidden border border-border/40" preload="metadata">
         <source src={url} />
         Seu navegador não suporta vídeo.
       </video>
@@ -149,7 +149,7 @@ function MediaLocation({ latitude, longitude, name, address }: {
       rel="noopener noreferrer"
       className="flex items-center gap-2 px-3 py-2 rounded-md border border-border/40 bg-background/40 hover:bg-background/70"
     >
-      <MapPin className="w-5 h-5 text-sky-500" />
+      <MapPin className="w-5 h-5 text-accent" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{name || 'Localização compartilhada'}</p>
         <p className="text-xs opacity-70 truncate">{address || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`}</p>
@@ -195,11 +195,10 @@ function OriginBadge({ message }: { message: RenderableMessage }) {
   const source = message.source;
 
   if (source === 'campaign') {
-    const label = message.campaign_name
-      ? `Campanha: ${message.campaign_name}`
-      : 'Campanha';
+    const label = message.campaign_name ? `Campanha: ${message.campaign_name}` : 'Campanha';
     return (
-      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-accent/15 text-accent">
+        <Megaphone className="w-3 h-3" />
         {label}
       </span>
     );
@@ -207,7 +206,8 @@ function OriginBadge({ message }: { message: RenderableMessage }) {
 
   if (source === 'chatbot' || message.is_from_bot) {
     return (
-      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-sm font-medium bg-primary/20 text-primary-foreground">
+        <Bot className="w-3 h-3" />
         Chatbot
       </span>
     );
@@ -223,12 +223,17 @@ interface MessageBubbleProps {
    */
   showQuoted?: boolean;
   onReply?: (message: RenderableMessage) => void;
+  /** Termo de busca em destaque (in-conversation search). */
+  searchTerm?: string;
+  /** True quando esta bolha é o resultado de busca ativo. */
+  isActiveMatch?: boolean;
 }
 
-export function MessageBubble({ message, showQuoted = true, onReply }: MessageBubbleProps) {
+export function MessageBubble({ message, showQuoted = true, onReply, searchTerm, isActiveMatch }: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
   const meta = useMemo(() => tryParseMetadata(message), [message]);
   const [imageOpen, setImageOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const type = (message.message_type || 'text').toLowerCase();
   const url = message.media_url ?? (typeof meta.media_url === 'string' ? meta.media_url : undefined);
@@ -278,16 +283,35 @@ export function MessageBubble({ message, showQuoted = true, onReply }: MessageBu
       );
     }
 
-    // Default: text
-    return <p className="text-sm whitespace-pre-wrap break-words">{message.content || ''}</p>;
+    // Default: text — with optional "Ver mais" toggle for long messages.
+    const text = message.content || '';
+    const isLong = text.length > LONG_MESSAGE_THRESHOLD;
+    return (
+      <div>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isLong && !expanded ? 'line-clamp-[12]' : ''}`}>
+          {highlightText(text, searchTerm)}
+        </p>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-1 text-xs font-medium text-accent hover:underline"
+          >
+            {expanded ? 'Ver menos' : 'Ver mais'}
+          </button>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`group max-w-[78%] p-3 rounded-lg ${
-          isOutbound ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-        }`}
+        className={`group max-w-[78%] p-3 transition-shadow ${
+          isOutbound
+            ? 'bg-primary/15 text-foreground rounded-lg rounded-tr-sm'
+            : 'bg-muted text-foreground rounded-lg rounded-tl-sm'
+        } ${isActiveMatch ? 'ring-2 ring-primary/50' : ''}`}
         onDoubleClick={() => onReply?.(message)}
       >
         {showQuoted && message.quoted && (
@@ -301,18 +325,14 @@ export function MessageBubble({ message, showQuoted = true, onReply }: MessageBu
 
         <div className="flex items-center justify-between gap-3 mt-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] opacity-70">
-              {format(new Date(message.created_at), "dd/MM HH:mm", { locale: ptBR })}
+            <span className="text-[10px] text-muted-foreground/70">
+              {format(new Date(message.created_at), 'dd/MM HH:mm', { locale: ptBR })}
             </span>
             <OriginBadge message={message} />
           </div>
           {isOutbound && (
-            <span className="flex items-center gap-1">
-              {message.status === 'failed' ? (
-                <Badge variant="destructive" className="h-4 px-1 text-[10px]">Falhou</Badge>
-              ) : (
-                <StatusIcon status={message.status} />
-              )}
+            <span className="flex items-center">
+              <MessageStatusIcon status={message.status} />
             </span>
           )}
         </div>
@@ -324,7 +344,7 @@ export function MessageBubble({ message, showQuoted = true, onReply }: MessageBu
             <DialogHeader>
               <DialogTitle className="sr-only">Imagem ampliada</DialogTitle>
             </DialogHeader>
-            <img src={url} alt={caption ?? 'Imagem'} className="w-full h-auto" />
+            <img src={url} alt={caption ?? 'Imagem'} className="w-full h-auto rounded-lg" />
             {caption && <p className="text-sm whitespace-pre-wrap mt-2">{caption}</p>}
             <Button asChild variant="outline" size="sm" className="mt-2 w-fit">
               <a href={url} target="_blank" rel="noopener noreferrer" download>

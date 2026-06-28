@@ -36,6 +36,19 @@ export default {
 					DEFAULT: 'hsl(var(--destructive))',
 					foreground: 'hsl(var(--destructive-foreground))'
 				},
+				// Semantic status tokens exposed at top level so `bg-success`, `text-warning`,
+				// `border-warning/30` etc. resolve. They wire the existing CSS vars (also kept
+				// nested under `status.*` for backwards compatibility).
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					foreground: 'hsl(var(--primary-foreground))'
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--primary-foreground))'
+				},
+				error: 'hsl(var(--error))',
+				info: 'hsl(var(--info))',
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
 					foreground: 'hsl(var(--muted-foreground))'
@@ -130,11 +143,23 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				// Brief background pulse when a new message lands on a non-selected conversation.
+				'flash-highlight': {
+					'0%, 100%': { backgroundColor: 'transparent' },
+					'25%': { backgroundColor: 'hsl(var(--primary) / 0.12)' }
+				},
+				// Slide-down reveal for the in-conversation search bar.
+				'slide-down': {
+					from: { transform: 'translateY(-8px)', opacity: '0' },
+					to: { transform: 'translateY(0)', opacity: '1' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'flash-highlight': 'flash-highlight 600ms ease-out',
+				'slide-down': 'slide-down 160ms ease-out'
 			}
 		}
 	},

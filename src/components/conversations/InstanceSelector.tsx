@@ -19,10 +19,10 @@ interface InstanceSelectorProps {
 function statusBadge(status: string | null) {
   const s = (status ?? '').toLowerCase();
   if (s === 'connected' || s === 'open' || s === 'working') {
-    return <Badge variant="default" className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">Conectada</Badge>;
+    return <Badge variant="default" className="bg-success/15 text-success border-success/30">Conectada</Badge>;
   }
   if (s === 'connecting' || s === 'qrcode') {
-    return <Badge variant="outline" className="border-amber-500/40 text-amber-600">Conectando</Badge>;
+    return <Badge variant="outline" className="border-warning/40 text-warning">Conectando</Badge>;
   }
   return <Badge variant="outline" className="border-destructive/40 text-destructive">Desconectada</Badge>;
 }
