@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +46,13 @@ import {
   Image as ImageIcon,
   FileText as FileTextIcon,
   MessageCircle,
+  Search,
+  PanelRightOpen,
+  PanelRightClose,
+  ArrowLeft,
 } from 'lucide-react';
+import { format, isToday, differenceInMinutes } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useMessages, useSendMessage, useMarkMessagesAsRead, getAllMessages } from '@/hooks/useMessages';
@@ -64,32 +72,104 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
 import { uploadWhatsAppMedia, detectMediaTypeFromMime } from '@/services/whatsapp/media-upload';
+import { logger } from '@/lib/logger';
 import { MessageBubble, type RenderableMessage } from './MessageBubble';
 import { LeadTagsDialog } from '@/components/etiquetas/LeadTagsDialog';
+import { ContactPanel } from './ContactPanel';
+import { ChatSearchBar } from './ChatSearchBar';
+import { QuickRepliesPopover } from './QuickRepliesPopover';
+import { AudioRecorder } from './AudioRecorder';
 
 interface ChatWindowProps {
   conversationId?: string;
+  /** Controlled in-conversation search visibility (driven by the page shortcut hook). */
+  searchOpen?: boolean;
+  onSearchOpenChange?: (open: boolean) => void;
+  /** Controlled contact panel visibility (driven by the page + persisted to localStorage). */
+  panelOpen?: boolean;
+  onPanelOpenChange?: (open: boolean) => void;
+  /** When provided (mobile), shows a back arrow in the header to return to the list. */
+  onBack?: () => void;
 }
 
-export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
+/** Max auto-grow height for the message textarea (~5 rows). */
+const MAX_TEXTAREA_HEIGHT = 120;
+
+/** Parses webhook metadata that some providers store as JSON inside `content`. */
+function parseContentMeta(content: string | null): Record<string, any> {
+  if (typeof content === 'string' && content.startsWith('{')) {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+/** Best-effort extraction of a quoted/reply reference from parsed metadata.
+ *  NOTE: the `messages` table has no quoted column — this only resolves when a
+ *  provider webhook embedded the reference inside the JSON content. */
+function extractQuoted(meta: Record<string, any>): RenderableMessage['quoted'] {
+  const q = meta?.quoted ?? meta?.context?.quoted ?? meta?.quotedMessage ?? null;
+  if (q && typeof q === 'object') {
+    return {
+      id: String(q.id ?? q.stanzaId ?? ''),
+      content: q.content ?? q.text ?? q.body ?? null,
+      sender: q.sender ?? q.author ?? q.participant ?? null,
+    };
+  }
+  return null;
+}
+
+function lastSeenLabel(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const mins = differenceInMinutes(new Date(), d);
+  if (mins < 1) return 'Visto agora há pouco';
+  if (mins < 60) return `Visto há ${mins} min`;
+  if (isToday(d)) return `Visto às ${format(d, 'HH:mm', { locale: ptBR })}`;
+  return `Visto em ${format(d, 'dd/MM', { locale: ptBR })} às ${format(d, 'HH:mm', { locale: ptBR })}`;
+}
+
+export const ChatWindow = ({
+  conversationId,
+  searchOpen = false,
+  onSearchOpenChange,
+  panelOpen = false,
+  onPanelOpenChange,
+  onBack,
+}: ChatWindowProps) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<RenderableMessage | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  // Contact is "typing" — no provider currently emits inbound typing to the client,
+  // so this stays false. The UI slot below the name is ready for when it does.
+  const [isContactTyping] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
     lead_source_id: '',
     current_stage_id: '',
   });
+
+  // In-conversation search.
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef<number>(0);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
 
@@ -141,8 +221,9 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
 
     if (capabilities?.fetchHistory) {
       syncConversation(contact.phone, contactId).catch((err) => {
-        // eslint-disable-next-line no-console
-        console.warn('[ChatWindow] Auto-sync falhou:', err);
+        logger.warn('[ChatWindow] auto-sync falhou', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     }
 
@@ -203,8 +284,10 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   }, [inView, messagesQuery]);
 
   useEffect(() => {
+    // Don't yank the scroll while the user is navigating search results.
+    if (searchOpen) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, searchOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -215,6 +298,21 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
+
+  // ESC closes the emoji picker / quick replies FIRST (highest priority). Capture
+  // phase + stopPropagation prevents the page-level ESC chain from also firing.
+  useEffect(() => {
+    if (!showEmojiPicker && !quickRepliesOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowEmojiPicker(false);
+        setQuickRepliesOpen(false);
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [showEmojiPicker, quickRepliesOpen]);
 
   // Marcar mensagens como lidas localmente quando a conversa é aberta
   useEffect(() => {
@@ -279,27 +377,67 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
 
   // Hook precisa ficar ANTES dos early returns para manter contagem estável.
   const renderable: RenderableMessage[] = useMemo(() => {
-    return messages.map((m: any) => ({
-      id: m.id,
-      content: m.content ?? null,
-      created_at: m.created_at,
-      direction: m.direction,
-      status: m.status,
-      message_type: m.message_type ?? 'text',
-      media_url: m.media_url ?? null,
-      metadata: null,
-      quoted: null,
-      source: m.source ?? null,
-      campaign_id: m.campaign_id ?? null,
-      campaign_name: m.campaign_id && campaignNames ? (campaignNames[m.campaign_id] ?? null) : null,
-      is_from_bot: m.is_from_bot ?? null,
-    }));
+    return messages.map((m: any) => {
+      const meta = parseContentMeta(m.content ?? null);
+      return {
+        id: m.id,
+        content: m.content ?? null,
+        created_at: m.created_at,
+        direction: m.direction,
+        status: m.status,
+        message_type: m.message_type ?? 'text',
+        media_url: m.media_url ?? null,
+        metadata: Object.keys(meta).length ? meta : null,
+        quoted: extractQuoted(meta),
+        source: m.source ?? null,
+        campaign_id: m.campaign_id ?? null,
+        campaign_name: m.campaign_id && campaignNames ? (campaignNames[m.campaign_id] ?? null) : null,
+        is_from_bot: m.is_from_bot ?? null,
+      };
+    });
   }, [messages, campaignNames]);
+
+  // ---- In-conversation search (client-side over loaded messages) ----
+  const matchIds = useMemo(() => {
+    const t = searchTerm.trim().toLowerCase();
+    if (!searchOpen || t.length === 0) return [] as string[];
+    return renderable.filter((m) => (m.content || '').toLowerCase().includes(t)).map((m) => m.id);
+  }, [renderable, searchTerm, searchOpen]);
+
+  const activeMatchId = matchIds[activeMatchIndex];
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [searchTerm, searchOpen]);
+
+  useEffect(() => {
+    if (activeMatchId) {
+      messageRefs.current[activeMatchId]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [activeMatchId]);
+
+  // Server-side total (older, not-yet-loaded history) — informational only.
+  const { data: serverMatchCount } = useQuery({
+    queryKey: ['chat-search-count', contactId, tenant?.id, searchTerm.trim()],
+    enabled: searchOpen && searchTerm.trim().length >= 2 && !!contactId && !!tenant?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant!.id)
+        .eq('contact_id', contactId!)
+        .ilike('content', `%${searchTerm.trim()}%`);
+      return count ?? 0;
+    },
+    staleTime: 30 * 1000,
+  });
+
+  const hasMoreServerMatches = (serverMatchCount ?? 0) > matchIds.length;
 
   // Early returns APÓS todos os hooks
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center h-full">
         <EmptyState
           icon={<MessageCircle className="w-full h-full" />}
           title="Nenhuma conversa selecionada"
@@ -311,7 +449,7 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
 
   if (conversationError || messagesError) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4 h-full">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>Erro ao carregar a conversa. Tente novamente.</AlertDescription>
@@ -370,6 +508,55 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     }
   };
 
+  /** Shared media sender used by the attachment flow and the audio recorder. */
+  const sendMediaFile = async (file: File, caption: string) => {
+    if (!contactId || !tenant?.id || !active) {
+      toast.error('Nenhuma instância de WhatsApp disponível.');
+      return;
+    }
+    if (!active.adapter.isReadyToSend()) {
+      toast.error(`A instância "${active.row.name}" não está conectada.`);
+      return;
+    }
+    const phone = contact?.phone || '';
+    const uploaded = await uploadWhatsAppMedia(file, tenant.id);
+    const mediaType = detectMediaTypeFromMime(uploaded.mimeType);
+    const providerResult = await active.adapter.sendMedia(phone, {
+      mediaUrl: uploaded.publicUrl,
+      mediaType,
+      mimeType: uploaded.mimeType,
+      fileName: uploaded.fileName,
+      caption: caption || undefined,
+      quotedMessageId: replyTo?.id,
+    });
+    const status = providerResult?.status === 'sent' || providerResult?.status === 'pending' ? 'sent' : 'failed';
+    if (status === 'failed') {
+      toast.error(`Mídia não enviada: ${providerResult?.error || 'erro desconhecido.'}`);
+    }
+    await sendMessageMutation.mutateAsync({
+      contact_id: contactId,
+      whatsapp_instance_id: active.row.id,
+      content: caption,
+      direction: 'outbound',
+      message_type: mediaType,
+      media_url: uploaded.publicUrl,
+      status,
+      is_from_bot: false,
+    } as any);
+  };
+
+  const handleSendAudio = async (file: File) => {
+    try {
+      await sendMediaFile(file, '');
+      setReplyTo(null);
+    } catch (e) {
+      logger.error('[ChatWindow] envio de áudio falhou', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e; // let AudioRecorder show its own toast
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!contactId || isSending || !tenant?.id) return;
     if (!message.trim() && !pendingFile) return;
@@ -389,60 +576,36 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     const text = message.trim();
 
     try {
-      let providerResult: { providerMessageId?: string; status: string; error?: string } | null = null;
-      let mediaUrl: string | undefined;
-      let mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text';
-      const phone = contact?.phone || '';
-
       if (pendingFile) {
         try {
-          const uploaded = await uploadWhatsAppMedia(pendingFile, tenant.id);
-          mediaUrl = uploaded.publicUrl;
-          mediaType = detectMediaTypeFromMime(uploaded.mimeType);
-          providerResult = await active.adapter.sendMedia(phone, {
-            mediaUrl: uploaded.publicUrl,
-            mediaType,
-            mimeType: uploaded.mimeType,
-            fileName: uploaded.fileName,
-            caption: text || undefined,
-            quotedMessageId: replyTo?.id,
-          });
+          await sendMediaFile(pendingFile, text);
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e);
           toast.error(`Falha no upload da mídia: ${err}`);
-          providerResult = { status: 'failed', error: err };
         }
       } else if (text) {
-        providerResult = await active.adapter.sendText(phone, text, {
+        const providerResult = await active.adapter.sendText(phoneOf(contact), text, {
           quotedMessageId: replyTo?.id,
           linkPreview: true,
         });
+        const status =
+          providerResult?.status === 'sent' || providerResult?.status === 'pending' ? 'sent' : 'failed';
+        if (status === 'failed') {
+          toast.error(`Mensagem não foi enviada: ${providerResult?.error || 'Erro desconhecido.'}`);
+        }
+        await sendMessageMutation.mutateAsync({
+          contact_id: contactId,
+          whatsapp_instance_id: active.row.id,
+          content: text,
+          direction: 'outbound',
+          message_type: 'text',
+          status,
+          is_from_bot: false,
+        } as any);
       }
-
-      const status =
-        providerResult?.status === 'sent'
-          ? 'sent'
-          : providerResult?.status === 'pending'
-          ? 'sent'
-          : 'failed';
-
-      if (status === 'failed') {
-        const detail = providerResult?.error || 'Erro desconhecido.';
-        toast.error(`Mensagem não foi enviada: ${detail}`);
-      }
-
-      await sendMessageMutation.mutateAsync({
-        contact_id: contactId,
-        whatsapp_instance_id: active.row.id,
-        content: text,
-        direction: 'outbound',
-        message_type: mediaType,
-        media_url: mediaUrl,
-        status,
-        is_from_bot: false,
-      } as any);
 
       setMessage('');
+      resetTextareaHeight();
       setPendingFile(null);
       if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
       setPendingFilePreview(null);
@@ -458,16 +621,33 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  const autoGrow = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+  };
+
   // Indicador de digitação (best-effort, throttled a 3s)
   const handleTypingChange = (val: string) => {
+    // Typing "/" into an empty composer opens the quick replies popover.
+    if (val === '/' && message === '') {
+      setQuickRepliesOpen(true);
+      return;
+    }
     setMessage(val);
+    requestAnimationFrame(autoGrow);
     if (!active || !contact?.phone) return;
     const now = Date.now();
     if (now - lastTypingSentRef.current > 3000) {
@@ -485,9 +665,18 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     handleSendMessage();
   };
 
+  const handleQuickReplySelect = (content: string) => {
+    setMessage((prev) => (prev ? `${prev} ${content}` : content));
+    requestAnimationFrame(() => {
+      autoGrow();
+      textareaRef.current?.focus();
+    });
+  };
+
   const handleEmojiSelect = (emoji: string) => {
     setMessage((prev) => prev + emoji);
     setShowEmojiPicker(false);
+    requestAnimationFrame(autoGrow);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -504,6 +693,9 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   const handleAttachClick = () => fileInputRef.current?.click();
 
   const commonEmojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '❤️', '🔥', '💯', '🎉', '😢', '😡', '🙏', '👏', '💪'];
+  const hasText = message.trim().length > 0;
+  const showAudioButton = !hasText && !pendingFile;
+  const seenLabel = lastSeenLabel((contact as any)?.last_interaction_at);
 
   if (conversationLoading || messagesLoading) {
     return (
@@ -530,243 +722,379 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-card">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <Avatar className="w-10 h-10">
-            {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
-            <AvatarFallback>
-              {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{contact?.name || 'Contato'}</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground truncate">{contact?.phone}</span>
-              {(contact as any)?.stage?.name && (
-                <Badge variant="outline" className="text-xs">{(contact as any).stage.name}</Badge>
+    <div className="flex h-full">
+      {/* Chat column */}
+      <div className="flex flex-col flex-1 min-w-0 bg-card">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {onBack && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 -ml-1 flex-shrink-0" onClick={onBack} aria-label="Voltar">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            )}
+            <Avatar className="w-10 h-10">
+              {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
+              <AvatarFallback>
+                {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-foreground truncate">{contact?.name || 'Contato'}</h3>
+              {isContactTyping ? (
+                <span className="flex items-center gap-1 text-xs text-accent">
+                  digitando
+                  <span className="flex gap-0.5">
+                    <span className="typing-dot w-1 h-1 rounded-full bg-accent" />
+                    <span className="typing-dot w-1 h-1 rounded-full bg-accent" />
+                    <span className="typing-dot w-1 h-1 rounded-full bg-accent" />
+                  </span>
+                </span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground truncate">{contact?.phone}</span>
+                  {(contact as any)?.stage?.name && (
+                    <Badge variant="outline" className="text-xs">{(contact as any).stage.name}</Badge>
+                  )}
+                  {active && (
+                    <Badge variant="secondary" className="text-xs">
+                      {providerLabel(active.adapter.type)}
+                    </Badge>
+                  )}
+                </div>
               )}
-              {active && (
-                <Badge variant="secondary" className="text-xs">
-                  {providerLabel(active.adapter.type)}
-                </Badge>
+              {!isContactTyping && seenLabel && (
+                <span className="text-[11px] text-muted-foreground/80">{seenLabel}</span>
               )}
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleEditContact}>
-                <Edit className="w-4 h-4 mr-2" />
-                Editar Contato
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleMarkUnread}>
-                <EyeOff className="w-4 h-4 mr-2" />
-                Marcar como não lida
-              </DropdownMenuItem>
-              {capabilities?.archive && (
-                <DropdownMenuItem onClick={handleArchive}>
-                  <Archive className="w-4 h-4 mr-2" />
-                  {(conversation as any)?.is_archived ? 'Desarquivar' : 'Arquivar conversa'}
-                </DropdownMenuItem>
-              )}
-              {capabilities?.fetchHistory && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (contact?.phone && contactId) {
-                      toast.info('Buscando histórico...');
-                      syncConversation(contact.phone, contactId)
-                        .then((res: any) => {
-                          if (res.newMessages > 0) {
-                            toast.success(`Baixou ${res.newMessages} novas mensagens.`);
-                          } else if (res.error) {
-                            toast.error(`Vazio: ${res.error}`, { duration: 8000 });
-                          } else {
-                            toast.info('A conversa já está atualizada.');
-                          }
-                        })
-                        .catch(() => toast.error('Falha ao sincronizar histórico.'));
-                    }
-                  }}
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => onSearchOpenChange?.(!searchOpen)}
+                  aria-label="Buscar na conversa"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Puxar Histórico
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setIsTagDialogOpen(true)}
-                disabled={!contactId}
-              >
-                <Tag className="w-4 h-4 mr-2" />
-                Etiquetar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+                  <Search className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">Buscar na conversa (Ctrl+Shift+F)</TooltipContent>
+            </Tooltip>
 
-      {/* Aviso de capacidade do provider */}
-      {active && !active.adapter.isReadyToSend() && (
-        <Alert variant="destructive" className="rounded-none border-x-0">
-          <AlertCircle className="w-4 h-4" />
-          <AlertDescription>
-            Instância "{active.row.name}" está {active.row.status}. Reconecte antes de enviar.
-          </AlertDescription>
-        </Alert>
-      )}
-      {outsideMetaWindow && (
-        <Alert className="rounded-none border-x-0 border-amber-500/30 bg-amber-500/10 text-amber-700">
-          <AlertCircle className="w-4 h-4" />
-          <AlertDescription className="text-xs">
-            Cloud API da Meta: o cliente não envia mensagem há mais de 24h. Para iniciar conversa,
-            é necessário usar um <strong>template aprovado</strong>.
-          </AlertDescription>
-        </Alert>
-      )}
-      {active?.adapter.type === 'official' &&
-        (active.row.profile_name === 'Test Number' ||
-          active.row.phone_number?.startsWith('+1 555-052')) && (
-          <Alert className="rounded-none border-x-0 border-amber-500/30 bg-amber-500/10 text-amber-700">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => onPanelOpenChange?.(!panelOpen)}
+                  aria-label={panelOpen ? 'Fechar painel do contato' : 'Abrir painel do contato'}
+                >
+                  {panelOpen ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                {panelOpen ? 'Fechar detalhes' : 'Detalhes do contato'}
+              </TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Mais opções">
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleEditContact}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar Contato
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleMarkUnread}>
+                  <EyeOff className="w-4 h-4 mr-2" />
+                  Marcar como não lida
+                </DropdownMenuItem>
+                {capabilities?.archive && (
+                  <DropdownMenuItem onClick={handleArchive}>
+                    <Archive className="w-4 h-4 mr-2" />
+                    {(conversation as any)?.is_archived ? 'Desarquivar' : 'Arquivar conversa'}
+                  </DropdownMenuItem>
+                )}
+                {capabilities?.fetchHistory && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (contact?.phone && contactId) {
+                        toast.info('Buscando histórico...');
+                        syncConversation(contact.phone, contactId)
+                          .then((res: any) => {
+                            if (res.newMessages > 0) {
+                              toast.success(`Baixou ${res.newMessages} novas mensagens.`);
+                            } else if (res.error) {
+                              toast.error(`Vazio: ${res.error}`, { duration: 8000 });
+                            } else {
+                              toast.info('A conversa já está atualizada.');
+                            }
+                          })
+                          .catch(() => toast.error('Falha ao sincronizar histórico.'));
+                      }
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Puxar Histórico
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setIsTagDialogOpen(true)} disabled={!contactId}>
+                  <Tag className="w-4 h-4 mr-2" />
+                  Etiquetar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* In-conversation search bar */}
+        {searchOpen && (
+          <>
+            <ChatSearchBar
+              term={searchTerm}
+              onTermChange={setSearchTerm}
+              matchCount={matchIds.length}
+              activeIndex={activeMatchIndex}
+              onPrev={() => setActiveMatchIndex((i) => (matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0))}
+              onNext={() => setActiveMatchIndex((i) => (matchIds.length ? (i + 1) % matchIds.length : 0))}
+              onClose={() => {
+                onSearchOpenChange?.(false);
+                setSearchTerm('');
+              }}
+            />
+            {hasMoreServerMatches && (
+              <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
+                Há mais resultados no histórico ainda não carregado — role para cima para carregá-los.
+              </p>
+            )}
+          </>
+        )}
+
+        {/* Aviso de capacidade do provider */}
+        {active && !active.adapter.isReadyToSend() && (
+          <Alert variant="destructive" className="rounded-none border-x-0">
             <AlertCircle className="w-4 h-4" />
-            <AlertDescription className="text-xs">
-              Esta instância está usando o <strong>número de teste gratuito</strong> da Meta
-              (+1 555-052-9071). Só envia mensagens para destinatários cadastrados na
-              "Recipient list" do painel Meta (developers.facebook.com → seu app → WhatsApp →
-              API Setup → Manage phone number list). Para produção, registre um número real
-              na WABA.
+            <AlertDescription>
+              Instância "{active.row.name}" está {active.row.status}. Reconecte antes de enviar.
             </AlertDescription>
           </Alert>
         )}
-      {!capabilities?.fetchHistory && (
-        <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
-          Este provider não suporta puxar histórico — apenas mensagens recebidas via webhook aparecem aqui.
-        </p>
-      )}
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-3">
-          {messagesQuery.hasNextPage && (
-            <div ref={loadMoreRef} className="text-center text-xs text-muted-foreground py-2">
-              {messagesQuery.isFetchingNextPage ? 'Carregando...' : 'Role para cima para mais mensagens'}
-            </div>
+        {outsideMetaWindow && (
+          <Alert className="rounded-none border-x-0 border-warning/30 bg-warning/10 text-warning">
+            <AlertCircle className="w-4 h-4" />
+            <AlertDescription className="text-xs">
+              Cloud API da Meta: o cliente não envia mensagem há mais de 24h. Para iniciar conversa,
+              é necessário usar um <strong>template aprovado</strong>.
+            </AlertDescription>
+          </Alert>
+        )}
+        {active?.adapter.type === 'official' &&
+          (active.row.profile_name === 'Test Number' ||
+            active.row.phone_number?.startsWith('+1 555-052')) && (
+            <Alert className="rounded-none border-x-0 border-warning/30 bg-warning/10 text-warning">
+              <AlertCircle className="w-4 h-4" />
+              <AlertDescription className="text-xs">
+                Esta instância está usando o <strong>número de teste gratuito</strong> da Meta
+                (+1 555-052-9071). Só envia mensagens para destinatários cadastrados na
+                "Recipient list" do painel Meta (developers.facebook.com → seu app → WhatsApp →
+                API Setup → Manage phone number list). Para produção, registre um número real
+                na WABA.
+              </AlertDescription>
+            </Alert>
           )}
-          {renderable.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Nenhuma mensagem ainda</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Envie a primeira mensagem para iniciar a conversa
-              </p>
-            </div>
-          ) : (
-            renderable.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} onReply={setReplyTo} />
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+        {!capabilities?.fetchHistory && (
+          <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
+            Este provider não suporta puxar histórico — apenas mensagens recebidas via webhook aparecem aqui.
+          </p>
+        )}
 
-      {/* Pre-send preview / reply banner */}
-      {(pendingFile || replyTo) && (
-        <div className="border-t border-border bg-muted/40 px-4 py-2 flex items-center gap-3">
-          {replyTo && (
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <span className="text-xs text-muted-foreground">Respondendo:</span>
-              <span className="text-xs truncate">{replyTo.content || `[${replyTo.message_type}]`}</span>
-              <Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-          )}
-          {pendingFile && (
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {pendingFilePreview ? (
-                <img src={pendingFilePreview} className="w-10 h-10 rounded object-cover" alt="preview" />
-              ) : pendingFile.type.startsWith('audio/') ? (
-                <ImageIcon className="w-5 h-5" />
-              ) : (
-                <FileTextIcon className="w-5 h-5" />
-              )}
-              <span className="text-xs truncate">{pendingFile.name}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
-                  setPendingFile(null);
-                  setPendingFilePreview(null);
-                }}
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+        {/* Messages */}
+        <ScrollArea className="flex-1 p-4 chat-bg-pattern">
+          <div className="space-y-3">
+            {messagesQuery.hasNextPage && (
+              <div ref={loadMoreRef} className="text-center text-xs text-muted-foreground py-2">
+                {messagesQuery.isFetchingNextPage ? 'Carregando...' : 'Role para cima para mais mensagens'}
+              </div>
+            )}
+            {renderable.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhuma mensagem ainda</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Envie a primeira mensagem para iniciar a conversa
+                </p>
+              </div>
+            ) : (
+              renderable.map((msg) => (
+                <div
+                  key={msg.id}
+                  ref={(el) => {
+                    messageRefs.current[msg.id] = el;
+                  }}
+                >
+                  <MessageBubble
+                    message={msg}
+                    onReply={setReplyTo}
+                    searchTerm={searchOpen ? searchTerm : undefined}
+                    isActiveMatch={activeMatchId === msg.id}
+                  />
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
 
-      {/* Input */}
-      <div className="p-4 border-t border-border flex-shrink-0">
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleFileSelect}
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-        />
-
-        {showEmojiPicker && (
-          <div className="emoji-picker mb-2 p-2 border border-border rounded-lg bg-background">
-            <div className="grid grid-cols-8 gap-1">
-              {commonEmojis.map((emoji, index) => (
+        {/* Pre-send preview / reply banner */}
+        {(pendingFile || replyTo) && (
+          <div className="border-t border-border bg-muted/40 px-4 py-2 flex items-center gap-3">
+            {replyTo && (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-xs text-muted-foreground">Respondendo:</span>
+                <span className="text-xs truncate">{replyTo.content || `[${replyTo.message_type}]`}</span>
+                <Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            )}
+            {pendingFile && (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {pendingFilePreview ? (
+                  <img src={pendingFilePreview} className="w-10 h-10 rounded object-cover" alt="preview" />
+                ) : pendingFile.type.startsWith('audio/') ? (
+                  <ImageIcon className="w-5 h-5" />
+                ) : (
+                  <FileTextIcon className="w-5 h-5" />
+                )}
+                <span className="text-xs truncate">{pendingFile.name}</span>
                 <Button
-                  key={index}
-                  type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-lg hover:bg-muted"
-                  onClick={() => handleEmojiSelect(emoji)}
+                  onClick={() => {
+                    if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
+                    setPendingFile(null);
+                    setPendingFilePreview(null);
+                  }}
                 >
-                  {emoji}
+                  <X className="w-3 h-3" />
                 </Button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
-        <form onSubmit={handleSend} className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={handleAttachClick} title="Anexar arquivo">
-            <Paperclip className="w-4 h-4" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setShowEmojiPicker(!showEmojiPicker)} title="Adicionar emoji">
-            <Smile className="w-4 h-4" />
-          </Button>
-          <Input
-            value={message}
-            onChange={(e) => handleTypingChange(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={pendingFile ? 'Adicionar legenda (opcional)...' : 'Digite sua mensagem...'}
-            className="flex-1"
-            disabled={isSending}
+        {/* Input */}
+        <div className="p-4 border-t border-border flex-shrink-0">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileSelect}
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
           />
-          <Button type="submit" size="sm" disabled={(!message.trim() && !pendingFile) || isSending}>
-            {isSending ? (
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
+
+          {showEmojiPicker && (
+            <div className="emoji-picker mb-2 p-2 border border-border rounded-lg bg-background">
+              <div className="grid grid-cols-8 gap-1">
+                {commonEmojis.map((emoji, index) => (
+                  <Button
+                    key={index}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-lg hover:bg-muted"
+                    onClick={() => handleEmojiSelect(emoji)}
+                  >
+                    {emoji}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* The AudioRecorder keeps a stable `key` so its live MediaRecorder survives
+              the idle→recording transition (siblings are hidden while recording). */}
+          <form onSubmit={handleSend} className="flex items-end gap-2">
+            {!isRecording && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" onClick={handleAttachClick} aria-label="Anexar arquivo">
+                      <Paperclip className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">Anexar arquivo</TooltipContent>
+                </Tooltip>
+
+                <QuickRepliesPopover
+                  open={quickRepliesOpen}
+                  onOpenChange={setQuickRepliesOpen}
+                  onSelect={handleQuickReplySelect}
+                  disabled={isSending}
+                />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowEmojiPicker(!showEmojiPicker)} aria-label="Adicionar emoji">
+                      <Smile className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">Emoji</TooltipContent>
+                </Tooltip>
+
+                <Textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={(e) => handleTypingChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={pendingFile ? 'Adicionar legenda (opcional)...' : 'Digite sua mensagem...'}
+                  rows={1}
+                  className="flex-1 min-h-[40px] resize-none py-2"
+                  style={{ maxHeight: MAX_TEXTAREA_HEIGHT }}
+                  disabled={isSending}
+                />
+              </>
             )}
-          </Button>
-        </form>
+
+            {!isRecording && !showAudioButton && (
+              <Button type="submit" size="sm" disabled={(!message.trim() && !pendingFile) || isSending} aria-label="Enviar">
+                {isSending ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+
+            {(showAudioButton || isRecording) && (
+              <AudioRecorder
+                key="audio-recorder"
+                onSend={handleSendAudio}
+                onRecordingChange={setIsRecording}
+                disabled={isSending}
+              />
+            )}
+          </form>
+        </div>
       </div>
+
+      {/* Contact info side panel (animated on desktop, Sheet on mobile) */}
+      <ContactPanel
+        open={panelOpen}
+        onOpenChange={(o) => onPanelOpenChange?.(o)}
+        conversationId={conversationId}
+        contactId={contactId}
+        contact={contact}
+        isLoading={conversationLoading}
+      />
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -830,3 +1158,8 @@ export const ChatWindow = ({ conversationId }: ChatWindowProps) => {
     </div>
   );
 };
+
+/** Small helper so the text-send path reads cleanly. */
+function phoneOf(contact: { phone?: string | null } | null | undefined): string {
+  return contact?.phone || '';
+}

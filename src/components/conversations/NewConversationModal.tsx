@@ -11,6 +11,7 @@ import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 
 interface NewConversationModalProps {
   onConversationCreated?: (contactId: string) => void;
@@ -180,7 +181,9 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
       }
 
     } catch (error) {
-      console.error('Erro ao iniciar conversa:', error);
+      logger.error('[NewConversationModal] erro ao iniciar conversa', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast({
         title: "Erro",
         description: "Falha ao iniciar conversa. Tente novamente.",
@@ -209,7 +212,7 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full mb-4">
+        <Button className="w-full mb-4" data-new-conversation>
           <MessageSquarePlus className="w-4 h-4 mr-2" />
           Nova Conversa
         </Button>
@@ -246,7 +249,7 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
               </SelectContent>
             </Select>
             {instancesError && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 Erro ao carregar instâncias do WhatsApp. Tente novamente.
               </p>
             )}
