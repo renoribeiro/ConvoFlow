@@ -87,7 +87,7 @@ const NavItemLink = ({
         cn(
           'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
           isActive
-            ? 'bg-primary/10 text-primary before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-primary before:rounded-r'
+            ? 'bg-primary text-primary-foreground font-semibold shadow-sm before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-primary-foreground/40 before:rounded-r'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           !isOpen && 'justify-center px-2',
         )
