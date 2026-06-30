@@ -82,7 +82,7 @@ export const FeaturesSection = () => {
         >
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4 px-4 sm:px-0">
             Tudo que você precisa para{' '}
-            <span className="text-brand-primary">dominar o WhatsApp</span>
+            <span className="text-brand-dark">dominar o WhatsApp</span>
           </h2>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-4 sm:px-0">
             Recursos avançados desenvolvidos especificamente para maximizar 
