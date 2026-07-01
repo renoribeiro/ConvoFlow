@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ChatbotProvider } from "@/contexts/ChatbotContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -17,7 +17,6 @@ import { DashboardCardSkeleton } from "@/components/shared/Skeleton";
 // Landing Page (carregamento imediato)
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import { Auth } from "./pages/Auth";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -81,7 +80,9 @@ const App = () => (
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                {/* Auto-cadastro desativado — entrada só por convite de admin.
+                    Mantemos a rota redirecionando pro login pra não quebrar links. */}
+                <Route path="/register" element={<Navigate to="/auth" replace />} />
                 <Route path="/terms-of-service" element={<TermsOfService />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 

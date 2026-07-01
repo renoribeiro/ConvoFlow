@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AnyUserRole, roleLabel as roleLabelHelper } from '@/types/userHierarchy';
 import { RoleBadge } from '@/components/users/RoleBadge';
 import { CommandPalette } from '@/components/layout/CommandPalette';
+import { TenantSwitcher } from '@/components/layout/TenantSwitcher';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -86,6 +87,9 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
         >
           <Search className="h-4 w-4" />
         </Button>
+
+        {/* Seletor de Conta ativa — visível apenas para superadmin */}
+        <TenantSwitcher />
       </div>
 
       {/* Right */}

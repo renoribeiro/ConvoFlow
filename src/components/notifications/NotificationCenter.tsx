@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, X, Check, AlertTriangle, Info, CheckCircle } from 'lucide-react';
-import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
-import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
+import React, { useState } from 'react';
+import { Bell, X, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface Notification {
@@ -10,11 +11,11 @@ interface Notification {
   title: string;
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
-  read: boolean;
+  is_read: boolean;
   created_at: string;
-  action_url?: string;
-  action_label?: string;
-  metadata?: Record<string, any>;
+  action_url?: string | null;
+  action_label?: string | null;
+  metadata?: Record<string, any> | null;
 }
 
 interface NotificationCenterProps {
@@ -23,67 +24,70 @@ interface NotificationCenterProps {
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  // Query para buscar notificações
-  const { data: notificationsData, refetch: refetchNotifications } = useSupabaseQuery({
-    table: 'notifications',
-    queryKey: ['notifications'],
-    select: '*',
-    orderBy: [{ column: 'created_at', ascending: false }],
-    limit: 50
+  // Notificações são por usuário — o RLS (user_id = auth.uid()) já escopa,
+  // então NÃO filtramos por tenant (uma notificação de plataforma pode ter
+  // tenant_id nulo). Consulta direta em vez de useSupabaseQuery (que forçaria
+  // o filtro tenant_id e quebraria isso).
+  const { data: notifications = [] } = useQuery({
+    queryKey: ['notifications', user?.id],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<Notification[]> => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as unknown as Notification[];
+    },
   });
 
-  // Mutation para marcar como lida
-  const markAsReadMutation = useSupabaseMutation({
-    table: 'notifications',
-    operation: 'update',
-    invalidateQueries: [['notifications']],
-    successMessage: 'Notificação marcada como lida'
-  });
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  // Mutation para marcar todas como lidas
-  const markAllAsReadMutation = useSupabaseMutation({
-    table: 'notifications',
-    operation: 'update',
-    invalidateQueries: [['notifications']],
-    successMessage: 'Todas as notificações foram marcadas como lidas'
-  });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['notifications', user?.id] });
 
-  useEffect(() => {
-    if (notificationsData) {
-      setNotifications(notificationsData);
-      const unread = notificationsData.filter((n: Notification) => !n.read).length;
-      setUnreadCount(unread);
+  const handleMarkAsRead = async (notificationId: string) => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId);
+    if (error) {
+      toast({ title: 'Erro', description: 'Não foi possível marcar como lida.', variant: 'destructive' });
+      return;
     }
-  }, [notificationsData]);
-
-  const handleMarkAsRead = (notificationId: string) => {
-    markAsReadMutation.mutate({
-      data: { read: true },
-      options: {
-        filter: { column: 'id', operator: 'eq', value: notificationId }
-      }
-    });
+    invalidate();
   };
 
-  const handleMarkAllAsRead = () => {
-    markAllAsReadMutation.mutate({
-      data: { read: true },
-      options: {
-        filter: { column: 'read', operator: 'eq', value: false }
-      }
-    });
+  const handleMarkAllAsRead = async () => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('is_read', false);
+    if (error) {
+      toast({ title: 'Erro', description: 'Não foi possível marcar todas como lidas.', variant: 'destructive' });
+      return;
+    }
+    invalidate();
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    if (!notification.read) {
+    if (!notification.is_read) {
       handleMarkAsRead(notification.id);
     }
     if (notification.action_url) {
-      window.open(notification.action_url, '_blank');
+      // Links internos (ex.: /dashboard/...) navegam na app; externos abrem aba.
+      if (notification.action_url.startsWith('/')) {
+        navigate(notification.action_url);
+        setIsOpen(false);
+      } else {
+        window.open(notification.action_url, '_blank');
+      }
     }
   };
 
@@ -173,7 +177,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
                   <div
                     key={notification.id}
                     className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${
-                      !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                      !notification.is_read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                     }`}
                     onClick={() => handleNotificationClick(notification)}
                   >
@@ -182,7 +186,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <h4 className={`text-sm font-medium truncate ${
-                            !notification.read ? 'text-gray-900' : 'text-gray-700'
+                            !notification.is_read ? 'text-gray-900' : 'text-gray-700'
                           }`}>
                             {notification.title}
                           </h4>
@@ -199,7 +203,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
                           </button>
                         )}
                       </div>
-                      {!notification.read && (
+                      {!notification.is_read && (
                         <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                       )}
                     </div>
@@ -211,7 +215,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="p-3 border-t bg-gray-50">
-                <button className="w-full text-sm text-center text-blue-600 hover:text-blue-800">
+                <button
+                  className="w-full text-sm text-center text-blue-600 hover:text-blue-800"
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/dashboard/notifications');
+                  }}
+                >
                   Ver todas as notificações
                 </button>
               </div>

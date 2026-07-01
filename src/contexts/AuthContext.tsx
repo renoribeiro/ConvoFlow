@@ -48,7 +48,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setSession(session);
-        setUser(session?.user ?? null);
+        // Preserva a MESMA referência de `user` quando é o mesmo usuário (ex.:
+        // TOKEN_REFRESHED ao voltar o foco na janela). Sem isso, o TenantContext
+        // (deps: [user]) recarregava a cada foco, remontando a página atual e
+        // resetando estado local — como a aba ativa em Configurações.
+        setUser((prev) => {
+          const next = session?.user ?? null;
+          if (prev?.id && next?.id && prev.id === next.id) return prev;
+          return next;
+        });
         setIsLoading(false);
       }
     );

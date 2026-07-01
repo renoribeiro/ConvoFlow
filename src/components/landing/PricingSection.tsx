@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, ArrowRight, Crown } from 'lucide-react';
@@ -6,12 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 
 export const PricingSection = () => {
-  const [userCount, setUserCount] = useState(1);
   const navigate = useNavigate();
-
-  const basePrice = 299;
-  const additionalUserPrice = 89;
-  const totalPrice = basePrice + (userCount > 1 ? (userCount - 1) * additionalUserPrice : 0);
 
   const features = [
     'WhatsApp Business API integrado',
@@ -65,47 +59,15 @@ export const PricingSection = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/5 to-transparent" />
 
           <div className="relative z-10">
-            {/* Price Calculator */}
+            {/* Preço único */}
             <div className="text-center mb-8">
               <div className="mb-6">
-                <label className="block text-sm font-medium text-muted-foreground mb-3">
-                  Quantos usuários você precisa?
-                </label>
-                <div className="flex items-center justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUserCount(Math.max(1, userCount - 1))}
-                    disabled={userCount <= 1}
-                  >
-                    -
-                  </Button>
-                  <span className="text-2xl font-bold text-foreground min-w-[60px]">
-                    {userCount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUserCount(userCount + 1)}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mb-6">
                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-2">
-                  R$ {totalPrice}
+                  R$ 29,90
                   <span className="text-xl sm:text-2xl text-muted-foreground font-normal">/mês</span>
                 </div>
                 <div className="text-sm sm:text-base text-muted-foreground px-4 sm:px-0">
-                  {userCount === 1 ? (
-                    'Plano base para 1 usuário'
-                  ) : (
-                    <>
-                      R$ {basePrice} (base) + R$ {additionalUserPrice} × {userCount - 1} usuários adicionais
-                    </>
-                  )}
+                  Plano único com todos os recursos
                 </div>
               </div>
 

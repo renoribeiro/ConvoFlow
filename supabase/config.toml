@@ -85,3 +85,9 @@ verify_jwt = false
 # via SUPABASE_SERVICE_ROLE_KEY (mesmo padrão de process-campaign-dispatch).
 # Dispara agendados, avança sequências e gera recorrências.
 verify_jwt = false
+
+[functions.webhook-dispatcher]
+# Consome a fila webhook_deliveries e faz POST nos webhooks de saída do usuário.
+# Dirigido por pg_cron (anon bearer); autentica internamente via
+# SUPABASE_SERVICE_ROLE_KEY (mesmo padrão de process-campaign-dispatch).
+verify_jwt = false

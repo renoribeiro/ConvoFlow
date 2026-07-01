@@ -104,6 +104,8 @@ interface Affiliate {
 
 const AdminDashboard = () => {
   const { user, isLoading: authLoading } = useAuth();
+  // Capturado aqui porque dentro do .map a variável `user` é sombreada pela linha.
+  const currentUserId = user?.id ?? null;
   const isSuperAdmin = useIsSuperAdmin();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,6 +177,17 @@ const AdminDashboard = () => {
     orderBy: [{ column: 'created_at', ascending: false }],
     enabled: !!user && !authLoading && isSuperAdmin // Só executa se estiver autenticado e for super admin
   });
+
+  // A admin_users_view não traz colunas de acesso da Conta; carregamos os
+  // tenants à parte (superadmin lê todos via RLS) e cruzamos por tenant_id.
+  const { data: tenantsRows = [], refetch: refetchTenants } = useSupabaseQuery({
+    table: 'tenants',
+    queryKey: ['admin-tenants-access'],
+    select: 'id, name, subscription_status, manual_access_granted, manual_access_granted_at',
+    enabled: !!user && !authLoading && isSuperAdmin,
+  });
+  const tenantById: Record<string, any> = {};
+  for (const t of tenantsRows as any[]) tenantById[t.id] = t;
 
   // Filtrar usuários com base no termo de busca
   const filteredUsers = usersWithEmails.filter((u: any) => {
@@ -624,13 +637,25 @@ const AdminDashboard = () => {
                             {user.is_active ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{user.tenant_name || 'N/A'}</TableCell>
+                        <TableCell>{(user.tenant_id && tenantById[user.tenant_id]?.name) || 'N/A'}</TableCell>
                         <TableCell>
-                          {user.manual_access_granted ? (
-                            <Badge className="bg-purple-500 hover:bg-purple-600">Manual (Liberado)</Badge>
-                          ) : (
-                            <Badge variant="outline">Stripe</Badge>
-                          )}
+                          {(() => {
+                            const t = user.tenant_id ? tenantById[user.tenant_id] : null;
+                            if (t?.subscription_status === 'active') {
+                              return <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>;
+                            }
+                            if (t?.manual_access_granted) {
+                              return (
+                                <Badge
+                                  className="bg-purple-500 hover:bg-purple-600"
+                                  title={t.manual_access_granted_at ? `Liberado em ${format(new Date(t.manual_access_granted_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}` : undefined}
+                                >
+                                  Manual (Liberado)
+                                </Badge>
+                              );
+                            }
+                            return <Badge variant="destructive">Bloqueado</Badge>;
+                          })()}
                         </TableCell>
                         <TableCell>
                           {format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR })}
@@ -640,7 +665,7 @@ const AdminDashboard = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className={user.manual_access_granted ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
+                              className={tenantById[user.tenant_id]?.manual_access_granted ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
                               onClick={async () => {
                                 try {
                                   if (!user.tenant_id) {
@@ -648,23 +673,38 @@ const AdminDashboard = () => {
                                     return;
                                   }
 
-                                  const newValue = !user.manual_access_granted;
+                                  const newValue = !tenantById[user.tenant_id]?.manual_access_granted;
                                   const { error } = await supabase
                                     .from('tenants')
-                                    .update({ manual_access_granted: newValue })
+                                    .update({
+                                      manual_access_granted: newValue,
+                                      manual_access_granted_by: newValue ? currentUserId : null,
+                                      manual_access_granted_at: newValue ? new Date().toISOString() : null,
+                                    })
                                     .eq('id', user.tenant_id);
 
                                   if (error) throw error;
 
+                                  // Auditoria: registra o evento (quem liberou/revogou e quando).
+                                  await supabase
+                                    .from('tenant_access_events' as never)
+                                    .insert({
+                                      tenant_id: user.tenant_id,
+                                      action: newValue ? 'granted' : 'revoked',
+                                      source: 'manual',
+                                      actor_user_id: currentUserId,
+                                    } as never);
+
                                   toast.success(`Acesso manual ${newValue ? 'liberado' : 'revogado'} com sucesso!`);
+                                  refetchTenants();
                                   refetchUsers();
                                 } catch (error: any) {
                                   toast.error('Erro ao alterar acesso: ' + error.message);
                                 }
                               }}
-                              title={user.manual_access_granted ? "Revogar Acesso Manual" : "Liberar Acesso Manualmente"}
+                              title={tenantById[user.tenant_id]?.manual_access_granted ? "Revogar Acesso Manual" : "Liberar Acesso Manualmente"}
                             >
-                              {user.manual_access_granted ? 'Revogar Acesso' : 'Liberar Manualmente'}
+                              {tenantById[user.tenant_id]?.manual_access_granted ? 'Revogar Acesso' : 'Liberar Manualmente'}
                             </Button>
                             <Button
 

@@ -2805,33 +2805,42 @@ export type Database = {
       }
       notifications: {
         Row: {
+          action_label: string | null
+          action_url: string | null
           created_at: string
           id: string
           is_read: boolean
           message: string
-          tenant_id: string
+          metadata: Json | null
+          tenant_id: string | null
           title: string
           type: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          action_label?: string | null
+          action_url?: string | null
           created_at?: string
           id?: string
           is_read?: boolean
           message: string
-          tenant_id: string
+          metadata?: Json | null
+          tenant_id?: string | null
           title: string
           type?: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          action_label?: string | null
+          action_url?: string | null
           created_at?: string
           id?: string
           is_read?: boolean
           message?: string
-          tenant_id?: string
+          metadata?: Json | null
+          tenant_id?: string | null
           title?: string
           type?: string
           updated_at?: string
@@ -2888,6 +2897,7 @@ export type Database = {
         Row: {
           affiliate_id: string | null
           avatar_url: string | null
+          bio: string | null
           created_at: string
           first_name: string | null
           id: string
@@ -2896,6 +2906,7 @@ export type Database = {
           last_login_at: string | null
           last_name: string | null
           login_count: number
+          notification_prefs: Json | null
           parent_id: string | null
           permissions: Json | null
           phone: string | null
@@ -2908,6 +2919,7 @@ export type Database = {
         Insert: {
           affiliate_id?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -2916,6 +2928,7 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           login_count?: number
+          notification_prefs?: Json | null
           parent_id?: string | null
           permissions?: Json | null
           phone?: string | null
@@ -2928,6 +2941,7 @@ export type Database = {
         Update: {
           affiliate_id?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -2936,6 +2950,7 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           login_count?: number
+          notification_prefs?: Json | null
           parent_id?: string | null
           permissions?: Json | null
           phone?: string | null
@@ -3968,6 +3983,8 @@ export type Database = {
           domain: string | null
           id: string
           manual_access_granted: boolean | null
+          manual_access_granted_at: string | null
+          manual_access_granted_by: string | null
           max_users: number | null
           max_whatsapp_instances: number | null
           name: string
@@ -3988,6 +4005,8 @@ export type Database = {
           domain?: string | null
           id?: string
           manual_access_granted?: boolean | null
+          manual_access_granted_at?: string | null
+          manual_access_granted_by?: string | null
           max_users?: number | null
           max_whatsapp_instances?: number | null
           name: string
@@ -4008,6 +4027,8 @@ export type Database = {
           domain?: string | null
           id?: string
           manual_access_granted?: boolean | null
+          manual_access_granted_at?: string | null
+          manual_access_granted_by?: string | null
           max_users?: number | null
           max_whatsapp_instances?: number | null
           name?: string

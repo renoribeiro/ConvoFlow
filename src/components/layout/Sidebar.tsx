@@ -139,7 +139,9 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
   const visibleMarketing = marketingItems.filter(isItemVisible);
   const visibleConfig = configItems.filter(isItemVisible);
 
-  const showTeam = role === 'agencia' || isSuperAdmin;
+  // Equipe é a visão escopada (agência gerencia suas Lojas). O superadmin não
+  // precisa dela — usa a Administração (visão global) + o seletor de Conta.
+  const showTeam = role === 'agencia';
   const showAdmin = isSuperAdmin;
 
   return (

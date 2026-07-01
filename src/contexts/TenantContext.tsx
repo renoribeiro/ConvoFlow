@@ -16,7 +16,25 @@ interface TenantContextType {
   error: string | null;
   refreshTenant: () => Promise<void>;
   updateTenantSettings: (settings: any) => Promise<void>;
+  /**
+   * True quando um superadmin está "dentro" de uma Conta que não é a sua
+   * (impersonação). Usado para mostrar o banner/seletor de Conta ativa.
+   */
+  isImpersonating: boolean;
+  /**
+   * Define a Conta ativa do superadmin. Passar `null` volta ao estado
+   * sem Conta. Só tem efeito para superadmin — para os demais, o tenant
+   * é sempre derivado do próprio profile.
+   */
+  setActiveTenant: (tenantId: string | null) => void;
 }
+
+/**
+ * Chave de localStorage que guarda a Conta que o superadmin escolheu
+ * "entrar". Persistida para sobreviver a reloads. Ignorada para qualquer
+ * usuário que não seja superadmin (gate por role em loadTenantData).
+ */
+const ACTIVE_TENANT_KEY = 'convoflow-active-tenant';
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
@@ -33,6 +51,13 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [impersonatedTenantId, setImpersonatedTenantId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_TENANT_KEY);
+    } catch {
+      return null;
+    }
+  });
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -73,8 +98,18 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setProfile(profileData);
 
-    // Superadmin e account_manager podem não ter tenant_id
-    if (!profileData.tenant_id) {
+    // Resolver o tenant efetivo.
+    // Um superadmin não tem tenant_id próprio, mas pode "entrar" numa Conta
+    // específica (impersonação) — nesse caso usamos o tenant escolhido. O RLS
+    // já libera o superadmin a ler qualquer tenant (policies "Super admins can
+    // access all ..."), então basta filtrar as queries por esse tenant_id.
+    // Para qualquer outra role o impersonatedTenantId é ignorado.
+    const isSuper = normalizeRole(profileData.role as AnyUserRole | undefined) === 'superadmin';
+    const effectiveTenantId = (isSuper && impersonatedTenantId)
+      ? impersonatedTenantId
+      : profileData.tenant_id;
+
+    if (!effectiveTenantId) {
       setTenant(null);
       setLoading(false);
       return;
@@ -85,7 +120,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const { data: tenantData, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
-      .eq('id', profileData.tenant_id)
+      .eq('id', effectiveTenantId)
       .maybeSingle();
 
     if (tenantError) {
@@ -101,6 +136,22 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const refreshTenant = async () => {
     await loadTenantData();
+  };
+
+  const setActiveTenant = (tenantId: string | null) => {
+    try {
+      if (tenantId) {
+        localStorage.setItem(ACTIVE_TENANT_KEY, tenantId);
+      } else {
+        localStorage.removeItem(ACTIVE_TENANT_KEY);
+      }
+    } catch {
+      // localStorage indisponível (modo privado, etc.) — segue só com o estado.
+    }
+    // Dispara o useEffect (deps inclui impersonatedTenantId) → recarrega o
+    // tenant efetivo. Como o queryKey das queries inclui tenant?.id, o
+    // TanStack Query refetcha automaticamente os dados da nova Conta.
+    setImpersonatedTenantId(tenantId);
   };
 
   const updateTenantSettings = async (settings: Record<string, unknown>) => {
@@ -160,7 +211,10 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, impersonatedTenantId]);
+
+  const isImpersonating = !!impersonatedTenantId
+    && normalizeRole(profile?.role as AnyUserRole | undefined) === 'superadmin';
 
   const value: TenantContextType = {
     tenant,
@@ -170,6 +224,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     error,
     refreshTenant,
     updateTenantSettings,
+    isImpersonating,
+    setActiveTenant,
   };
 
   return (

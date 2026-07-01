@@ -54,8 +54,7 @@ export function ProfileSettings() {
       // Email vem do Auth e é somente leitura aqui
       setEmail(user?.email || '');
       setPhone(profile.phone || '');
-      // Bio não existe na tabela profiles por enquanto
-      setBio('');
+      setBio(profile.bio || '');
       setAvatarUrl(profile.avatar_url || '');
     }
   }, [profile, user?.email]);
@@ -69,6 +68,7 @@ export function ProfileSettings() {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
+        bio: bio,
         avatar_url: avatarUrl,
       },
       // Atualizar apenas o registro do usuário logado
@@ -212,7 +212,6 @@ export function ProfileSettings() {
             onChange={(e) => setBio(e.target.value)}
             placeholder="Conte um pouco sobre você..."
             rows={3}
-            disabled
           />
         </div>
 
