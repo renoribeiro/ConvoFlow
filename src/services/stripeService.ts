@@ -199,6 +199,52 @@ class StripeService {
     }
   }
 
+  /**
+   * Aggregate commission-payment stats for the admin dashboard.
+   * Swallows errors (returns zeros) so the Pagamentos tab never crashes when
+   * Stripe/commission tracking is not configured yet.
+   */
+  async getPaymentStatistics(affiliateId?: string): Promise<{
+    totalPaid: number;
+    totalPending: number;
+    totalFailed: number;
+    totalPayments: number;
+    averagePayment: number;
+  }> {
+    const empty = { totalPaid: 0, totalPending: 0, totalFailed: 0, totalPayments: 0, averagePayment: 0 };
+    try {
+      let query = supabase.from('commission_payments').select('amount, status');
+      if (affiliateId) query = query.eq('affiliate_id', affiliateId);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const rows = (data as any[]) || [];
+      const stats = { ...empty, totalPayments: rows.length };
+      for (const row of rows) {
+        const amount = Number(row.amount) || 0;
+        switch (row.status) {
+          case 'paid':
+          case 'completed':
+            stats.totalPaid += amount;
+            break;
+          case 'failed':
+          case 'cancelled':
+            stats.totalFailed += amount;
+            break;
+          default: // pending, processing
+            stats.totalPending += amount;
+            break;
+        }
+      }
+      stats.averagePayment = rows.length ? (stats.totalPaid + stats.totalPending + stats.totalFailed) / rows.length : 0;
+      return stats;
+    } catch (error) {
+      console.error('Error fetching payment statistics:', error);
+      return empty;
+    }
+  }
+
   async createCommissionPayment(affiliateId: string, amount: number, description?: string, metadata?: Record<string, any>): Promise<CommissionPayment | null> {
     try {
       const { data, error } = await supabase

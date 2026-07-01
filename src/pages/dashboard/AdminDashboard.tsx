@@ -433,12 +433,14 @@ const AdminDashboard = () => {
     }
 
     createAffiliateMutation.mutate({
-      name: affiliateForm.name,
-      email: affiliateForm.email,
-      affiliate_code: affiliateForm.affiliate_code,
-      commission_rate_first_month: affiliateForm.commission_rate_first_month,
-      commission_rate_recurring: affiliateForm.commission_rate_recurring,
-      is_active: affiliateForm.is_active
+      data: {
+        name: affiliateForm.name,
+        email: affiliateForm.email,
+        affiliate_code: affiliateForm.affiliate_code,
+        commission_rate_first_month: affiliateForm.commission_rate_first_month,
+        commission_rate_recurring: affiliateForm.commission_rate_recurring,
+        is_active: affiliateForm.is_active
+      }
     });
   };
 
@@ -446,19 +448,28 @@ const AdminDashboard = () => {
     if (!selectedAffiliate) return;
 
     updateAffiliateMutation.mutate({
-      id: selectedAffiliate.id,
-      name: affiliateForm.name,
-      email: affiliateForm.email,
-      affiliate_code: affiliateForm.affiliate_code,
-      commission_rate_first_month: affiliateForm.commission_rate_first_month,
-      commission_rate_recurring: affiliateForm.commission_rate_recurring,
-      is_active: affiliateForm.is_active
+      data: {
+        name: affiliateForm.name,
+        email: affiliateForm.email,
+        affiliate_code: affiliateForm.affiliate_code,
+        commission_rate_first_month: affiliateForm.commission_rate_first_month,
+        commission_rate_recurring: affiliateForm.commission_rate_recurring,
+        is_active: affiliateForm.is_active
+      },
+      options: {
+        filter: { column: 'id', operator: 'eq', value: selectedAffiliate.id }
+      }
     });
   };
 
   const handleDeleteAffiliate = () => {
     if (!selectedAffiliate) return;
-    deleteAffiliateMutation.mutate({ id: selectedAffiliate.id });
+    deleteAffiliateMutation.mutate({
+      data: {},
+      options: {
+        filter: { column: 'id', operator: 'eq', value: selectedAffiliate.id }
+      }
+    });
   };
 
   const openEditAffiliate = (affiliate: Affiliate) => {
