@@ -536,6 +536,16 @@ export interface LoggerLike {
 
 const MAX_STEPS_PER_INVOCATION = 50;
 
+// Máximo de respostas inválidas num nó `show_options` antes do bot parar de
+// reenviar o menu e encerrar a sessão. Evita o loop em que o lead não escolhe
+// uma opção válida e o bot repete os "procedimentos" indefinidamente.
+// Um nó pode sobrescrever via data.max_invalid_attempts.
+const DEFAULT_MAX_INVALID_OPTION_ATTEMPTS = 3;
+
+// Prefixo de variáveis de sessão internas (contadores, flags de controle). Nunca
+// são espelhadas para o contato nem disparam automações.
+const RESERVED_VAR_PREFIX = '__';
+
 // ---------------------------------------------------------------------------
 // Main engine entry point
 // ---------------------------------------------------------------------------
@@ -796,16 +806,52 @@ async function handleSessionReply(
 
     nextNodeId = resolveNextNodeId(allEdges, currentNode.id, DEFAULT_HANDLE);
   } else if (currentNode.node_type === 'show_options') {
-    const d = currentNode.data as { message?: string; options?: ShowOptionsOption[] };
+    const d = currentNode.data as {
+      message?: string;
+      options?: ShowOptionsOption[];
+      max_invalid_attempts?: number;
+      invalid_end_message?: string;
+    };
     const options = d.options ?? [];
     const matched = matchOption(message, options);
 
+    // Contador de tentativas inválidas por nó. Sem limite, um lead que não
+    // escolhe uma opção válida faria o bot reenviar o menu indefinidamente.
+    const retryKey = `${RESERVED_VAR_PREFIX}opt_retries:${currentNode.id}`;
+
     if (!matched) {
-      // Re-send the menu.
+      const maxAttempts = Math.max(1, d.max_invalid_attempts ?? DEFAULT_MAX_INVALID_OPTION_ATTEMPTS);
+      const attempts = (parseInt(updatedVars[retryKey] ?? '0', 10) || 0) + 1;
+
+      if (attempts >= maxAttempts) {
+        // Excedeu o limite: avisa e encerra a sessão para o bot parar de reenviar.
+        const closing =
+          d.invalid_end_message?.trim() ||
+          'Não consegui entender sua escolha. Encerrei o atendimento automático por aqui — se precisar, é só mandar uma nova mensagem. 🙂';
+        await sendBotMessage(closing, input, ctx);
+        const { [retryKey]: _drop, ...cleanVars } = updatedVars;
+        await updateSession(supabase, session.id, {
+          variables: cleanVars,
+          awaiting_input: false,
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Ainda dentro do limite: registra a tentativa e reenvia o menu.
+      updatedVars[retryKey] = String(attempts);
+      await updateSession(supabase, session.id, {
+        variables: updatedVars,
+        last_activity_at: new Date().toISOString(),
+      });
       await sendBotMessage(buildOptionsText(d.message ?? '', options), input, ctx);
       return;
     }
 
+    // Escolha válida: zera o contador antes de avançar.
+    delete updatedVars[retryKey];
     nextNodeId = resolveNextNodeId(allEdges, currentNode.id, matched.id);
   } else {
     logger.warn('Session awaiting input on non-input node type', {
@@ -1279,6 +1325,9 @@ async function onVariablesChanged(
 ): Promise<void> {
   const changed: Record<string, string> = {};
   for (const [k, v] of Object.entries(nextVars)) {
+    // Variáveis internas de controle (ex.: contadores de tentativa) não devem
+    // vazar para custom_fields nem disparar automações.
+    if (k.startsWith(RESERVED_VAR_PREFIX)) continue;
     if (prevVars[k] !== v) changed[k] = v;
   }
   if (Object.keys(changed).length === 0) return;

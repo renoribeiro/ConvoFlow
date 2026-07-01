@@ -17,6 +17,8 @@ interface Message {
   is_from_bot: boolean;
   source: string | null;
   campaign_id: string | null;
+  /** CTWA ad referral (Meta) on the first inbound message from a Click-to-WhatsApp ad. */
+  ad_referral?: Record<string, unknown> | null;
 }
 
 interface MessagesPage {
@@ -57,7 +59,8 @@ export const useMessages = ({ contactId, pageSize = 50, enabled = true }: UseMes
           whatsapp_instance_id,
           is_from_bot,
           source,
-          campaign_id
+          campaign_id,
+          ad_referral
         `)
         .eq('tenant_id', tenant.id)
         .eq('contact_id', contactId)
@@ -124,7 +127,8 @@ export const useRecentMessages = (contactId: string, limit: number = 20) => {
           whatsapp_instance_id,
           is_from_bot,
           source,
-          campaign_id
+          campaign_id,
+          ad_referral
         `)
         .eq('tenant_id', tenant.id)
         .eq('contact_id', contactId)

@@ -2635,6 +2635,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          ad_referral: Json | null
           campaign_id: string | null
           contact_id: string
           content: string | null
@@ -2652,6 +2653,7 @@ export type Database = {
           whatsapp_instance_id: string
         }
         Insert: {
+          ad_referral?: Json | null
           campaign_id?: string | null
           contact_id: string
           content?: string | null
@@ -2669,6 +2671,7 @@ export type Database = {
           whatsapp_instance_id: string
         }
         Update: {
+          ad_referral?: Json | null
           campaign_id?: string | null
           contact_id?: string
           content?: string | null

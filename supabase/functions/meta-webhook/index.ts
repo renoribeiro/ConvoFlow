@@ -312,6 +312,24 @@ async function handleIncomingMessage(
 
   logger.info('Meta message processed', { id: messageId, type: msg.type });
 
+  // CTWA ad referral: Meta anexa `referral` à PRIMEIRA mensagem quando o lead chega
+  // clicando num anúncio Click-to-WhatsApp (Face/Insta). O insert da mensagem é feito
+  // pela RPC acima; aqui gravamos o referral na linha recém-criada (identificada pelo
+  // wamid) para a aba Conversas mostrar de qual anúncio o lead veio. Best-effort —
+  // uma falha aqui nunca deve interromper o processamento do webhook.
+  if (msg.referral && typeof msg.referral === 'object') {
+    const { error: refError } = await supabase
+      .from('messages')
+      .update({ ad_referral: msg.referral })
+      .eq('evolution_message_id', messageId)
+      .eq('direction', 'inbound');
+    if (refError) {
+      logger.warn('Failed to persist CTWA ad referral', { error: refError.message, id: messageId });
+    } else {
+      logger.info('CTWA ad referral stored', { id: messageId, sourceType: msg.referral.source_type });
+    }
+  }
+
   // Resolve contact_id: prefer the RPC result; fall back to a phone+tenant lookup.
   let contactId: string | undefined = (rpcResult as any)?.contact_id;
   if (!contactId) {
