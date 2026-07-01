@@ -1,35 +1,37 @@
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  User, 
-  Bell, 
-  Shield, 
-  Database, 
-  Palette, 
-  Settings as SettingsIcon,
-  Smartphone,
-  CreditCard,
-  Server
+import {
+  User,
+  Bell,
+  Shield,
+  Database,
+  CreditCard
 } from 'lucide-react';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
 import { SubscriptionSettings } from '@/components/settings/SubscriptionSettings';
-import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
-import { ModuleSettings } from '@/components/settings/ModuleSettings';
-import { SystemSettings } from '@/components/settings/SystemSettings';
-import { WhatsAppApiSettings } from '@/components/whatsapp/WhatsAppApiSettings';
-import { useIsSuperAdmin } from '@/contexts/TenantContext';
 import { useSearchParams } from 'react-router-dom';
 
 
 export default function Settings() {
-  const isSuperAdmin = useIsSuperAdmin();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'profile';
-  
+
+  // Aba controlada pela URL: sobrevive a remontagens (foco da janela, etc.) e
+  // permite deep-link (ex.: /dashboard/settings?tab=integrations).
+  const handleTabChange = (value: string) => {
+    setSearchParams(
+      (prev) => {
+        prev.set('tab', value);
+        return prev;
+      },
+      { replace: true },
+    );
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -41,8 +43,8 @@ export default function Settings() {
         ]}
       />
 
-      <Tabs defaultValue={currentTab} className="space-y-6">
-        <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-9' : 'grid-cols-7'}`}>
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Perfil
@@ -63,26 +65,6 @@ export default function Settings() {
             <Database className="w-4 h-4" />
             Integrações
           </TabsTrigger>
-          <TabsTrigger value="whatsapp-api" className="flex items-center gap-2">
-            <Smartphone className="w-4 h-4" />
-            API WhatsApp
-          </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
-            <Palette className="w-4 h-4" />
-            Aparência
-          </TabsTrigger>
-          {isSuperAdmin && (
-            <TabsTrigger value="modules" className="flex items-center gap-2">
-              <SettingsIcon className="w-4 h-4" />
-              Módulos
-            </TabsTrigger>
-          )}
-          {isSuperAdmin && (
-            <TabsTrigger value="system" className="flex items-center gap-2">
-              <Server className="w-4 h-4" />
-              Sistema
-            </TabsTrigger>
-          )}
         </TabsList>
 
         <TabsContent value="profile">
@@ -104,26 +86,6 @@ export default function Settings() {
         <TabsContent value="integrations">
           <IntegrationSettings />
         </TabsContent>
-
-        <TabsContent value="whatsapp-api">
-          <WhatsAppApiSettings />
-        </TabsContent>
-
-        <TabsContent value="appearance">
-          <AppearanceSettings />
-        </TabsContent>
-        
-        {isSuperAdmin && (
-          <TabsContent value="modules">
-            <ModuleSettings />
-          </TabsContent>
-        )}
-
-        {isSuperAdmin && (
-          <TabsContent value="system">
-            <SystemSettings />
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   );

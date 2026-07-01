@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
+import { WEBHOOK_EVENT_TYPES, validateWebhookForm } from '@/lib/webhooks';
 import { 
   Settings, 
   Webhook, 
@@ -59,20 +60,26 @@ export const IntegrationSettings = () => {
   const [isEditingWebhook, setIsEditingWebhook] = useState<string | null>(null);
   
   const { toast } = useToast();
-  
-  // Query para buscar integrações
-  const { data: integrations = [], refetch: refetchIntegrations } = useSupabaseQuery({
-    table: 'integrations',
-    queryKey: ['integrations'],
-    select: '*'
-  });
-  
-  // Query para buscar webhooks
-  const { data: webhooks = [], refetch: refetchWebhooks } = useSupabaseQuery({
+
+  // Webhooks de saída configurados pela Conta (tabela `webhooks`, tenant-scoped).
+  // (Os cards de "Integrações" abaixo são um catálogo estático — não há tabela.)
+  const { data: webhooksRaw = [] } = useSupabaseQuery({
     table: 'webhooks',
     queryKey: ['webhooks'],
-    select: '*'
+    select: '*',
+    orderBy: [{ column: 'created_at', ascending: false }],
+    // Degrada para lista vazia sem popup de erro (ex.: antes da migração da
+    // tabela `webhooks`, ou falha transitória). Nada crítico depende disso aqui.
+    silent: true,
   });
+  const webhooks = webhooksRaw as unknown as Array<{
+    id: string;
+    name: string;
+    url: string;
+    events: string[];
+    is_active: boolean;
+    secret?: string | null;
+  }>;
   
   // Mutation para salvar webhook
   const saveWebhookMutation = useSupabaseMutation({
@@ -158,67 +165,61 @@ export const IntegrationSettings = () => {
     }
   ];
   
-  const eventTypes = [
-    { id: 'message.received', label: 'Mensagem Recebida' },
-    { id: 'message.sent', label: 'Mensagem Enviada' },
-    { id: 'contact.created', label: 'Contato Criado' },
-    { id: 'contact.updated', label: 'Contato Atualizado' },
-    { id: 'campaign.started', label: 'Campanha Iniciada' },
-    { id: 'campaign.completed', label: 'Campanha Finalizada' },
-    { id: 'followup.scheduled', label: 'Follow-up Agendado' },
-    { id: 'chatbot.triggered', label: 'Chatbot Acionado' }
-  ];
-  
+  const eventTypes = WEBHOOK_EVENT_TYPES;
+
   const handleSaveWebhook = async () => {
+    const validation = validateWebhookForm(webhookForm);
+    if (!validation.valid) {
+      toast({ title: 'Erro', description: validation.error, variant: 'destructive' });
+      return;
+    }
+
+    // A tabela usa `is_active`; o formulário usa `active`. Traduzimos aqui.
+    const data = {
+      name: webhookForm.name?.trim(),
+      url: webhookForm.url?.trim(),
+      events: webhookForm.events || [],
+      secret: webhookForm.secret || null,
+      is_active: webhookForm.active ?? true,
+    };
+
     try {
-      if (!webhookForm.name || !webhookForm.url) {
-        toast({
-          title: 'Erro',
-          description: 'Nome e URL são obrigatórios',
-          variant: 'destructive'
-        });
-        return;
-      }
-      
-      const dataToSave = {
-        ...webhookForm,
-        events: webhookForm.events || []
-      };
-      
       if (isEditingWebhook) {
         await saveWebhookMutation.mutateAsync({
-          ...dataToSave,
-          id: isEditingWebhook
+          data,
+          options: { filter: { column: 'id', operator: 'eq', value: isEditingWebhook } },
         });
       } else {
-        await saveWebhookMutation.mutateAsync(dataToSave);
+        // tenant_id é injetado automaticamente pelo useSupabaseMutation.
+        await saveWebhookMutation.mutateAsync({ data });
       }
-      
+
       setWebhookForm({ name: '', url: '', events: [], active: true });
       setIsEditingWebhook(null);
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar webhook',
-        variant: 'destructive'
-      });
+    } catch {
+      // O hook já exibe o toast de erro.
     }
   };
-  
-  const handleEditWebhook = (webhook: WebhookConfig) => {
-    setWebhookForm(webhook);
+
+  const handleEditWebhook = (webhook: any) => {
+    setWebhookForm({
+      name: webhook.name,
+      url: webhook.url,
+      events: webhook.events || [],
+      secret: webhook.secret || '',
+      active: webhook.is_active,
+    });
     setIsEditingWebhook(webhook.id);
   };
-  
+
   const handleDeleteWebhook = async (id: string) => {
     try {
-      await deleteWebhookMutation.mutateAsync({ id });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao remover webhook',
-        variant: 'destructive'
+      await deleteWebhookMutation.mutateAsync({
+        data: {},
+        options: { filter: { column: 'id', operator: 'eq', value: id } },
       });
+    } catch {
+      // O hook já exibe o toast de erro.
     }
   };
   
@@ -253,10 +254,7 @@ export const IntegrationSettings = () => {
   };
   
   const groupedIntegrations = availableIntegrations.reduce((acc, integration) => {
-    if (!acc[integration.category]) {
-      acc[integration.category] = [];
-    }
-    acc[integration.category].push(integration);
+    (acc[integration.category] ??= []).push(integration);
     return acc;
   }, {} as Record<string, Integration[]>);
   
@@ -507,7 +505,7 @@ export const IntegrationSettings = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <h4 className="font-medium">{webhook.name}</h4>
-                              {webhook.active ? (
+                              {webhook.is_active ? (
                                 <Badge variant="default" className="bg-green-500">Ativo</Badge>
                               ) : (
                                 <Badge variant="secondary">Inativo</Badge>
