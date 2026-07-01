@@ -363,6 +363,40 @@ Formato de número (parâmetro `to`):
     interactive → interactive: { type: "button_reply"|"list_reply", button_reply|list_reply }
     button     → button: { payload, text }   (resposta de template)
 
+### 3.5.1 Referral de anúncio Click-to-WhatsApp (CTWA)
+Quando o lead chega ao WhatsApp clicando num anúncio (ou post) do Facebook/Instagram,
+a Meta anexa um objeto `referral` à **primeira** mensagem recebida daquele contato.
+É opcional e só aparece nesse primeiro `messages[]`.
+
+```json
+"messages": [{
+  "from": "5511999999999",
+  "id": "wamid.HBgN...",
+  "type": "text",
+  "text": { "body": "Olá, vi o anúncio" },
+  "referral": {
+    "source_url": "https://fb.me/...",      // URL do anúncio/post (às vezes é tracking)
+    "source_id": "{AD_ID}",
+    "source_type": "ad",                      // "ad" | "post"
+    "headline": "Título do anúncio",
+    "body": "Texto do anúncio",
+    "media_type": "image",                    // "image" | "video"
+    "image_url": "https://...",
+    "video_url": "https://...",
+    "thumbnail_url": "https://...",
+    "ctwa_clid": "..."                        // click id (atribuição)
+  }
+}]
+```
+
+  - Todos os campos internos são opcionais — trate tudo como possivelmente ausente.
+  - No ConvoFlow, o webhook (`meta-webhook`) grava o objeto cru na coluna
+    `messages.ad_referral` (jsonb) da mensagem recém-criada, e a aba Conversas
+    (`MessageBubble`) mostra um card "Veio de um anúncio" com headline/miniatura/link.
+  - O `source_url` pode ser uma URL de tracking (`l.facebook.com`/`fb.me`) que nem sempre
+    abre no navegador do operador — por isso o valor está em mostrar a ORIGEM (headline +
+    miniatura), não só o link.
+
 ### 3.6 Status updates (statuses[] no mesmo payload)
 ```json
 "statuses": [{

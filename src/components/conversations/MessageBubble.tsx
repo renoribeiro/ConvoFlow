@@ -20,6 +20,20 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MessageStatusIcon } from './MessageStatusIcon';
 
+/** Click-to-WhatsApp ad referral (Meta `messages[].referral`). All fields optional. */
+export type AdReferral = {
+  source_url?: string | null;
+  source_id?: string | null;
+  source_type?: string | null;
+  headline?: string | null;
+  body?: string | null;
+  media_type?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+  thumbnail_url?: string | null;
+  ctwa_clid?: string | null;
+};
+
 export type RenderableMessage = {
   id: string;
   content: string | null;
@@ -42,6 +56,8 @@ export type RenderableMessage = {
   /** Resolved campaign name — optionally injected by the parent. */
   campaign_name?: string | null;
   is_from_bot?: boolean | null;
+  /** CTWA ad referral on the first inbound message from a Click-to-WhatsApp ad. */
+  ad_referral?: AdReferral | null;
 };
 
 /** Characters after which a text message gets a "Ver mais"/"Ver menos" toggle. */
@@ -189,6 +205,59 @@ function DeletedPlaceholder() {
   );
 }
 
+/**
+ * Card de origem de anúncio (Click-to-WhatsApp). Aparece na primeira mensagem do
+ * lead que chegou clicando num anúncio do Face/Insta — mostra ao operador de qual
+ * anúncio/produto ele veio (headline, miniatura e link), já que o "link" bruto do
+ * referral costuma ser uma URL de tracking difícil de acessar.
+ */
+function AdReferralCard({ referral }: { referral: AdReferral }) {
+  const thumb = referral.image_url || referral.thumbnail_url || null;
+  const url = referral.source_url || null;
+  const hasBody = Boolean(referral.headline || referral.body);
+
+  return (
+    <div className="mb-2 rounded-md border border-accent/30 bg-accent/10 p-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium text-accent mb-1.5">
+        <Megaphone className="w-3 h-3" />
+        Veio de um anúncio
+      </div>
+      <div className="flex gap-2">
+        {thumb && (
+          <img
+            src={thumb}
+            alt="Anúncio"
+            loading="lazy"
+            className="w-12 h-12 rounded object-cover border border-border/40 flex-shrink-0"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          {referral.headline && (
+            <p className="text-xs font-medium truncate">{referral.headline}</p>
+          )}
+          {referral.body && (
+            <p className="text-[11px] opacity-70 line-clamp-2">{referral.body}</p>
+          )}
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-medium text-accent hover:underline break-all"
+            >
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              Ver anúncio
+            </a>
+          )}
+          {!hasBody && !url && (
+            <p className="text-[11px] opacity-70">Anúncio sem detalhes disponíveis.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OriginBadge({ message }: { message: RenderableMessage }) {
   if (message.direction !== 'outbound') return null;
 
@@ -314,6 +383,10 @@ export function MessageBubble({ message, showQuoted = true, onReply, searchTerm,
         } ${isActiveMatch ? 'ring-2 ring-primary/50' : ''}`}
         onDoubleClick={() => onReply?.(message)}
       >
+        {!isOutbound && message.ad_referral && (
+          <AdReferralCard referral={message.ad_referral} />
+        )}
+
         {showQuoted && message.quoted && (
           <div className="mb-2 px-2 py-1 border-l-2 border-current/40 bg-background/20 rounded-sm">
             <p className="text-xs opacity-70">{message.quoted.sender || 'Em resposta a'}</p>

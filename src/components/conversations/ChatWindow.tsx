@@ -50,6 +50,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   ArrowLeft,
+  SquareX,
 } from 'lucide-react';
 import { format, isToday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,6 +66,7 @@ import {
   useMarkConversationAsRead,
   useArchiveConversation,
 } from '@/hooks/useConversations';
+import { useEndChatbotSession } from '@/hooks/useEndChatbotSession';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter, pickActiveInstance } from '@/hooks/useWhatsAppApi';
@@ -150,6 +152,7 @@ export const ChatWindow = ({
   const [replyTo, setReplyTo] = useState<RenderableMessage | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
   // Contact is "typing" — no provider currently emits inbound typing to the client,
   // so this stays false. The UI slot below the name is ready for when it does.
   const [isContactTyping] = useState(false);
@@ -264,6 +267,7 @@ export const ChatWindow = ({
   const markAsReadMutation = useMarkMessagesAsRead();
   const markConversationAsReadMutation = useMarkConversationAsRead();
   const archiveConversationMutation = useArchiveConversation();
+  const endChatbotSessionMutation = useEndChatbotSession();
 
   const updateContactMutation = useSupabaseMutation({
     table: 'contacts',
@@ -393,6 +397,7 @@ export const ChatWindow = ({
         campaign_id: m.campaign_id ?? null,
         campaign_name: m.campaign_id && campaignNames ? (campaignNames[m.campaign_id] ?? null) : null,
         is_from_bot: m.is_from_bot ?? null,
+        ad_referral: (m.ad_referral as RenderableMessage['ad_referral']) ?? null,
       };
     });
   }, [messages, campaignNames]);
@@ -505,6 +510,25 @@ export const ChatWindow = ({
     } else {
       toast.success('Conversa marcada como não lida.');
       queryClient.invalidateQueries({ queryKey: ['conversations', tenant.id] });
+    }
+  };
+
+  const handleEndChatbotSession = async () => {
+    if (!contactId) return;
+    try {
+      const { ended } = await endChatbotSessionMutation.mutateAsync({
+        contactId,
+        whatsappInstanceId: conversationInstanceId,
+      });
+      if (ended) {
+        toast.success('Sessão do bot encerrada. Ele não vai mais reenviar o menu.');
+      } else {
+        toast.info('Nenhuma sessão do bot ativa neste contato.');
+      }
+    } catch {
+      toast.error('Falha ao encerrar a sessão do bot. Tente novamente.');
+    } finally {
+      setIsEndSessionOpen(false);
     }
   };
 
@@ -851,6 +875,14 @@ export const ChatWindow = ({
                   <Tag className="w-4 h-4 mr-2" />
                   Etiquetar
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsEndSessionOpen(true)}
+                  disabled={!contactId}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <SquareX className="w-4 h-4 mr-2" />
+                  Encerrar sessão do bot
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1155,6 +1187,32 @@ export const ChatWindow = ({
           currentTagIds={contactTagIds}
         />
       )}
+
+      <Dialog open={isEndSessionOpen} onOpenChange={setIsEndSessionOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Encerrar sessão do bot</DialogTitle>
+            <DialogDescription>
+              Isso encerra a conversa automática do chatbot com este contato. O bot para
+              de reenviar o menu e só volta a agir se uma nova mensagem disparar um gatilho.
+              Você continua podendo responder manualmente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEndSessionOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleEndChatbotSession}
+              disabled={endChatbotSessionMutation.isPending}
+            >
+              {endChatbotSessionMutation.isPending ? 'Encerrando...' : 'Encerrar sessão'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
