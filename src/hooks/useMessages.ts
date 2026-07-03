@@ -193,14 +193,11 @@ export const useSendMessage = () => {
       queryClient.invalidateQueries({ 
         queryKey: ['recent-messages', data.contact_id, tenant?.id] 
       });
-      queryClient.invalidateQueries({ 
-        queryKey: ['conversations', tenant?.id] 
+      queryClient.invalidateQueries({
+        queryKey: ['conversations', tenant?.id]
       });
-      
-      toast({
-        title: 'Mensagem enviada',
-        description: 'Sua mensagem foi enviada com sucesso.',
-      });
+      // Sem toast de sucesso: a mensagem aparecendo na thread já é a confirmação.
+      // O toast a cada envio era ruído desnecessário.
     },
     onError: (error) => {
       console.error('Error sending message:', error);
