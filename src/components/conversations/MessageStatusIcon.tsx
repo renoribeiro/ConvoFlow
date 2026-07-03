@@ -87,7 +87,7 @@ export function MessageStatusIcon({ status }: MessageStatusIconProps) {
         return <AlertCircle className="w-3.5 h-3.5 text-destructive" />;
       case 'pending':
       default:
-        return <Clock className="w-3 h-3 text-muted-foreground" />;
+        return <Clock className="w-3.5 h-3.5 text-warning animate-pulse" />;
     }
   })();
 
