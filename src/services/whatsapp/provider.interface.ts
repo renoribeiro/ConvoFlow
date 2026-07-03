@@ -11,6 +11,7 @@ import type {
   SendMediaPayload,
   SendReactionPayload,
   SendResult,
+  SendTemplatePayload,
   SendTextOptions,
 } from './types';
 
@@ -29,6 +30,12 @@ export interface IWhatsAppProvider {
   sendMedia(toPhone: string, payload: SendMediaPayload): Promise<SendResult>;
   sendLocation(toPhone: string, payload: SendLocationPayload): Promise<SendResult>;
   sendReaction(toPhone: string, payload: SendReactionPayload): Promise<SendResult>;
+  /**
+   * Envia um template aprovado (HSM). Usado para reabrir a conversa fora da
+   * janela de 24h. Opcional — só o provider Meta (`official`) implementa; os
+   * demais podem omitir. Ver `capabilities.templates`.
+   */
+  sendTemplate?(toPhone: string, payload: SendTemplatePayload): Promise<SendResult>;
 
   /* ----------------------------- Sinalizações ---------------------------- */
   /** Envia o indicador de "digitando..." (true=on, false=off). */

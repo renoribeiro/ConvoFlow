@@ -9,6 +9,7 @@ import {
   type SendMediaPayload,
   type SendReactionPayload,
   type SendResult,
+  type SendTemplatePayload,
   type SendTextOptions,
 } from './types';
 
@@ -170,6 +171,21 @@ export class MetaAdapter implements IWhatsAppProvider {
       to: toPhone,
       message_id: payload.messageId,
       emoji: payload.emoji,
+    });
+  }
+
+  /**
+   * Envia um template aprovado (HSM). Reabre a conversa fora da janela de 24h —
+   * o edge function isenta templates do bloqueio de janela (SKILL §2.12).
+   */
+  sendTemplate(toPhone: string, payload: SendTemplatePayload): Promise<SendResult> {
+    return this.invokeSend({
+      type: 'template',
+      to: toPhone,
+      template_name: payload.templateName,
+      template_language: payload.language,
+      template_body_params: payload.bodyParams,
+      template_components: payload.components,
     });
   }
 

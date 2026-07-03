@@ -94,6 +94,20 @@ export interface SendReactionPayload {
   emoji: string;
 }
 
+export interface SendTemplatePayload {
+  /** Nome exato do template APROVADO na WABA. */
+  templateName: string;
+  /** Código de idioma do template (ex.: `pt_BR`, `en_US`, `es`). */
+  language: string;
+  /** Parâmetros do corpo, na ordem de {{1}}, {{2}}, ... */
+  bodyParams: string[];
+  /**
+   * Array de componentes completo (header/body/buttons). Se informado, tem
+   * precedência sobre bodyParams. Para v1, normalmente basta bodyParams.
+   */
+  components?: Record<string, unknown>[];
+}
+
 /**
  * Erros de adapter. `code` é estável e inspecionável; UI deve mapear para
  * mensagens em PT-BR.
