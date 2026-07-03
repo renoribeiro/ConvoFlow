@@ -612,6 +612,19 @@ export const ChatWindow = ({
           toast.error(`Falha no upload da mídia: ${err}`);
         }
       } else if (text) {
+        // Envio otimista: grava já como "pending" para a mensagem aparecer na
+        // hora (relógio), sem esperar o round-trip até a Meta. Depois atualiza
+        // para o status real e guarda o wamid (p/ o webhook avançar delivered/read).
+        const pending = await sendMessageMutation.mutateAsync({
+          contact_id: contactId,
+          whatsapp_instance_id: active.row.id,
+          content: text,
+          direction: 'outbound',
+          message_type: 'text',
+          status: 'pending',
+          is_from_bot: false,
+        } as any);
+
         const providerResult = await active.adapter.sendText(phoneOf(contact), text, {
           quotedMessageId: replyTo?.id,
           linkPreview: true,
@@ -621,17 +634,16 @@ export const ChatWindow = ({
         if (status === 'failed') {
           toast.error(`Mensagem não foi enviada: ${providerResult?.error || 'Erro desconhecido.'}`);
         }
-        await sendMessageMutation.mutateAsync({
-          contact_id: contactId,
-          whatsapp_instance_id: active.row.id,
-          content: text,
-          direction: 'outbound',
-          message_type: 'text',
-          status,
-          // Guarda o id do provider (wamid) p/ o webhook avançar delivered/read.
-          evolution_message_id: providerResult?.providerMessageId ?? null,
-          is_from_bot: false,
-        } as any);
+
+        const pendingId = (pending as any)?.id;
+        if (pendingId) {
+          await supabase
+            .from('messages')
+            .update({ status, evolution_message_id: providerResult?.providerMessageId ?? null })
+            .eq('id', pendingId);
+          queryClient.invalidateQueries({ queryKey: ['messages', contactId, tenant.id] });
+          queryClient.invalidateQueries({ queryKey: ['conversations', tenant.id] });
+        }
       }
 
       setMessage('');
