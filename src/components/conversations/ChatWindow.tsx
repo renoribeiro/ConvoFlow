@@ -567,6 +567,8 @@ export const ChatWindow = ({
       message_type: mediaType,
       media_url: uploaded.publicUrl,
       status,
+      // Guarda o id do provider (wamid) p/ o webhook avançar delivered/read.
+      evolution_message_id: providerResult?.providerMessageId ?? null,
       is_from_bot: false,
     } as any);
   };
@@ -626,6 +628,8 @@ export const ChatWindow = ({
           direction: 'outbound',
           message_type: 'text',
           status,
+          // Guarda o id do provider (wamid) p/ o webhook avançar delivered/read.
+          evolution_message_id: providerResult?.providerMessageId ?? null,
           is_from_bot: false,
         } as any);
       }

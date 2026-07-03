@@ -14,6 +14,9 @@ interface Message {
   contact_id: string;
   tenant_id: string;
   whatsapp_instance_id?: string;
+  /** ID da mensagem no provider (wamid.* na Meta) — necessário para o webhook
+   *  correlacionar os updates de status (delivered/read) e avançar os ticks. */
+  evolution_message_id?: string | null;
   is_from_bot: boolean;
   source: string | null;
   campaign_id: string | null;

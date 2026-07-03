@@ -43,6 +43,7 @@ interface Conversation {
     content: string;
     direction: 'inbound' | 'outbound';
     message_type: string;
+    status?: string | null;
   };
 }
 
@@ -184,16 +185,24 @@ export const useConversations = ({
           conversations.map(async (conv) => {
             const { data: msg } = await supabase
               .from('messages')
-              .select('content, created_at')
+              .select('content, created_at, direction, status, message_type')
               .eq('contact_id', conv.contact_id)
               .eq('tenant_id', tenant.id)
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
-              
+
             return {
               ...conv,
-              last_message: msg ? { content: msg.content, created_at: msg.created_at } : undefined
+              last_message: msg
+                ? {
+                    content: msg.content,
+                    created_at: msg.created_at,
+                    direction: msg.direction,
+                    status: msg.status,
+                    message_type: msg.message_type,
+                  }
+                : undefined,
             };
           })
         );
@@ -281,16 +290,24 @@ export const useRecentConversations = (limit: number = 5) => {
           conversations.map(async (conv) => {
             const { data: msg } = await supabase
               .from('messages')
-              .select('content, created_at')
+              .select('content, created_at, direction, status, message_type')
               .eq('contact_id', conv.contact_id)
               .eq('tenant_id', tenant.id)
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
-              
+
             return {
               ...conv,
-              last_message: msg ? { content: msg.content, created_at: msg.created_at } : undefined
+              last_message: msg
+                ? {
+                    content: msg.content,
+                    created_at: msg.created_at,
+                    direction: msg.direction,
+                    status: msg.status,
+                    message_type: msg.message_type,
+                  }
+                : undefined,
             };
           })
         );
