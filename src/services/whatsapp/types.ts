@@ -94,6 +94,18 @@ export interface SendReactionPayload {
   emoji: string;
 }
 
+export interface WhatsAppTemplate {
+  name: string;
+  language: string;
+  /** Status na Meta: APPROVED | PENDING | REJECTED | PAUSED | ... */
+  status?: string;
+  category?: string;
+  /** Texto do corpo do template (com {{1}}, {{2}}, ...), quando disponível. */
+  bodyText?: string;
+  /** Quantidade de parâmetros {{n}} distintos no corpo. */
+  paramCount?: number;
+}
+
 export interface SendTemplatePayload {
   /** Nome exato do template APROVADO na WABA. */
   templateName: string;

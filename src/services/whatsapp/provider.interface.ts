@@ -13,6 +13,7 @@ import type {
   SendResult,
   SendTemplatePayload,
   SendTextOptions,
+  WhatsAppTemplate,
 } from './types';
 
 export interface IWhatsAppProvider {
@@ -36,6 +37,11 @@ export interface IWhatsAppProvider {
    * demais podem omitir. Ver `capabilities.templates`.
    */
   sendTemplate?(toPhone: string, payload: SendTemplatePayload): Promise<SendResult>;
+  /**
+   * Lista os templates disponíveis do provider (Meta). Opcional — só o provider
+   * Meta implementa. Usado para o seletor de templates no inbox.
+   */
+  listTemplates?(): Promise<WhatsAppTemplate[]>;
 
   /* ----------------------------- Sinalizações ---------------------------- */
   /** Envia o indicador de "digitando..." (true=on, false=off). */

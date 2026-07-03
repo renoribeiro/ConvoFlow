@@ -2,10 +2,12 @@
  * Right sidebar: config panel for the currently selected node.
  * Dispatches to per-node-type sub-panels.
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import type { Node } from '@xyflow/react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Save, Undo2 } from 'lucide-react';
 import { BLOCK_BY_TYPE } from '@/lib/chatbot/flowConstants';
 import type { ChatbotNodeType, ChatbotNodeData } from '@/types/chatbot-flow.types';
 import type { ChatbotVariableRow } from '@/types/chatbot-flow.types';
@@ -24,15 +26,50 @@ interface NodeConfigPanelProps {
   node: Node;
   variables: ChatbotVariableRow[];
   onDataChange: (nodeId: string, data: ChatbotNodeData & Record<string, unknown>) => void;
+  /** Persiste o fluxo (mesmo save do topo). Usado pelo botão "Salvar" do card. */
+  onSave?: () => void | Promise<void>;
+  /** Fecha o painel (desseleciona o nó). */
+  onClose?: () => void;
+  /** True enquanto o fluxo está sendo salvo, para desabilitar os botões. */
+  saving?: boolean;
 }
 
-const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, variables, onDataChange }) => {
+const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
+  node,
+  variables,
+  onDataChange,
+  onSave,
+  onClose,
+  saving = false,
+}) => {
   const type = node.type as ChatbotNodeType;
   const block = BLOCK_BY_TYPE[type];
   const data = node.data as ChatbotNodeData & Record<string, unknown>;
 
+  // Snapshot dos dados de quando este card foi aberto — base para "Descartar".
+  // Escrito no render só quando muda o node.id (padrão de cache por chave).
+  const originalRef = useRef<{ id: string; data: ChatbotNodeData & Record<string, unknown> } | null>(null);
+  if (originalRef.current?.id !== node.id) {
+    originalRef.current = { id: node.id, data };
+  }
+
   const update = (patch: Partial<ChatbotNodeData & Record<string, unknown>>) => {
     onDataChange(node.id, { ...data, ...patch } as ChatbotNodeData & Record<string, unknown>);
+  };
+
+  const handleDiscard = () => {
+    if (originalRef.current) {
+      // Reverte as edições feitas neste card desde a abertura do painel.
+      onDataChange(node.id, originalRef.current.data);
+    }
+    onClose?.();
+  };
+
+  const handleSaveCard = async () => {
+    await onSave?.();
+    // Novo baseline: a partir daqui, "Descartar" reverte para o estado salvo.
+    originalRef.current = { id: node.id, data };
+    onClose?.();
   };
 
   const renderPanel = () => {
@@ -78,6 +115,23 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, variables, onDa
           {renderPanel()}
         </div>
       </ScrollArea>
+      {/* Ações do card: salvar (persiste o fluxo) ou descartar as edições */}
+      <Separator />
+      <div className="p-3 flex gap-2">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={handleDiscard}
+          disabled={saving}
+        >
+          <Undo2 className="w-4 h-4 mr-1.5" />
+          Descartar
+        </Button>
+        <Button className="flex-1" onClick={handleSaveCard} disabled={saving}>
+          <Save className="w-4 h-4 mr-1.5" />
+          {saving ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
     </div>
   );
 };

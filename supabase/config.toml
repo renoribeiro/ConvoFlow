@@ -39,6 +39,9 @@ verify_jwt = true
 [functions.whatsapp-send-message]
 verify_jwt = true
 
+[functions.list-whatsapp-templates]
+verify_jwt = true
+
 [functions.manage-user]
 verify_jwt = true
 
