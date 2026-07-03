@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -78,6 +78,33 @@ function highlightText(text: string, term?: string): React.ReactNode {
       part
     ),
   );
+}
+
+/** Detecta URLs http(s) para transformar em links clicáveis. */
+const URL_SPLIT_REGEX = /(https?:\/\/[^\s]+)/g;
+
+/**
+ * Renderiza o texto tornando URLs clicáveis e ainda destacando o termo de busca
+ * nos trechos que não são link.
+ */
+function renderTextWithLinks(text: string, term?: string): React.ReactNode {
+  const segments = text.split(URL_SPLIT_REGEX);
+  return segments.map((seg, i) => {
+    if (/^https?:\/\//.test(seg)) {
+      return (
+        <a
+          key={i}
+          href={seg}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline break-all hover:opacity-80"
+        >
+          {seg}
+        </a>
+      );
+    }
+    return <Fragment key={i}>{highlightText(seg, term)}</Fragment>;
+  });
 }
 
 function tryParseMetadata(message: RenderableMessage): Record<string, any> {
@@ -358,7 +385,7 @@ export function MessageBubble({ message, showQuoted = true, onReply, searchTerm,
     return (
       <div>
         <p className={`text-sm whitespace-pre-wrap break-words ${isLong && !expanded ? 'line-clamp-[12]' : ''}`}>
-          {highlightText(text, searchTerm)}
+          {renderTextWithLinks(text, searchTerm)}
         </p>
         {isLong && (
           <button
@@ -378,7 +405,7 @@ export function MessageBubble({ message, showQuoted = true, onReply, searchTerm,
       <div
         className={`group max-w-[78%] p-3 transition-shadow ${
           isOutbound
-            ? 'bg-primary/15 text-foreground rounded-lg rounded-tr-sm'
+            ? 'bg-primary text-foreground rounded-lg rounded-tr-sm'
             : 'bg-muted text-foreground rounded-lg rounded-tl-sm'
         } ${isActiveMatch ? 'ring-2 ring-primary/50' : ''}`}
         onDoubleClick={() => onReply?.(message)}

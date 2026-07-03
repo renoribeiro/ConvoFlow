@@ -16,6 +16,7 @@ import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
 import { InstanceSelector } from './InstanceSelector';
 import { pickMessagePreview } from './MessageBubble';
+import { MessageStatusIcon } from './MessageStatusIcon';
 import { TagBadge } from '@/components/etiquetas/TagBadge';
 
 interface ConversationsListProps {
@@ -104,13 +105,15 @@ export const ConversationsList = ({
       conversations.map((conv: any) => {
         const isGroup =
           typeof conv?.contacts?.phone === 'string' && conv.contacts.phone.endsWith('@g.us');
+        const lastDirection = conv.last_message?.direction ?? 'inbound';
+        const lastStatus = conv.last_message?.status ?? null;
         const messagePreview = conv.last_message
           ? pickMessagePreview({
               id: 'preview',
               content: conv.last_message.content ?? null,
               created_at: conv.last_message_at,
-              direction: 'inbound',
-              status: 'sent',
+              direction: lastDirection,
+              status: lastStatus ?? 'sent',
               message_type: conv.last_message.message_type ?? 'text',
               media_url: null,
             })
@@ -124,6 +127,8 @@ export const ConversationsList = ({
           last_interaction_at: (conv.contacts as any)?.last_interaction_at ?? null,
           last_message: messagePreview,
           last_message_at: conv.last_message_at,
+          last_message_direction: lastDirection as 'inbound' | 'outbound',
+          last_message_status: lastStatus,
           unread_count: conv.unread_count,
           is_group: isGroup,
           contact_source: conv.contacts?.lead_sources?.name || null,
@@ -277,7 +282,7 @@ export const ConversationsList = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <p className={`truncate flex items-center gap-1 text-foreground ${hasUnreadMsgs || isSelected ? 'font-semibold' : 'font-medium'}`}>
+                        <p className={`truncate flex items-center gap-1 text-sm text-foreground ${hasUnreadMsgs || isSelected ? 'font-semibold' : 'font-medium'}`}>
                           {conversation.is_group && <Users className="w-3 h-3 text-muted-foreground" />}
                           {conversation.contact_name}
                         </p>
@@ -286,9 +291,16 @@ export const ConversationsList = ({
                         </span>
                       </div>
 
-                      <p className={`text-sm truncate mb-2 ${hasUnreadMsgs && !isSelected ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                        {conversation.last_message}
-                      </p>
+                      <div className={`flex items-center gap-1 mb-2 min-w-0 ${hasUnreadMsgs && !isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {conversation.last_message_direction === 'outbound' && (
+                          <span className="flex-shrink-0">
+                            <MessageStatusIcon status={(conversation.last_message_status as any) ?? 'sent'} />
+                          </span>
+                        )}
+                        <p className={`text-sm truncate ${hasUnreadMsgs && !isSelected ? 'font-medium' : ''}`}>
+                          {conversation.last_message}
+                        </p>
+                      </div>
 
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex gap-1 min-w-0 flex-wrap">
@@ -317,7 +329,7 @@ export const ConversationsList = ({
                           )}
                         </div>
                         {hasUnreadMsgs && (
-                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-foreground">
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[11px] font-bold text-white shadow-sm">
                             {conversation.unread_count}
                           </span>
                         )}
