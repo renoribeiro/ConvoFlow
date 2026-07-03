@@ -170,4 +170,60 @@ export class MetaProvider implements IWhatsAppProvider {
     async fetchHistory(_limit: number = 50): Promise<any[]> {
         return [];
     }
+
+    /**
+     * Resolve an inbound media_id to a short-lived signed download URL.
+     *
+     * Reference: SKILL.md §4.1 — GET /{MEDIA_ID} with a Bearer token returns
+     * { url, mime_type, file_size, sha256 }. The `url` is signed and only valid
+     * for ~5 minutes, so the caller must download it immediately (§4.2).
+     */
+    async getMediaUrl(mediaId: string): Promise<{ url: string; mimeType: string; fileSize?: number }> {
+        const url = `${this.graphRoot}/${mediaId}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.config.accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Meta Cloud API Error (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        return {
+            url: data.url,
+            mimeType: data.mime_type,
+            fileSize: typeof data.file_size === 'number' ? data.file_size : undefined,
+        };
+    }
+
+    /**
+     * Download the raw bytes of a media file from the signed URL returned by
+     * getMediaUrl().
+     *
+     * Reference: SKILL.md §4.2 — the Bearer token is REQUIRED on this request
+     * too; without it Meta rejects with 401. The caller should persist the bytes
+     * (e.g. to Supabase Storage) since the signed URL expires.
+     */
+    async downloadMedia(signedUrl: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+        const response = await fetch(signedUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.config.accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Meta Cloud API Error (${response.status}): ${errorText}`);
+        }
+
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        return { bytes, contentType };
+    }
 }

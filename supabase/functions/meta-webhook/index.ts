@@ -4,6 +4,8 @@ import { createLogger } from '../_shared/logger.ts';
 import { stopSequencesOnReply } from '../_shared/followup-reply.ts';
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts';
 import { verifyMetaSignature } from '../_shared/cryptoSignature.ts';
+import { ProviderFactory } from '../_shared/provider-factory.ts';
+import { MetaProvider } from '../_shared/whatsapp-providers/meta.ts';
 import {
   checkRateLimitDb,
   getRateLimitIdentifier,
@@ -172,10 +174,12 @@ serve(async (req) => {
           continue;
         }
 
-        // Resolve instance via provider + connection_config.phoneNumberId
+        // Resolve instance via provider + connection_config.phoneNumberId.
+        // We also fetch provider/instance_key/connection_config so the
+        // ProviderFactory can build a MetaProvider to download inbound media.
         const { data: instance, error: instanceError } = await supabase
           .from('whatsapp_instances')
-          .select('id, tenant_id')
+          .select('id, tenant_id, provider, instance_key, connection_config')
           .eq('provider', 'official')
           .filter('connection_config->>phoneNumberId', 'eq', phoneNumberId)
           .single();
@@ -261,7 +265,13 @@ async function checkOptOutKeyword(
 
 async function handleIncomingMessage(
   supabase: ReturnType<typeof createClient>,
-  instance: { id: string; tenant_id: string },
+  instance: {
+    id: string;
+    tenant_id: string;
+    provider?: string;
+    instance_key?: string;
+    connection_config?: Record<string, any>;
+  },
   msg: any,
   logger: ReturnType<typeof createLogger>,
 ) {
@@ -327,6 +337,37 @@ async function handleIncomingMessage(
       logger.warn('Failed to persist CTWA ad referral', { error: refError.message, id: messageId });
     } else {
       logger.info('CTWA ad referral stored', { id: messageId, sourceType: msg.referral.source_type });
+    }
+  }
+
+  // Inbound media (audio/image/video/document/sticker): Meta only sends a
+  // media_id in the webhook, not a public URL. The RPC above inserts the row as
+  // a text placeholder (e.g. "[Áudio]"); here we download the actual file and
+  // backfill message_type + media_url so the inbox can render/play it. Run in
+  // the background (EdgeRuntime.waitUntil) so the webhook still returns 200 fast
+  // even for large files — useMessages refetches and picks up the URL.
+  const MEDIA_TYPES = ['audio', 'image', 'video', 'document', 'sticker'];
+  if (MEDIA_TYPES.includes(msg.type)) {
+    const mediaPromise = persistIncomingMedia(supabase, instance, msg, messageId, logger)
+      .catch((err: any) => {
+        // Best-effort: on failure the row keeps its placeholder content and no
+        // media_url. Never let a media failure break the webhook.
+        logger.warn('Failed to persist Meta inbound media', {
+          error: err?.message,
+          id: messageId,
+          type: msg.type,
+        });
+      });
+    try {
+      // @ts-ignore EdgeRuntime is a Supabase Edge runtime global
+      if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(mediaPromise);
+      } else {
+        await mediaPromise;
+      }
+    } catch (_e) {
+      // best-effort; ignore
     }
   }
 
@@ -610,6 +651,98 @@ function extractMessageContent(msg: any): string {
     default:
       return '';
   }
+}
+
+/**
+ * Best-guess file extension from a MIME type. Meta strips the codec suffix
+ * (e.g. "audio/ogg; codecs=opus") on some payloads, so we split on ';' first.
+ */
+function extFromMime(mimeType: string | undefined): string {
+  const base = (mimeType || '').split(';')[0].trim().toLowerCase();
+  const map: Record<string, string> = {
+    'audio/ogg': 'ogg',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/amr': 'amr',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/3gpp': '3gp',
+    'application/pdf': 'pdf',
+  };
+  if (map[base]) return map[base];
+  // Fallback: take the sub-type after the slash, else "bin".
+  const sub = base.split('/')[1];
+  return sub && /^[a-z0-9]+$/.test(sub) ? sub : 'bin';
+}
+
+/**
+ * Download an inbound media file from Meta and backfill the message row.
+ *
+ * Flow (SKILL.md §4.1/§4.2 + §10.6): resolve media_id -> signed URL -> bytes
+ * (Bearer required on both calls), upload to the public `whatsapp-media` bucket,
+ * then UPDATE the message (matched by wamid) with message_type + media_url. The
+ * row was already inserted by process_incoming_message as a text placeholder;
+ * we mirror the ad_referral follow-up pattern instead of touching the RPC.
+ */
+async function persistIncomingMedia(
+  supabase: ReturnType<typeof createClient>,
+  instance: {
+    id: string;
+    tenant_id: string;
+    provider?: string;
+    instance_key?: string;
+    connection_config?: Record<string, any>;
+  },
+  msg: any,
+  wamid: string,
+  logger: ReturnType<typeof createLogger>,
+): Promise<void> {
+  const descriptor = msg[msg.type] || {};
+  const mediaId: string | undefined = descriptor.id;
+  if (!mediaId) {
+    logger.warn('Meta media message without media_id', { type: msg.type, id: wamid });
+    return;
+  }
+
+  const provider = await ProviderFactory.getProvider(instance, supabase) as MetaProvider;
+
+  // 1) media_id -> signed URL, 2) signed URL -> bytes (both need the Bearer).
+  const { url: signedUrl, mimeType } = await provider.getMediaUrl(mediaId);
+  const { bytes, contentType } = await provider.downloadMedia(signedUrl);
+  // Strip codec params (e.g. "audio/ogg; codecs=opus") — the bucket's
+  // allowed_mime_types check matches the base type exactly, even for service role.
+  const effectiveMime = (mimeType || contentType || '').split(';')[0].trim() || 'application/octet-stream';
+
+  // Store under <tenant_id>/inbound/<wamid>.<ext> in the existing public bucket.
+  const ext = extFromMime(effectiveMime);
+  const path = `${instance.tenant_id}/inbound/${wamid}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('whatsapp-media')
+    .upload(path, bytes, { contentType: effectiveMime, upsert: true });
+  if (uploadError) {
+    throw new Error(`Storage upload failed: ${uploadError.message}`);
+  }
+
+  const { data: pub } = supabase.storage.from('whatsapp-media').getPublicUrl(path);
+  const publicUrl = pub?.publicUrl;
+  if (!publicUrl) {
+    throw new Error('Could not resolve public URL for uploaded media');
+  }
+
+  const { error: updateError } = await supabase
+    .from('messages')
+    .update({ message_type: msg.type, media_url: publicUrl })
+    .eq('evolution_message_id', wamid)
+    .eq('direction', 'inbound');
+  if (updateError) {
+    throw new Error(`Message media_url update failed: ${updateError.message}`);
+  }
+
+  logger.info('Meta inbound media stored', { id: wamid, type: msg.type, mime: effectiveMime });
 }
 
 /**

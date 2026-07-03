@@ -81,6 +81,7 @@ import { ContactPanel } from './ContactPanel';
 import { ChatSearchBar } from './ChatSearchBar';
 import { QuickRepliesPopover } from './QuickRepliesPopover';
 import { AudioRecorder } from './AudioRecorder';
+import { SendTemplateDialog } from './SendTemplateDialog';
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -144,6 +145,7 @@ export const ChatWindow = ({
 }: ChatWindowProps) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -652,6 +654,27 @@ export const ChatWindow = ({
     }
   };
 
+  // Persiste na thread a linha do template enviado. O envio em si acontece dentro
+  // do SendTemplateDialog (via adapter.sendTemplate); aqui só gravamos o registro
+  // local para aparecer na conversa — useSendMessage.onSuccess invalida a query.
+  const handleTemplateSent = async (summary: string) => {
+    if (!contactId || !active) return;
+    try {
+      await sendMessageMutation.mutateAsync({
+        contact_id: contactId,
+        whatsapp_instance_id: active.row.id,
+        content: summary,
+        direction: 'outbound',
+        message_type: 'text',
+        status: 'sent',
+        is_from_bot: false,
+      } as any);
+    } catch {
+      // A mensagem já foi enviada pela Meta; falha só ao registrar localmente.
+      toast.warning('Template enviado, mas não foi possível registrar na conversa.');
+    }
+  };
+
   const resetTextareaHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -870,6 +893,15 @@ export const ChatWindow = ({
                     Puxar Histórico
                   </DropdownMenuItem>
                 )}
+                {active?.adapter.type === 'official' && (
+                  <DropdownMenuItem
+                    onClick={() => setTemplateDialogOpen(true)}
+                    disabled={!contactId}
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Enviar template
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setIsTagDialogOpen(true)} disabled={!contactId}>
                   <Tag className="w-4 h-4 mr-2" />
@@ -923,9 +955,20 @@ export const ChatWindow = ({
         {outsideMetaWindow && (
           <Alert className="rounded-none border-x-0 border-warning/30 bg-warning/10 text-warning">
             <AlertCircle className="w-4 h-4" />
-            <AlertDescription className="text-xs">
-              Cloud API da Meta: o cliente não envia mensagem há mais de 24h. Para iniciar conversa,
-              é necessário usar um <strong>template aprovado</strong>.
+            <AlertDescription className="text-xs flex items-center justify-between gap-2">
+              <span>
+                Cloud API da Meta: o cliente não envia mensagem há mais de 24h. Para iniciar conversa,
+                é necessário usar um <strong>template aprovado</strong>.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 h-7"
+                onClick={() => setTemplateDialogOpen(true)}
+                disabled={!contactId || !active?.adapter.isReadyToSend()}
+              >
+                Enviar template
+              </Button>
             </AlertDescription>
           </Alert>
         )}
@@ -1185,6 +1228,16 @@ export const ChatWindow = ({
           onOpenChange={setIsTagDialogOpen}
           contactId={contactId}
           currentTagIds={contactTagIds}
+        />
+      )}
+
+      {contactId && active?.adapter.type === 'official' && (
+        <SendTemplateDialog
+          open={templateDialogOpen}
+          onOpenChange={setTemplateDialogOpen}
+          adapter={active.adapter}
+          toPhone={phoneOf(contact)}
+          onSent={handleTemplateSent}
         />
       )}
 
