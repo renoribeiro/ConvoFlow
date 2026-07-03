@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -18,10 +19,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
-import type { IWhatsAppProvider } from '@/services/whatsapp';
+import type { IWhatsAppProvider, WhatsAppTemplate } from '@/services/whatsapp';
 
 interface SendTemplateDialogProps {
   open: boolean;
@@ -37,13 +38,39 @@ interface SendTemplateDialogProps {
   onSent: (summary: string) => Promise<void> | void;
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  pt_BR: 'Português (Brasil)',
+  en_US: 'English (US)',
+  es: 'Español',
+};
+
+/** Chave composta name::language (o mesmo nome pode ter várias línguas). */
+const keyOf = (t: { name: string; language: string }) => `${t.name}::${t.language}`;
+
+/** APROVADO primeiro; depois ordem alfabética. */
+function sortTemplates(list: WhatsAppTemplate[]): WhatsAppTemplate[] {
+  const rank = (s?: string) => (String(s).toUpperCase() === 'APPROVED' ? 0 : 1);
+  return [...list].sort(
+    (a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name),
+  );
+}
+
+function statusBadge(status?: string) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'APPROVED') return <Badge className="bg-success text-success-foreground">Aprovado</Badge>;
+  if (s === 'PENDING') return <Badge variant="secondary">Pendente</Badge>;
+  if (s === 'REJECTED') return <Badge variant="destructive">Rejeitado</Badge>;
+  if (s) return <Badge variant="outline">{s}</Badge>;
+  return null;
+}
+
 /**
  * Envia um template aprovado (HSM) direto da conversa — o caminho para reabrir
  * o atendimento fora da janela de 24h da Meta.
  *
- * v1: o usuário digita o nome exato do template aprovado (mesmo padrão das
- * Campanhas). Não buscamos a lista viva de templates da Meta ainda —
- * melhoria futura via GET /{WABA_ID}/message_templates (SKILL §7.1).
+ * Busca os templates da instância via adapter.listTemplates() e oferece um
+ * seletor. Se a busca falhar (ou o provider não suportar), cai para digitação
+ * manual do nome (SKILL §7.1 / §2.12).
  */
 export function SendTemplateDialog({
   open,
@@ -52,27 +79,84 @@ export function SendTemplateDialog({
   toPhone,
   onSent,
 }: SendTemplateDialogProps) {
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+
+  const [selectedKey, setSelectedKey] = useState('');
   const [templateName, setTemplateName] = useState('');
   const [language, setLanguage] = useState('pt_BR');
   const [params, setParams] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
 
-  const reset = () => {
+  const sorted = useMemo(() => sortTemplates(templates), [templates]);
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => keyOf(t) === selectedKey) || null,
+    [templates, selectedKey],
+  );
+
+  const resetForm = () => {
+    setSelectedKey('');
     setTemplateName('');
     setLanguage('pt_BR');
     setParams([]);
+    setManualMode(false);
   };
+
+  const fetchTemplates = async () => {
+    if (typeof adapter.listTemplates !== 'function') {
+      setManualMode(true);
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await adapter.listTemplates();
+      setTemplates(list);
+      if (list.length === 0) {
+        setLoadError('Nenhum template encontrado nesta conta Meta.');
+        setManualMode(true);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.warn('[SendTemplateDialog] falha ao listar templates', { error: msg });
+      setLoadError(msg);
+      setManualMode(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Busca ao abrir; limpa ao fechar.
+  useEffect(() => {
+    if (open) {
+      resetForm();
+      setTemplates([]);
+      fetchTemplates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleOpenChange = (next: boolean) => {
     if (sending) return;
-    if (!next) reset();
     onOpenChange(next);
+  };
+
+  const handleSelectTemplate = (key: string) => {
+    setSelectedKey(key);
+    const t = templates.find((x) => keyOf(x) === key);
+    if (t) {
+      setTemplateName(t.name);
+      setLanguage(t.language);
+      setParams(Array.from({ length: t.paramCount ?? 0 }, () => ''));
+    }
   };
 
   const handleSubmit = async () => {
     const name = templateName.trim();
     if (!name) {
-      toast.error('Informe o nome do template aprovado.');
+      toast.error('Selecione ou informe o nome do template.');
       return;
     }
     if (typeof adapter.sendTemplate !== 'function') {
@@ -85,7 +169,6 @@ export function SendTemplateDialog({
       const res = await adapter.sendTemplate(toPhone, {
         templateName: name,
         language,
-        // Descarta parâmetros vazios preservando a ordem dos preenchidos.
         bodyParams: params.map((p) => p.trim()).filter((p) => p.length > 0),
       });
 
@@ -96,7 +179,6 @@ export function SendTemplateDialog({
 
       await onSent(`Template: ${name}`);
       toast.success('Template enviado.');
-      reset();
       onOpenChange(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -106,6 +188,8 @@ export function SendTemplateDialog({
       setSending(false);
     }
   };
+
+  const canSubmit = !sending && !!templateName.trim();
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -119,51 +203,139 @@ export function SendTemplateDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="tpl-name">Nome do template *</Label>
-            <Input
-              id="tpl-name"
-              placeholder="Ex: pedido_confirmado"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              disabled={sending}
-            />
-            <p className="text-xs text-muted-foreground">
-              Use o nome exato (status <strong>APROVADO</strong>) do Gerenciador do WhatsApp Business.
-            </p>
-          </div>
+          {/* Modo lista (padrão): seletor com os templates da conta */}
+          {!manualMode && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="tpl-select">Template</Label>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1 disabled:opacity-50"
+                  onClick={fetchTemplates}
+                  disabled={loading || sending}
+                >
+                  <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+                  Atualizar
+                </button>
+              </div>
+              <Select
+                value={selectedKey}
+                onValueChange={handleSelectTemplate}
+                disabled={loading || sending}
+              >
+                <SelectTrigger id="tpl-select">
+                  <SelectValue placeholder={loading ? 'Carregando templates...' : 'Escolha um template'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sorted.map((t) => (
+                    <SelectItem key={keyOf(t)} value={keyOf(t)}>
+                      <span className="flex items-center gap-2">
+                        <span>{t.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {LANGUAGE_LABELS[t.language] || t.language}
+                        </span>
+                        {statusBadge(t.status)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplate && String(selectedTemplate.status).toUpperCase() !== 'APPROVED' && (
+                <p className="text-xs text-warning">
+                  Este template não está APROVADO — a Meta provavelmente vai recusar o envio.
+                </p>
+              )}
+              {selectedTemplate?.bodyText && (
+                <p className="text-xs text-muted-foreground border rounded p-2 bg-muted/30 whitespace-pre-wrap">
+                  {selectedTemplate.bodyText}
+                </p>
+              )}
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-primary disabled:opacity-50"
+                onClick={() => setManualMode(true)}
+                disabled={sending}
+              >
+                Digitar o nome manualmente
+              </button>
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="tpl-language">Idioma do template</Label>
-            <Select value={language} onValueChange={setLanguage} disabled={sending}>
-              <SelectTrigger id="tpl-language">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
-                <SelectItem value="en_US">English (US)</SelectItem>
-                <SelectItem value="es">Español</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Modo manual: nome + idioma digitados (fallback) */}
+          {manualMode && (
+            <>
+              {loadError && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Não consegui carregar a lista de templates ({loadError}). Digite o nome manualmente.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="tpl-name">Nome do template *</Label>
+                  {templates.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-primary disabled:opacity-50"
+                      onClick={() => setManualMode(false)}
+                      disabled={sending}
+                    >
+                      Escolher da lista
+                    </button>
+                  )}
+                </div>
+                <Input
+                  id="tpl-name"
+                  placeholder="Ex: pedido_confirmado"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  disabled={sending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use o nome exato (status <strong>APROVADO</strong>) do Gerenciador do WhatsApp Business.
+                </p>
+              </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="tpl-language">Idioma do template</Label>
+                <Select value={language} onValueChange={setLanguage} disabled={sending}>
+                  <SelectTrigger id="tpl-language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
+                    <SelectItem value="en_US">English (US)</SelectItem>
+                    <SelectItem value="es">Español</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          {/* Parâmetros do corpo — comuns aos dois modos */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Parâmetros do corpo</Label>
-              <button
-                type="button"
-                className="text-xs text-primary hover:underline disabled:opacity-50"
-                onClick={() => setParams((prev) => [...prev, ''])}
-                disabled={sending}
-              >
-                + Adicionar parâmetro
-              </button>
+              {manualMode && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline disabled:opacity-50"
+                  onClick={() => setParams((prev) => [...prev, ''])}
+                  disabled={sending}
+                >
+                  + Adicionar parâmetro
+                </button>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Valores para {'{{1}}'}, {'{{2}}'}, etc., na ordem em que aparecem no template.
             </p>
             {params.length === 0 && (
-              <p className="text-sm text-muted-foreground italic">Nenhum parâmetro adicionado.</p>
+              <p className="text-sm text-muted-foreground italic">
+                {manualMode ? 'Nenhum parâmetro adicionado.' : 'Este template não tem parâmetros.'}
+              </p>
             )}
             {params.map((param, idx) => (
               <div key={idx} className="flex gap-2 items-center">
@@ -180,33 +352,27 @@ export function SendTemplateDialog({
                   }}
                   disabled={sending}
                 />
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-destructive disabled:opacity-50"
-                  onClick={() => setParams((prev) => prev.filter((_, i) => i !== idx))}
-                  disabled={sending}
-                  aria-label="Remover parâmetro"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                {manualMode && (
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    onClick={() => setParams((prev) => prev.filter((_, i) => i !== idx))}
+                    disabled={sending}
+                    aria-label="Remover parâmetro"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
-
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              O template precisa estar <strong>aprovado</strong> e com o nome/idioma exatos. Se não
-              estiver, a Meta recusa o envio.
-            </AlertDescription>
-          </Alert>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={sending}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={sending || !templateName.trim()}>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
             {sending ? 'Enviando...' : 'Enviar template'}
           </Button>
         </DialogFooter>

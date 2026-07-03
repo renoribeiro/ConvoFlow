@@ -678,6 +678,9 @@ const ChatbotFlowBuilder: React.FC = () => {
               node={selectedNode}
               variables={variables}
               onDataChange={handleNodeDataChange}
+              onSave={handleSave}
+              onClose={() => setSelectedNode(null)}
+              saving={isSaving}
             />
           </div>
         )}

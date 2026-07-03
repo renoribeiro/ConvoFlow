@@ -172,6 +172,37 @@ export class MetaProvider implements IWhatsAppProvider {
     }
 
     /**
+     * List message templates for the WABA.
+     *
+     * Reference: SKILL.md §7.1 — GET /{WABA_ID}/message_templates with fields
+     * name,status,category,language,components. Requires wabaId in the config.
+     * Returns the raw template objects (including status APPROVED/PENDING/etc.).
+     */
+    async listTemplates(): Promise<any[]> {
+        if (!this.config.wabaId) {
+            throw new Error('Missing wabaId — não é possível listar templates da Meta.');
+        }
+        const url =
+            `${this.graphRoot}/${this.config.wabaId}/message_templates` +
+            `?fields=name,status,category,language,components&limit=200`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.config.accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Meta Cloud API Error (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        return Array.isArray(data?.data) ? data.data : [];
+    }
+
+    /**
      * Resolve an inbound media_id to a short-lived signed download URL.
      *
      * Reference: SKILL.md §4.1 — GET /{MEDIA_ID} with a Bearer token returns

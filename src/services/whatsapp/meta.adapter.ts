@@ -11,6 +11,7 @@ import {
   type SendResult,
   type SendTemplatePayload,
   type SendTextOptions,
+  type WhatsAppTemplate,
 } from './types';
 
 /**
@@ -187,6 +188,36 @@ export class MetaAdapter implements IWhatsAppProvider {
       template_body_params: payload.bodyParams,
       template_components: payload.components,
     });
+  }
+
+  /**
+   * Lista os templates da Meta via edge function list-whatsapp-templates
+   * (o token vive no Vault, então o frontend não chama a Graph API direto).
+   */
+  async listTemplates(): Promise<WhatsAppTemplate[]> {
+    try {
+      const { data, error } = await supabase.functions.invoke('list-whatsapp-templates', {
+        body: { instance_id: this.instance.id },
+      });
+      if (error) {
+        logger.error('[MetaAdapter] list-whatsapp-templates non-2xx', { error: error.message });
+        throw new WhatsAppAdapterError(error.message, 'NETWORK_ERROR', 'official');
+      }
+      const res = data as { ok?: boolean; templates?: WhatsAppTemplate[]; error?: string } | null;
+      if (!res?.ok) {
+        throw new WhatsAppAdapterError(
+          res?.error || 'Falha ao listar templates.',
+          'UNKNOWN',
+          'official',
+        );
+      }
+      return res.templates ?? [];
+    } catch (e) {
+      if (e instanceof WhatsAppAdapterError) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('[MetaAdapter] listTemplates exception', { error: msg });
+      throw new WhatsAppAdapterError(msg, 'NETWORK_ERROR', 'official');
+    }
   }
 
   async setTyping(_toPhone: string, _on: boolean): Promise<void> {
