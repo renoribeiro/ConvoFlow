@@ -253,7 +253,9 @@ export const ConversationsList = ({
                   className={`relative cursor-pointer rounded-lg border-b border-border/50 p-3 ${
                     isSelected
                       ? 'bg-primary/20 border-l-[3px] border-l-primary transition-all duration-150'
-                      : `hover:bg-accent/[0.08] transition-colors duration-100 ${isFlashing ? 'animate-flash-highlight' : ''}`
+                      : hasUnreadMsgs
+                        ? `bg-success/10 border-l-4 border-l-success hover:bg-success/15 transition-colors duration-100 ${isFlashing ? 'animate-flash-highlight' : ''}`
+                        : `hover:bg-accent/[0.08] transition-colors duration-100 ${isFlashing ? 'animate-flash-highlight' : ''}`
                   }`}
                   onClick={() => onSelect(conversation.id)}
                 >
