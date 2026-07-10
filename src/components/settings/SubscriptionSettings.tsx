@@ -15,24 +15,19 @@ const PLAN_NAME = 'Plano ConvoFlow';
 const PLAN_PRICE_LABEL = 'R$ 29,90';
 
 // -----------------------------------------------------------------------------
-// PENDÊNCIA STRIPE (Fase 2) — a cobrança real ainda NÃO está ligada.
-// Diagnóstico (2026-06-30): stripe_config vazio, 0 webhooks, 0 transações,
-// e a função `create-checkout-session` não existe no repo. Enquanto isso,
-// CHECKOUT_ENABLED fica `false` e o botão não chama checkout nenhum.
+// STRIPE (Fase 2) — cobrança recorrente via Edge Function `create-checkout-session`.
+// O Price e a chave secreta ficam do lado do servidor (env secrets STRIPE_PRICE_ID
+// e STRIPE_SECRET_KEY); este componente só dispara o checkout. O tenant é
+// resolvido no servidor a partir do usuário logado.
 //
-// Para ligar a cobrança real (precisa de acesso à conta do Stripe):
-//   1. Criar um Price recorrente de R$ 29,90/mês (BRL) no Stripe e colar o ID
-//      em STRIPE_PRICE_ID abaixo.
-//   2. Cadastrar as chaves: tabela `stripe_config` (secret/publishable) +
-//      secrets STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET nas Edge Functions.
-//   3. (Re)criar a função `create-checkout-session` usando esse Price e
-//      setando `client_reference_id = tenant.id` (o `stripe-webhook` depende
-//      disso pra ativar a Conta certa).
-//   4. Configurar o endpoint do webhook no painel do Stripe e testar ponta a ponta.
-//   5. Trocar CHECKOUT_ENABLED para `true`.
+// Checklist para ativar (modo teste primeiro):
+//   1. Criar o Price recorrente R$ 29,90/mês (BRL) no Stripe → env STRIPE_PRICE_ID.
+//   2. Setar os secrets STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET nas Edge Functions.
+//   3. Deploy de `create-checkout-session` e `stripe-webhook`.
+//   4. Cadastrar o endpoint do webhook no painel do Stripe.
+//   5. Trocar CHECKOUT_ENABLED para `true` e rebuildar o frontend.
 // -----------------------------------------------------------------------------
-const CHECKOUT_ENABLED = false;
-const STRIPE_PRICE_ID = ''; // TODO Fase 2: price_... do plano de R$ 29,90
+const CHECKOUT_ENABLED = true;
 
 export const SubscriptionSettings = () => {
   const { tenant } = useTenant();
@@ -59,25 +54,14 @@ export const SubscriptionSettings = () => {
     try {
       setLoading(true);
 
-      const { data: userResponse } = await supabase.auth.getUser();
-      if (!userResponse.user) {
-        toast({
-          title: 'Erro',
-          description: 'Você precisa estar logado para assinar.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
+      // O tenant e o Price são resolvidos no servidor a partir do usuário
+      // logado; não enviamos priceId/tenantId pelo cliente.
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: {
-          priceId: STRIPE_PRICE_ID,
-          tenantId: tenant.id,
-          userId: userResponse.user.id,
-        }
+        body: {},
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       if (data?.url) {
         window.location.href = data.url;
