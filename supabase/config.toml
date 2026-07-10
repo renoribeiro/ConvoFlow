@@ -21,6 +21,12 @@ verify_jwt = true
 # signature, so JWT verification is disabled at the gateway.
 verify_jwt = false
 
+[functions.create-checkout-session]
+# Chamada a partir de uma sessão de usuário autenticado. Resolve o tenant_id no
+# servidor (a partir de profiles) e cria a sessão de Stripe Checkout. JWT
+# obrigatório no gateway.
+verify_jwt = true
+
 [functions.job-worker]
 verify_jwt = true
 
