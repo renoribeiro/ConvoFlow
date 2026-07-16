@@ -33,7 +33,7 @@ type Action =
   | 'soft_delete'
   | 'transfer';
 
-type UserRole = 'superadmin' | 'account_manager' | 'enterprise' | 'user';
+type UserRole = 'superadmin' | 'gerente' | 'gestor' | 'atendente';
 
 interface CallerProfile {
   id: string;
@@ -96,14 +96,48 @@ async function getCaller(
 }
 
 function ensureCanCreate(caller: CallerProfile, role: UserRole): void {
+  // superadmin creates gerente accounts (and anything else); gerente invites
+  // gestor/atendente into its own stores; gestor invites atendente into its store.
   if (caller.role === 'superadmin') return;
-  if (caller.role === 'account_manager' && role === 'enterprise') return;
-  if (caller.role === 'enterprise' && role === 'user') return;
+  if (caller.role === 'gerente' && (role === 'gestor' || role === 'atendente')) return;
+  if (caller.role === 'gestor' && role === 'atendente') return;
   throw new SecureError(
     `Role ${caller.role} não pode criar role ${role}`,
     'FORBIDDEN',
     403,
   );
+}
+
+/**
+ * Per-store membership caps: 1 gestor + up to 5 atendentes per store.
+ * Pre-checked here (before inviteUserByEmail) so we never leave an orphan auth
+ * user when the DB trigger `enforce_store_membership_limits` would reject.
+ */
+async function ensureStoreHasRoom(
+  admin: SupabaseClient,
+  storeTenantId: string,
+  role: UserRole,
+): Promise<void> {
+  if (role !== 'gestor' && role !== 'atendente') return;
+  const { count, error } = await admin
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', storeTenantId)
+    .eq('role', role)
+    .neq('status', 'deleted');
+  if (error) {
+    throw new SecureError(`Falha ao checar limites da loja: ${error.message}`, 'CAP_CHECK_FAILED', 500);
+  }
+  const cap = role === 'gestor' ? 1 : 5;
+  if ((count ?? 0) >= cap) {
+    throw new SecureError(
+      role === 'gestor'
+        ? 'Esta loja já possui um gestor.'
+        : 'Esta loja já atingiu o limite de 5 atendentes.',
+      'STORE_FULL',
+      409,
+    );
+  }
 }
 
 async function ensureCanManage(
@@ -155,7 +189,6 @@ async function actionCreate(
     role,
     tenantId,
     parentId,
-    affiliateId,
     redirectTo,
   } = body;
 
@@ -166,27 +199,39 @@ async function actionCreate(
       400,
     );
   }
-  const effectiveRole: UserRole = role ?? 'user';
+  const effectiveRole: UserRole = role ?? 'atendente';
   ensureCanCreate(caller, effectiveRole);
 
-  // Decidir tenant_id e parent_id implícitos por role do caller
+  // Decidir tenant_id (loja) e parent_id implícitos por role do caller
   let resolvedTenantId: string | null = tenantId ?? null;
   let resolvedParentId: string | null = parentId ?? null;
 
-  if (caller.role === 'account_manager') {
+  if (caller.role === 'gerente') {
+    // Gerente convida gestor/atendente para UMA das suas próprias lojas.
     resolvedParentId = caller.id;
-    // enterprise novo precisa de tenant_id explicitamente fornecido pelo caller
-    if (effectiveRole === 'enterprise' && !resolvedTenantId) {
+    if (!resolvedTenantId) {
       throw new SecureError(
-        'tenantId é obrigatório para criar um enterprise',
+        'tenantId (loja) é obrigatório para convidar gestor/atendente',
         'VALIDATION_ERROR',
         400,
       );
     }
-  } else if (caller.role === 'enterprise') {
+    const { data: store, error: storeError } = await admin
+      .from('tenants')
+      .select('id, kind, parent_tenant_id')
+      .eq('id', resolvedTenantId)
+      .maybeSingle();
+    if (storeError) {
+      throw new SecureError(`Falha ao validar a loja: ${storeError.message}`, 'STORE_LOOKUP_FAILED', 500);
+    }
+    if (!store || store.kind !== 'store' || store.parent_tenant_id !== caller.tenant_id) {
+      throw new SecureError('Esta loja não pertence à sua conta.', 'FORBIDDEN', 403);
+    }
+  } else if (caller.role === 'gestor') {
+    // Gestor convida atendente para a PRÓPRIA loja.
     if (!caller.tenant_id) {
       throw new SecureError(
-        'Enterprise sem tenant_id não pode criar usuários',
+        'Gestor sem loja não pode convidar usuários',
         'FORBIDDEN',
         403,
       );
@@ -196,14 +241,19 @@ async function actionCreate(
   }
 
   if (
-    (effectiveRole === 'enterprise' || effectiveRole === 'user') &&
+    (effectiveRole === 'gestor' || effectiveRole === 'atendente') &&
     !resolvedTenantId
   ) {
     throw new SecureError(
-      'tenantId é obrigatório para enterprise/user',
+      'tenantId (loja) é obrigatório para gestor/atendente',
       'VALIDATION_ERROR',
       400,
     );
+  }
+
+  // Respeita o limite da loja ANTES de convidar (evita usuário órfão no Auth).
+  if (resolvedTenantId) {
+    await ensureStoreHasRoom(admin, resolvedTenantId, effectiveRole);
   }
 
   const { data: invite, error: inviteError } =
@@ -216,7 +266,6 @@ async function actionCreate(
         role: effectiveRole,
         tenant_id: resolvedTenantId,
         parent_id: resolvedParentId,
-        affiliate_id: affiliateId ?? null,
         status: 'pending',
       },
     });
