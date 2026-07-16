@@ -5,11 +5,17 @@ import Stripe from "https://esm.sh/stripe@14.14.0?target=deno";
 // =============================================================================
 // create-checkout-session
 // -----------------------------------------------------------------------------
-// Cria uma sessão de Stripe Checkout (assinatura recorrente) para a Conta do
-// usuário autenticado. Padronizado em ENV secrets (igual ao stripe-webhook):
-//   - STRIPE_SECRET_KEY  → chave secreta (sk_test_... em teste, sk_live_... em prod)
-//   - STRIPE_PRICE_ID    → Price recorrente de R$ 29,90/mês (price_...)
-//   - APP_URL (opcional) → fallback de origem para os redirects de sucesso/cancelo
+// Cria uma sessão de Stripe Checkout (assinatura mensal recorrente) para a
+// Conta Gerente do usuário autenticado. Padronizado em ENV secrets:
+//   - STRIPE_SECRET_KEY        → chave secreta (sk_test_/sk_live_)
+//   - STRIPE_PRICE_GERENTE     → Price recorrente da conta Gerente, R$ 499,90/mês
+//                                (inclui 5 lojas). Fallback: STRIPE_PRICE_ID (legado).
+//   - STRIPE_PRICE_STORE_SLOT  → Price recorrente de loja extra, R$ 99,90/mês
+//                                (quantidade = nº de lojas extras). Opcional.
+//   - APP_URL (opcional)       → fallback de origem para os redirects
+//
+// O corpo da requisição aceita { extraSlots?: number } para já contratar lojas
+// extras junto da conta. O preço é sempre fixado no servidor (env).
 //
 // Segurança:
 //   - O tenant_id NÃO vem do browser: é resolvido no servidor a partir do
@@ -31,12 +37,30 @@ serve(async (req) => {
 
   try {
     const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
-    const priceId = Deno.env.get("STRIPE_PRICE_ID");
+    // Price da conta Gerente (R$ 499,90/mês). Fallback ao nome legado durante a transição.
+    const gerentePrice = Deno.env.get("STRIPE_PRICE_GERENTE") ?? Deno.env.get("STRIPE_PRICE_ID");
+    // Price de loja extra (R$ 99,90/mês). Opcional — só necessário se comprar slots extras.
+    const slotPrice = Deno.env.get("STRIPE_PRICE_STORE_SLOT");
 
-    if (!stripeSecret || !priceId) {
-      console.error("Missing STRIPE_SECRET_KEY or STRIPE_PRICE_ID");
+    if (!stripeSecret || !gerentePrice) {
+      console.error("Missing STRIPE_SECRET_KEY or STRIPE_PRICE_GERENTE");
       return new Response(
         JSON.stringify({ error: "Cobrança ainda não configurada." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Lojas extras opcionais (0..100). O corpo pode vir vazio.
+    let extraSlots = 0;
+    try {
+      const parsed = await req.clone().json();
+      extraSlots = Math.max(0, Math.min(100, Math.floor(Number(parsed?.extraSlots) || 0)));
+    } catch {
+      // sem corpo / corpo inválido → sem lojas extras
+    }
+    if (extraSlots > 0 && !slotPrice) {
+      return new Response(
+        JSON.stringify({ error: "Compra de lojas extras ainda não configurada." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -113,16 +137,23 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
+    const lineItems: Array<{ price: string; quantity: number }> = [
+      { price: gerentePrice, quantity: 1 },
+    ];
+    if (extraSlots > 0 && slotPrice) {
+      lineItems.push({ price: slotPrice, quantity: extraSlots });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: lineItems,
       client_reference_id: tenantId,
       customer_email: user.email ?? undefined,
       allow_promotion_codes: true,
       subscription_data: {
-        metadata: { tenant_id: tenantId },
+        metadata: { tenant_id: tenantId, extra_slots: String(extraSlots) },
       },
-      metadata: { tenant_id: tenantId },
+      metadata: { tenant_id: tenantId, extra_slots: String(extraSlots) },
       success_url: successUrl,
       cancel_url: cancelUrl,
     });

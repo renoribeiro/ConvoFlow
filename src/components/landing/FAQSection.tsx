@@ -15,7 +15,7 @@ export const FAQSection = () => {
     },
     {
       question: 'Posso testar antes de assinar?',
-      answer: 'Sim! Oferecemos 14 dias de teste gratuito com acesso completo a todas as funcionalidades. Não pedimos cartão de crédito para começar.'
+      answer: 'Sim! Oferecemos 3 dias de teste gratuito com acesso completo a todas as funcionalidades. Não pedimos cartão de crédito para começar.'
     },
     {
       question: 'É possível integrar com meu CRM/ERP atual?',

@@ -6,7 +6,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 
-const PLAN_PRICE_LABEL = 'R$ 29,90';
+const PLAN_PRICE_LABEL = 'R$ 499,90';
 
 // Mesma flag/pendência da aba Assinatura: cobrança real só na Fase 2 (Stripe).
 const CHECKOUT_ENABLED = false;
@@ -59,7 +59,7 @@ export const PaywallScreen = () => {
           <div className="text-center">
             <span className="text-4xl font-bold">{PLAN_PRICE_LABEL}</span>
             <span className="text-muted-foreground">/mês</span>
-            <p className="text-sm text-muted-foreground mt-1">Plano único com todos os recursos</p>
+            <p className="text-sm text-muted-foreground mt-1">Plano Gerente — 5 lojas incluídas</p>
           </div>
 
           <ul className="space-y-2 text-sm">

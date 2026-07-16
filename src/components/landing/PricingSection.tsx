@@ -8,6 +8,8 @@ export const PricingSection = () => {
   const navigate = useNavigate();
 
   const features = [
+    '5 lojas incluídas (extra por R$ 99,90/mês)',
+    'Gestores e atendentes por loja',
     'WhatsApp Business API integrado',
     'Chatbots inteligentes ilimitados',
     'Multi-atendimento em tempo real',
@@ -37,7 +39,7 @@ export const PricingSection = () => {
         >
           <Badge className="mb-4" variant="outline">
             <Crown className="w-4 h-4 mr-2" />
-            Plano Profissional
+            Plano Gerente
           </Badge>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4 px-4 sm:px-0">
             Preço simples e{' '}
@@ -63,11 +65,14 @@ export const PricingSection = () => {
             <div className="text-center mb-8">
               <div className="mb-6">
                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-2">
-                  R$ 29,90
+                  R$ 499,90
                   <span className="text-xl sm:text-2xl text-muted-foreground font-normal">/mês</span>
                 </div>
                 <div className="text-sm sm:text-base text-muted-foreground px-4 sm:px-0">
-                  Plano único com todos os recursos
+                  Plano Gerente — 5 lojas incluídas
+                </div>
+                <div className="text-xs sm:text-sm text-muted-foreground/80 px-4 sm:px-0 mt-1">
+                  Loja adicional por R$ 99,90/mês
                 </div>
               </div>
 
@@ -82,7 +87,7 @@ export const PricingSection = () => {
               </Button>
 
               <p className="text-sm text-muted-foreground px-4 sm:px-0">
-                Teste grátis por 14 dias • Cancele quando quiser
+                Teste grátis por 3 dias • Cancele quando quiser
               </p>
             </div>
 

@@ -59,15 +59,18 @@ serve(async (req) => {
         const session = event.data.object;
         const tenantId = session.client_reference_id;
         const subscriptionId = session.subscription;
+        // Lojas extras contratadas no checkout (metadata setado por create-checkout-session).
+        const extraSlots = Math.max(0, Math.floor(Number(session.metadata?.extra_slots) || 0));
 
         if (tenantId) {
-          console.log(`Updating tenant ${tenantId} subscription to active.`)
+          console.log(`Updating tenant ${tenantId} subscription to active (extra slots: ${extraSlots}).`)
           const { error } = await supabase
             .from('tenants')
             .update({
               subscription_id: subscriptionId,
               subscription_status: 'active',
-              plan_type: 'pro',
+              plan_type: 'gerente',
+              store_slots_extra: extraSlots,
               updated_at: new Date().toISOString()
             })
             .eq('id', tenantId);
