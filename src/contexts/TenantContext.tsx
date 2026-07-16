@@ -3,7 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
-import { AnyUserRole, UserRole, normalizeRole, roleAtLeast } from '@/types/userHierarchy';
+import {
+  AnyUserRole,
+  Capability,
+  UserRole,
+  can,
+  normalizeRole,
+  resolveCapabilities,
+  roleAtLeast,
+} from '@/types/userHierarchy';
 
 type Tenant = Tables<'tenants'>;
 type Profile = Tables<'profiles'>;
@@ -27,6 +35,8 @@ interface TenantContextType {
    * é sempre derivado do próprio profile.
    */
   setActiveTenant: (tenantId: string | null) => void;
+  /** True para superadmin (qualquer Conta) e gerente (suas Lojas): pode trocar a Conta/Loja ativa. */
+  canSwitchTenant: boolean;
 }
 
 /**
@@ -104,8 +114,11 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // já libera o superadmin a ler qualquer tenant (policies "Super admins can
     // access all ..."), então basta filtrar as queries por esse tenant_id.
     // Para qualquer outra role o impersonatedTenantId é ignorado.
-    const isSuper = normalizeRole(profileData.role as AnyUserRole | undefined) === 'superadmin';
-    const effectiveTenantId = (isSuper && impersonatedTenantId)
+    // Superadmin (qualquer Conta) e Gerente (suas próprias Lojas) podem trocar a
+    // Conta/Loja ativa. Para gestor/atendente o tenant é sempre o próprio.
+    const switchRole = normalizeRole(profileData.role as AnyUserRole | undefined);
+    const canSwitch = switchRole === 'superadmin' || switchRole === 'gerente';
+    const effectiveTenantId = (canSwitch && impersonatedTenantId)
       ? impersonatedTenantId
       : profileData.tenant_id;
 
@@ -216,6 +229,9 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const isImpersonating = !!impersonatedTenantId
     && normalizeRole(profile?.role as AnyUserRole | undefined) === 'superadmin';
 
+  const currentRole = normalizeRole(profile?.role as AnyUserRole | undefined);
+  const canSwitchTenant = currentRole === 'superadmin' || currentRole === 'gerente';
+
   const value: TenantContextType = {
     tenant,
     profile,
@@ -225,6 +241,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     refreshTenant,
     updateTenantSettings,
     isImpersonating,
+    canSwitchTenant,
     setActiveTenant,
   };
 
@@ -243,7 +260,8 @@ export const useTenantId = () => {
 
 /**
  * Retorna a role do usuário atual normalizada para o enum atual
- * (`superadmin` | `agencia` | `loja`), ou null se ainda não carregada.
+ * (`superadmin` | `gerente` | `gestor` | `atendente`), ou null se ainda não
+ * carregada.
  *
  * `normalizeRole()` converte valores legados (`user`/`enterprise`/
  * `account_manager`) para o enum atual, então este hook permanece
@@ -256,18 +274,44 @@ export const useRole = (): UserRole | null => {
 };
 
 export const useIsSuperAdmin = () => useRole() === 'superadmin';
-export const useIsAgencia = () => useRole() === 'agencia';
-export const useIsLoja = () => useRole() === 'loja';
+/** True para superadmin (qualquer Conta) e gerente (suas Lojas): pode trocar a Conta/Loja ativa. */
+export const useCanSwitchTenant = () => useTenant().canSwitchTenant;
+export const useIsGerente = () => useRole() === 'gerente';
+export const useIsGestor = () => useRole() === 'gestor';
+export const useIsAtendente = () => useRole() === 'atendente';
 
-/** @deprecated Use useIsAgencia. Mantido por 1 release. */
-export const useIsAccountManager = useIsAgencia;
-/** @deprecated Use useIsLoja. Mantido por 1 release. */
-export const useIsEnterprise = useIsLoja;
-/** @deprecated Use useIsLoja. Mantido por 1 release. */
-export const useIsTenantAdmin = useIsLoja;
+/** @deprecated Use useIsGerente. Mantido por 1 release. */
+export const useIsAccountManager = useIsGerente;
+/** @deprecated Use useIsGestor. Mantido por 1 release. */
+export const useIsEnterprise = useIsGestor;
+/** @deprecated Use useIsGestor. Mantido por 1 release. */
+export const useIsTenantAdmin = useIsGestor;
 
 /** Retorna true se a role do usuário for ao menos `minimum` na hierarquia. */
 export const useHasMinRole = (minimum: UserRole): boolean => {
   const role = useRole();
   return role !== null && roleAtLeast(role, minimum);
+};
+
+/**
+ * Capacidades efetivas do usuário atual (defaults por role + overrides de
+ * `profiles.capabilities`). Lido defensivamente via `(profile as any)` porque
+ * a coluna JSONB é da migração V2 e `types.ts` ainda não foi regenerado.
+ */
+export const useCapabilities = (): Record<Capability, boolean> => {
+  const { profile } = useTenant();
+  return resolveCapabilities(
+    profile?.role as AnyUserRole | undefined,
+    (profile as any)?.capabilities,
+  );
+};
+
+/** Retorna true se o usuário atual tiver a capability informada. */
+export const useCan = (capability: Capability): boolean => {
+  const { profile } = useTenant();
+  return can(
+    profile?.role as AnyUserRole | undefined,
+    capability,
+    (profile as any)?.capabilities,
+  );
 };

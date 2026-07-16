@@ -20,7 +20,7 @@ vi.mock('recharts', async (importOriginal) => {
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
     tenant: { id: 't1', name: 'Loja Teste' },
-    profile: { id: 'p1', role: 'loja', tenant_id: 't1' },
+    profile: { id: 'p1', role: 'gestor', tenant_id: 't1' },
     tenantId: 't1',
     loading: false,
     error: null,

@@ -29,17 +29,20 @@ interface InviteUserModalProps {
 }
 
 /**
- * Decide quais roles o usuário atual pode convidar (hierarquia 3 níveis):
- *   superadmin → todas (incluindo superadmin)
- *   agencia    → loja apenas (cria Lojas filhas)
- *   loja       → nenhuma (modal não deve abrir)
+ * Decide quais roles o usuário atual pode convidar (hierarquia V2, 4 níveis):
+ *   superadmin → gerente
+ *   gerente    → gestor, atendente
+ *   gestor     → atendente
+ *   atendente  → nenhuma (modal não deve abrir)
  */
 function allowedRolesFor(callerRole: UserRole | null): UserRole[] {
   switch (callerRole) {
     case 'superadmin':
-      return ['superadmin', 'agencia', 'loja'];
-    case 'agencia':
-      return ['loja'];
+      return ['gerente'];
+    case 'gerente':
+      return ['gestor', 'atendente'];
+    case 'gestor':
+      return ['atendente'];
     default:
       return [];
   }
@@ -58,10 +61,10 @@ export function InviteUserModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>(allowed[0] ?? 'loja');
+  const [role, setRole] = useState<UserRole>(allowed[0] ?? 'atendente');
   const [tenantId, setTenantId] = useState(defaultTenantId ?? '');
 
-  const requiresTenant = role === 'loja' || role === 'agencia';
+  const requiresTenant = role === 'gestor' || role === 'atendente';
 
   const reset = () => {
     setEmail('');
@@ -160,7 +163,7 @@ export function InviteUserModal({
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Obrigatório para Loja e Agência (cada uma tem tenant próprio).
+                Obrigatório para Gestor e Atendente (vinculados a uma loja).
               </p>
             </div>
           )}

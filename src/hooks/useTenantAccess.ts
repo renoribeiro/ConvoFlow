@@ -17,11 +17,11 @@ export interface TenantAccess {
  * Decide se o usuário atual pode usar o sistema (paywall).
  *
  * Regras (decididas em 2026-06-30):
- *   - superadmin e agência: sempre liberados (bypass).
- *   - loja: precisa de acesso liberado na Conta —
+ *   - superadmin e gerente (agência): sempre liberados (bypass).
+ *   - gestor (loja): precisa de acesso liberado na Conta —
  *       PAGO   (tenants.subscription_status = 'active'), ou
  *       MANUAL (tenants.manual_access_granted = true, liberado por superadmin).
- *   - loja sem Conta ou sem nenhum dos dois → bloqueada.
+ *   - gestor sem Conta ou sem nenhum dos dois → bloqueada.
  *
  * A liberação manual é "permanente até revogar" — não há expiração.
  */
@@ -33,8 +33,8 @@ export function useTenantAccess(): TenantAccess {
     return { loading: true, unlocked: false, locked: false, source: 'locked' };
   }
 
-  // Superadmin e Agência não passam pelo paywall.
-  if (role === 'superadmin' || role === 'agencia') {
+  // Superadmin e Agência (gerente) não passam pelo paywall.
+  if (role === 'superadmin' || role === 'gerente') {
     return { loading: false, unlocked: true, locked: false, source: 'bypass' };
   }
 

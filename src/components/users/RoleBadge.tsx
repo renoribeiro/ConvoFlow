@@ -3,8 +3,9 @@ import { AnyUserRole, UserRole, normalizeRole, roleLabel } from '@/types/userHie
 
 const VARIANTS: Record<UserRole, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   superadmin: 'destructive',
-  agencia: 'default',
-  loja: 'secondary',
+  gerente: 'default',
+  gestor: 'secondary',
+  atendente: 'outline',
 };
 
 export function RoleBadge({ role }: { role: AnyUserRole }) {

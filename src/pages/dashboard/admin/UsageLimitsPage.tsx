@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { QUERY_KEYS } from '@/lib/queryClient';
-import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
+import { UserRole, roleLabel } from '@/types/userHierarchy';
 import { PageHeader } from '@/components/shared/PageHeader';
 
 interface UsageLimit {
@@ -101,7 +101,7 @@ export default function UsageLimitsPage() {
                       : l.limit_value?.limit?.toString() ?? '';
                   return (
                     <TableRow key={l.id}>
-                      <TableCell className="font-medium">{ROLE_LABELS[l.role]}</TableCell>
+                      <TableCell className="font-medium">{roleLabel(l.role as any)}</TableCell>
                       <TableCell>{l.limit_name}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {l.description ?? '—'}

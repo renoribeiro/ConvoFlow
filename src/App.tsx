@@ -40,6 +40,7 @@ const AdminDashboard = React.lazy(() => import("./pages/dashboard/AdminDashboard
 const UsersPage = React.lazy(() => import("./pages/dashboard/admin/UsersPage"));
 const UsageLimitsPage = React.lazy(() => import("./pages/dashboard/admin/UsageLimitsPage"));
 const TeamPage = React.lazy(() => import("./pages/dashboard/TeamPage"));
+const StoreComparison = React.lazy(() => import("./pages/dashboard/StoreComparison"));
 const WhatsAppNumbers = React.lazy(() => import("./pages/WhatsAppNumbers"));
 const ChatbotFlowBuilder = React.lazy(() => import("./pages/ChatbotFlowBuilder"));
 
@@ -201,9 +202,16 @@ const App = () => (
                     </RoleGuard>
                   } />
                   <Route path="team" element={
-                    <RoleGuard minRole="agencia" fallbackPath="/dashboard">
+                    <RoleGuard minRole="gerente" fallbackPath="/dashboard">
                       <Suspense fallback={<PageLoadingSkeleton />}>
                         <TeamPage />
+                      </Suspense>
+                    </RoleGuard>
+                  } />
+                  <Route path="store-comparison" element={
+                    <RoleGuard role="gerente" fallbackPath="/dashboard">
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <StoreComparison />
                       </Suspense>
                     </RoleGuard>
                   } />

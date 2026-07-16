@@ -68,7 +68,7 @@ const PAGES: PageItem[] = [
   { label: 'Configurações', path: '/dashboard/settings', icon: Settings, keywords: ['preferencias', 'config'] },
   { label: 'Notificações', path: '/dashboard/notifications', icon: Bell },
   { label: 'Meu Perfil', path: '/dashboard/profile', icon: UserCog, keywords: ['conta', 'avatar'] },
-  { label: 'Equipe', path: '/dashboard/team', icon: UsersRound, minRole: 'agencia', keywords: ['usuarios', 'time'] },
+  { label: 'Equipe', path: '/dashboard/team', icon: UsersRound, minRole: 'gerente', keywords: ['usuarios', 'time'] },
   { label: 'Admin', path: '/dashboard/admin', icon: ShieldCheck, superAdminOnly: true },
   { label: 'Admin · Usuários', path: '/dashboard/admin/users', icon: UsersRound, superAdminOnly: true },
   { label: 'Admin · Limites de Uso', path: '/dashboard/admin/usage-limits', icon: GaugeCircle, superAdminOnly: true },
@@ -90,7 +90,7 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
   const navigate = useNavigate();
   const { tenantId } = useTenant();
   const isSuperAdmin = useIsSuperAdmin();
-  const hasAgenciaRole = useHasMinRole('agencia');
+  const hasGerenteRole = useHasMinRole('gerente');
   const { visibleModules } = useModules();
   const { instances } = useWhatsAppInstances();
 
@@ -121,14 +121,14 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
       if (page.superAdminOnly) return isSuperAdmin;
       if (isSuperAdmin) return true;
 
-      if (page.minRole === 'agencia' && !hasAgenciaRole) return false;
+      if (page.minRole === 'gerente' && !hasGerenteRole) return false;
 
       if (page.moduleName) {
         if (!enabledModuleNames.has(page.moduleName)) return false;
       }
       return true;
     });
-  }, [visibleModules, isSuperAdmin, hasAgenciaRole]);
+  }, [visibleModules, isSuperAdmin, hasGerenteRole]);
 
   // Contacts: lightweight server-side query, only runs while palette is open.
   const { data: contacts = [] } = useQuery<ContactRow[]>({

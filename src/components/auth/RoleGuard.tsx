@@ -21,7 +21,7 @@ export const RoleGuard = ({
   const { isLoading: authLoading } = useAuth();
   const { loading: tenantLoading, profile } = useTenant();
   const userRole = useRole();
-  const hasMinRole = useHasMinRole(minRole ?? 'loja');
+  const hasMinRole = useHasMinRole(minRole ?? 'gestor');
 
   // Aguardar AMBOS auth e tenant antes de decidir redirect.
   // Caso contrário o redirect dispara antes do profile carregar -> loop visual

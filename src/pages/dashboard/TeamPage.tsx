@@ -18,9 +18,9 @@ export default function TeamPage() {
 
   const { data: users = [], isLoading } = useUsers({ search });
 
-  const heading = role === 'agencia' ? 'Minhas Lojas' : 'Minha Equipe';
+  const heading = role === 'gerente' ? 'Minhas Lojas' : 'Minha Equipe';
   const description =
-    role === 'agencia'
+    role === 'gerente'
       ? 'Lojas afiliadas à sua Agência.'
       : tenant?.name
         ? `Usuários da Conta ${tenant.name}.`

@@ -19,6 +19,7 @@ import { AnyUserRole, roleLabel as roleLabelHelper } from '@/types/userHierarchy
 import { RoleBadge } from '@/components/users/RoleBadge';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { TenantSwitcher } from '@/components/layout/TenantSwitcher';
+import { StoreSwitcher } from '@/components/stores/StoreSwitcher';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -90,6 +91,8 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
 
         {/* Seletor de Conta ativa — visível apenas para superadmin */}
         <TenantSwitcher />
+        {/* Seletor de Loja — visível apenas para gerente (troca a Loja ativa) */}
+        <StoreSwitcher />
       </div>
 
       {/* Right */}

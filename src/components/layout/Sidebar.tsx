@@ -66,6 +66,7 @@ const configItems: NavItem[] = [
 
 const teamItems: NavItem[] = [
   { name: 'Equipe', href: '/dashboard/team', icon: UsersRound, moduleName: null },
+  { name: 'Comparar Lojas', href: '/dashboard/store-comparison', icon: BarChart3, moduleName: null },
 ];
 
 const adminItems: NavItem[] = [
@@ -141,7 +142,7 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
 
   // Equipe é a visão escopada (agência gerencia suas Lojas). O superadmin não
   // precisa dela — usa a Administração (visão global) + o seletor de Conta.
-  const showTeam = role === 'agencia';
+  const showTeam = role === 'gerente';
   const showAdmin = isSuperAdmin;
 
   return (
