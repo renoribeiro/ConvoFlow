@@ -158,7 +158,7 @@ export const IntegrationSettings = () => {
     {
       id: 'stripe',
       name: 'Stripe',
-      description: 'Gateway de pagamento para processar comissões de afiliados',
+      description: 'Gateway de pagamento para processar assinaturas e cobranças',
       icon: CreditCard,
       category: 'payment',
       status: 'disconnected'

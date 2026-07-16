@@ -216,7 +216,7 @@ const StripeConfiguration = () => {
             )}
           </CardTitle>
           <CardDescription>
-            Configure a integração com Stripe MCP para processar pagamentos de comissões automaticamente
+            Configure a integração com Stripe MCP para processar pagamentos automaticamente
           </CardDescription>
         </CardHeader>
         

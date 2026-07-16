@@ -33,7 +33,6 @@ export const QUERY_KEYS = {
     USER_DETAILS: 'user-details',
     TEAM: 'team',
     USAGE_LIMITS: 'usage-limits',
-    AFFILIATE_STATS: 'affiliate-stats',
 } as const;
 
 // Cache times in milliseconds

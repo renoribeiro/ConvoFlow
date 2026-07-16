@@ -135,7 +135,7 @@ const TransactionStatistics = () => {
       {stats && (
         <>
           {/* Cards de Resumo */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -168,18 +168,6 @@ const TransactionStatistics = () => {
                     <p className="text-2xl font-bold">{formatCurrency(stats.net_amount)}</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-purple-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Comissões</p>
-                    <p className="text-2xl font-bold">{formatCurrency(stats.commission_amount)}</p>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-orange-600" />
                 </div>
               </CardContent>
             </Card>
