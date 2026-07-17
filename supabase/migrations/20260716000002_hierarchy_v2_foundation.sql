@@ -30,6 +30,11 @@
 
 BEGIN;
 
+-- Drop the old CHECK FIRST, otherwise the backfill below cannot write the new
+-- role names (the old constraint only allowed superadmin/agencia/loja). The new
+-- constraint is (re)created in section 2 after the backfill.
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_modern_only;
+
 -- ============================================================================
 -- 1) Backfill profiles.role to the new nomenclature
 -- ============================================================================
@@ -45,8 +50,8 @@ ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT 'gestor'::public.user_
 
 -- ============================================================================
 -- 2) Gate profiles.role to the 4 modern values (block legacy writes)
+--    (the old constraint was already dropped at the top, before the backfill)
 -- ============================================================================
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_modern_only;
 ALTER TABLE public.profiles
   ADD CONSTRAINT profiles_role_modern_only
   CHECK (role IN ('superadmin'::public.user_role,
