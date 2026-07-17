@@ -39,6 +39,10 @@ dist-ssr
 # Backup files
 *.backup
 *.bak
+# Database backups (contêm dados sensíveis — NUNCA commitar)
+backup_dados_*.json
+backup_estrutura_*.sql
+backup_*.sql
 
 # Database
 *.db
