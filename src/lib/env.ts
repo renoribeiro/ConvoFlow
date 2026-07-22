@@ -12,6 +12,7 @@ interface EnvConfig {
   EVOLUTION_X_API_KEY?: string;
   FACEBOOK_APP_ID?: string;
   META_CONFIG_ID?: string;
+  REWARDFUL_API_KEY?: string;
   APP_NAME: string;
   APP_VERSION: string;
   ENVIRONMENT: 'development' | 'staging' | 'production';
@@ -62,6 +63,7 @@ export class EnvironmentManager {
       EVOLUTION_X_API_KEY: import.meta.env.VITE_EVOLUTION_X_API_KEY,
       FACEBOOK_APP_ID: import.meta.env.VITE_FACEBOOK_APP_ID,
       META_CONFIG_ID: import.meta.env.VITE_META_CONFIG_ID,
+      REWARDFUL_API_KEY: import.meta.env.VITE_REWARDFUL_API_KEY,
       APP_NAME: import.meta.env.VITE_APP_NAME || 'ConvoFlow',
       APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
       ENVIRONMENT: (import.meta.env.VITE_ENVIRONMENT as EnvConfig['ENVIRONMENT']) || 'development',

@@ -50,11 +50,13 @@ serve(async (req) => {
       );
     }
 
-    // Lojas extras opcionais (0..100). O corpo pode vir vazio.
+    // Lojas extras opcionais (0..100) + referral do Rewardful. O corpo pode vir vazio.
     let extraSlots = 0;
+    let referral: string | undefined;
     try {
       const parsed = await req.clone().json();
       extraSlots = Math.max(0, Math.min(100, Math.floor(Number(parsed?.extraSlots) || 0)));
+      if (parsed?.referral && typeof parsed.referral === "string") referral = parsed.referral;
     } catch {
       // sem corpo / corpo inválido → sem lojas extras
     }
@@ -147,7 +149,9 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: lineItems,
-      client_reference_id: tenantId,
+      // Rewardful usa client_reference_id para atribuir a indicação (só se houver).
+      // O nosso tenant_id vai no metadata (lido pelo stripe-webhook).
+      ...(referral ? { client_reference_id: referral } : {}),
       customer_email: user.email ?? undefined,
       allow_promotion_codes: true,
       subscription_data: {

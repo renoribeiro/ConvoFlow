@@ -8,6 +8,7 @@ import { useTenant, useIsGerente } from '@/contexts/TenantContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getRewardfulReferral } from '@/lib/rewardful';
 
 // =============================================================================
 // PLANO GERENTE — R$ 499,90/mês (inclui 5 lojas) + lojas extras R$ 99,90/mês
@@ -58,7 +59,10 @@ export const SubscriptionSettings = () => {
     }
     try {
       setBusy(true);
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
+      // Se o visitante veio por indicação (Rewardful), anexa o referral ao checkout.
+      const referral = getRewardfulReferral();
+      const payload = referral ? { ...body, referral } : body;
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', { body: payload });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.url) {

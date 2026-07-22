@@ -57,7 +57,9 @@ serve(async (req) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
-        const tenantId = session.client_reference_id;
+        // tenant_id agora vem do metadata (o client_reference_id foi liberado para
+        // o referral do Rewardful). Fallback ao client_reference_id p/ sessões antigas.
+        const tenantId = session.metadata?.tenant_id ?? session.client_reference_id;
         const subscriptionId = session.subscription;
         // Lojas extras contratadas no checkout (metadata setado por create-checkout-session).
         const extraSlots = Math.max(0, Math.floor(Number(session.metadata?.extra_slots) || 0));
