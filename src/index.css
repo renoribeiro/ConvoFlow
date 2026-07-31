@@ -121,6 +121,13 @@
     --sidebar-bg: 0 0% 100%;
     --navbar-bg: 0 0% 100%;
 
+    /* Conversa não visualizada — precisa saltar aos olhos sobre o card branco.
+       `--success/10` era sutil demais no tema claro (feedback de cliente). */
+    --unread-bg: 84 56% 90%;          /* lavagem verde-lima nítida */
+    --unread-bg-hover: 84 56% 85%;
+    --unread-strong: 84 52% 30%;      /* barra lateral, contador, timestamp */
+    --unread-on-strong: 0 0% 100%;    /* texto sobre --unread-strong */
+
     /* Gradients (lima clara → verde-lima; texto escuro permanece legível) */
     --gradient-primary: linear-gradient(135deg, hsl(65 64% 70%), hsl(74 54% 58%));
     --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(84 46% 28%));
@@ -199,6 +206,12 @@
     --dashboard-bg: 60 24% 5%;
     --sidebar-bg: 55 18% 11%;
     --navbar-bg: 55 18% 11%;
+
+    /* Conversa não visualizada (dark) — mesmo salto, invertido. */
+    --unread-bg: 84 34% 16%;
+    --unread-bg-hover: 84 34% 21%;
+    --unread-strong: 84 52% 55%;
+    --unread-on-strong: 52 50% 9%;
 
     /* Dark Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(65 64% 70%), hsl(74 50% 56%));
