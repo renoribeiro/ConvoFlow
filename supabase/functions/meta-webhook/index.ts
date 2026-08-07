@@ -604,7 +604,7 @@ async function notifyInstanceAdmins(
   metadata: Record<string, unknown>,
 ) {
   try {
-    const { data: supers } = await supabase.from('profiles').select('user_id').eq('role', 'super_admin');
+    const { data: supers } = await supabase.from('profiles').select('user_id').eq('role', 'superadmin');
     const { data: tenantUsers } = await supabase
       .from('profiles')
       .select('user_id')

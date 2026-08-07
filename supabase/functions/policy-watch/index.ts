@@ -109,7 +109,7 @@ serve(async (req: Request) => {
         const { data: admins } = await supabase
           .from('profiles')
           .select('user_id')
-          .eq('role', 'super_admin')
+          .eq('role', 'superadmin')
 
         for (const admin of admins ?? []) {
           const uid = (admin as { user_id: string | null }).user_id

@@ -588,7 +588,8 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
         .from('webhook_logs')
         .select('*')
         .eq('instance_name', instanceName)
-        .eq('tenant_id', profile!.tenant_id)
+        // webhook_logs não tem tenant_id — o filtro por Conta é feito pela RLS
+        // (webhook_logs_tenant_isolation, via whatsapp_instance_id).
         .order('created_at', { ascending: false })
         .limit(limit);
 

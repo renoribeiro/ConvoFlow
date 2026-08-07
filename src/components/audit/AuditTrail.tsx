@@ -30,7 +30,8 @@ import {
   Monitor,
   Calendar,
   FileText,
-  Activity
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

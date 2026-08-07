@@ -84,8 +84,9 @@ export function useTrackingMetrics(dateRange?: DateRange) {
     queryFn: async () => {
       if (!tenant?.id) throw new Error('Tenant não encontrado');
       
+      // View filtrada por Conta no servidor — a matview crua não respeita RLS.
       let query = supabase
-        .from('tracking_metrics_daily')
+        .from('tracking_metrics_daily_filtered')
         .select('*')
         .eq('tenant_id', tenant.id);
       

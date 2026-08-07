@@ -249,9 +249,11 @@ class DataProcessingService {
     const { data: conversions, error } = await supabase
       .from('lead_tracking')
       .select('*')
-      .eq('status', 'converted')
-      .gte('updated_at', new Date(Date.now() - this.config.refreshInterval).toISOString())
-      .order('updated_at', { ascending: false })
+      // lead_tracking não tem 'status' nem 'updated_at': a conversão é o booleano
+      // 'converted', e a data correspondente é 'conversion_date'.
+      .eq('converted', true)
+      .gte('conversion_date', new Date(Date.now() - this.config.refreshInterval).toISOString())
+      .order('conversion_date', { ascending: false })
       .limit(this.config.batchSize);
 
     if (error) {
@@ -270,8 +272,9 @@ class DataProcessingService {
     const { data: events, error } = await supabase
       .from('tracking_events')
       .select('*')
-      .gte('created_at', new Date(Date.now() - this.config.refreshInterval).toISOString())
-      .order('created_at', { ascending: false })
+      // tracking_events usa 'timestamp' como coluna de tempo, não 'created_at'.
+      .gte('timestamp', new Date(Date.now() - this.config.refreshInterval).toISOString())
+      .order('timestamp', { ascending: false })
       .limit(this.config.batchSize);
 
     if (error) {

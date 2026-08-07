@@ -1305,9 +1305,9 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
-          custom_fields: Json
           current_flow_step_id_temp: string | null
           current_stage_id: string | null
+          custom_fields: Json
           email: string | null
           first_message: string | null
           id: string
@@ -1332,9 +1332,9 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
-          custom_fields?: Json
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
+          custom_fields?: Json
           email?: string | null
           first_message?: string | null
           id?: string
@@ -1359,9 +1359,9 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
-          custom_fields?: Json
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
+          custom_fields?: Json
           email?: string | null
           first_message?: string | null
           id?: string
@@ -2901,6 +2901,7 @@ export type Database = {
           affiliate_id: string | null
           avatar_url: string | null
           bio: string | null
+          capabilities: Json | null
           created_at: string
           first_name: string | null
           id: string
@@ -2923,6 +2924,7 @@ export type Database = {
           affiliate_id?: string | null
           avatar_url?: string | null
           bio?: string | null
+          capabilities?: Json | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -2945,6 +2947,7 @@ export type Database = {
           affiliate_id?: string | null
           avatar_url?: string | null
           bio?: string | null
+          capabilities?: Json | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -3896,6 +3899,7 @@ export type Database = {
           id: string
           name: string
           tenant_id: string
+          updated_at: string
         }
         Insert: {
           color?: string | null
@@ -3904,6 +3908,7 @@ export type Database = {
           id?: string
           name: string
           tenant_id: string
+          updated_at?: string
         }
         Update: {
           color?: string | null
@@ -3912,10 +3917,56 @@ export type Database = {
           id?: string
           name?: string
           tenant_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_access_events: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_access_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_access_events_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3982,9 +4033,12 @@ export type Database = {
         Row: {
           affiliate_code: string | null
           affiliate_id: string | null
+          agent_signature_enabled: boolean
+          chip_mode: string
           created_at: string
           domain: string | null
           id: string
+          kind: string
           manual_access_granted: boolean | null
           manual_access_granted_at: string | null
           manual_access_granted_by: string | null
@@ -3996,6 +4050,8 @@ export type Database = {
           settings: Json | null
           slug: string
           status: Database["public"]["Enums"]["tenant_status"] | null
+          store_slots_extra: number
+          store_slots_included: number
           subscription_id: string | null
           subscription_status: string | null
           trial_ends_at: string | null
@@ -4004,9 +4060,12 @@ export type Database = {
         Insert: {
           affiliate_code?: string | null
           affiliate_id?: string | null
+          agent_signature_enabled?: boolean
+          chip_mode?: string
           created_at?: string
           domain?: string | null
           id?: string
+          kind?: string
           manual_access_granted?: boolean | null
           manual_access_granted_at?: string | null
           manual_access_granted_by?: string | null
@@ -4018,6 +4077,8 @@ export type Database = {
           settings?: Json | null
           slug: string
           status?: Database["public"]["Enums"]["tenant_status"] | null
+          store_slots_extra?: number
+          store_slots_included?: number
           subscription_id?: string | null
           subscription_status?: string | null
           trial_ends_at?: string | null
@@ -4026,9 +4087,12 @@ export type Database = {
         Update: {
           affiliate_code?: string | null
           affiliate_id?: string | null
+          agent_signature_enabled?: boolean
+          chip_mode?: string
           created_at?: string
           domain?: string | null
           id?: string
+          kind?: string
           manual_access_granted?: boolean | null
           manual_access_granted_at?: string | null
           manual_access_granted_by?: string | null
@@ -4040,6 +4104,8 @@ export type Database = {
           settings?: Json | null
           slug?: string
           status?: Database["public"]["Enums"]["tenant_status"] | null
+          store_slots_extra?: number
+          store_slots_included?: number
           subscription_id?: string | null
           subscription_status?: string | null
           trial_ends_at?: string | null
@@ -4051,6 +4117,13 @@ export type Database = {
             columns: ["affiliate_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenants_manual_access_granted_by_fkey"
+            columns: ["manual_access_granted_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users_view"
             referencedColumns: ["id"]
           },
           {
@@ -4282,6 +4355,72 @@ export type Database = {
           },
         ]
       }
+      webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          max_attempts: number
+          payload: Json
+          response_status: number | null
+          scheduled_at: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          webhook_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          max_attempts?: number
+          payload?: Json
+          response_status?: number | null
+          scheduled_at?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          webhook_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          max_attempts?: number
+          payload?: Json
+          response_status?: number | null
+          scheduled_at?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_deliveries_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_errors: {
         Row: {
           created_at: string
@@ -4395,9 +4534,54 @@ export type Database = {
           },
         ]
       }
+      webhooks: {
+        Row: {
+          created_at: string
+          events: string[]
+          id: string
+          is_active: boolean
+          name: string
+          secret: string | null
+          tenant_id: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          name: string
+          secret?: string | null
+          tenant_id: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          name?: string
+          secret?: string | null
+          tenant_id?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhooks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_instances: {
         Row: {
           account_review_status: string | null
+          assigned_profile_id: string | null
           automation_enabled: boolean | null
           connection_config: Json | null
           created_at: string
@@ -4431,6 +4615,7 @@ export type Database = {
         }
         Insert: {
           account_review_status?: string | null
+          assigned_profile_id?: string | null
           automation_enabled?: boolean | null
           connection_config?: Json | null
           created_at?: string
@@ -4464,6 +4649,7 @@ export type Database = {
         }
         Update: {
           account_review_status?: string | null
+          assigned_profile_id?: string | null
           automation_enabled?: boolean | null
           connection_config?: Json | null
           created_at?: string
@@ -4496,6 +4682,13 @@ export type Database = {
           webhook_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_assigned_profile_id_fkey"
+            columns: ["assigned_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_instances_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -5059,6 +5252,10 @@ export type Database = {
             }[]
           }
       descendant_profile_ids: { Args: { root_id: string }; Returns: string[] }
+      emit_webhook_event: {
+        Args: { p_event_type: string; p_payload: Json; p_tenant_id: string }
+        Returns: undefined
+      }
       enqueue_job:
         | {
             Args: {
@@ -5081,6 +5278,15 @@ export type Database = {
           }
       evaluate_alert_rules: { Args: never; Returns: undefined }
       finalize_completed_campaigns: { Args: never; Returns: number }
+      fire_automation_trigger: {
+        Args: {
+          p_contact_id: string
+          p_data?: Json
+          p_tenant_id: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       flip_overdue_followups: { Args: never; Returns: number }
       get_admin_users_data: {
         Args: never
@@ -5190,7 +5396,13 @@ export type Database = {
       is_account_manager_safe: { Args: never; Returns: boolean }
       is_agencia: { Args: never; Returns: boolean }
       is_agencia_safe: { Args: never; Returns: boolean }
+      is_atendente: { Args: never; Returns: boolean }
+      is_atendente_safe: { Args: never; Returns: boolean }
       is_enterprise_safe: { Args: never; Returns: boolean }
+      is_gerente: { Args: never; Returns: boolean }
+      is_gerente_safe: { Args: never; Returns: boolean }
+      is_gestor: { Args: never; Returns: boolean }
+      is_gestor_safe: { Args: never; Returns: boolean }
       is_loja: { Args: never; Returns: boolean }
       is_loja_safe: { Args: never; Returns: boolean }
       is_my_descendant: { Args: { target_id: string }; Returns: boolean }
@@ -5272,6 +5484,7 @@ export type Database = {
         Args: { view_name: string }
         Returns: undefined
       }
+      seed_default_tags: { Args: { p_tenant_id: string }; Returns: undefined }
       set_campaign_status: {
         Args: { p_action: string; p_campaign_id: string }
         Returns: string
@@ -5324,6 +5537,9 @@ export type Database = {
         | "account_manager"
         | "agencia"
         | "loja"
+        | "gerente"
+        | "gestor"
+        | "atendente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5484,6 +5700,9 @@ export const Constants = {
         "account_manager",
         "agencia",
         "loja",
+        "gerente",
+        "gestor",
+        "atendente",
       ],
     },
   },

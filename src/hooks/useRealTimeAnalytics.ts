@@ -48,6 +48,9 @@ interface FunnelStage {
   change: number;
 }
 
+// Teto de tentativas de reconexão do WebSocket.
+const MAX_WS_RETRIES = 5;
+
 interface UseRealTimeAnalyticsOptions {
   filters: AnalyticsFilters;
   updateInterval?: number; // em milissegundos
@@ -71,7 +74,10 @@ interface UseRealTimeAnalyticsReturn {
 export const useRealTimeAnalytics = ({
   filters,
   updateInterval = 30000, // 30 segundos por padrão
-  enableWebSocket = true,
+  // Desligado por padrão: o endpoint /ws/analytics não existe em nenhum ambiente.
+  // Com ele ligado, o onclose reagendava a conexão a cada 5s indefinidamente.
+  // A atualização real vem do polling.
+  enableWebSocket = false,
   enablePolling = true
 }: UseRealTimeAnalyticsOptions): UseRealTimeAnalyticsReturn => {
   const [data, setData] = useState<RealTimeAnalyticsData | null>(null);
@@ -84,6 +90,7 @@ export const useRealTimeAnalytics = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const wsRetriesRef = useRef(0);
 
   // Função para buscar dados do servidor
   const fetchAnalyticsData = useCallback(async (): Promise<RealTimeAnalyticsData | null> => {
@@ -289,6 +296,7 @@ export const useRealTimeAnalytics = ({
 
       wsRef.current.onopen = () => {
         console.log('WebSocket conectado para análises');
+        wsRetriesRef.current = 0; // conectou: zera o contador de tentativas
         setIsConnected(true);
 
         // Enviar filtros para o servidor
@@ -315,9 +323,11 @@ export const useRealTimeAnalytics = ({
         console.log('WebSocket desconectado');
         setIsConnected(false);
 
-        // Tentar reconectar após 5 segundos
-        if (!isPaused) {
-          setTimeout(setupWebSocket, 5000);
+        // Reconexão com teto: sem isso, um endpoint inexistente vira loop infinito.
+        if (!isPaused && wsRetriesRef.current < MAX_WS_RETRIES) {
+          wsRetriesRef.current += 1;
+          const delay = 5000 * wsRetriesRef.current; // backoff linear
+          setTimeout(setupWebSocket, delay);
         }
       };
 
@@ -426,7 +436,7 @@ export const useRealTimeMetrics = (filters: AnalyticsFilters) => {
   const { data, isLoading, error, forceRefresh } = useRealTimeAnalytics({
     filters,
     updateInterval: 10000, // 10 segundos para métricas
-    enableWebSocket: true,
+    enableWebSocket: false,
     enablePolling: true
   });
 
@@ -444,8 +454,10 @@ export const useRealTimeChartData = (filters: AnalyticsFilters) => {
   const { data, isLoading, error, forceRefresh } = useRealTimeAnalytics({
     filters,
     updateInterval: 30000, // 30 segundos para gráficos
-    enableWebSocket: true,
-    enablePolling: false // Usar apenas WebSocket para gráficos
+    enableWebSocket: false,
+    // Antes era false, contando apenas com o WebSocket. Como o WS nunca conectou,
+    // este hook ficava sem nenhuma fonte de atualização.
+    enablePolling: true
   });
 
   return {

@@ -130,7 +130,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // Super admins can operate across tenants; regular users are restricted to their own.
-  const isSuperAdmin = callerProfile.role === 'super_admin';
+  // Enum user_role usa 'superadmin'; 'super_admin' é legado aceito por compat.
+  const isSuperAdmin = callerProfile.role === 'superadmin' || callerProfile.role === 'super_admin';
   if (!isSuperAdmin && instance.tenant_id !== callerProfile.tenant_id) {
     return jsonResponse({ success: false, error: 'Acesso negado a esta instância' }, 403);
   }

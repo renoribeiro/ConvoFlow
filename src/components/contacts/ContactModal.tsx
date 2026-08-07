@@ -78,20 +78,20 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
   // Função para validar todo o formulário
   const validateForm = () => {
+    // Preparar dados para validação — fora do try para continuar acessível no catch
+    const dataToValidate = {
+      name: formData.name,
+      phone: formData.phone,
+      email: formData.email || undefined,
+      current_stage_id: formData.current_stage_id || undefined,
+      lead_source_id: formData.lead_source_id || undefined,
+      assigned_to: formData.assigned_to || undefined,
+      notes: formData.notes || undefined,
+    };
+
     try {
       setIsValidating(true);
       const schema = getValidationSchema();
-      
-      // Preparar dados para validação
-      const dataToValidate = {
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email || undefined,
-        current_stage_id: formData.current_stage_id || undefined,
-        lead_source_id: formData.lead_source_id || undefined,
-        assigned_to: formData.assigned_to || undefined,
-        notes: formData.notes || undefined,
-      };
 
       schema.parse(dataToValidate);
       setValidationErrors({});

@@ -27,8 +27,8 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
     const grouped: Record<string, IndividualFollowup[]> = {};
     
     followups.forEach(followup => {
-      if (followup.scheduled_date) {
-        const dateKey = followup.scheduled_date.split('T')[0];
+      if (followup.scheduled_at) {
+        const dateKey = followup.scheduled_at.split('T')[0];
         if (!grouped[dateKey]) {
           grouped[dateKey] = [];
         }
@@ -111,8 +111,8 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
   const selectedEvents = selectedDate ? followupsByDate[selectedDate] || [] : [];
 
   const formatFollowupTime = (followup: IndividualFollowup) => {
-    if (followup.scheduled_date) {
-      const date = new Date(followup.scheduled_date);
+    if (followup.scheduled_at) {
+      const date = new Date(followup.scheduled_at);
       return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
     return '';
@@ -258,7 +258,7 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
                                 <p className="font-medium text-sm">{getFollowupTitle(followup)}</p>
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <User className="w-3 h-3" />
-                                  {followup.contact?.name || 'Contato não encontrado'}
+                                  {followup.contacts?.name || 'Contato não encontrado'}
                                 </p>
                               </div>
                             </div>
