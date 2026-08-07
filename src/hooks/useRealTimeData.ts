@@ -68,17 +68,19 @@ export function useRealTimeData(config: Partial<RealTimeConfig> = {}) {
       // Buscar leads de hoje
       const { data: leadsData, error: leadsError } = await supabase
         .from('lead_tracking')
-        .select('id, value, status')
+        // Colunas reais da tabela: não existem 'value' nem 'status'. Com os nomes
+        // errados o PostgREST devolvia 400 e este hook falhava sempre.
+        .select('id, conversion_value, converted')
         .gte('created_at', today.toISOString());
 
       if (leadsError) throw leadsError;
 
       // Calcular métricas
       const leadsToday = leadsData?.length || 0;
-      const conversionsToday = leadsData?.filter(lead => lead.status === 'converted').length || 0;
+      const conversionsToday = leadsData?.filter(lead => lead.converted).length || 0;
       const revenueToday = leadsData
-        ?.filter(lead => lead.status === 'converted')
-        .reduce((sum, lead) => sum + (lead.value || 0), 0) || 0;
+        ?.filter(lead => lead.converted)
+        .reduce((sum, lead) => sum + (lead.conversion_value || 0), 0) || 0;
 
       // Simular visitantes ativos (em produção, isso viria de analytics)
       const activeVisitors = Math.floor(Math.random() * 50) + 20;

@@ -174,7 +174,7 @@ export const ConversionFunnelChart = ({
                       
                       {index > 0 && (
                         <div className="flex items-center gap-2">
-                          <TrendingDown className="w-4 h-4 text-status-error" />
+                          <TrendingDownIcon className="w-4 h-4 text-status-error" />
                           <Badge variant="destructive" className="text-xs">
                             -{stage.dropoffRate.toFixed(1)}% dropoff
                           </Badge>

@@ -425,6 +425,9 @@ export class InputSanitizer {
 
     return email
       .toLowerCase()
+      // Remove tags HTML inteiras primeiro: sem isso, '<script>' vira 'script'
+      // e acaba grudado no local part (test<script>@x.com -> testscript@x.com).
+      .replace(/<[^>]*>/g, '')
       .replace(/[^a-z0-9@._\-]/g, '') // Keep only valid email characters
       .trim();
   }

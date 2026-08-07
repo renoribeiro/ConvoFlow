@@ -37,21 +37,22 @@ export const useSystemMetrics = (): SystemMetricsData => {
   const { data: systemAlerts = [], isLoading: alertsLoading } = useSupabaseQuery({
     table: 'system_alerts',
     queryKey: ['system-alerts'],
+    // Colunas reais de system_alerts: não existem 'resolved', 'source' nem
+    // 'created_at'. O equivalente é resolved_at / service_name / triggered_at.
     select: `
       id,
       alert_type,
       title,
       message,
       severity,
-      resolved,
-      source,
-      created_at,
+      service_name,
+      triggered_at,
       resolved_at
     `,
     filters: [
-      { column: 'created_at', operator: 'gte', value: last24Hours.toISOString() }
+      { column: 'triggered_at', operator: 'gte', value: last24Hours.toISOString() }
     ],
-    orderBy: [{ column: 'created_at', ascending: false }],
+    orderBy: [{ column: 'triggered_at', ascending: false }],
     limit: 20,
     enabled: !!tenant
   });
@@ -116,10 +117,10 @@ export const useSystemMetrics = (): SystemMetricsData => {
       type: mapAlertType(alert.alert_type),
       title: alert.title,
       message: alert.message,
-      timestamp: alert.created_at,
+      timestamp: alert.triggered_at,
       severity: alert.severity,
-      resolved: alert.resolved,
-      source: alert.source || 'Sistema'
+      resolved: alert.resolved_at != null,
+      source: alert.service_name || 'Sistema'
     }));
   };
   

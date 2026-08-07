@@ -73,9 +73,10 @@ export const useDashboardCharts = (days: number = 7): DashboardChartsData => {
   const { data: conversionsData = [], isLoading: conversionsLoading } = useSupabaseQuery({
     table: 'tracking_events',
     queryKey: ['conversions-chart', days],
-    select: 'created_at, event_type, event_data',
+    // tracking_events data a coluna de tempo como 'timestamp' (não 'created_at').
+    select: 'timestamp, event_type, event_data',
     filters: [
-      { column: 'created_at', operator: 'gte', value: startDate.toISOString() },
+      { column: 'timestamp', operator: 'gte', value: startDate.toISOString() },
       { column: 'event_type', operator: 'eq', value: 'stage_change' }
     ],
     enabled: !!tenant
@@ -142,7 +143,7 @@ export const useDashboardCharts = (days: number = 7): DashboardChartsData => {
     
     // Contar conversões por dia
     conversionsData.forEach((conversion: any) => {
-      const dateKey = format(new Date(conversion.created_at), 'yyyy-MM-dd');
+      const dateKey = format(new Date(conversion.timestamp), 'yyyy-MM-dd');
       if (dailyConversions.hasOwnProperty(dateKey)) {
         dailyConversions[dateKey]++;
       }

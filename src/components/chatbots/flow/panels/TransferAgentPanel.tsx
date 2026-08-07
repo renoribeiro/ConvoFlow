@@ -17,7 +17,8 @@ const TransferAgentPanel: React.FC<Props> = ({ data, onChange }) => {
   const { data: profiles = [] } = useSupabaseQuery({
     table: 'profiles',
     queryKey: ['profiles', 'agents'],
-    select: 'user_id, full_name, email',
+    // profiles não tem 'full_name' nem 'email' (e-mail vive em auth.users).
+    select: 'user_id, first_name, last_name',
   });
 
   const validate = (d: TransferAgentNodeData) => {
@@ -77,7 +78,7 @@ const TransferAgentPanel: React.FC<Props> = ({ data, onChange }) => {
             <SelectContent>
               {(profiles as any[]).map((p) => (
                 <SelectItem key={p.user_id} value={p.user_id}>
-                  {p.full_name ?? p.email ?? p.user_id}
+                  {[p.first_name, p.last_name].filter(Boolean).join(' ') || p.user_id}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -107,7 +107,7 @@ describe('HtmlSanitizer', () => {
         it('should remove all HTML tags', () => {
             const input = '<p>Hello <strong>World</strong>!</p>';
             const result = HtmlSanitizer.stripHtml(input);
-            expect(result).toBe('Hello World !');
+            expect(result).toBe('Hello World!');
         });
     });
 });

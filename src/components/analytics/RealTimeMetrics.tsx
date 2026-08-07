@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useRealTimeMetrics } from '@/hooks/useRealTimeAnalytics';
+import { useRealTimeDashboard } from '@/hooks/useRealTimeData';
 import { AnalyticsFilters } from './AdvancedFilters';
 import {
   Activity,
