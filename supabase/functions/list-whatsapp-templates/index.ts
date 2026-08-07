@@ -75,7 +75,8 @@ Deno.serve(async (req: Request) => {
     .single();
   if (instanceError || !instance) return jsonResponse({ ok: false, error: 'Instance not found' }, 404);
 
-  const isSuperAdmin = callerProfile.role === 'super_admin';
+  // Enum user_role usa 'superadmin'; 'super_admin' é legado aceito por compat.
+  const isSuperAdmin = callerProfile.role === 'superadmin' || callerProfile.role === 'super_admin';
   if (!isSuperAdmin && instance.tenant_id !== callerProfile.tenant_id) {
     return jsonResponse({ ok: false, error: 'Forbidden' }, 403);
   }
