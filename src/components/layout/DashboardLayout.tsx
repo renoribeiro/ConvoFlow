@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
@@ -23,7 +23,9 @@ const LOJA_ONLY_SEGMENTS = [
 ];
 
 export const DashboardLayout = () => {
+  // Barra fixa expandida/recolhida (desktop). No mobile quem manda é o drawer.
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
   const role = useRole();
   const pageName = (location.pathname.split('/').filter(Boolean).pop() || 'página')
@@ -36,6 +38,11 @@ export const DashboardLayout = () => {
   // Paywall: Loja sem acesso liberado (pago/manual) vê só a tela de bloqueio.
   // Superadmin e Agência têm bypass (ver useTenantAccess).
   const { loading: accessLoading, locked } = useTenantAccess();
+
+  // Navegou? O drawer do mobile fecha sozinho.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   if (accessLoading) {
     return (
@@ -51,17 +58,24 @@ export const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
 
+      {/* Mobile: sem barra lateral (drawer sobreposto) → conteúdo ocupa 100%.
+          Tablet: barra em modo ícone (64px). Desktop: 240px ou 56px. */}
       <div
         className={cn(
-          'flex flex-col min-h-screen transition-all duration-300',
+          'flex flex-col min-h-screen min-w-0 transition-all duration-300 md:ml-16',
           sidebarOpen ? 'lg:ml-60' : 'lg:ml-14',
         )}
       >
-        <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <Navbar onMenuClick={() => setMobileNavOpen(true)} />
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 min-w-0 p-6">
           <PageErrorBoundary key={location.pathname} pageName={pageName}>
             {blockedForSuperadmin ? <LojaOnlyNotice /> : <Outlet />}
           </PageErrorBoundary>
