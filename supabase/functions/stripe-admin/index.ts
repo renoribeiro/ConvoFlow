@@ -7,18 +7,106 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// =============================================================================
+// Cupons de desconto (superadmin)
+// -----------------------------------------------------------------------------
+// Modelo: cada cupom nosso vira DOIS objetos no Stripe —
+//   1. Coupon         → carrega o desconto (percent_off / amount_off + duration)
+//   2. Promotion Code → é o texto que o cliente digita no Checkout. O
+//                       create-checkout-session já manda allow_promotion_codes,
+//                       então o cupom funciona ponta-a-ponta sem tocar nele.
+//
+// Convenção de valores: discount_value é gravado em REAIS no nosso banco e só
+// é convertido para centavos (× 100) na chamada ao Stripe.
+// =============================================================================
+
+const COUPON_CURRENCY = 'brl';
+const COUPON_DURATIONS = ['once', 'repeating', 'forever'];
+
+/** Código de erro do Postgres para "coluna não existe" (migração pendente). */
+const PG_UNDEFINED_COLUMN = '42703';
+
+/**
+ * Valida e normaliza o payload de create_coupon. Lança Error com mensagem em
+ * pt-BR — o catch do handler devolve { error } com status 400.
+ */
+function parseCouponPayload(payload: any) {
+  // Stripe só aceita letras e dígitos no code do Promotion Code.
+  const code = String(payload?.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!code) throw new Error('Informe o código do cupom (apenas letras e números).');
+  if (code.length > 40) throw new Error('O código do cupom deve ter no máximo 40 caracteres.');
+
+  const discountType = payload?.discount_type;
+  if (discountType !== 'percent' && discountType !== 'amount') {
+    throw new Error("Tipo de desconto inválido. Use 'percent' ou 'amount'.");
+  }
+
+  const discountValue = Number(payload?.discount_value);
+  if (!Number.isFinite(discountValue) || discountValue <= 0) {
+    throw new Error('O valor do desconto deve ser maior que zero.');
+  }
+  if (discountType === 'percent' && discountValue > 100) {
+    throw new Error('O desconto percentual não pode passar de 100%.');
+  }
+
+  const duration = payload?.duration ?? 'once';
+  if (!COUPON_DURATIONS.includes(duration)) {
+    throw new Error("Duração inválida. Use 'once', 'repeating' ou 'forever'.");
+  }
+
+  let durationInMonths: number | null = null;
+  if (duration === 'repeating') {
+    durationInMonths = Math.floor(Number(payload?.duration_in_months));
+    if (!Number.isFinite(durationInMonths) || durationInMonths < 1) {
+      throw new Error('Informe a quantidade de meses (mínimo 1) para cupons recorrentes.');
+    }
+  }
+
+  let maxUses: number | null = null;
+  const rawMaxUses = payload?.max_uses;
+  if (rawMaxUses !== null && rawMaxUses !== undefined && rawMaxUses !== '') {
+    maxUses = Math.floor(Number(rawMaxUses));
+    if (!Number.isFinite(maxUses) || maxUses < 1) {
+      throw new Error('O limite de usos deve ser um número inteiro maior que zero.');
+    }
+  }
+
+  let validUntil: Date | null = null;
+  if (payload?.valid_until) {
+    validUntil = new Date(payload.valid_until);
+    if (Number.isNaN(validUntil.getTime())) throw new Error('Data de validade inválida.');
+    // O Stripe rejeita expires_at no passado.
+    if (validUntil.getTime() <= Date.now()) {
+      throw new Error('A data de validade precisa ser no futuro.');
+    }
+  }
+
+  return { code, discountType, discountValue, duration, durationInMonths, maxUses, validUntil };
+}
+
 async function getStripeClient(supabaseClient: any) {
-  const { data: config, error } = await supabaseClient
+  const { data: config } = await supabaseClient
     .from('stripe_config')
     .select('*')
     .limit(1)
     .maybeSingle();
 
-  if (error || !config || !config.secret_key) {
-    throw new Error('Stripe configuration not found or inactive');
+  // Prioridade é a chave salva em stripe_config (fluxo da aba Configurações).
+  // Se a tabela estiver vazia — que é o caso em produção hoje —, cai na mesma
+  // secret usada por create-checkout-session e stripe-webhook. Isso garante que
+  // o admin fale com a MESMA conta Stripe que recebe o dinheiro: sem esse
+  // fallback, uma chave de teste digitada aqui criaria cupons numa conta
+  // diferente da cobrança, e o cliente tomaria recusa no Checkout.
+  const secretKey = config?.secret_key || Deno.env.get('STRIPE_SECRET_KEY');
+
+  if (!secretKey) {
+    throw new Error(
+      'Stripe não configurado: salve as chaves em Faturamento → Configurações ' +
+      'ou defina a secret STRIPE_SECRET_KEY no projeto.',
+    );
   }
 
-  const stripe = new Stripe(config.secret_key, {
+  const stripe = new Stripe(secretKey, {
     apiVersion: '2023-10-16',
     httpClient: Stripe.createFetchHttpClient(),
   });
@@ -185,6 +273,164 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, results }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'create_coupon': {
+        const { stripe } = await getStripeClient(supabaseClient);
+        const input = parseCouponPayload(payload);
+
+        // --- 1) Coupon no Stripe (o desconto em si) ---
+        const couponParams: Record<string, any> = {
+          name: input.code,
+          duration: input.duration,
+        };
+        if (input.discountType === 'percent') {
+          couponParams.percent_off = input.discountValue;
+        } else {
+          // Reais → centavos. Única conversão do fluxo.
+          couponParams.amount_off = Math.round(input.discountValue * 100);
+          couponParams.currency = COUPON_CURRENCY;
+        }
+        if (input.duration === 'repeating') {
+          couponParams.duration_in_months = input.durationInMonths;
+        }
+
+        const stripeCoupon = await stripe.coupons.create(couponParams);
+
+        // --- 2) Promotion Code (o texto digitado no Checkout) ---
+        let promotionCode: any;
+        try {
+          const promoParams: Record<string, any> = {
+            coupon: stripeCoupon.id,
+            code: input.code,
+          };
+          if (input.maxUses !== null) promoParams.max_redemptions = input.maxUses;
+          if (input.validUntil) {
+            promoParams.expires_at = Math.floor(input.validUntil.getTime() / 1000);
+          }
+          promotionCode = await stripe.promotionCodes.create(promoParams);
+        } catch (promoError) {
+          // Não deixa Coupon órfão no Stripe se o code já existir, por exemplo.
+          await stripe.coupons.del(stripeCoupon.id).catch(() => {});
+          throw promoError;
+        }
+
+        // --- 3) Persiste no nosso banco ---
+        const { data: row, error: insertError } = await supabaseClient
+          .from('coupons')
+          .insert({
+            code: input.code,
+            stripe_coupon_id: stripeCoupon.id,
+            stripe_promotion_code_id: promotionCode.id,
+            discount_type: input.discountType,
+            discount_value: input.discountValue,
+            duration: input.duration,
+            duration_in_months: input.durationInMonths,
+            max_uses: input.maxUses,
+            valid_until: input.validUntil ? input.validUntil.toISOString() : null,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          // Rollback: o cupom não pode existir no Stripe sem existir aqui.
+          await stripe.promotionCodes.update(promotionCode.id, { active: false }).catch(() => {});
+          await stripe.coupons.del(stripeCoupon.id).catch(() => {});
+
+          if (insertError.code === PG_UNDEFINED_COLUMN) {
+            throw new Error(
+              'A tabela coupons está desatualizada. Rode a migração ' +
+              '20260811000001_coupons_duration_and_promo_code.sql antes de criar cupons.',
+            );
+          }
+          throw new Error(`Falha ao salvar o cupom: ${insertError.message}`);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            coupon_id: stripeCoupon.id,
+            promotion_code_id: promotionCode.id,
+            coupon: row,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'list_coupons': {
+        const { data, error } = await supabaseClient
+          .from('coupons')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        return new Response(
+          JSON.stringify(data ?? []),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'archive_coupon': {
+        const { stripe } = await getStripeClient(supabaseClient);
+
+        const couponId = payload?.coupon_id;
+        if (!couponId) throw new Error('Informe o cupom a ser arquivado.');
+
+        // O banco é a fonte da verdade; o payload é só um atalho do frontend.
+        const { data: existing } = await supabaseClient
+          .from('coupons')
+          .select('*')
+          .eq('id', couponId)
+          .maybeSingle();
+
+        const stripeCouponId = existing?.stripe_coupon_id ?? payload?.stripe_coupon_id ?? null;
+        const storedPromoId = existing?.stripe_promotion_code_id ?? null;
+
+        // O que impede o resgate é desativar o Promotion Code — o Coupon do
+        // Stripe não tem flag `active`, só pode ser deletado (o que NÃO afeta
+        // assinaturas que já o aplicaram, apenas bloqueia novos resgates).
+        const warnings: string[] = [];
+
+        try {
+          if (storedPromoId) {
+            await stripe.promotionCodes.update(storedPromoId, { active: false });
+          } else if (stripeCouponId) {
+            // Linhas antigas não têm o id salvo: varre os codes do cupom.
+            const promos = await stripe.promotionCodes.list({
+              coupon: stripeCouponId,
+              active: true,
+              limit: 100,
+            });
+            for (const promo of promos.data) {
+              await stripe.promotionCodes.update(promo.id, { active: false });
+            }
+          }
+        } catch (e: any) {
+          warnings.push(`Promotion Code: ${e.message}`);
+        }
+
+        if (stripeCouponId) {
+          try {
+            await stripe.coupons.del(stripeCouponId);
+          } catch (e: any) {
+            // Já deletado no dashboard, por exemplo — não bloqueia o arquivamento.
+            warnings.push(`Coupon: ${e.message}`);
+          }
+        }
+
+        const { error: updateError } = await supabaseClient
+          .from('coupons')
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('id', couponId);
+
+        if (updateError) throw updateError;
+
+        return new Response(
+          JSON.stringify({ success: true, warnings }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

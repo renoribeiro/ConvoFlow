@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import StripeConfiguration from '@/components/StripeConfiguration';
+import { CouponManager } from '@/components/admin/billing/CouponManager';
 
 const CONVOFLOW_PRO_PRODUCT_ID = 'prod_Tmg5IInlTr4hi3';
 
@@ -180,6 +181,7 @@ export function BillingDashboard() {
         <TabsList>
           <TabsTrigger value="overview">Transações</TabsTrigger>
           <TabsTrigger value="subscriptions">Assinaturas</TabsTrigger>
+          <TabsTrigger value="coupons">Cupons</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
         </TabsList>
 
@@ -299,6 +301,10 @@ export function BillingDashboard() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="coupons" className="space-y-4">
+          <CouponManager />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
