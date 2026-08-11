@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
+import { BugReportButton } from '@/components/bug-report/BugReportButton';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useTenant, useIsSuperAdmin } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -97,6 +98,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
 
       {/* Right */}
       <div className="flex items-center gap-1">
+        <BugReportButton />
         <NotificationCenter />
         <ThemeToggle />
 
