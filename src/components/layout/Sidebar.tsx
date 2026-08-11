@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useMatch } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsSuperAdmin, useRole } from '@/contexts/TenantContext';
 import { useModules } from '@/hooks/useModules';
@@ -97,22 +97,32 @@ const NavItemLink = ({
   mode: SidebarMode;
   onNavigate?: () => void;
 }) => {
+  // O estado ativo é resolvido aqui em vez de pela função `className` do
+  // NavLink. Motivo: quando o item vai embrulhado em `<TooltipTrigger asChild>`,
+  // o Radix mescla as props fazendo `[classNameDoTrigger, classNameDoFilho]
+  // .join(' ')`. Com uma função, o `join` a converte em texto e despeja o
+  // código-fonte dentro do atributo `class`. Os trechos separados por espaço
+  // viram classes de verdade — `text-primary-foreground` (quase preto) e os
+  // `before:*` da barra do item ativo passavam a valer para todos os itens.
+  const isActive = !!useMatch({
+    path: item.href,
+    end: item.href === '/dashboard',
+  });
+
   const inner = (
     <NavLink
       to={item.href}
       end={item.href === '/dashboard'}
       onClick={onNavigate}
-      className={({ isActive }) =>
-        cn(
-          'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
-          isActive
-            ? 'bg-primary text-primary-foreground font-semibold shadow-sm before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-primary-foreground/40 before:rounded-r'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          // Tablet: só ícone, centralizado. Desktop: volta ao layout normal.
-          mode === 'expanded' && 'justify-center px-2 lg:justify-start lg:px-3',
-          mode === 'collapsed' && 'justify-center px-2',
-        )
-      }
+      className={cn(
+        'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
+        isActive
+          ? 'bg-primary text-primary-foreground font-semibold shadow-sm before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-primary-foreground/40 before:rounded-r'
+          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        // Tablet: só ícone, centralizado. Desktop: volta ao layout normal.
+        mode === 'expanded' && 'justify-center px-2 lg:justify-start lg:px-3',
+        mode === 'collapsed' && 'justify-center px-2',
+      )}
     >
       <item.icon className="h-4 w-4 flex-shrink-0" />
       <span
@@ -153,7 +163,7 @@ const SectionLabel = ({ label, mode }: { label: string; mode: SidebarMode }) => 
       {mode === 'expanded' && <div className="my-1 lg:hidden" />}
       <p
         className={cn(
-          'px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60',
+          'px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/60',
           mode === 'expanded' && 'hidden lg:block',
         )}
       >
@@ -279,14 +289,16 @@ export const Sidebar = ({ isOpen, onToggle, mobileOpen, onMobileClose }: Sidebar
       {/* ------------------------------------------------------------------ */}
       <div
         className={cn(
-          'hidden md:flex fixed left-0 top-0 h-full bg-card border-r border-border transition-all duration-300 z-40 flex-col',
+          // Só a largura anima. Com `transition-all`, a cor de fundo também
+          // animava e o menu ficava 300ms atrasado ao trocar de tema.
+          'hidden md:flex fixed left-0 top-0 h-full bg-sidebar border-r border-sidebar-border transition-[width] duration-300 z-40 flex-col',
           // Tablet sempre em modo ícone (64px); desktop respeita o toggle.
           'md:w-16',
           isOpen ? 'lg:w-60' : 'lg:w-14',
         )}
       >
         {/* Logo + toggle */}
-        <div className="flex items-center h-12 px-3 border-b border-border flex-shrink-0">
+        <div className="flex items-center h-12 px-3 border-b border-sidebar-border flex-shrink-0">
           {isOpen ? (
             <>
               <NavLink
@@ -338,7 +350,7 @@ export const Sidebar = ({ isOpen, onToggle, mobileOpen, onMobileClose }: Sidebar
             />
             <motion.aside
               key="sidebar-drawer"
-              className="fixed left-0 top-0 z-50 h-full w-60 max-w-[85vw] bg-card border-r border-border flex flex-col md:hidden"
+              className="fixed left-0 top-0 z-50 h-full w-60 max-w-[85vw] bg-sidebar border-r border-sidebar-border flex flex-col md:hidden"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
@@ -347,7 +359,7 @@ export const Sidebar = ({ isOpen, onToggle, mobileOpen, onMobileClose }: Sidebar
               aria-modal="true"
               aria-label="Menu de navegação"
             >
-              <div className="flex items-center h-12 px-3 border-b border-border flex-shrink-0">
+              <div className="flex items-center h-12 px-3 border-b border-sidebar-border flex-shrink-0">
                 <NavLink
                   to="/dashboard"
                   onClick={onMobileClose}
