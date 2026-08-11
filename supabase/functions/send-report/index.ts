@@ -78,7 +78,15 @@ const json = (body: unknown, status: number, cors: Record<string, string>) =>
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-async function getCaller(admin: SupabaseClient, token: string): Promise<CallerProfile> {
+// `requireTenant` default true preserva o comportamento original do relatório.
+// O fluxo de relato de bug passa false: um superadmin não tem tenant_id próprio
+// e ainda assim precisa conseguir relatar um problema.
+async function getCaller(
+  admin: SupabaseClient,
+  token: string,
+  opts: { requireTenant?: boolean } = {},
+): Promise<CallerProfile> {
+  const { requireTenant = true } = opts;
   const { data: { user }, error } = await admin.auth.getUser(token);
   if (error || !user) throw new SecureError('Token inválido', 'UNAUTHORIZED', 401);
   const { data: profile, error: profileError } = await admin
@@ -88,7 +96,7 @@ async function getCaller(admin: SupabaseClient, token: string): Promise<CallerPr
     .maybeSingle();
   if (profileError || !profile) throw new SecureError('Profile do caller não encontrado', 'NO_PROFILE', 403);
   if (profile.status && profile.status !== 'active') throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
-  if (!profile.tenant_id) throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
+  if (requireTenant && !profile.tenant_id) throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
   return profile as CallerProfile;
 }
 
@@ -369,6 +377,184 @@ async function sendWhatsApp(admin: SupabaseClient, instance: any, to: string, te
   throw new Error(`Provider de WhatsApp não suportado: ${provider}`);
 }
 
+// =============================================================================
+// Relato de bug ("Relatar um problema" — botão da Navbar)
+// =============================================================================
+// Fluxo independente do relatório: entra por { kind: 'bug_report' } e envia um
+// e-mail formatado. Remetente = REPORT_FROM_EMAIL (o mesmo dos relatórios);
+// DESTINATÁRIOS = system_settings.key='bug_report_recipients', definidos pelo
+// super admin em /dashboard/admin → Configurações (fallback: o próprio
+// REPORT_FROM_EMAIL). O anexo vai como LINK (URL assinada do bucket privado
+// bug-reports), nunca em base64 — vídeo de 50 MB estouraria o limite do Resend.
+//
+// Este caminho NÃO grava em report_executions: a linha durável do relato é
+// public.bug_reports, escrita pelo frontend antes de chamar esta função.
+
+interface BugReportRequest {
+  kind: 'bug_report';
+  description?: string;
+  attachment_url?: string | null;
+  attachment_type?: 'image' | 'video' | null;
+  page_url?: string;
+  user_email?: string;
+  user_role?: string;
+  tenant_id?: string | null;
+  store_id?: string | null;
+  tenant_name?: string | null;
+}
+
+/** Escapa texto do usuário antes de interpolar no HTML do e-mail. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderBugReportHtml(opts: {
+  description: string;
+  pageUrl: string;
+  userEmail: string;
+  userRole: string;
+  tenantName: string | null;
+  tenantId: string | null;
+  storeId: string | null;
+  attachmentUrl: string | null;
+  attachmentType: string | null;
+  reportedAt: string;
+}): string {
+  const row = (label: string, value: string) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};color:${EMAIL.muted};white-space:nowrap;">${label}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};color:${EMAIL.ink};word-break:break-word;">${value}</td>
+    </tr>`;
+
+  const attachmentBlock = opts.attachmentUrl
+    ? `<p style="margin:0 0 8px;"><a href="${escapeHtml(opts.attachmentUrl)}" style="display:inline-block;background:${EMAIL.lime};color:${EMAIL.ink};text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px;">Abrir anexo (${escapeHtml(opts.attachmentType ?? 'arquivo')})</a></p>
+       <p style="font-size:11px;color:${EMAIL.muted};margin:0;word-break:break-all;">${escapeHtml(opts.attachmentUrl)}</p>`
+    : `<p style="font-size:13px;color:${EMAIL.muted};margin:0;">Nenhum anexo enviado.</p>`;
+
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:${EMAIL.bg};font-family:${EMAIL.font};">
+  <div style="max-width:640px;margin:0 auto;padding:24px;">
+    <div style="background:${EMAIL.ink};border-radius:12px 12px 0 0;padding:24px;">
+      <div style="color:${EMAIL.bg};font-size:20px;font-weight:700;">ConvoFlow · Relato de bug</div>
+      <div style="color:${EMAIL.lime};font-size:13px;margin-top:4px;">${escapeHtml(opts.userRole)} — ${escapeHtml(opts.userEmail)}</div>
+    </div>
+    <div style="background:${EMAIL.card};border:1px solid ${EMAIL.border};border-top:none;border-radius:0 0 12px 12px;padding:24px;">
+      <h2 style="font-size:15px;color:${EMAIL.ink};margin:0 0 8px;">Descrição</h2>
+      <div style="background:${EMAIL.bg};border:1px solid ${EMAIL.border};border-radius:8px;padding:16px;font-size:14px;color:${EMAIL.ink};white-space:pre-wrap;line-height:1.5;">${escapeHtml(opts.description)}</div>
+
+      <h2 style="font-size:15px;color:${EMAIL.ink};margin:24px 0 8px;">Anexo</h2>
+      ${attachmentBlock}
+
+      <h2 style="font-size:15px;color:${EMAIL.ink};margin:24px 0 8px;">Contexto</h2>
+      <table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid ${EMAIL.border};border-radius:8px;overflow:hidden;font-size:13px;">
+        ${row('Página', `<a href="${escapeHtml(opts.pageUrl)}" style="color:${EMAIL.olive};">${escapeHtml(opts.pageUrl)}</a>`)}
+        ${row('Usuário', escapeHtml(opts.userEmail))}
+        ${row('Papel', escapeHtml(opts.userRole))}
+        ${row('Conta', escapeHtml(opts.tenantName ?? '—'))}
+        ${row('tenant_id', escapeHtml(opts.tenantId ?? '—'))}
+        ${row('store_id', escapeHtml(opts.storeId ?? '—'))}
+        ${row('Data/hora', escapeHtml(opts.reportedAt))}
+      </table>
+
+      <p style="font-size:12px;color:${EMAIL.muted};margin:24px 0 0;border-top:1px solid ${EMAIL.border};padding-top:16px;">Enviado pelo botão "Relatar um problema" do ConvoFlow. O registro completo está na tabela <strong>bug_reports</strong>.</p>
+    </div>
+  </div>
+</body></html>`;
+}
+
+/**
+ * Destinatários dos relatos, definidos pelo super admin em
+ * system_settings.key='bug_report_recipients' (UI: /dashboard/admin →
+ * Configurações). Lista ausente/vazia/toda inválida cai no fallback histórico:
+ * envia para o próprio REPORT_FROM_EMAIL.
+ *
+ * Lido com o client de service role, que ignora o RLS de superadmin da tabela —
+ * quem relata o bug é um usuário comum e não pode ler system_settings.
+ */
+async function loadBugReportRecipients(admin: SupabaseClient, fallback: string): Promise<string[]> {
+  try {
+    const { data, error } = await admin
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'bug_report_recipients')
+      .maybeSingle();
+    if (error) throw error;
+
+    const raw = (data?.value as { emails?: unknown } | null)?.emails;
+    const valid = (Array.isArray(raw) ? raw : [])
+      .map((e) => String(e).trim())
+      .filter((e) => EMAIL_RE.test(e));
+    if (valid.length) return valid;
+  } catch (e) {
+    console.warn('[send-report/bug_report] Falha ao ler bug_report_recipients:', (e as Error)?.message);
+  }
+  return [fallback];
+}
+
+async function handleBugReport(
+  admin: SupabaseClient,
+  caller: CallerProfile,
+  body: BugReportRequest,
+  cors: Record<string, string>,
+): Promise<Response> {
+  const description = (body.description ?? '').trim();
+  if (description.length < 20) {
+    throw new SecureError('A descrição precisa ter pelo menos 20 caracteres.', 'INVALID_DESCRIPTION', 400);
+  }
+
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  const from = Deno.env.get('REPORT_FROM_EMAIL');
+  if (!apiKey) throw new SecureError('RESEND_API_KEY não configurada no servidor.', 'NO_EMAIL_CONFIG', 500);
+  if (!from) throw new SecureError('REPORT_FROM_EMAIL não configurada no servidor.', 'NO_EMAIL_CONFIG', 500);
+
+  // Só aceita link de anexo do próprio Storage — impede que a chamada injete
+  // uma URL arbitrária num e-mail que sai com a marca ConvoFlow.
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const rawAttachment = body.attachment_url ?? null;
+  const attachmentUrl =
+    rawAttachment && supabaseUrl && rawAttachment.startsWith(supabaseUrl) ? rawAttachment : null;
+  if (rawAttachment && !attachmentUrl) {
+    console.warn('[send-report/bug_report] attachment_url fora do Storage do projeto — descartado.');
+  }
+
+  const userEmail = body.user_email ?? '—';
+  const userRole = body.user_role ?? '—';
+  const reportedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+  const html = renderBugReportHtml({
+    description,
+    pageUrl: body.page_url ?? '—',
+    userEmail,
+    userRole,
+    tenantName: body.tenant_name ?? null,
+    tenantId: body.tenant_id ?? caller.tenant_id ?? null,
+    storeId: body.store_id ?? null,
+    attachmentUrl,
+    attachmentType: body.attachment_type ?? null,
+    reportedAt,
+  });
+
+  // Remetente = REPORT_FROM_EMAIL (mesmo dos relatórios); destinatários vêm da
+  // configuração do super admin.
+  const recipients = await loadBugReportRecipients(admin, from);
+
+  await sendViaResend({
+    apiKey,
+    from,
+    to: recipients,
+    subject: `[ConvoFlow Bug] Relato de ${userRole} — ${userEmail}`,
+    html,
+  });
+
+  return json({ success: true, delivered: [{ channel: 'email', to: recipients }] }, 200, cors);
+}
+
 Deno.serve(async (req) => {
   const cors = buildCorsHeaders(req.headers.get('origin'));
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -387,8 +573,18 @@ Deno.serve(async (req) => {
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new SecureError('Authorization ausente', 'UNAUTHORIZED', 401);
 
+    const rawBody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    // Relato de bug: fluxo próprio, sem métricas e sem report_executions.
+    // `caller` continua null de propósito para que o catch externo não tente
+    // registrar uma execução de relatório que nunca existiu.
+    if (rawBody?.kind === 'bug_report') {
+      const bugCaller = await getCaller(admin, token, { requireTenant: false });
+      return await handleBugReport(admin, bugCaller, rawBody as unknown as BugReportRequest, cors);
+    }
+
     caller = await getCaller(admin, token);
-    body = (await req.json().catch(() => ({}))) as ReportRequest;
+    body = rawBody as ReportRequest;
 
     // Destinatários: separa e-mails de telefones a partir do mesmo campo.
     const rawRecipients = body.delivery?.recipients;
