@@ -78,15 +78,18 @@ const json = (body: unknown, status: number, cors: Record<string, string>) =>
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// `requireTenant` default true preserva o comportamento original do relatório.
-// O fluxo de relato de bug passa false: um superadmin não tem tenant_id próprio
-// e ainda assim precisa conseguir relatar um problema.
+// Os dois `require*` têm default true, preservando o comportamento original do
+// relatório. O fluxo de relato de bug passa false nos dois:
+//   - requireTenant: um superadmin não tem tenant_id próprio.
+//   - requireActive: quem está com a conta 'pending'/'suspended' é justamente
+//     quem mais precisa conseguir relatar um problema. Barrar o relato aí deixa
+//     o usuário sem canal nenhum para avisar que algo está quebrado.
 async function getCaller(
   admin: SupabaseClient,
   token: string,
-  opts: { requireTenant?: boolean } = {},
+  opts: { requireTenant?: boolean; requireActive?: boolean } = {},
 ): Promise<CallerProfile> {
-  const { requireTenant = true } = opts;
+  const { requireTenant = true, requireActive = true } = opts;
   const { data: { user }, error } = await admin.auth.getUser(token);
   if (error || !user) throw new SecureError('Token inválido', 'UNAUTHORIZED', 401);
   const { data: profile, error: profileError } = await admin
@@ -95,7 +98,7 @@ async function getCaller(
     .eq('user_id', user.id)
     .maybeSingle();
   if (profileError || !profile) throw new SecureError('Profile do caller não encontrado', 'NO_PROFILE', 403);
-  if (profile.status && profile.status !== 'active') throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
+  if (requireActive && profile.status && profile.status !== 'active') throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
   if (requireTenant && !profile.tenant_id) throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
   return profile as CallerProfile;
 }
@@ -579,7 +582,7 @@ Deno.serve(async (req) => {
     // `caller` continua null de propósito para que o catch externo não tente
     // registrar uma execução de relatório que nunca existiu.
     if (rawBody?.kind === 'bug_report') {
-      const bugCaller = await getCaller(admin, token, { requireTenant: false });
+      const bugCaller = await getCaller(admin, token, { requireTenant: false, requireActive: false });
       return await handleBugReport(admin, bugCaller, rawBody as unknown as BugReportRequest, cors);
     }
 

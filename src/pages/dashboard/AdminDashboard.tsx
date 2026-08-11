@@ -17,6 +17,7 @@ import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { BugReportSettings } from '@/components/admin/BugReportSettings';
+import { SystemSettings } from '@/components/settings/SystemSettings';
 import {
   Table,
   TableBody,
@@ -342,6 +343,7 @@ const AdminDashboard = () => {
 
         <TabsContent value="settings" className="space-y-4">
           <BugReportSettings />
+          <SystemSettings />
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
