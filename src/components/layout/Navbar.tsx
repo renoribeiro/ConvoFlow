@@ -60,7 +60,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden h-8 w-8"
+          className="md:hidden h-8 w-8"
           aria-label="Abrir menu"
         >
           <Menu className="h-4 w-4" />

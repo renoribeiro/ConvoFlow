@@ -361,11 +361,16 @@ export const ConversationsList = ({
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg h-full flex flex-col">
+    // A moldura só existe no celular, onde a lista é um cartão solto. De `md`
+    // para cima ela faz parte da superfície contínua e quem separa é a divisória.
+    <div className="bg-card border border-border rounded-lg md:border-0 md:rounded-none h-full flex flex-col">
       <div className="p-4 border-b border-border flex-shrink-0 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">Conversas Ativas</h3>
-          <div className="flex gap-2">
+        {/* Título + ações de ícone numa linha; "Nova Conversa" ganha a linha de
+            baixo. Na coluna de 320px os três lado a lado não cabiam e o botão
+            era cortado. */}
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold text-foreground truncate">Conversas Ativas</h3>
+          <div className="flex gap-2 flex-shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -396,9 +401,10 @@ export const ConversationsList = ({
             >
               <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
             </Button>
-            <NewConversationModal onConversationCreated={() => { /* lista invalidada via realtime */ }} />
           </div>
         </div>
+
+        <NewConversationModal onConversationCreated={() => { /* lista invalidada via realtime */ }} />
 
         {instances.length > 0 && (
           <InstanceSelector

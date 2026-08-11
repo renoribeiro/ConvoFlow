@@ -212,7 +212,8 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full mb-4" data-new-conversation>
+        {/* Ocupa a linha inteira: o espaçamento fica por conta de quem usa. */}
+        <Button className="w-full" data-new-conversation>
           <MessageSquarePlus className="w-4 h-4 mr-2" />
           Nova Conversa
         </Button>

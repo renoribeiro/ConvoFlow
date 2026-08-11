@@ -75,6 +75,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
 import { uploadWhatsAppMedia, detectMediaTypeFromMime } from '@/services/whatsapp/media-upload';
 import { logger } from '@/lib/logger';
+import { formatPhoneBR } from '@/lib/utils';
 import { MessageBubble, type RenderableMessage } from './MessageBubble';
 import { LeadTagsDialog } from '@/components/etiquetas/LeadTagsDialog';
 import { ContactPanel } from './ContactPanel';
@@ -444,7 +445,7 @@ export const ChatWindow = ({
   // Early returns APÓS todos os hooks
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center h-full">
+      <div className="flex-1 flex items-center justify-center h-full bg-card">
         <EmptyState
           icon={<MessageCircle className="w-full h-full" />}
           title="Nenhuma conversa selecionada"
@@ -456,7 +457,7 @@ export const ChatWindow = ({
 
   if (conversationError || messagesError) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4 h-full">
+      <div className="flex-1 flex items-center justify-center p-4 h-full bg-card">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>Erro ao carregar a conversa. Tente novamente.</AlertDescription>
@@ -762,7 +763,7 @@ export const ChatWindow = ({
 
   if (conversationLoading || messagesLoading) {
     return (
-      <div className="flex flex-col h-full bg-card border border-border rounded-lg">
+      <div className="flex flex-col h-full bg-card">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Skeleton className="w-10 h-10 rounded-full" />
@@ -789,14 +790,14 @@ export const ChatWindow = ({
       {/* Chat column */}
       <div className="flex flex-col flex-1 min-w-0 bg-card">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 sm:p-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {onBack && (
               <Button variant="ghost" size="icon" className="h-9 w-9 -ml-1 flex-shrink-0" onClick={onBack} aria-label="Voltar">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
-            <Avatar className="w-10 h-10">
+            <Avatar className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0">
               {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
               <AvatarFallback>
                 {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
@@ -815,7 +816,9 @@ export const ChatWindow = ({
                 </span>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground truncate">{contact?.phone}</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground truncate">
+                    {formatPhoneBR(contact?.phone)}
+                  </span>
                   {(contact as any)?.stage?.name && (
                     <Badge variant="outline" className="text-xs">{(contact as any).stage.name}</Badge>
                   )}

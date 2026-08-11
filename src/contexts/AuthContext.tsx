@@ -4,6 +4,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { clearActiveTenant } from '@/lib/activeTenant';
 
 interface AuthContextType {
   user: User | null;
@@ -160,6 +161,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         throw error;
       }
+
+      // A Conta ativa (impersonação do superadmin / Loja do gerente) fica no
+      // localStorage e não pode sobreviver para o próximo usuário do navegador.
+      clearActiveTenant();
 
       toast({
         title: "Logout realizado com sucesso!",
