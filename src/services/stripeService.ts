@@ -40,6 +40,44 @@ export interface AffiliateStripeAccount {
   updated_at: string;
 }
 
+/** Cupom de desconto — espelha public.coupons (valores em REAIS, não centavos). */
+export interface Coupon {
+  id: string;
+  code: string;
+  stripe_coupon_id: string | null;
+  stripe_promotion_code_id?: string | null;
+  discount_type: 'percent' | 'amount';
+  discount_value: number;
+  duration?: 'once' | 'repeating' | 'forever';
+  duration_in_months?: number | null;
+  max_uses: number | null;
+  current_uses: number | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCouponPayload {
+  code: string;
+  discount_type: 'percent' | 'amount';
+  /** Percentual (0–100) ou valor em REAIS — a conversão p/ centavos é no servidor. */
+  discount_value: number;
+  duration: 'once' | 'repeating' | 'forever';
+  /** Obrigatório quando duration = 'repeating'. */
+  duration_in_months?: number | null;
+  /** null/undefined = usos ilimitados. */
+  max_uses?: number | null;
+  /** ISO string. null/undefined = sem expiração. */
+  valid_until?: string | null;
+}
+
+export interface ArchiveCouponPayload {
+  coupon_id: string;
+  stripe_coupon_id?: string | null;
+}
+
 export interface TransactionStats {
   total_transactions: number;
   total_amount: number;
@@ -178,6 +216,60 @@ class StripeService {
       console.error('Error processing batch commissions:', error);
       throw error;
     }
+  }
+
+  /**
+   * O supabase-js entrega apenas "Edge Function returned a non-2xx status code"
+   * quando a função responde 400 — a mensagem real (em pt-BR) vem no corpo, que
+   * fica em `error.context`. Sem isso o dialog de cupom mostraria erro genérico.
+   */
+  private async extractFunctionError(error: any): Promise<string> {
+    try {
+      const body = await error?.context?.json?.();
+      if (body?.error) return String(body.error);
+    } catch {
+      // corpo não-JSON ou já consumido → cai no fallback
+    }
+    return error?.message || 'Erro inesperado ao falar com o Stripe.';
+  }
+
+  /**
+   * Admin: cria um cupom (Coupon + Promotion Code no Stripe e a linha em coupons).
+   */
+  async createCoupon(payload: CreateCouponPayload): Promise<{
+    success: boolean;
+    coupon_id: string;
+    promotion_code_id: string;
+    coupon?: Coupon;
+  }> {
+    const { data, error } = await supabase.functions.invoke('stripe-admin', {
+      body: { action: 'create_coupon', payload }
+    });
+    if (error) throw new Error(await this.extractFunctionError(error));
+    return data;
+  }
+
+  /**
+   * Admin: lista os cupons cadastrados (mais recentes primeiro).
+   */
+  async listCoupons(): Promise<Coupon[]> {
+    const { data, error } = await supabase.functions.invoke('stripe-admin', {
+      body: { action: 'list_coupons' }
+    });
+    if (error) throw new Error(await this.extractFunctionError(error));
+    return (data as Coupon[]) || [];
+  }
+
+  /**
+   * Admin: arquiva um cupom — desativa o Promotion Code e remove o Coupon do
+   * Stripe (assinaturas que já aplicaram o desconto não são afetadas).
+   */
+  async archiveCoupon(payload: ArchiveCouponPayload): Promise<{ success: boolean; warnings?: string[] }> {
+    const { data, error } = await supabase.functions.invoke('stripe-admin', {
+      body: { action: 'archive_coupon', payload }
+    });
+    if (error) throw new Error(await this.extractFunctionError(error));
+    return data;
   }
 
   // Database operations
