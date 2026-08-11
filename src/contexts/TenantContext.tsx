@@ -12,6 +12,7 @@ import {
   resolveCapabilities,
   roleAtLeast,
 } from '@/types/userHierarchy';
+import { clearActiveTenant, readActiveTenant, writeActiveTenant } from '@/lib/activeTenant';
 
 type Tenant = Tables<'tenants'>;
 type Profile = Tables<'profiles'>;
@@ -39,14 +40,40 @@ interface TenantContextType {
   canSwitchTenant: boolean;
 }
 
-/**
- * Chave de localStorage que guarda a Conta que o superadmin escolheu
- * "entrar". Persistida para sobreviver a reloads. Ignorada para qualquer
- * usuário que não seja superadmin (gate por role em loadTenantData).
- */
-const ACTIVE_TENANT_KEY = 'convoflow-active-tenant';
-
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
+
+/**
+ * A Conta ativa fica no localStorage e sobrevive à troca de usuário, então
+ * precisa ser validada contra quem está logado AGORA. Sem isso, um gerente que
+ * entra depois de um superadmin no mesmo navegador herda a Conta que o
+ * superadmin havia escolhido — e passa a ver (ou não ver) dados de outra Conta.
+ *
+ *   - superadmin: pode entrar em qualquer Conta.
+ *   - gerente: só a própria Conta ou uma Loja filha dela.
+ *   - demais roles: nunca — o tenant vem sempre do próprio perfil.
+ */
+const canUseActiveTenant = async (
+  role: UserRole | null,
+  ownTenantId: string | null,
+  activeTenantId: string,
+): Promise<boolean> => {
+  if (role === 'superadmin') return true;
+  if (role !== 'gerente' || !ownTenantId) return false;
+  if (activeTenantId === ownTenantId) return true;
+
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('id', activeTenantId)
+    .eq('parent_tenant_id', ownTenantId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[TenantContext] Erro ao validar Conta ativa:', error);
+    return false;
+  }
+  return !!data;
+};
 
 export const useTenant = () => {
   const context = useContext(TenantContext);
@@ -61,13 +88,9 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [impersonatedTenantId, setImpersonatedTenantId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(ACTIVE_TENANT_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [impersonatedTenantId, setImpersonatedTenantId] = useState<string | null>(
+    () => readActiveTenant(),
+  );
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -117,10 +140,29 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // Superadmin (qualquer Conta) e Gerente (suas próprias Lojas) podem trocar a
     // Conta/Loja ativa. Para gestor/atendente o tenant é sempre o próprio.
     const switchRole = normalizeRole(profileData.role as AnyUserRole | undefined);
-    const canSwitch = switchRole === 'superadmin' || switchRole === 'gerente';
-    const effectiveTenantId = (canSwitch && impersonatedTenantId)
-      ? impersonatedTenantId
-      : profileData.tenant_id;
+
+    let effectiveTenantId = profileData.tenant_id;
+
+    if (impersonatedTenantId) {
+      const permitido = await canUseActiveTenant(
+        switchRole,
+        profileData.tenant_id,
+        impersonatedTenantId,
+      );
+
+      if (permitido) {
+        effectiveTenantId = impersonatedTenantId;
+      } else {
+        // Chave órfã — tipicamente sobrou de outro usuário no mesmo navegador.
+        // Descarta e segue com a Conta do próprio perfil.
+        console.warn(
+          '[TenantContext] Conta ativa persistida não pertence a este usuário; descartando.',
+          impersonatedTenantId,
+        );
+        clearActiveTenant();
+        setImpersonatedTenantId(null);
+      }
+    }
 
     if (!effectiveTenantId) {
       setTenant(null);
@@ -152,15 +194,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const setActiveTenant = (tenantId: string | null) => {
-    try {
-      if (tenantId) {
-        localStorage.setItem(ACTIVE_TENANT_KEY, tenantId);
-      } else {
-        localStorage.removeItem(ACTIVE_TENANT_KEY);
-      }
-    } catch {
-      // localStorage indisponível (modo privado, etc.) — segue só com o estado.
-    }
+    writeActiveTenant(tenantId);
     // Dispara o useEffect (deps inclui impersonatedTenantId) → recarrega o
     // tenant efetivo. Como o queryKey das queries inclui tenant?.id, o
     // TanStack Query refetcha automaticamente os dados da nova Conta.
