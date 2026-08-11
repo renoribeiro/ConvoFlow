@@ -69,7 +69,7 @@ export const DashboardLayout = () => {
           Tablet: barra em modo ícone (64px). Desktop: 240px ou 56px. */}
       <div
         className={cn(
-          'flex flex-col min-h-screen min-w-0 transition-all duration-300 md:ml-16',
+          'flex flex-col min-h-screen min-w-0 transition-[margin] duration-300 md:ml-16',
           sidebarOpen ? 'lg:ml-60' : 'lg:ml-14',
         )}
       >

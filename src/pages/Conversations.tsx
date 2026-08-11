@@ -180,9 +180,19 @@ export default function Conversations() {
     />
   );
 
+  // No celular, conversa aberta ocupa a tela inteira: o cabeçalho da página não
+  // ajuda a conversar e custa ~230px de altura. `dvh` em vez de `vh` porque no
+  // navegador do celular a barra de endereço entra na conta.
+  const chatEmTelaCheia = isMobile && !!selectedConversation;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] -m-6">
-      <div className="px-6 py-4 bg-background border-b border-border flex-shrink-0">
+    <div className="flex flex-col h-[calc(100dvh-80px)] -m-6">
+      <div
+        className={cn(
+          'px-6 py-4 bg-background border-b border-border flex-shrink-0',
+          chatEmTelaCheia && 'hidden',
+        )}
+      >
         <PageHeader
           title="Conversas"
           description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
@@ -258,9 +268,15 @@ export default function Conversations() {
 
       {isMobile ? (
         // Mobile: show ONLY the list OR the chat (never both).
-        <div className="flex-1 overflow-hidden min-h-0 p-4">
+        <div className={cn('flex-1 overflow-hidden min-h-0', chatEmTelaCheia ? 'p-0' : 'p-4')}>
           {selectedConversation ? (
-            <div className="h-full border border-border rounded-lg overflow-hidden">
+            <div
+              className={cn(
+                'h-full overflow-hidden',
+                // Sem moldura na tela cheia — a conversa encosta nas bordas.
+                !chatEmTelaCheia && 'border border-border rounded-lg',
+              )}
+            >
               <ChatWindow
                 conversationId={selectedConversation}
                 onBack={() => setSelectedConversation(null)}
@@ -276,10 +292,12 @@ export default function Conversations() {
         </div>
       ) : (
         // Desktop: list + chat (+ contact panel rendered inside ChatWindow).
-        <div className="flex flex-1 gap-4 p-6 overflow-hidden min-h-0">
-          <div className="w-80 flex-shrink-0 h-full">{list}</div>
+        // Superfície contínua: sem molduras nem respiro entre as colunas — a
+        // separação é uma divisória só, como num cliente de mensagens.
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          <div className="w-80 flex-shrink-0 h-full border-r border-border">{list}</div>
 
-          <div className="flex-1 border border-border rounded-lg h-full overflow-hidden">
+          <div className="flex-1 h-full overflow-hidden">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={selectedConversation ?? 'empty'}
