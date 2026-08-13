@@ -17,6 +17,7 @@ import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { BugReportSettings } from '@/components/admin/BugReportSettings';
+import { RoleDescriptionCard } from '@/components/admin/RoleDescriptionCard';
 import { SystemSettings } from '@/components/settings/SystemSettings';
 import {
   Table,
@@ -145,7 +146,10 @@ const AdminDashboard = () => {
     lastName: '',
     email: '',
     phone: '',
-    role: 'user' as User['role'],
+    // 'atendente' e não 'user': 'user' é nome de cargo legado, não casa com
+    // nenhuma opção do <Select> e fazia o campo abrir vazio. O `as User['role']`
+    // fica para o useState inferir o tipo da união, não o literal.
+    role: 'atendente' as User['role'],
     isActive: true,
     tenantId: '',
     /** Só para Gerente: nome da Conta a criar junto com o convite. */
@@ -260,7 +264,9 @@ const AdminDashboard = () => {
       lastName: '',
       email: '',
       phone: '',
-      role: 'user' as User['role'],
+      // Mesmo padrão do estado inicial — senão o formulário voltava a abrir
+      // vazio depois de criar ou cancelar.
+      role: 'atendente' as User['role'],
       isActive: true,
       tenantId: '',
       newTenantName: '',
@@ -790,6 +796,15 @@ const AdminDashboard = () => {
                   <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
+              {/*
+                Gestor e atendente já ganham o aviso de limite por loja logo
+                abaixo, junto do seletor de Loja — o cartão omite essa linha
+                nesses dois casos para não repetir.
+              */}
+              <RoleDescriptionCard
+                role={userForm.role}
+                hideStoreCaps={userForm.role === 'gestor' || userForm.role === 'atendente'}
+              />
             </div>
             {/*
               O vínculo depende da função, e cada uma quer uma coisa diferente:
@@ -931,6 +946,8 @@ const AdminDashboard = () => {
                   <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Sem hideStoreCaps: este modal não mostra o aviso de limite. */}
+              <RoleDescriptionCard role={userForm.role} />
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox

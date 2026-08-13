@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RoleDescriptionCard } from '@/components/admin/RoleDescriptionCard';
 import { useRole } from '@/contexts/TenantContext';
 import { useInviteUser } from '@/hooks/users/useManageUser';
 import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
@@ -151,6 +152,11 @@ export function InviteUserModal({
                 ))}
               </SelectContent>
             </Select>
+            {/*
+              Sem hideStoreCaps: este modal não mostra o aviso de limite por
+              loja, então o cartão pode dizer "Criar até 5 atendentes na loja".
+            */}
+            <RoleDescriptionCard role={role} />
           </div>
           {requiresTenant && (
             <div>
