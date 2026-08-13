@@ -148,7 +148,7 @@ const AdminDashboard = () => {
     role: 'user' as User['role'],
     isActive: true,
     tenantId: '',
-    /** Só para Gerente: nome da Conta (agência) a criar junto com o convite. */
+    /** Só para Gerente: nome da Conta a criar junto com o convite. */
     newTenantName: '',
     planType: 'basic'
   });
@@ -287,9 +287,9 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Gerente é dono de uma agência: a Conta dele é criada agora.
+    // Gerente é dono de uma Conta: ela é criada agora, junto com o convite.
     if (userForm.role === 'gerente' && !userForm.newTenantName.trim()) {
-      toast.error('Informe o nome da Conta (Agência) do gerente');
+      toast.error('Informe o nome da Conta do gerente');
       return;
     }
 
@@ -711,9 +711,9 @@ const AdminDashboard = () => {
                     <TableCell className="text-muted-foreground">Administradores com acesso total</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Agências</TableCell>
+                    <TableCell className="font-medium">Contas</TableCell>
                     <TableCell>{usersWithEmails.filter((u: any) => u.role === 'gerente').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Agências/Gerentes (gerenciam Lojas afiliadas)</TableCell>
+                    <TableCell className="text-muted-foreground">Gerentes (donos de Conta, gerenciam as Lojas dela)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Lojas</TableCell>
@@ -795,7 +795,7 @@ const AdminDashboard = () => {
               O vínculo depende da função, e cada uma quer uma coisa diferente:
 
                 Superadmin → nada. Não pertence a Conta nenhuma.
-                Gerente    → é DONO de uma agência. As lojas dele vêm depois,
+                Gerente    → é DONO de uma Conta. As lojas dele vêm depois,
                              criadas por ele. Então aqui se dá NOME a uma Conta
                              nova, que o servidor cria junto com o convite.
                 Gestor     → administra UMA loja que já existe.
@@ -806,12 +806,12 @@ const AdminDashboard = () => {
             */}
             {userForm.role === 'gerente' && (
               <div>
-                <Label htmlFor="create-account-name">Nome da Conta (Agência)</Label>
+                <Label htmlFor="create-account-name">Nome da Conta</Label>
                 <Input
                   id="create-account-name"
                   value={userForm.newTenantName}
                   onChange={(e) => setUserForm(prev => ({ ...prev, newTenantName: e.target.value }))}
-                  placeholder="Ex.: Agência Silva Marketing"
+                  placeholder="Ex.: Silva Comércio"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Uma Conta nova é criada para este gerente. As lojas dele são cadastradas depois.

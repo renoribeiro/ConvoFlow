@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
         phone: body.phone,
         role: mapRole(body.role),
         tenantId: body.tenantId,
-        // Nome da Conta (agência) quando a função é Gerente — o manage-user
+        // Nome da Conta quando a função é Gerente — o manage-user
         // cria a Conta e vincula o convite a ela.
         newTenantName: body.newTenantName,
         redirectTo: body.redirectTo,

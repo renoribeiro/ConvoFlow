@@ -23,7 +23,7 @@ import {
   createErrorResponse,
   DataSanitizer,
 } from '../_shared/validation.ts';
-import { can, CAPABILITY_DENIAL_MESSAGES } from '../_shared/capabilities.ts';
+import { can, CAPABILITY_DENIAL_MESSAGES, normalizeRole } from '../_shared/capabilities.ts';
 
 type Action =
   | 'create'
@@ -65,9 +65,9 @@ interface RequestPayload {
    */
   isActive?: boolean;
   /**
-   * Nome da Conta (Agência) a criar junto com um GERENTE.
+   * Nome da Conta a criar junto com um GERENTE.
    *
-   * Gerente é dono de uma agência, não funcionário de uma loja: as lojas dele
+   * Gerente é dono de uma Conta, não funcionário de uma loja: as lojas dele
    * vêm depois, penduradas nessa Conta. Não existia jeito de criar Conta pela
    * interface (só SQL), então convidar gerente pelo painel era impossível —
    * o trigger handle_new_user derrubava por falta de tenant_id.
@@ -176,16 +176,16 @@ async function ensureStoreHasRoom(
 }
 
 /**
- * Cria a Conta (agência) de um gerente novo.
+ * Cria a Conta de um gerente novo.
  *
- * `kind='account'` + `parent_tenant_id=null` é o formato de uma agência — as
- * lojas dela nascem depois com `parent_tenant_id` apontando para cá. O slug é
+ * `kind='account'` + `parent_tenant_id=null` é o formato de uma Conta de topo —
+ * as lojas dela nascem depois com `parent_tenant_id` apontando para cá. O slug é
  * NOT NULL e único, então vai com sufixo aleatório (mesmo padrão das Contas que
  * já existem, ex.: "mario-acioli-b29f1afd").
  *
  * Só o superadmin chega aqui: ensureCanCreate já barrou todo mundo antes.
  */
-async function criarContaAgencia(
+async function criarConta(
   admin: SupabaseClient,
   nome: string,
 ): Promise<string> {
@@ -213,7 +213,7 @@ async function criarContaAgencia(
 
   if (error || !data) {
     throw new SecureError(
-      `Falha ao criar a Conta da agência: ${error?.message ?? 'desconhecida'}`,
+      `Falha ao criar a Conta: ${error?.message ?? 'desconhecida'}`,
       'TENANT_CREATE_FAILED',
       500,
     );
@@ -221,6 +221,37 @@ async function criarContaAgencia(
   return data.id as string;
 }
 
+/** Achata o retorno de descendant_profile_ids (uuid[] ou [{id}]). */
+function idsDeDescendentes(data: unknown): string[] {
+  if (!Array.isArray(data)) return [];
+  return (data as Array<string | { id: string }>).map((x) =>
+    typeof x === 'string' ? x : x.id,
+  );
+}
+
+/**
+ * Quem pode agir sobre quem.
+ *
+ *   superadmin → qualquer perfil (menos o próprio)
+ *   gerente    → seus descendentes na árvore de perfis
+ *   gestor     → atendentes da própria loja
+ *   atendente  → ninguém
+ *
+ * NÃO usa mais a RPC `can_manage_profile`. Ela tinha DOIS defeitos que juntos
+ * faziam toda ação sobre outro perfil falhar com "Sem permissão sobre este
+ * perfil", inclusive para superadmin:
+ *
+ *   1. Descobria o chamador com `WHERE user_id = auth.uid()`. Esta função é
+ *      chamada com a chave de serviço, onde não há JWT — `auth.uid()` é NULL,
+ *      nenhuma linha casa, e ela saía no `IF v_caller_id IS NULL RETURN FALSE`
+ *      antes mesmo de olhar o alvo.
+ *   2. Comparava contra 'account_manager' e 'enterprise', nomes de cargo de
+ *      duas renomeações atrás, sem nenhuma linha em produção.
+ *
+ * A regra agora mora aqui, onde o chamador já está resolvido pelo JWT (getCaller)
+ * e não depende de contexto de sessão no banco. A RPC continua existindo para
+ * quem a chame com sessão de usuário de verdade.
+ */
 async function ensureCanManage(
   admin: SupabaseClient,
   caller: CallerProfile,
@@ -233,12 +264,49 @@ async function ensureCanManage(
       403,
     );
   }
-  const { data, error } = await admin.rpc('can_manage_profile', {
-    target_id: targetId,
-  });
-  if (error || data !== true) {
-    throw new SecureError('Sem permissão sobre este perfil', 'FORBIDDEN', 403);
+
+  const papel = normalizeRole(caller.role);
+
+  if (papel === 'superadmin') return;
+
+  const alvo = await fetchTarget(admin, targetId);
+
+  if (papel === 'gerente') {
+    const { data, error } = await admin.rpc('descendant_profile_ids', {
+      root_id: caller.id,
+    });
+    if (error) {
+      throw new SecureError(
+        `Falha ao verificar permissão: ${error.message}`,
+        'PERMISSION_CHECK_FAILED',
+        500,
+      );
+    }
+    if (idsDeDescendentes(data).includes(targetId)) return;
+    throw new SecureError(
+      'Este usuário não pertence à sua Conta.',
+      'FORBIDDEN',
+      403,
+    );
   }
+
+  if (papel === 'gestor') {
+    const alvoPapel = normalizeRole(alvo.role);
+    if (
+      alvoPapel === 'atendente' &&
+      alvo.tenant_id &&
+      alvo.tenant_id === caller.tenant_id
+    ) {
+      return;
+    }
+    throw new SecureError(
+      'Gestor só gerencia os atendentes da própria Loja.',
+      'FORBIDDEN',
+      403,
+    );
+  }
+
+  throw new SecureError('Sem permissão sobre este perfil.', 'FORBIDDEN', 403);
 }
 
 async function fetchTarget(admin: SupabaseClient, id: string) {
@@ -338,19 +406,19 @@ async function actionCreate(
     );
   }
 
-  // Gerente é dono de uma agência: a Conta dele nasce aqui, vazia, e as lojas
-  // vêm depois. Sem isto, convidar gerente pelo painel era impossível — não há
-  // nenhuma tela que crie Conta, e o trigger do banco exige tenant_id para
-  // qualquer role que não seja superadmin.
+  // Gerente é dono de uma Conta: ela nasce aqui, vazia, e as lojas vêm depois.
+  // Sem isto, convidar gerente pelo painel era impossível — não há nenhuma tela
+  // que crie Conta, e o trigger do banco exige tenant_id para qualquer role que
+  // não seja superadmin.
   if (effectiveRole === 'gerente' && !resolvedTenantId) {
     if (!newTenantName?.trim()) {
       throw new SecureError(
-        'Informe o nome da Conta (Agência) do gerente.',
+        'Informe o nome da Conta do gerente.',
         'VALIDATION_ERROR',
         400,
       );
     }
-    resolvedTenantId = await criarContaAgencia(admin, newTenantName.trim());
+    resolvedTenantId = await criarConta(admin, newTenantName.trim());
   }
 
   // Respeita o limite da loja ANTES de convidar (evita usuário órfão no Auth).
