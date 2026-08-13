@@ -25,6 +25,12 @@ import {
   groupByAttendance,
   type AttendanceGroup,
 } from './conversationGroups';
+import {
+  applyQuickFilter,
+  buildQuickFilterCounts,
+  type QuickFilterCounts,
+  type QuickFilterType,
+} from './quickFilters';
 
 interface ConversationsListProps {
   searchQuery: string;
@@ -34,6 +40,14 @@ interface ConversationsListProps {
   isArchived?: boolean;
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  /**
+   * Pílula de filtro rápido ativa. As pílulas que viram coluna real já chegam
+   * aqui traduzidas em `hasUnread`/`isArchived`; esta prop serve só para o
+   * recorte derivado ("Aguardando" / "Em atendimento"), que é feito no cliente.
+   */
+  quickFilter?: QuickFilterType;
+  /** Devolve ao pai as contagens conhecidas do conjunto carregado. */
+  onCountsChange?: (counts: QuickFilterCounts) => void;
   /**
    * Quando definido, lista apenas conversas vinculadas a essa instância.
    * 'all' (ou undefined) lista todas as instâncias da tenant.
@@ -87,6 +101,8 @@ export const ConversationsList = ({
   isArchived = false,
   dateFrom = null,
   dateTo = null,
+  quickFilter = 'todas',
+  onCountsChange,
   whatsappInstanceId,
   onInstanceChange,
   onItemsChange,
@@ -169,6 +185,34 @@ export const ConversationsList = ({
     [conversations],
   );
 
+  // --- Filtros rápidos (pílulas) ---
+  // As contagens saem do que já foi carregado, sem query extra. Só as chaves
+  // que o recorte de servidor atual consegue cobrir são publicadas; o pai
+  // mantém o último valor conhecido das demais.
+  const countsPatch = useMemo(
+    () => buildQuickFilterCounts(filteredConversations, { hasUnread, isArchived }),
+    [filteredConversations, hasUnread, isArchived],
+  );
+
+  const lastCountsSignature = useRef<string>('');
+  useEffect(() => {
+    // Trocar de pílula muda a query: enquanto a primeira página não chega o
+    // conjunto está vazio, e publicar isso faria as pílulas piscarem zero.
+    if (isLoading) return;
+    const signature = JSON.stringify(countsPatch);
+    if (signature !== lastCountsSignature.current) {
+      lastCountsSignature.current = signature;
+      onCountsChange?.(countsPatch);
+    }
+  }, [countsPatch, isLoading, onCountsChange]);
+
+  // "Aguardando"/"Em atendimento" não existem como coluna — recorte no cliente,
+  // reaproveitando a regra de `conversationGroups.ts`.
+  const visibleConversations = useMemo(
+    () => applyQuickFilter(filteredConversations, quickFilter),
+    [filteredConversations, quickFilter],
+  );
+
   // --- Agrupamento por nível de atendimento (opt-in, persistido no navegador) ---
   const [groupByAttendanceEnabled, setGroupByAttendanceEnabled] = useState(readGroupByPreference);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<AttendanceGroup>>(readCollapsedGroups);
@@ -191,18 +235,18 @@ export const ConversationsList = ({
   };
 
   const attendanceBuckets = useMemo(
-    () => (groupByAttendanceEnabled ? groupByAttendance(filteredConversations) : []),
-    [groupByAttendanceEnabled, filteredConversations],
+    () => (groupByAttendanceEnabled ? groupByAttendance(visibleConversations) : []),
+    [groupByAttendanceEnabled, visibleConversations],
   );
 
   // Ids na ordem em que aparecem na tela — itens dentro de grupos recolhidos
   // ficam de fora para que a navegação por teclado não pule para o invisível.
   const visibleIds = useMemo(() => {
-    if (!groupByAttendanceEnabled) return filteredConversations.map((c) => c.id);
+    if (!groupByAttendanceEnabled) return visibleConversations.map((c) => c.id);
     return attendanceBuckets
       .filter((bucket) => !collapsedGroups.has(bucket.group))
       .flatMap((bucket) => bucket.items.map((c) => c.id));
-  }, [groupByAttendanceEnabled, attendanceBuckets, collapsedGroups, filteredConversations]);
+  }, [groupByAttendanceEnabled, attendanceBuckets, collapsedGroups, visibleConversations]);
 
   // Publish the ordered ids so keyboard navigation in the parent can move between
   // items — only when the set actually changes (avoids re-render cascades).
@@ -415,7 +459,7 @@ export const ConversationsList = ({
         )}
 
         <p className="text-xs text-muted-foreground">
-          {isLoading ? 'Carregando...' : `${filteredConversations.length} conversas`}
+          {isLoading ? 'Carregando...' : `${visibleConversations.length} conversas`}
         </p>
       </div>
 
@@ -427,12 +471,12 @@ export const ConversationsList = ({
                 <ConversationSkeleton key={i} />
               ))}
             </div>
-          ) : filteredConversations.length === 0 ? (
+          ) : visibleConversations.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-muted-foreground">Nenhuma conversa encontrada</p>
             </div>
           ) : !groupByAttendanceEnabled ? (
-            filteredConversations.map(renderConversation)
+            visibleConversations.map(renderConversation)
           ) : (
             attendanceBuckets.map(({ group, items }) => {
               const meta = ATTENDANCE_GROUP_META[group];
