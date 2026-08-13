@@ -44,7 +44,7 @@ export const CTASection = () => {
                 variant="secondary"
                 className="bg-white text-brand-dark hover:bg-white/90 group w-full sm:w-auto"
               >
-                Começar Teste Gratuito
+                Começar Agora
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>

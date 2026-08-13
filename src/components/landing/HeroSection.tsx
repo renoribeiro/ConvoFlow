@@ -45,7 +45,7 @@ export const HeroSection = () => {
             >
               <Link to="/auth">
                 <Button size="xl" variant="whatsapp" className="group w-full sm:w-auto">
-                  Começar Gratuitamente
+                  Começar Agora
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>

@@ -35,27 +35,31 @@ export const LandingFooter = () => {
             <ul className="space-y-2">
               <li><a href="#features" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Funcionalidades</a></li>
               <li><a href="#pricing" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Preços</a></li>
-              <li><Link to="/dashboard" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Dashboard</Link></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">API</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Integrações</a></li>
             </ul>
           </div>
 
-          {/* Support Links */}
+          {/* Access Links */}
           <div>
-            <h3 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">Suporte</h3>
+            <h3 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">Acesso</h3>
             <ul className="space-y-2">
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Central de Ajuda</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Documentação</a></li>
-              <li><a href="#" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Status</a></li>
-              <li><Link to="/login" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Login</Link></li>
-              <li><Link to="/register" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Cadastro</Link></li>
+              <li><Link to="/login" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Entrar</Link></li>
+              <li><Link to="/dashboard" className="text-sm sm:text-base text-gray-300 hover:text-brand-primary transition-colors">Painel</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-700 mt-6 sm:mt-8 pt-6 sm:pt-8 text-center text-gray-400">
-          <p className="text-xs sm:text-sm">&copy; 2024 ConvoFlow. Todos os direitos reservados.</p>
+        <div className="border-t border-gray-700 mt-6 sm:mt-8 pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-gray-400">
+          <p className="text-xs sm:text-sm text-center sm:text-left">
+            &copy; {new Date().getFullYear()} ConvoFlow. Todos os direitos reservados.
+          </p>
+          <nav className="flex items-center gap-4 sm:gap-6">
+            <Link to="/terms-of-service" className="text-xs sm:text-sm hover:text-brand-primary transition-colors">
+              Termos de Uso
+            </Link>
+            <Link to="/privacy-policy" className="text-xs sm:text-sm hover:text-brand-primary transition-colors">
+              Política de Privacidade
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>

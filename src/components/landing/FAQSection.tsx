@@ -14,10 +14,6 @@ export const FAQSection = () => {
       answer: 'O ConvoFlow se conecta diretamente à API oficial do WhatsApp Business, garantindo máxima confiabilidade e conformidade. Você mantém seu número atual e todas as conversas ficam centralizadas em nossa plataforma.'
     },
     {
-      question: 'Posso testar antes de assinar?',
-      answer: 'Sim! Oferecemos 3 dias de teste gratuito com acesso completo a todas as funcionalidades. Não pedimos cartão de crédito para começar.'
-    },
-    {
       question: 'É possível integrar com meu CRM/ERP atual?',
       answer: 'Absolutamente! Temos integração nativa com os principais CRMs do mercado (Pipedrive, RD Station, HubSpot, etc.) e também oferecemos API para integrações customizadas.'
     },
@@ -39,7 +35,7 @@ export const FAQSection = () => {
     },
     {
       question: 'Posso cancelar a qualquer momento?',
-      answer: 'Sim, não há fidelidade. Você pode cancelar sua assinatura a qualquer momento e ainda oferecemos garantia de 30 dias para reembolso total.'
+      answer: 'Sim, não há fidelidade. Você pode cancelar sua assinatura a qualquer momento, e o acesso permanece ativo até o fim do ciclo já pago.'
     }
   ];
 
