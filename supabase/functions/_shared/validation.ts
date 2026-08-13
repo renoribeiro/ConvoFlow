@@ -182,11 +182,23 @@ function getCorsOrigin(requestOrigin?: string | null): string {
   return ALLOWED_ORIGINS[0];
 }
 
+/**
+ * Métodos liberados no preflight.
+ *
+ * DELETE entrou em 2026-08-13. Sem ele, o navegador manda o OPTIONS, vê que
+ * DELETE não está na lista e ABORTA a requisição antes de sair — o front recebe
+ * um "Failed to fetch" seco, sem status e sem corpo. Era isso que impedia
+ * excluir usuário pelo painel (admin-create-user aceita DELETE desde sempre; a
+ * chamada é que nunca chegava). PUT/PATCH entram junto para não repetir a
+ * novela quando alguém adicionar uma rota dessas.
+ */
+const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
+
 export function buildCorsHeaders(requestOrigin?: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': getCorsOrigin(requestOrigin),
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': ALLOWED_METHODS,
   };
 }
 
@@ -194,5 +206,5 @@ export function buildCorsHeaders(requestOrigin?: string | null): Record<string, 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': getCorsOrigin(),
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': ALLOWED_METHODS
 };

@@ -78,6 +78,37 @@ interface User {
   avatarUrl?: string;
 }
 
+/**
+ * Tira a mensagem de dentro do erro de uma edge function.
+ *
+ * O `FunctionsHttpError` do supabase-js guarda a resposta crua em `.context`.
+ * As funções deste projeto devolvem DOIS formatos:
+ *   { error: "texto" }                        (json() direto)
+ *   { error: { message, code, requestId } }   (createErrorResponse/SecureError)
+ *
+ * O código antigo pegava `ctx.error` e jogava no toast sem olhar o tipo — no
+ * segundo formato isso virava o famoso "[object Object]", que escondeu por
+ * completo o motivo real da falha ao criar usuário.
+ */
+const extrairMensagemDeErro = async (error: unknown): Promise<string> => {
+  const fallback = error instanceof Error ? error.message : 'Erro desconhecido';
+  const contexto = (error as { context?: unknown })?.context;
+  if (!contexto) return fallback;
+
+  let corpo: any = contexto;
+  if (typeof (contexto as Response)?.json === 'function') {
+    corpo = await (contexto as Response).json().catch(() => null);
+  }
+  if (!corpo) return fallback;
+
+  const detalhe = corpo.error ?? corpo.message;
+  if (typeof detalhe === 'string' && detalhe.trim()) return detalhe;
+  if (detalhe && typeof detalhe.message === 'string' && detalhe.message.trim()) {
+    return detalhe.message;
+  }
+  return fallback;
+};
+
 interface Subscription {
   id: string;
   userId: string;
@@ -117,6 +148,8 @@ const AdminDashboard = () => {
     role: 'user' as User['role'],
     isActive: true,
     tenantId: '',
+    /** Só para Gerente: nome da Conta a criar junto com o convite. */
+    newTenantName: '',
     planType: 'basic'
   });
 
@@ -148,7 +181,8 @@ const AdminDashboard = () => {
   const { data: tenantsRows = [], refetch: refetchTenants } = useSupabaseQuery({
     table: 'tenants',
     queryKey: ['admin-tenants-access'],
-    select: 'id, name, subscription_status, manual_access_granted, manual_access_granted_at',
+    select: 'id, name, kind, subscription_status, manual_access_granted, manual_access_granted_at',
+    orderBy: [{ column: 'name', ascending: true }],
     enabled: !!user && !authLoading && isSuperAdmin,
   });
   const tenantById: Record<string, any> = {};
@@ -229,6 +263,7 @@ const AdminDashboard = () => {
       role: 'user' as User['role'],
       isActive: true,
       tenantId: '',
+      newTenantName: '',
       planType: 'basic'
     });
   };
@@ -236,6 +271,25 @@ const AdminDashboard = () => {
   const handleCreateUser = async () => {
     if (!userForm.firstName || !userForm.lastName || !userForm.email) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    // O convite é um e-mail de verdade: endereço sem domínio válido só falha lá
+    // no Auth, com uma mensagem que não ajuda ninguém.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(userForm.email)) {
+      toast.error('E-mail inválido. Use um endereço completo, como nome@empresa.com.br');
+      return;
+    }
+
+    // Gestor e Atendente vivem dentro de uma Loja que já existe.
+    if ((userForm.role === 'gestor' || userForm.role === 'atendente') && !userForm.tenantId) {
+      toast.error('Selecione a Loja do usuário');
+      return;
+    }
+
+    // Gerente é dono de uma Conta: ela é criada agora, junto com o convite.
+    if (userForm.role === 'gerente' && !userForm.newTenantName.trim()) {
+      toast.error('Informe o nome da Conta do gerente');
       return;
     }
 
@@ -251,19 +305,13 @@ const AdminDashboard = () => {
           role: userForm.role,
           isActive: userForm.isActive,
           tenantId: userForm.tenantId || null,
+          newTenantName: userForm.newTenantName.trim() || null,
           redirectTo: window.location.origin,
         }
       });
 
       if (error) {
-        let msg = error.message;
-        if (error.context && error.context.error) {
-           msg = error.context.error;
-        } else if (error instanceof Error && (error as any).context) {
-           const ctx = await (error as any).context.json().catch(() => null);
-           if (ctx && ctx.error) msg = ctx.error;
-        }
-        throw new Error(msg);
+        throw new Error(await extrairMensagemDeErro(error));
       }
 
       if (data?.warning) {
@@ -316,7 +364,7 @@ const AdminDashboard = () => {
         body: { userId: selectedUser.id }
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extrairMensagemDeErro(error));
 
       toast.success('Usuário excluído com sucesso!');
       setIsDeleteUserOpen(false);
@@ -566,6 +614,8 @@ const AdminDashboard = () => {
                                   role: user.role,
                                   isActive: checkboxValueFor(user),
                                   tenantId: user.tenant_id || '',
+                                  // Só a criação cria Conta; editar nunca mexe nisso.
+                                  newTenantName: '',
                                   planType: 'basic'
                                 });
                                 setIsEditUserOpen(true);
@@ -661,9 +711,9 @@ const AdminDashboard = () => {
                     <TableCell className="text-muted-foreground">Administradores com acesso total</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Agências</TableCell>
+                    <TableCell className="font-medium">Contas</TableCell>
                     <TableCell>{usersWithEmails.filter((u: any) => u.role === 'gerente').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Agências/Gerentes (gerenciam Lojas afiliadas)</TableCell>
+                    <TableCell className="text-muted-foreground">Gerentes (donos de Conta, gerenciam as Lojas dela)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Lojas</TableCell>
@@ -741,6 +791,60 @@ const AdminDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
+            {/*
+              O vínculo depende da função, e cada uma quer uma coisa diferente:
+
+                Superadmin → nada. Não pertence a Conta nenhuma.
+                Gerente    → é DONO de uma Conta. As lojas dele vêm depois,
+                             criadas por ele. Então aqui se dá NOME a uma Conta
+                             nova, que o servidor cria junto com o convite.
+                Gestor     → administra UMA loja que já existe.
+                Atendente  → atende dentro de UMA loja que já existe.
+
+              Nenhum destes campos existia: o formulário não perguntava nada e
+              mandava tenantId nulo, então só dava pra criar Superadmin.
+            */}
+            {userForm.role === 'gerente' && (
+              <div>
+                <Label htmlFor="create-account-name">Nome da Conta</Label>
+                <Input
+                  id="create-account-name"
+                  value={userForm.newTenantName}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, newTenantName: e.target.value }))}
+                  placeholder="Ex.: Silva Comércio"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Uma Conta nova é criada para este gerente. As lojas dele são cadastradas depois.
+                </p>
+              </div>
+            )}
+            {(userForm.role === 'gestor' || userForm.role === 'atendente') && (
+              <div>
+                <Label htmlFor="create-tenant">Loja</Label>
+                <Select
+                  value={userForm.tenantId}
+                  onValueChange={(value) => setUserForm(prev => ({ ...prev, tenantId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a Loja" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(tenantsRows as any[])
+                      .filter((t) => t.kind === 'store')
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {userForm.role === 'gestor'
+                    ? 'Cada loja tem no máximo 1 gestor.'
+                    : 'Cada loja tem no máximo 5 atendentes.'}
+                </p>
+              </div>
+            )}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="create-active"

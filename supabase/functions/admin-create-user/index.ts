@@ -20,23 +20,42 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { buildCorsHeaders } from '../_shared/validation.ts';
 
-type LegacyRole = 'super_admin' | 'tenant_admin' | 'tenant_user' | 'user' | string;
-type NewRole = 'superadmin' | 'account_manager' | 'enterprise' | 'user';
+type NewRole = 'superadmin' | 'gerente' | 'gestor' | 'atendente';
 
-function mapRole(legacy: LegacyRole | undefined | null): NewRole {
-  switch (legacy) {
-    case 'super_admin':
+/**
+ * Normaliza a função para o enum atual.
+ *
+ * BUG CORRIGIDO EM 2026-08-13: este mapa só conhecia os nomes LEGADOS
+ * (tenant_admin, enterprise, account_manager...) e devolvia os nomes legados
+ * também. O painel manda os nomes atuais desde a migração V2, então
+ * `gestor`, `gerente` e `atendente` caíam todos no `default` e viravam `user`.
+ *
+ * O estrago: manage-user recebia role='user', que não é gestor nem atendente,
+ * então ele PULAVA a exigência de tenantId e mandava o convite assim mesmo —
+ * aí o trigger handle_new_user derrubava com "tenant_id e obrigatorio no
+ * raw_user_meta_data para role user". Ou seja: criar Gestor pelo painel era
+ * impossível, e a mensagem de erro apontava para o lugar errado.
+ */
+function mapRole(role: string | undefined | null): NewRole {
+  switch (role) {
     case 'superadmin':
+    case 'super_admin':
       return 'superadmin';
-    case 'tenant_admin':
-    case 'enterprise':
-      return 'enterprise';
+    case 'gerente':
+    case 'agencia':
     case 'account_manager':
-      return 'account_manager';
+      return 'gerente';
+    case 'gestor':
+    case 'loja':
+    case 'enterprise':
+    case 'tenant_admin':
     case 'tenant_user':
     case 'user':
+      return 'gestor';
+    case 'atendente':
+      return 'atendente';
     default:
-      return 'user';
+      return 'gestor';
   }
 }
 
@@ -120,6 +139,9 @@ Deno.serve(async (req: Request) => {
         phone: body.phone,
         role: mapRole(body.role),
         tenantId: body.tenantId,
+        // Nome da Conta quando a função é Gerente — o manage-user
+        // cria a Conta e vincula o convite a ela.
+        newTenantName: body.newTenantName,
         redirectTo: body.redirectTo,
         // Caixa "Usuário ativo": o convidado continua nascendo 'pending' (ele
         // ainda precisa concluir o cadastro), mas a intenção viaja junto e é

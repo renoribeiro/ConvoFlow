@@ -21,7 +21,7 @@ export default function TeamPage() {
   const heading = role === 'gerente' ? 'Minhas Lojas' : 'Minha Equipe';
   const description =
     role === 'gerente'
-      ? 'Lojas afiliadas à sua Agência.'
+      ? 'Lojas da sua Conta.'
       : tenant?.name
         ? `Usuários da Conta ${tenant.name}.`
         : 'Selecione uma Conta para gerenciar a equipe.';

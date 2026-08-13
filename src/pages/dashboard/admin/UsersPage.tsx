@@ -28,7 +28,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Gestão de Usuários"
-        description="Hierarquia completa de Superadmins, Agências e Lojas."
+        description="Hierarquia completa de Superadmins, Contas e Lojas."
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Administração', href: '/dashboard/admin' },
