@@ -76,3 +76,6 @@ Icon?
 # Claude Code / MCP — contém tokens locais, NÃO commitar
 .claude/
 .mcp.json
+
+# estado local do CLI do Supabase — nao versionar
+supabase/.temp/
