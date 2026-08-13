@@ -368,8 +368,60 @@ serve(async (req) => {
 
         if (error) throw error;
 
+        const rows = data ?? [];
+
+        // Quem conta resgate é o Stripe (times_redeemed do Promotion Code):
+        // nada no nosso banco incrementa current_uses, então a coluna nascia e
+        // morria em 0. Puxamos os codes em lote e sobrescrevemos o valor.
+        //
+        // Best-effort de propósito: se o Stripe estiver fora, a lista ainda
+        // renderiza com o último valor gravado em vez de estourar a tela.
+        try {
+          const { stripe } = await getStripeClient(supabaseClient);
+
+          const redeemedByPromoId = new Map<string, number>();
+          let startingAfter: string | undefined;
+
+          // 100 por página; o teto de 10 voltas é só trava contra loop infinito.
+          for (let page = 0; page < 10; page++) {
+            const batch = await stripe.promotionCodes.list({
+              limit: 100,
+              ...(startingAfter ? { starting_after: startingAfter } : {}),
+            });
+
+            for (const promo of batch.data) {
+              redeemedByPromoId.set(promo.id, promo.times_redeemed ?? 0);
+            }
+
+            if (!batch.has_more || batch.data.length === 0) break;
+            startingAfter = batch.data[batch.data.length - 1].id;
+          }
+
+          for (const row of rows) {
+            const uses = row.stripe_promotion_code_id
+              ? redeemedByPromoId.get(row.stripe_promotion_code_id)
+              : undefined;
+
+            if (uses === undefined || uses === row.current_uses) continue;
+
+            row.current_uses = uses;
+
+            // Grava de volta para a coluna parar de mentir para quem ler a
+            // tabela direto (relatórios, SQL editor, futuras telas).
+            await supabaseClient
+              .from('coupons')
+              .update({ current_uses: uses })
+              .eq('id', row.id);
+          }
+        } catch (syncError: any) {
+          console.error(
+            'list_coupons: falha ao sincronizar usos com o Stripe —',
+            syncError?.message ?? syncError,
+          );
+        }
+
         return new Response(
-          JSON.stringify(data ?? []),
+          JSON.stringify(rows),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
