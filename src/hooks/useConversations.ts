@@ -96,6 +96,15 @@ export const useConversations = ({
         throw new Error('Tenant ID is required');
       }
 
+      const term = searchQuery.trim();
+
+      // O PostgREST só descarta a linha-pai por causa de um filtro no embed
+      // quando o join é `!inner`. Sem essa dica o `.or()` abaixo era aplicado
+      // apenas ao embed e a busca devolvia a lista inteira. Fora da busca o
+      // embed continua LEFT, para não sumir com conversas cujo contato não
+      // veio junto.
+      const contactsEmbed = term ? 'contacts!inner' : 'contacts';
+
       let query = supabase
         .from('conversations')
         .select(`
@@ -107,7 +116,7 @@ export const useConversations = ({
           created_at,
           updated_at,
           tenant_id,
-          contacts (
+          ${contactsEmbed} (
             id,
             name,
             phone,
@@ -144,10 +153,15 @@ export const useConversations = ({
         query = query.eq('whatsapp_instance_id', whatsappInstanceId);
       }
 
-      // Aplicar filtro de busca
-      if (searchQuery.trim()) {
+      // Aplicar filtro de busca — o `.or()` vai no recurso embutido (`contacts`)
+      // e, com o join inner acima, recorta as conversas. O valor vai entre aspas
+      // porque nome e telefone podem conter vírgula e parênteses, que são
+      // separadores na gramática de filtros do PostgREST.
+      if (term) {
+        const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         query = query.or(
-          `contacts.name.ilike.%${searchQuery}%,contacts.phone.ilike.%${searchQuery}%`
+          `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
+          { referencedTable: 'contacts' }
         );
       }
 

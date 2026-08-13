@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -9,6 +9,12 @@ import {
   DEFAULT_FILTER_STATE,
   type ConversationsFilterState,
 } from '@/components/conversations/ConversationFiltersModal';
+import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
+import {
+  resolveQuickFilterScope,
+  type QuickFilterCounts,
+  type QuickFilterType,
+} from '@/components/conversations/quickFilters';
 import { useConversationByContact, useCreateConversation } from '@/hooks/useConversations';
 import { EtiquetasManagerSheet } from '@/components/etiquetas/EtiquetasManagerSheet';
 import { Search, Filter, Tag } from 'lucide-react';
@@ -33,6 +39,9 @@ export default function Conversations() {
   // Busca compacta do mobile: fica como lupa e expande em campo ao toque.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
+  // Pílulas de filtro rápido (seleção única) + contagens vindas da lista.
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>('todas');
+  const [quickFilterCounts, setQuickFilterCounts] = useState<QuickFilterCounts>({});
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const { notifyNewMessage } = useNotifications();
@@ -165,19 +174,49 @@ export default function Conversations() {
     (filters.dateFrom ? 1 : 0) +
     (filters.dateTo ? 1 : 0);
 
+  // A pílula ativa vira filtro de servidor quando existe coluna para ela; o que
+  // ela não cobre continua vindo do modal "Filtros". Só "Arquivadas" sobrescreve
+  // o modal — as duas coisas convivem sem se anular.
+  const quickScope = useMemo(
+    () =>
+      resolveQuickFilterScope(quickFilter, {
+        hasUnread: filters.hasUnread,
+        isArchived: filters.isArchived,
+      }),
+    [quickFilter, filters.hasUnread, filters.isArchived],
+  );
+
+  // A lista publica só as contagens que o recorte carregado consegue cobrir —
+  // as demais mantêm o último valor conhecido em vez de zerar.
+  const handleQuickFilterCounts = useCallback((counts: QuickFilterCounts) => {
+    setQuickFilterCounts((prev) => ({ ...prev, ...counts }));
+  }, []);
+
   const list = (
-    <ConversationsList
-      searchQuery={searchQuery}
-      selectedId={selectedConversation}
-      onSelect={setSelectedConversation}
-      hasUnread={filters.hasUnread}
-      isArchived={filters.isArchived}
-      dateFrom={filters.dateFrom}
-      dateTo={filters.dateTo}
-      whatsappInstanceId={activeInstanceId}
-      onInstanceChange={setActiveInstanceId}
-      onItemsChange={setItemIds}
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <QuickFilterPills
+        value={quickFilter}
+        onChange={setQuickFilter}
+        counts={quickFilterCounts}
+        className={cn('flex-shrink-0 pb-3', isMobile ? 'px-0' : 'px-4 pt-4')}
+      />
+      <div className="min-h-0 flex-1">
+        <ConversationsList
+          searchQuery={searchQuery}
+          selectedId={selectedConversation}
+          onSelect={setSelectedConversation}
+          hasUnread={quickScope.hasUnread}
+          isArchived={quickScope.isArchived}
+          quickFilter={quickFilter}
+          onCountsChange={handleQuickFilterCounts}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          whatsappInstanceId={activeInstanceId}
+          onInstanceChange={setActiveInstanceId}
+          onItemsChange={setItemIds}
+        />
+      </div>
+    </div>
   );
 
   // No celular, conversa aberta ocupa a tela inteira: o cabeçalho da página não
