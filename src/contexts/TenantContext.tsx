@@ -24,7 +24,12 @@ interface TenantContextType {
   loading: boolean;
   error: string | null;
   refreshTenant: () => Promise<void>;
-  updateTenantSettings: (settings: any) => Promise<void>;
+  /**
+   * Merge raso em `tenants.settings`. Passe `{ silent: true }` quando a tela
+   * chamadora já dá o próprio retorno — sem isso saem dois toasts (o genérico
+   * daqui e o da tela).
+   */
+  updateTenantSettings: (settings: any, options?: { silent?: boolean }) => Promise<void>;
   /**
    * True quando um superadmin está "dentro" de uma Conta que não é a sua
    * (impersonação). Usado para mostrar o banner/seletor de Conta ativa.
@@ -201,7 +206,10 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setImpersonatedTenantId(tenantId);
   };
 
-  const updateTenantSettings = async (settings: Record<string, unknown>) => {
+  const updateTenantSettings = async (
+    settings: Record<string, unknown>,
+    options?: { silent?: boolean },
+  ) => {
     if (!tenant) {
       throw new Error('Nenhuma Conta carregada');
     }
@@ -230,17 +238,21 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       } : null);
 
-      toast({
-        title: 'Sucesso',
-        description: 'Configurações atualizadas com sucesso',
-      });
+      if (!options?.silent) {
+        toast({
+          title: 'Sucesso',
+          description: 'Configurações atualizadas com sucesso',
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao atualizar configurações';
-      toast({
-        title: 'Erro',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      if (!options?.silent) {
+        toast({
+          title: 'Erro',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      }
       throw err;
     }
   };

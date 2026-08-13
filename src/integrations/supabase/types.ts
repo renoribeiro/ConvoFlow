@@ -1421,6 +1421,8 @@ export type Database = {
           id: string
           is_archived: boolean | null
           last_message_at: string | null
+          sla_muted_at: string | null
+          sla_muted_by: string | null
           tenant_id: string
           unread_count: number | null
           updated_at: string | null
@@ -1432,6 +1434,8 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           last_message_at?: string | null
+          sla_muted_at?: string | null
+          sla_muted_by?: string | null
           tenant_id: string
           unread_count?: number | null
           updated_at?: string | null
@@ -1443,6 +1447,8 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           last_message_at?: string | null
+          sla_muted_at?: string | null
+          sla_muted_by?: string | null
           tenant_id?: string
           unread_count?: number | null
           updated_at?: string | null

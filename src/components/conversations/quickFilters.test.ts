@@ -4,12 +4,13 @@ import {
   buildQuickFilterCounts,
   matchesQuickFilter,
   resolveQuickFilterScope,
+  visibleQuickFilters,
 } from './quickFilters';
-import type { AttendanceInput } from './conversationGroups';
+import { DEFAULT_SLA_THRESHOLDS, type SlaInput } from './slaLevels';
 
 const NOW = new Date('2026-08-13T15:00:00.000Z');
 
-function conv(overrides: Partial<AttendanceInput> = {}): AttendanceInput {
+function conv(overrides: Partial<SlaInput> = {}): SlaInput {
   return {
     unread_count: 0,
     last_message_direction: 'outbound',
@@ -17,6 +18,16 @@ function conv(overrides: Partial<AttendanceInput> = {}): AttendanceInput {
     ...overrides,
   };
 }
+
+const SLA_LIGADO = { enabled: true, thresholds: DEFAULT_SLA_THRESHOLDS };
+const SLA_DESLIGADO = { enabled: false, thresholds: DEFAULT_SLA_THRESHOLDS };
+
+/** Cliente esperando há 6h — atrasada nos limites padrão. */
+const naoRespondida = conv({
+  unread_count: 1,
+  last_message_direction: 'inbound',
+  last_message_at: '2026-08-13T09:00:00.000Z',
+});
 
 /** Uma de cada: não lida (waiting), respondida agora (in_progress) e antiga (idle). */
 const naoLida = conv({ unread_count: 2, last_message_direction: 'inbound' });
@@ -127,5 +138,57 @@ describe('buildQuickFilterCounts', () => {
       aguardando: 0,
       'em-atendimento': 0,
     });
+  });
+});
+
+describe('pílula "Não respondidas" (SLA)', () => {
+  const lista = [naoLida, emAtendimento, semPendencia, naoRespondida];
+
+  it('some da lista de pílulas quando a Loja não ligou a sinalização', () => {
+    expect(visibleQuickFilters(false).map((f) => f.id)).not.toContain('nao-respondidas');
+    expect(visibleQuickFilters(true).map((f) => f.id)).toContain('nao-respondidas');
+  });
+
+  it('não vira filtro de servidor', () => {
+    expect(resolveQuickFilterScope('nao-respondidas', { hasUnread: false, isArchived: false })).toEqual({
+      hasUnread: false,
+      isArchived: false,
+    });
+  });
+
+  it('aceita só as conversas fora do nível ok', () => {
+    expect(matchesQuickFilter(naoRespondida, 'nao-respondidas', NOW, SLA_LIGADO)).toBe(true);
+    expect(matchesQuickFilter(emAtendimento, 'nao-respondidas', NOW, SLA_LIGADO)).toBe(false);
+  });
+
+  it('ignora conversas silenciadas', () => {
+    const silenciada = { ...naoRespondida, sla_muted_at: '2026-08-13T10:00:00.000Z' };
+    expect(matchesQuickFilter(silenciada, 'nao-respondidas', NOW, SLA_LIGADO)).toBe(false);
+  });
+
+  it('não recorta nada quando o SLA está desligado', () => {
+    expect(applyQuickFilter(lista, 'nao-respondidas', NOW, SLA_DESLIGADO)).toBe(lista);
+    expect(applyQuickFilter(lista, 'nao-respondidas', NOW)).toBe(lista);
+  });
+
+  it('recorta preservando a ordem quando o SLA está ligado', () => {
+    expect(applyQuickFilter(lista, 'nao-respondidas', NOW, SLA_LIGADO)).toEqual([naoRespondida]);
+  });
+
+  it('publica a contagem apenas com o SLA ligado', () => {
+    const comSla = buildQuickFilterCounts(lista, { hasUnread: false, isArchived: false }, NOW, SLA_LIGADO);
+    expect(comSla['nao-respondidas']).toBe(1);
+
+    const semSla = buildQuickFilterCounts(lista, { hasUnread: false, isArchived: false }, NOW, SLA_DESLIGADO);
+    expect('nao-respondidas' in semSla).toBe(false);
+  });
+
+  it('não altera a contagem das outras pílulas', () => {
+    const comSla = buildQuickFilterCounts(lista, { hasUnread: false, isArchived: false }, NOW, SLA_LIGADO);
+    const semSla = buildQuickFilterCounts(lista, { hasUnread: false, isArchived: false }, NOW);
+    expect(comSla.todas).toBe(semSla.todas);
+    expect(comSla.aguardando).toBe(semSla.aguardando);
+    expect(comSla['nao-lidas']).toBe(semSla['nao-lidas']);
+    expect(comSla['em-atendimento']).toBe(semSla['em-atendimento']);
   });
 });

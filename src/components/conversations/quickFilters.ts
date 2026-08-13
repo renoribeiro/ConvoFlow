@@ -7,9 +7,13 @@
  *   - "Não lidas" e "Arquivadas" viram filtro DE SERVIDOR (`unread_count > 0` e
  *     `is_archived`), porque são colunas reais. Assim a paginação por cursor
  *     continua trazendo o conjunto certo página após página.
- *   - "Aguardando" e "Em atendimento" são níveis DERIVADOS (a regra vive em
- *     `conversationGroups.ts` e não é duplicada aqui), então só podem ser
- *     aplicados no cliente, sobre o que já foi carregado.
+ *   - "Aguardando", "Não respondidas" e "Em atendimento" são níveis DERIVADOS
+ *     (as regras vivem em `conversationGroups.ts` e `slaLevels.ts` e não são
+ *     duplicadas aqui), então só podem ser aplicados no cliente, sobre o que já
+ *     foi carregado.
+ *
+ * "Não respondidas" ainda depende da Loja ter ligado a sinalização de SLA — com
+ * ela desligada a pílula não existe (ver `visibleQuickFilters`).
  */
 
 import {
@@ -17,11 +21,13 @@ import {
   type AttendanceGroup,
   type AttendanceInput,
 } from './conversationGroups';
+import { resolveSlaLevel, type SlaInput, type SlaThresholds } from './slaLevels';
 
 export type QuickFilterType =
   | 'todas'
   | 'nao-lidas'
   | 'aguardando'
+  | 'nao-respondidas'
   | 'em-atendimento'
   | 'arquivadas';
 
@@ -29,9 +35,25 @@ export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; 
   { id: 'todas', label: 'Todas', hint: 'Todas as conversas ativas.' },
   { id: 'nao-lidas', label: 'Não lidas', hint: 'Conversas com mensagens ainda não lidas.' },
   { id: 'aguardando', label: 'Aguardando', hint: 'O cliente falou por último e ainda não foi respondido.' },
+  { id: 'nao-respondidas', label: 'Não respondidas', hint: 'Conversas pendentes há mais tempo que o limite configurado pela Loja.' },
   { id: 'em-atendimento', label: 'Em atendimento', hint: 'Você respondeu por último e a conversa se mexeu nas últimas 24h.' },
   { id: 'arquivadas', label: 'Arquivadas', hint: 'Conversas arquivadas.' },
 ] as const;
+
+/** Configuração de SLA da Loja, quando a sinalização está ligada. */
+export interface SlaFilterConfig {
+  enabled: boolean;
+  thresholds: SlaThresholds;
+}
+
+/**
+ * Pílulas visíveis para esta Loja. Com a sinalização de SLA desligada,
+ * "Não respondidas" não aparece — não fica desabilitada, some.
+ */
+export function visibleQuickFilters(slaEnabled: boolean): typeof QUICK_FILTERS {
+  if (slaEnabled) return QUICK_FILTERS;
+  return QUICK_FILTERS.filter((filter) => filter.id !== 'nao-respondidas');
+}
 
 /** Contagem por pílula. Chave ausente = desconhecida no conjunto carregado. */
 export type QuickFilterCounts = Partial<Record<QuickFilterType, number>>;
@@ -65,25 +87,42 @@ export function resolveQuickFilterScope(
   };
 }
 
+/** True para as pílulas que só existem como regra no cliente. */
+function isDerivedFilter(quickFilter: QuickFilterType): boolean {
+  return quickFilter === 'nao-respondidas' || !!ATTENDANCE_BY_FILTER[quickFilter];
+}
+
 /** Predicado do lado do cliente. Só as pílulas derivadas descartam algo aqui. */
 export function matchesQuickFilter(
-  conversation: AttendanceInput,
+  conversation: SlaInput,
   quickFilter: QuickFilterType,
   now: Date = new Date(),
+  sla?: SlaFilterConfig,
 ): boolean {
+  if (quickFilter === 'nao-respondidas') {
+    // Sem SLA ligado a pílula nem aparece; se chegar aqui (estado antigo na
+    // tela), não recorta nada em vez de esvaziar a lista.
+    if (!sla?.enabled) return true;
+    return resolveSlaLevel(conversation, sla.thresholds, now) !== 'ok';
+  }
+
   const required = ATTENDANCE_BY_FILTER[quickFilter];
   if (!required) return true;
   return resolveAttendanceGroup(conversation, now) === required;
 }
 
 /** Aplica o recorte derivado preservando a ordem que veio da query. */
-export function applyQuickFilter<T extends AttendanceInput>(
+export function applyQuickFilter<T extends SlaInput>(
   conversations: T[],
   quickFilter: QuickFilterType,
   now: Date = new Date(),
+  sla?: SlaFilterConfig,
 ): T[] {
-  if (!ATTENDANCE_BY_FILTER[quickFilter]) return conversations;
-  return conversations.filter((conversation) => matchesQuickFilter(conversation, quickFilter, now));
+  if (!isDerivedFilter(quickFilter)) return conversations;
+  if (quickFilter === 'nao-respondidas' && !sla?.enabled) return conversations;
+  return conversations.filter((conversation) =>
+    matchesQuickFilter(conversation, quickFilter, now, sla),
+  );
 }
 
 /**
@@ -98,9 +137,10 @@ export function applyQuickFilter<T extends AttendanceInput>(
  * agrupamento por nível de atendimento já fazia.
  */
 export function buildQuickFilterCounts(
-  conversations: AttendanceInput[],
+  conversations: SlaInput[],
   scope: QuickFilterScope,
   now: Date = new Date(),
+  sla?: SlaFilterConfig,
 ): QuickFilterCounts {
   // Universo dos arquivados: só sabemos o total deles.
   if (scope.isArchived) return { arquivadas: conversations.length };
@@ -110,18 +150,27 @@ export function buildQuickFilterCounts(
   let naoLidas = 0;
   let aguardando = 0;
   let emAtendimento = 0;
+  let naoRespondidas = 0;
 
   for (const conversation of conversations) {
     if ((conversation.unread_count ?? 0) > 0) naoLidas += 1;
     const group = resolveAttendanceGroup(conversation, now);
     if (group === 'waiting') aguardando += 1;
     else if (group === 'in_progress') emAtendimento += 1;
+    if (sla?.enabled && resolveSlaLevel(conversation, sla.thresholds, now) !== 'ok') {
+      naoRespondidas += 1;
+    }
   }
 
-  return {
+  const counts: QuickFilterCounts = {
     todas: conversations.length,
     'nao-lidas': naoLidas,
     aguardando,
     'em-atendimento': emAtendimento,
   };
+
+  // Com o SLA desligado a chave nem é publicada — a pílula não existe.
+  if (sla?.enabled) counts['nao-respondidas'] = naoRespondidas;
+
+  return counts;
 }
