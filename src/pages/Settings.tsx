@@ -6,8 +6,10 @@ import {
   Bell,
   Shield,
   Database,
-  CreditCard
+  CreditCard,
+  Headset
 } from 'lucide-react';
+import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
@@ -44,10 +46,14 @@ export default function Settings() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Perfil
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center gap-2">
+            <Headset className="w-4 h-4" />
+            Atendimento
           </TabsTrigger>
           <TabsTrigger value="subscription" className="flex items-center gap-2">
             <CreditCard className="w-4 h-4" />
@@ -69,6 +75,10 @@ export default function Settings() {
 
         <TabsContent value="profile">
           <ProfileSettings />
+        </TabsContent>
+
+        <TabsContent value="attendance">
+          <AttendanceSettings />
         </TabsContent>
 
         <TabsContent value="subscription">

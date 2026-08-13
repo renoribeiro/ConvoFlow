@@ -31,6 +31,11 @@ import {
   type QuickFilterCounts,
   type QuickFilterType,
 } from './quickFilters';
+import { resolveSlaLevel } from './slaLevels';
+import { SlaIndicator } from './SlaIndicator';
+import { SlaMuteButton } from './SlaMuteButton';
+import { useSlaConfig } from '@/hooks/useSlaConfig';
+import { useSlaMutedConversations } from '@/hooks/useSlaMute';
 
 interface ConversationsListProps {
   searchQuery: string;
@@ -109,6 +114,15 @@ export const ConversationsList = ({
 }: ConversationsListProps) => {
   const { instances } = useWhatsAppInstancesWithAdapter();
 
+  // Sinalização de conversas não respondidas: opt-in por Loja. Desligada, nada
+  // abaixo roda — nem a query do mapa de silenciadas.
+  const { enabled: slaEnabled, thresholds: slaThresholds } = useSlaConfig();
+  const { data: slaMutedMap } = useSlaMutedConversations(slaEnabled);
+  const slaConfig = useMemo(
+    () => ({ enabled: slaEnabled, thresholds: slaThresholds }),
+    [slaEnabled, slaThresholds],
+  );
+
   const conversationsQuery = useConversations({
     pageSize: 20,
     searchQuery,
@@ -173,6 +187,8 @@ export const ConversationsList = ({
           last_message_at: conv.last_message_at,
           last_message_direction: lastDirection as 'inbound' | 'outbound',
           last_message_status: lastStatus,
+          // Vem de uma query própria, não do select da lista (ver useSlaMute).
+          sla_muted_at: slaMutedMap?.[conv.id] ?? null,
           unread_count: conv.unread_count,
           is_group: isGroup,
           contact_source: conv.contacts?.lead_sources?.name || null,
@@ -182,7 +198,7 @@ export const ConversationsList = ({
             .filter(Boolean) as Array<{ id: string; name: string; color: string }>,
         };
       }),
-    [conversations],
+    [conversations, slaMutedMap],
   );
 
   // --- Filtros rápidos (pílulas) ---
@@ -190,8 +206,8 @@ export const ConversationsList = ({
   // que o recorte de servidor atual consegue cobrir são publicadas; o pai
   // mantém o último valor conhecido das demais.
   const countsPatch = useMemo(
-    () => buildQuickFilterCounts(filteredConversations, { hasUnread, isArchived }),
-    [filteredConversations, hasUnread, isArchived],
+    () => buildQuickFilterCounts(filteredConversations, { hasUnread, isArchived }, undefined, slaConfig),
+    [filteredConversations, hasUnread, isArchived, slaConfig],
   );
 
   const lastCountsSignature = useRef<string>('');
@@ -209,8 +225,8 @@ export const ConversationsList = ({
   // "Aguardando"/"Em atendimento" não existem como coluna — recorte no cliente,
   // reaproveitando a regra de `conversationGroups.ts`.
   const visibleConversations = useMemo(
-    () => applyQuickFilter(filteredConversations, quickFilter),
-    [filteredConversations, quickFilter],
+    () => applyQuickFilter(filteredConversations, quickFilter, undefined, slaConfig),
+    [filteredConversations, quickFilter, slaConfig],
   );
 
   // --- Agrupamento por nível de atendimento (opt-in, persistido no navegador) ---
@@ -297,6 +313,11 @@ export const ConversationsList = ({
       conversation.last_interaction_at &&
       differenceInMinutes(new Date(), new Date(conversation.last_interaction_at)) < PRESENCE_THRESHOLD_MIN;
     const isNewLead = !conversation.contact_current_stage;
+    // Com o SLA desligado nada disto aparece: nível fixo em 'ok' e sem botão.
+    const slaLevel = slaEnabled ? resolveSlaLevel(conversation, slaThresholds) : 'ok';
+    const isSlaMuted = slaEnabled && !!conversation.sla_muted_at;
+    // Silenciada resolve sempre 'ok' — o botão continua à mão para reverter.
+    const showSlaMuteButton = slaEnabled && (slaLevel !== 'ok' || isSlaMuted);
     return (
       <div
         key={conversation.id}
@@ -356,7 +377,8 @@ export const ConversationsList = ({
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <div className="flex gap-1 min-w-0 flex-wrap">
+              <div className="flex gap-1 min-w-0 flex-wrap items-center">
+                <SlaIndicator level={slaLevel} lastMessageAt={conversation.last_message_at} />
                 {isNewLead && (
                   <Badge variant="outline" className="border-0 bg-accent/15 text-accent text-[10px] font-medium px-1.5">
                     Novo Lead
@@ -381,11 +403,16 @@ export const ConversationsList = ({
                   </Badge>
                 )}
               </div>
-              {hasUnreadMsgs && (
-                <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--unread-strong))] px-1.5 text-[11px] font-bold text-[hsl(var(--unread-on-strong))] shadow-sm">
-                  {conversation.unread_count}
-                </span>
-              )}
+              <div className="flex flex-shrink-0 items-center gap-1">
+                {hasUnreadMsgs && (
+                  <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-[hsl(var(--unread-strong))] px-1.5 text-[11px] font-bold text-[hsl(var(--unread-on-strong))] shadow-sm">
+                    {conversation.unread_count}
+                  </span>
+                )}
+                {showSlaMuteButton && (
+                  <SlaMuteButton conversationId={conversation.id} isMuted={isSlaMuted} />
+                )}
+              </div>
             </div>
           </div>
         </div>

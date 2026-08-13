@@ -3,13 +3,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { QUICK_FILTERS, type QuickFilterCounts, type QuickFilterType } from './quickFilters';
+import { visibleQuickFilters, type QuickFilterCounts, type QuickFilterType } from './quickFilters';
 
 interface QuickFilterPillsProps {
   value: QuickFilterType;
   onChange: (value: QuickFilterType) => void;
   /** Contagens do conjunto carregado. Chave ausente = sem contagem conhecida. */
   counts?: QuickFilterCounts;
+  /** Sinalização de SLA da Loja. Desligada, a pílula "Não respondidas" não existe. */
+  slaEnabled?: boolean;
   className?: string;
 }
 
@@ -24,9 +26,11 @@ export const QuickFilterPills = ({
   value,
   onChange,
   counts = {},
+  slaEnabled = false,
   className,
 }: QuickFilterPillsProps) => {
   const reduceMotion = useReducedMotion();
+  const filters = visibleQuickFilters(slaEnabled);
 
   return (
     <div
@@ -40,7 +44,7 @@ export const QuickFilterPills = ({
         className,
       )}
     >
-      {QUICK_FILTERS.map(({ id, label, hint }) => {
+      {filters.map(({ id, label, hint }) => {
         const isActive = value === id;
         const count = counts[id];
 

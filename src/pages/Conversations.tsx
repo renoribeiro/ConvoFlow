@@ -16,6 +16,7 @@ import {
   type QuickFilterType,
 } from '@/components/conversations/quickFilters';
 import { useConversationByContact, useCreateConversation } from '@/hooks/useConversations';
+import { useSlaConfig } from '@/hooks/useSlaConfig';
 import { EtiquetasManagerSheet } from '@/components/etiquetas/EtiquetasManagerSheet';
 import { Search, Filter, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,13 @@ export default function Conversations() {
   const [searchParams] = useSearchParams();
   const { notifyNewMessage } = useNotifications();
   const isMobile = useIsMobile();
+  const { enabled: slaEnabled } = useSlaConfig();
+
+  // A pílula "Não respondidas" só existe com a sinalização de SLA ligada. Se a
+  // Loja desligar com ela ativa, volta para "Todas" em vez de deixar um filtro
+  // invisível recortando a lista.
+  const effectiveQuickFilter: QuickFilterType =
+    quickFilter === 'nao-respondidas' && !slaEnabled ? 'todas' : quickFilter;
 
   // In-conversation search + contact panel are lifted here so the keyboard
   // shortcut hook can drive the ESC priority chain.
@@ -179,11 +187,11 @@ export default function Conversations() {
   // o modal — as duas coisas convivem sem se anular.
   const quickScope = useMemo(
     () =>
-      resolveQuickFilterScope(quickFilter, {
+      resolveQuickFilterScope(effectiveQuickFilter, {
         hasUnread: filters.hasUnread,
         isArchived: filters.isArchived,
       }),
-    [quickFilter, filters.hasUnread, filters.isArchived],
+    [effectiveQuickFilter, filters.hasUnread, filters.isArchived],
   );
 
   // A lista publica só as contagens que o recorte carregado consegue cobrir —
@@ -195,9 +203,10 @@ export default function Conversations() {
   const list = (
     <div className="flex h-full min-h-0 flex-col">
       <QuickFilterPills
-        value={quickFilter}
+        value={effectiveQuickFilter}
         onChange={setQuickFilter}
         counts={quickFilterCounts}
+        slaEnabled={slaEnabled}
         className={cn('flex-shrink-0 pb-3', isMobile ? 'px-0' : 'px-4 pt-4')}
       />
       <div className="min-h-0 flex-1">
@@ -207,7 +216,7 @@ export default function Conversations() {
           onSelect={setSelectedConversation}
           hasUnread={quickScope.hasUnread}
           isArchived={quickScope.isArchived}
-          quickFilter={quickFilter}
+          quickFilter={effectiveQuickFilter}
           onCountsChange={handleQuickFilterCounts}
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
