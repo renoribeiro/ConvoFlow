@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from '../_shared/logger.ts';
 import { buildCorsHeaders } from '../_shared/validation.ts';
+import { can, CAPABILITY_DENIAL_MESSAGES, statusDenialMessage } from '../_shared/capabilities.ts';
 
 // Graph API version — matches the default used in whatsapp-meta-setup and
 // the MetaProvider class (meta.ts). Update only when Meta confirms v20.0 is
@@ -94,12 +95,25 @@ Deno.serve(async (req: Request) => {
   // --- Resolve caller's tenant (same pattern as whatsapp-meta-setup) ---
   const { data: callerProfile } = await supabaseAdmin
     .from('profiles')
-    .select('tenant_id, role')
+    .select('tenant_id, role, status, capabilities')
     .eq('user_id', callerUser.id)
     .single();
 
   if (!callerProfile?.tenant_id) {
     return jsonResponse({ success: false, error: 'Conta do usuário não encontrada' }, 403);
+  }
+
+  // Conta parada não conecta número.
+  if (callerProfile.status !== 'active') {
+    return jsonResponse({ success: false, error: statusDenialMessage(callerProfile.status) }, 403);
+  }
+
+  // Embedded Signup conecta um número novo à Conta: whatsapp.configure.
+  if (!can(callerProfile.role, 'whatsapp.configure', callerProfile.capabilities)) {
+    return jsonResponse(
+      { success: false, error: CAPABILITY_DENIAL_MESSAGES['whatsapp.configure'] },
+      403,
+    );
   }
 
   // --- Parse and validate request body ---

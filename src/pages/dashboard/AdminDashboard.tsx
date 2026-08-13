@@ -50,7 +50,8 @@ import { useIsSuperAdmin } from '@/contexts/TenantContext';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { UserRole } from '@/types/userHierarchy';
+import { STATUS_LABELS, UserRole } from '@/types/userHierarchy';
+import { accountStatePatch, checkboxValueFor, profileStatusOf } from '@/lib/accountStatus';
 import { BillingDashboard } from '@/components/admin/billing/BillingDashboard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -61,6 +62,13 @@ interface User {
   email: string;
   role: UserRole;
   status: 'active' | 'inactive' | 'suspended';
+  /**
+   * `profiles.status` cru — a fonte da verdade do estado da conta
+   * ('pending' | 'active' | 'suspended' | 'deleted'). O campo `status` acima é
+   * o rótulo antigo desta tela e não distingue "convite não aceito" de
+   * "suspenso pelo admin"; para gravar, use este.
+   */
+  profileStatus?: string;
   lastLogin: string;
   createdAt: string;
   tenantId?: string;
@@ -125,6 +133,7 @@ const AdminDashboard = () => {
       last_name,
       role,
       is_active,
+      status,
       phone,
       created_at,
       profile_updated_at,
@@ -277,13 +286,18 @@ const AdminDashboard = () => {
   const handleEditUser = () => {
     if (!selectedUser) return;
 
+    // NÃO grave is_active aqui. Ele é espelho derivado de status (trigger
+    // force_profile_is_active): escrever direto é descartado pelo banco.
+    // Quem manda é status — as regras estão em @/lib/accountStatus.
+    const accountState = accountStatePatch(userForm.isActive, selectedUser.profileStatus);
+
     updateUserMutation.mutate({
       data: {
         first_name: userForm.firstName,
         last_name: userForm.lastName,
         phone: userForm.phone,
         role: userForm.role,
-        is_active: userForm.isActive,
+        ...accountState,
         tenant_id: userForm.tenantId || null,
       },
       options: {
@@ -432,8 +446,8 @@ const AdminDashboard = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                            {user.is_active ? 'Ativo' : 'Inativo'}
+                          <Badge variant={profileStatusOf(user) === 'active' ? 'default' : 'secondary'}>
+                            {STATUS_LABELS[profileStatusOf(user)]}
                           </Badge>
                         </TableCell>
                         <TableCell>{(user.tenant_id && tenantById[user.tenant_id]?.name) || 'N/A'}</TableCell>
@@ -537,6 +551,7 @@ const AdminDashboard = () => {
                                   email: user.email,
                                   role: user.role,
                                   status: user.is_active ? 'active' : 'inactive',
+                                  profileStatus: user.status,
                                   lastLogin: '',
                                   createdAt: user.created_at,
                                   tenantId: user.tenant_id,
@@ -549,7 +564,7 @@ const AdminDashboard = () => {
                                   email: user.email || '',
                                   phone: user.phone || '',
                                   role: user.role,
-                                  isActive: user.is_active,
+                                  isActive: checkboxValueFor(user),
                                   tenantId: user.tenant_id || '',
                                   planType: 'basic'
                                 });

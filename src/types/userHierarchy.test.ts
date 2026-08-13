@@ -181,9 +181,9 @@ describe('capabilities via can()/resolveCapabilities()', () => {
     expect(can('lixo' as unknown as UserRole, 'store.admin')).toBe(false);
   });
 
-  it('resolveCapabilities returns all 12 capability keys for atendente', () => {
+  it('resolveCapabilities returns all 13 capability keys for atendente', () => {
     const result = resolveCapabilities('atendente');
-    expect(Object.keys(result)).toHaveLength(12);
+    expect(Object.keys(result)).toHaveLength(13);
     expect(Object.keys(result).sort()).toEqual([...ALL_CAPABILITIES].sort());
   });
 });

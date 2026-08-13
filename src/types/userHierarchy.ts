@@ -154,6 +154,7 @@ export type Capability =
   | 'store.admin' // manage users + WhatsApp chip of the store
   | 'whatsapp.configure'
   | 'billing.view'
+  | 'billing.manage' // contratar/alterar assinatura (checkout Stripe)
   | 'stores.switch'
   | 'stores.compare'
   | 'platform.ops'; // stripe config, coupons/promotions, plans, subscriptions
@@ -168,6 +169,7 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   'store.admin',
   'whatsapp.configure',
   'billing.view',
+  'billing.manage',
   'stores.switch',
   'stores.compare',
   'platform.ops',
@@ -180,6 +182,17 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
  * campaign conversations, but CANNOT see/edit budget and CANNOT trigger a mass
  * dispatch. Encoded as flags below so it stays adjustable without a schema
  * change (see `resolveCapabilities` overrides).
+ *
+ * `billing.view` × `billing.manage` (2026-08-13): ver os dados de cobrança é
+ * de gerente para cima, mas QUEM ASSINA o plano de uma Loja é o próprio
+ * gestor — é assim que o paywall de Loja é destravado (useTenantAccess).
+ * Autorizar o checkout por `billing.view` mataria o fluxo de pagamento. Por
+ * isso `billing.manage` existe e nega só o atendente. O servidor
+ * (create-checkout-session) checa `billing.manage`.
+ *
+ * ESTE MAPA É ESPELHADO em `supabase/functions/_shared/capabilities.ts` e em
+ * `public.has_capability(text)` (SQL). Mudou aqui, mude nos dois — o teste
+ * `src/test/capabilities-parity.test.ts` quebra se esquecer do segundo.
  */
 export const DEFAULT_CAPABILITIES: Record<UserRole, Record<Capability, boolean>> = {
   superadmin: {
@@ -192,6 +205,7 @@ export const DEFAULT_CAPABILITIES: Record<UserRole, Record<Capability, boolean>>
     'store.admin': true,
     'whatsapp.configure': true,
     'billing.view': true,
+    'billing.manage': true,
     'stores.switch': true,
     'stores.compare': true,
     'platform.ops': true,
@@ -206,6 +220,7 @@ export const DEFAULT_CAPABILITIES: Record<UserRole, Record<Capability, boolean>>
     'store.admin': true,
     'whatsapp.configure': true,
     'billing.view': true,
+    'billing.manage': true,
     'stores.switch': true,
     'stores.compare': true,
     'platform.ops': false,
@@ -220,6 +235,8 @@ export const DEFAULT_CAPABILITIES: Record<UserRole, Record<Capability, boolean>>
     'store.admin': true,
     'whatsapp.configure': true,
     'billing.view': false,
+    // O gestor é quem contrata o plano da própria Loja (destrava o paywall).
+    'billing.manage': true,
     'stores.switch': false,
     'stores.compare': false,
     'platform.ops': false,
@@ -234,6 +251,7 @@ export const DEFAULT_CAPABILITIES: Record<UserRole, Record<Capability, boolean>>
     'store.admin': false,
     'whatsapp.configure': false,
     'billing.view': false,
+    'billing.manage': false,
     'stores.switch': false,
     'stores.compare': false,
     'platform.ops': false,
