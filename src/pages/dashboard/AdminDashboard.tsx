@@ -78,6 +78,37 @@ interface User {
   avatarUrl?: string;
 }
 
+/**
+ * Tira a mensagem de dentro do erro de uma edge function.
+ *
+ * O `FunctionsHttpError` do supabase-js guarda a resposta crua em `.context`.
+ * As funções deste projeto devolvem DOIS formatos:
+ *   { error: "texto" }                        (json() direto)
+ *   { error: { message, code, requestId } }   (createErrorResponse/SecureError)
+ *
+ * O código antigo pegava `ctx.error` e jogava no toast sem olhar o tipo — no
+ * segundo formato isso virava o famoso "[object Object]", que escondeu por
+ * completo o motivo real da falha ao criar usuário.
+ */
+const extrairMensagemDeErro = async (error: unknown): Promise<string> => {
+  const fallback = error instanceof Error ? error.message : 'Erro desconhecido';
+  const contexto = (error as { context?: unknown })?.context;
+  if (!contexto) return fallback;
+
+  let corpo: any = contexto;
+  if (typeof (contexto as Response)?.json === 'function') {
+    corpo = await (contexto as Response).json().catch(() => null);
+  }
+  if (!corpo) return fallback;
+
+  const detalhe = corpo.error ?? corpo.message;
+  if (typeof detalhe === 'string' && detalhe.trim()) return detalhe;
+  if (detalhe && typeof detalhe.message === 'string' && detalhe.message.trim()) {
+    return detalhe.message;
+  }
+  return fallback;
+};
+
 interface Subscription {
   id: string;
   userId: string;
@@ -148,7 +179,8 @@ const AdminDashboard = () => {
   const { data: tenantsRows = [], refetch: refetchTenants } = useSupabaseQuery({
     table: 'tenants',
     queryKey: ['admin-tenants-access'],
-    select: 'id, name, subscription_status, manual_access_granted, manual_access_granted_at',
+    select: 'id, name, kind, subscription_status, manual_access_granted, manual_access_granted_at',
+    orderBy: [{ column: 'name', ascending: true }],
     enabled: !!user && !authLoading && isSuperAdmin,
   });
   const tenantById: Record<string, any> = {};
@@ -239,6 +271,20 @@ const AdminDashboard = () => {
       return;
     }
 
+    // O convite é um e-mail de verdade: endereço sem domínio válido só falha lá
+    // no Auth, com uma mensagem que não ajuda ninguém.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(userForm.email)) {
+      toast.error('E-mail inválido. Use um endereço completo, como nome@empresa.com.br');
+      return;
+    }
+
+    // Gestor e Atendente vivem dentro de uma Loja; o banco recusa o convite sem
+    // ela. Superadmin não pertence a Conta nenhuma.
+    if (userForm.role !== 'superadmin' && !userForm.tenantId) {
+      toast.error('Selecione a Conta (Loja) do usuário');
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Usar edge function para criar usuário sem afetar sessão do admin
@@ -256,14 +302,7 @@ const AdminDashboard = () => {
       });
 
       if (error) {
-        let msg = error.message;
-        if (error.context && error.context.error) {
-           msg = error.context.error;
-        } else if (error instanceof Error && (error as any).context) {
-           const ctx = await (error as any).context.json().catch(() => null);
-           if (ctx && ctx.error) msg = ctx.error;
-        }
-        throw new Error(msg);
+        throw new Error(await extrairMensagemDeErro(error));
       }
 
       if (data?.warning) {
@@ -316,7 +355,7 @@ const AdminDashboard = () => {
         body: { userId: selectedUser.id }
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extrairMensagemDeErro(error));
 
       toast.success('Usuário excluído com sucesso!');
       setIsDeleteUserOpen(false);
@@ -741,6 +780,33 @@ const AdminDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
+            {/*
+              Conta (Loja) — obrigatória para Gestor e Atendente.
+              Este campo não existia: o formulário nunca perguntava a Loja e
+              mandava tenantId nulo, então criar Gestor pelo painel falhava
+              sempre no trigger do banco. Superadmin não pertence a Loja
+              nenhuma, então o campo some quando a função é Superadmin.
+            */}
+            {userForm.role !== 'superadmin' && (
+              <div>
+                <Label htmlFor="create-tenant">Conta (Loja)</Label>
+                <Select
+                  value={userForm.tenantId}
+                  onValueChange={(value) => setUserForm(prev => ({ ...prev, tenantId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a Conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(tenantsRows as any[]).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}{t.kind !== 'store' ? ' — Agência' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="create-active"
