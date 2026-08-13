@@ -83,19 +83,32 @@ if (!process.env.SUPABASE_ACCESS_TOKEN) {
   process.exit(1);
 }
 
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ok = [];
 
 for (const fn of targets) {
+  // Só nomes de pasta de função chegam aqui (validados contra `available` acima),
+  // mas o comando vai montado como string para o shell — então nada de metacaractere.
+  if (!/^[a-zA-Z0-9._-]+$/.test(fn)) {
+    console.error(`✖ Nome de função inválido: ${fn}`);
+    process.exit(1);
+  }
+
   console.log(`\n>>> ${fn}`);
-  const result = spawnSync(
-    npx,
-    ['--yes', 'supabase@latest', 'functions', 'deploy', fn, '--project-ref', PROJECT_REF],
-    { stdio: 'inherit' },
-  );
+
+  // Windows: o npx é um .cmd, e desde a correção do CVE-2024-27980 o Node se
+  // recusa a spawnar .cmd/.bat sem shell (EINVAL). Com shell, a forma de UM
+  // argumento string é a única que não cai no DeprecationWarning DEP0190.
+  const comando = [
+    'npx', '--yes', 'supabase@latest',
+    'functions', 'deploy', fn,
+    '--project-ref', PROJECT_REF,
+  ].join(' ');
+
+  const result = spawnSync(comando, { stdio: 'inherit', shell: true });
 
   if (result.error) {
     console.error(`\n✖ Não consegui executar o npx: ${result.error.message}`);
+    console.error(`  Node instalado? Confira com: node -v && npx --version`);
     process.exit(1);
   }
   if (result.status !== 0) {
