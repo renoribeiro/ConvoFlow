@@ -1,0 +1,50 @@
+-- =============================================================================
+-- Pre-migration snapshot — profiles & tenants (captured read-only 2026-07-16)
+-- =============================================================================
+-- Exact state of the ONLY two tables the V2 migration mutates, BEFORE any
+-- change. Child data (messages/contacts/whatsapp_instances) is untouched by the
+-- migration and keeps the same tenant_id, so it is not part of this snapshot.
+--
+-- This is a targeted safety record for the Mario/Camila/EncaixaRH cutover. It is
+-- NOT a substitute for a full database backup — on the Free plan, take a full
+-- logical dump (npx supabase db dump) or upgrade to Pro for managed backups.
+--
+-- To restore the affected rows to this exact state, run the RESTORE block at the
+-- bottom — but do it together with the migrations' own rollback sections and in
+-- reverse order (revert 000003, then 000002), because the Phase-2 CHECK
+-- constraint only allows the new role names.
+-- =============================================================================
+
+-- ----------------------------------------------------------------------------
+-- SNAPSHOT (values as they were before migrating)
+-- ----------------------------------------------------------------------------
+-- profiles:
+--   Reno Ribeiro    c122243a-58cb-4b93-996b-8e011d36d66f  role=superadmin  tenant=NULL                                   parent=NULL  status=active
+--   Mario Acioli    b29f1afd-ae64-4669-9fdd-b2df9395587f  role=superadmin  tenant=NULL                                   parent=NULL  status=active
+--   bruno moura     9a6de3d5-5152-4cd0-a36e-2eb780f844ed  role=loja        tenant=f52d8ba4-0714-4ce7-ad6d-ac486efe22fe  parent=NULL  status=active
+--   Yuri Saldanha   03a7194a-16e7-4431-a1bd-f5774ef08945  role=superadmin  tenant=6aee6f9e-94e5-4962-bf5b-c014c1736b59  parent=NULL  status=active
+--   Camila Santarosa 2478dce2-c829-41a6-952d-f6d27db73d78 role=loja        tenant=2165be9f-b6bb-49fb-ba6a-1dec6840c45a  parent=NULL  status=active
+--   Admin ConvoFlow bb8b3ee3-640e-4782-8f22-a4d3b802f46b  role=superadmin  tenant=NULL                                   parent=NULL  status=pending
+--
+-- tenants:
+--   Loja - Yuri Saldanha 6aee6f9e-94e5-4962-bf5b-c014c1736b59  slug=loja-yuri-saldanha  parent=NULL  plan=basic  status=active
+--   Loja - Bruno Moura   f52d8ba4-0714-4ce7-ad6d-ac486efe22fe  slug=loja-bruno-moura    parent=NULL  plan=basic  status=active
+--   Camila Santarosa     2165be9f-b6bb-49fb-ba6a-1dec6840c45a  slug=camila-santarosa    parent=NULL  plan=basic  status=active   (= EncaixaRH; 1 chip, 55 contatos, 970 msgs)
+
+-- ----------------------------------------------------------------------------
+-- RESTORE (rollback of the data changes to the snapshot above)
+-- Run AFTER reverting the Phase-2 constraint (see 20260716000002 rollback notes),
+-- otherwise the old role names 'loja' will be rejected by profiles_role_modern_only.
+-- ----------------------------------------------------------------------------
+-- BEGIN;
+--   UPDATE public.profiles SET role='superadmin', tenant_id=NULL, parent_id=NULL, capabilities=NULL
+--     WHERE id='b29f1afd-ae64-4669-9fdd-b2df9395587f';                       -- Mario
+--   UPDATE public.profiles SET role='loja', tenant_id='2165be9f-b6bb-49fb-ba6a-1dec6840c45a', parent_id=NULL, capabilities=NULL
+--     WHERE id='2478dce2-c829-41a6-952d-f6d27db73d78';                       -- Camila
+--   UPDATE public.profiles SET role='loja', capabilities=NULL
+--     WHERE id='9a6de3d5-5152-4cd0-a36e-2eb780f844ed';                       -- bruno
+--   UPDATE public.tenants SET name='Camila Santarosa', parent_tenant_id=NULL
+--     WHERE id='2165be9f-b6bb-49fb-ba6a-1dec6840c45a';                       -- EncaixaRH -> back to Camila Santarosa
+--   DELETE FROM public.tenants WHERE name='Mario Acioli' AND kind='account'
+--     AND id NOT IN (SELECT tenant_id FROM public.profiles WHERE tenant_id IS NOT NULL);  -- remove created account
+-- COMMIT;

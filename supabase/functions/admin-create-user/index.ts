@@ -139,6 +139,9 @@ Deno.serve(async (req: Request) => {
         phone: body.phone,
         role: mapRole(body.role),
         tenantId: body.tenantId,
+        // Nome da Conta (agência) quando a função é Gerente — o manage-user
+        // cria a Conta e vincula o convite a ela.
+        newTenantName: body.newTenantName,
         redirectTo: body.redirectTo,
         // Caixa "Usuário ativo": o convidado continua nascendo 'pending' (ele
         // ainda precisa concluir o cadastro), mas a intenção viaja junto e é

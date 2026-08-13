@@ -64,6 +64,15 @@ interface RequestPayload {
    * promove para 'active' (marcada) ou 'suspended' (desmarcada).
    */
   isActive?: boolean;
+  /**
+   * Nome da Conta (Agência) a criar junto com um GERENTE.
+   *
+   * Gerente é dono de uma agência, não funcionário de uma loja: as lojas dele
+   * vêm depois, penduradas nessa Conta. Não existia jeito de criar Conta pela
+   * interface (só SQL), então convidar gerente pelo painel era impossível —
+   * o trigger handle_new_user derrubava por falta de tenant_id.
+   */
+  newTenantName?: string;
   // target-bound actions
   targetProfileId?: string;
   // update
@@ -166,6 +175,52 @@ async function ensureStoreHasRoom(
   }
 }
 
+/**
+ * Cria a Conta (agência) de um gerente novo.
+ *
+ * `kind='account'` + `parent_tenant_id=null` é o formato de uma agência — as
+ * lojas dela nascem depois com `parent_tenant_id` apontando para cá. O slug é
+ * NOT NULL e único, então vai com sufixo aleatório (mesmo padrão das Contas que
+ * já existem, ex.: "mario-acioli-b29f1afd").
+ *
+ * Só o superadmin chega aqui: ensureCanCreate já barrou todo mundo antes.
+ */
+async function criarContaAgencia(
+  admin: SupabaseClient,
+  nome: string,
+): Promise<string> {
+  const base = nome
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')   // tira acento
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'conta';
+
+  const sufixo = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+
+  const { data, error } = await admin
+    .from('tenants')
+    .insert({
+      name: nome,
+      slug: `${base}-${sufixo}`,
+      kind: 'account',
+      plan_type: 'gerente',
+      parent_tenant_id: null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    throw new SecureError(
+      `Falha ao criar a Conta da agência: ${error?.message ?? 'desconhecida'}`,
+      'TENANT_CREATE_FAILED',
+      500,
+    );
+  }
+  return data.id as string;
+}
+
 async function ensureCanManage(
   admin: SupabaseClient,
   caller: CallerProfile,
@@ -217,6 +272,7 @@ async function actionCreate(
     parentId,
     redirectTo,
     isActive,
+    newTenantName,
   } = body;
 
   // Ausente = marcada. Chamadores antigos (e o auto-cadastro) não mandam o
@@ -276,10 +332,25 @@ async function actionCreate(
     !resolvedTenantId
   ) {
     throw new SecureError(
-      'tenantId (loja) é obrigatório para gestor/atendente',
+      'Selecione a Loja do usuário — Gestor e Atendente sempre pertencem a uma.',
       'VALIDATION_ERROR',
       400,
     );
+  }
+
+  // Gerente é dono de uma agência: a Conta dele nasce aqui, vazia, e as lojas
+  // vêm depois. Sem isto, convidar gerente pelo painel era impossível — não há
+  // nenhuma tela que crie Conta, e o trigger do banco exige tenant_id para
+  // qualquer role que não seja superadmin.
+  if (effectiveRole === 'gerente' && !resolvedTenantId) {
+    if (!newTenantName?.trim()) {
+      throw new SecureError(
+        'Informe o nome da Conta (Agência) do gerente.',
+        'VALIDATION_ERROR',
+        400,
+      );
+    }
+    resolvedTenantId = await criarContaAgencia(admin, newTenantName.trim());
   }
 
   // Respeita o limite da loja ANTES de convidar (evita usuário órfão no Auth).
