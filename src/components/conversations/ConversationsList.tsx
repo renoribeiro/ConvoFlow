@@ -6,10 +6,11 @@ import { format, isToday, isYesterday, differenceInMinutes, differenceInHours } 
 import { ptBR } from 'date-fns/locale';
 import { useConversations, getAllConversations } from '@/hooks/useConversations';
 import { useInView } from 'react-intersection-observer';
-import { AlertCircle, ChevronDown, ChevronRight, LayoutList, RefreshCw, Rows3, Users } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { NewConversationModal } from './NewConversationModal';
+import { ConversationViewToggle } from './ConversationViewToggle';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
@@ -65,6 +66,9 @@ interface ConversationsListProps {
 
 /** "Online" se houve interação nos últimos 5 minutos. */
 const PRESENCE_THRESHOLD_MIN = 5;
+
+/** Serve de tooltip e de nome acessível do botão de sincronizar. */
+const SYNC_LABEL = 'Sincronizar conversas recentes (Evolution/WAHA)';
 
 /** Preferências de visualização da lista (por usuário, por navegador). */
 const GROUP_BY_ATTENDANCE_KEY = 'convoflow:conversations-group-by-attendance';
@@ -436,43 +440,26 @@ export const ConversationsList = ({
     // para cima ela faz parte da superfície contínua e quem separa é a divisória.
     <div className="bg-card border border-border rounded-lg md:border-0 md:rounded-none h-full flex flex-col">
       <div className="p-4 border-b border-border flex-shrink-0 space-y-3">
-        {/* Título + ações de ícone numa linha; "Nova Conversa" ganha a linha de
-            baixo. Na coluna de 320px os três lado a lado não cabiam e o botão
-            era cortado. */}
+        {/* Título + sincronizar numa linha; "Nova Conversa" ganha a linha de
+            baixo. Na coluna de 320px eles não cabiam lado a lado e o botão era
+            cortado. O seletor de exibição desceu para a linha da contagem. */}
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold text-foreground truncate">Conversas Ativas</h3>
-          <div className="flex gap-2 flex-shrink-0">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={groupByAttendanceEnabled ? 'secondary' : 'outline'}
-                  size="icon"
-                  aria-pressed={groupByAttendanceEnabled}
-                  onClick={() => setGroupByAttendanceEnabled((prev) => !prev)}
-                >
-                  {groupByAttendanceEnabled ? (
-                    <Rows3 className="h-4 w-4" />
-                  ) : (
-                    <LayoutList className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="text-xs">
-                {groupByAttendanceEnabled
-                  ? 'Voltar para lista única'
-                  : 'Separar por nível de atendimento'}
-              </TooltipContent>
-            </Tooltip>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => syncAllChats(whatsappInstanceId ?? null)}
-              disabled={isSyncing}
-              title="Sincronizar conversas recentes (Evolution/WAHA)"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="flex-shrink-0"
+                aria-label={SYNC_LABEL}
+                onClick={() => syncAllChats(whatsappInstanceId ?? null)}
+                disabled={isSyncing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">{SYNC_LABEL}</TooltipContent>
+          </Tooltip>
         </div>
 
         <NewConversationModal onConversationCreated={() => { /* lista invalidada via realtime */ }} />
@@ -485,9 +472,17 @@ export const ConversationsList = ({
           />
         )}
 
-        <p className="text-xs text-muted-foreground">
-          {isLoading ? 'Carregando...' : `${visibleConversations.length} conversas`}
-        </p>
+        {/* A contagem sozinha deixava a linha quase vazia — é onde o seletor de
+            exibição cabe sem apertar o cabeçalho. */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground truncate">
+            {isLoading ? 'Carregando...' : `${visibleConversations.length} conversas`}
+          </p>
+          <ConversationViewToggle
+            grouped={groupByAttendanceEnabled}
+            onChange={setGroupByAttendanceEnabled}
+          />
+        </div>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
@@ -510,26 +505,30 @@ export const ConversationsList = ({
               const isCollapsed = collapsedGroups.has(group);
               return (
                 <section key={group} className="mb-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group)}
-                    aria-expanded={!isCollapsed}
-                    title={meta.hint}
-                    className="sticky top-0 z-10 flex w-full items-center gap-2 rounded-md bg-card/95 px-2 py-1.5 text-left backdrop-blur-sm transition-colors hover:bg-accent/[0.08]"
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                    )}
-                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${meta.dotClass}`} aria-hidden />
-                    <span className="flex-1 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {meta.label}
-                    </span>
-                    <Badge variant="secondary" className="h-5 flex-shrink-0 px-1.5 text-[10px]">
-                      {items.length}
-                    </Badge>
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group)}
+                        aria-expanded={!isCollapsed}
+                        className="sticky top-0 z-10 flex w-full items-center gap-2 rounded-md bg-card/95 px-2 py-1.5 text-left backdrop-blur-sm transition-colors hover:bg-accent/[0.08]"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                        )}
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${meta.dotClass}`} aria-hidden />
+                        <span className="flex-1 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {meta.label}
+                        </span>
+                        <Badge variant="secondary" className="h-5 flex-shrink-0 px-1.5 text-[10px]">
+                          {items.length}
+                        </Badge>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">{meta.hint}</TooltipContent>
+                  </Tooltip>
                   {!isCollapsed && <div>{items.map(renderConversation)}</div>}
                 </section>
               );
