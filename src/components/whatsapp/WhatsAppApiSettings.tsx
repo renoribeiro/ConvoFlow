@@ -6,12 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { AlertTriangle, CheckCircle, Settings, Smartphone } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import { AlertTriangle, CheckCircle, Info, Settings, Smartphone } from 'lucide-react';
 import { ValidationSchemas, validateInput, UrlSanitizer } from '@/lib/validation';
+import { useTenant } from '@/contexts/TenantContext';
 
 export const WhatsAppApiSettings = () => {
+  // A Conta vem do TenantContext, não de uma consulta própria a profiles. A
+  // versão anterior relia o tenant_id do PERFIL, o que ignorava a Conta ativa:
+  // superadmin (tenant_id nulo) quebrava no .single(), e dentro de uma Loja
+  // impersonada gravava na Conta errada.
+  const { tenant, updateTenantSettings } = useTenant();
   const [provider, setProvider] = useState<'evolution' | 'waha'>('evolution');
   const [serverUrl, setServerUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -20,51 +24,25 @@ export const WhatsAppApiSettings = () => {
   const [isConfigured, setIsConfigured] = useState(false);
   const { toast } = useToast();
 
+  const tenantSettings = tenant?.settings as any;
+
+  // `settings` já veio carregado no contexto — sem duas queries a cada montagem.
   useEffect(() => {
-    loadCurrentSettings();
-  }, []);
+    if (!tenantSettings) return;
 
-  const loadCurrentSettings = async () => {
-    try {
-      logger.info('Loading WhatsApp API settings');
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
-
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('settings')
-        .eq('id', profile.tenant_id)
-        .single();
-
-      if (tenant?.settings) {
-        const settings = tenant.settings as any;
-        
-        // Check for Waha first if preferred or Evolution
-        if (settings.wahaApi) {
-            setProvider('waha');
-            setServerUrl(settings.wahaApi.serverUrl || '');
-            setApiKey(settings.wahaApi.apiKey || '');
-            setIsConfigured(true);
-        } else if (settings.evolutionApi) {
-            setProvider('evolution');
-            setServerUrl(settings.evolutionApi.serverUrl || '');
-            setApiKey(settings.evolutionApi.apiKey || '');
-            setIsConfigured(true);
-        }
-      }
-    } catch (error: any) {
-      logger.error('Failed to load API settings', { error: error.message });
+    // Waha primeiro: quando as duas existem, vale o provedor configurado por último.
+    if (tenantSettings.wahaApi) {
+      setProvider('waha');
+      setServerUrl(tenantSettings.wahaApi.serverUrl || '');
+      setApiKey(tenantSettings.wahaApi.apiKey || '');
+      setIsConfigured(true);
+    } else if (tenantSettings.evolutionApi) {
+      setProvider('evolution');
+      setServerUrl(tenantSettings.evolutionApi.serverUrl || '');
+      setApiKey(tenantSettings.evolutionApi.apiKey || '');
+      setIsConfigured(true);
     }
-  };
+  }, [tenantSettings]);
 
   const testConnection = async () => {
     const urlValidation = validateInput(ValidationSchemas.url, serverUrl);
@@ -79,7 +57,7 @@ export const WhatsAppApiSettings = () => {
     setTesting(true);
     try {
       let testUrl = '';
-      let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
       if (provider === 'evolution') {
         testUrl = `${sanitizedUrl}/instance/fetchInstances`;
@@ -106,33 +84,31 @@ export const WhatsAppApiSettings = () => {
   };
 
   const saveSettings = async () => {
+    const urlValidation = validateInput(ValidationSchemas.url, serverUrl);
+    if (!urlValidation.success) {
+      toast({ title: "Erro de Validação", description: urlValidation.error, variant: "destructive" });
+      return;
+    }
+
     const sanitizedUrl = UrlSanitizer.sanitizeUrl(serverUrl)?.replace(/\/$/, '');
     if (!sanitizedUrl) return;
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', user!.id).single();
-
-      const { data: tenant } = await supabase.from('tenants').select('settings').eq('id', profile!.tenant_id).single();
-      const currentSettings = (tenant?.settings as any) || {};
-      
-      const apiConfig = {
-        serverUrl: sanitizedUrl,
-        apiKey: apiKey,
-      };
-
-      // Clean up previous configs to avoid confusion, or keep both? 
-      // Better to store under the specific key but maybe a "preferred_provider" too.
-      const updatedSettings = {
-        ...currentSettings,
-        [provider === 'evolution' ? 'evolutionApi' : 'wahaApi']: apiConfig,
-        whatsapp_provider: provider
-      };
-
-      const { error } = await supabase.from('tenants').update({ settings: updatedSettings }).eq('id', profile!.tenant_id);
-
-      if (error) throw error;
+      // updateTenantSettings faz merge raso e grava pela RPC set_tenant_settings.
+      // Antes isto era um UPDATE direto em `tenants`, que não tem policy de
+      // UPDATE para gerente/gestor: o RLS descartava a linha, o PostgREST
+      // devolvia 204 sem erro e a tela dizia "salvo" sem ter salvado nada.
+      await updateTenantSettings(
+        {
+          [provider === 'evolution' ? 'evolutionApi' : 'wahaApi']: {
+            serverUrl: sanitizedUrl,
+            apiKey: apiKey,
+          },
+          whatsapp_provider: provider,
+        },
+        { silent: true },
+      );
 
       setIsConfigured(true);
       toast({ title: "Sucesso", description: "Configurações salvas com sucesso!" });
@@ -142,6 +118,30 @@ export const WhatsAppApiSettings = () => {
       setLoading(false);
     }
   };
+
+  // Sem Conta ativa não há onde gravar — dizer isso é melhor que oferecer um
+  // formulário que só vai falhar no Salvar.
+  if (!tenant) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5" />
+            Configuração de API WhatsApp
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert className="bg-muted">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              Esta configuração é por Loja. Escolha uma Loja no seletor de Conta, no topo da tela,
+              para poder ajustá-la.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
