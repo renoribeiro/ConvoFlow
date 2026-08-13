@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from '../_shared/logger.ts';
 import { buildCorsHeaders } from '../_shared/validation.ts';
+import { can, CAPABILITY_DENIAL_MESSAGES, statusDenialMessage } from '../_shared/capabilities.ts';
 
 interface SetupRequest {
   instance_id: string;
@@ -60,12 +61,26 @@ Deno.serve(async (req: Request) => {
   // Resolve caller's tenant
   const { data: callerProfile } = await supabaseAdmin
     .from('profiles')
-    .select('tenant_id, role')
+    .select('tenant_id, role, status, capabilities')
     .eq('user_id', callerUser.id)
     .single();
 
   if (!callerProfile?.tenant_id) {
     return jsonResponse({ ok: false, error: 'Profile not found' }, 403);
+  }
+
+  // Conta parada não configura nada.
+  if (callerProfile.status !== 'active') {
+    return jsonResponse({ ok: false, error: statusDenialMessage(callerProfile.status) }, 403);
+  }
+
+  // Configurar número de WhatsApp é whatsapp.configure — atendente não faz.
+  // O front já esconde a tela; aqui o servidor para de confiar nisso.
+  if (!can(callerProfile.role, 'whatsapp.configure', callerProfile.capabilities)) {
+    return jsonResponse(
+      { ok: false, error: CAPABILITY_DENIAL_MESSAGES['whatsapp.configure'] },
+      403,
+    );
   }
 
   let body: SetupRequest;

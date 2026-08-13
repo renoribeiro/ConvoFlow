@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from '../_shared/logger.ts';
 import { buildCorsHeaders } from '../_shared/validation.ts';
+import { can, CAPABILITY_DENIAL_MESSAGES, statusDenialMessage } from '../_shared/capabilities.ts';
 
 // Graph API version used by the entire codebase (meta.ts, meta-oauth-exchange, whatsapp-meta-setup).
 const DEFAULT_GRAPH_VERSION = 'v20.0';
@@ -85,12 +86,25 @@ Deno.serve(async (req: Request) => {
   // --- Resolve caller's tenant (same pattern as meta-oauth-exchange) ---
   const { data: callerProfile } = await supabaseAdmin
     .from('profiles')
-    .select('tenant_id, role')
+    .select('tenant_id, role, status, capabilities')
     .eq('user_id', callerUser.id)
     .single();
 
   if (!callerProfile?.tenant_id) {
     return jsonResponse({ success: false, error: 'Conta do usuário não encontrada' }, 403);
+  }
+
+  // Conta parada não registra número.
+  if (callerProfile.status !== 'active') {
+    return jsonResponse({ success: false, error: statusDenialMessage(callerProfile.status) }, 403);
+  }
+
+  // Registrar número na Cloud API é whatsapp.configure — atendente não faz.
+  if (!can(callerProfile.role, 'whatsapp.configure', callerProfile.capabilities)) {
+    return jsonResponse(
+      { success: false, error: CAPABILITY_DENIAL_MESSAGES['whatsapp.configure'] },
+      403,
+    );
   }
 
   // --- Parse and validate request body ---

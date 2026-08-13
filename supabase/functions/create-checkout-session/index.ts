@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.14.0?target=deno";
+import { can, CAPABILITY_DENIAL_MESSAGES, statusDenialMessage } from "../_shared/capabilities.ts";
 
 // =============================================================================
 // create-checkout-session
@@ -100,7 +101,7 @@ serve(async (req) => {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("tenant_id")
+      .select("tenant_id, role, status, capabilities")
       .eq("user_id", user.id)
       .single();
 
@@ -111,6 +112,30 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // Conta parada não contrata plano.
+    if (profile.status !== "active") {
+      return new Response(
+        JSON.stringify({ error: statusDenialMessage(profile.status as string) }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // `billing.manage`, NÃO `billing.view`.
+    //
+    // billing.view é de gerente para cima — mas quem assina o plano de uma Loja
+    // é o próprio GESTOR: é assim que o paywall dela é destravado
+    // (useTenantAccess: subscription_status = 'active'). Autorizar o checkout
+    // por billing.view mataria o fluxo de pagamento que está no ar desde
+    // 2026-07-27. billing.manage nega só o atendente, que é quem realmente não
+    // pode contratar nada.
+    if (!can(profile.role as string, "billing.manage", profile.capabilities as Record<string, unknown> | null)) {
+      return new Response(
+        JSON.stringify({ error: CAPABILITY_DENIAL_MESSAGES["billing.manage"] }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const tenantId = profile.tenant_id as string;
 
     // Já assinante? Evita checkout duplicado.

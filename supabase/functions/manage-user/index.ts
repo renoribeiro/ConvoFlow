@@ -23,6 +23,7 @@ import {
   createErrorResponse,
   DataSanitizer,
 } from '../_shared/validation.ts';
+import { can, CAPABILITY_DENIAL_MESSAGES } from '../_shared/capabilities.ts';
 
 type Action =
   | 'create'
@@ -41,6 +42,7 @@ interface CallerProfile {
   role: UserRole;
   tenant_id: string | null;
   status: string;
+  capabilities: Record<string, unknown> | null;
 }
 
 interface RequestPayload {
@@ -55,6 +57,13 @@ interface RequestPayload {
   parentId?: string | null;
   affiliateId?: string | null;
   redirectTo?: string;
+  /**
+   * Caixa "Usuário ativo" do painel. O convidado SEMPRE nasce 'pending' — ele
+   * ainda precisa concluir o cadastro. Isto guarda a intenção do admin em
+   * profiles.invite_intent_active; no aceite, o trigger on_auth_user_confirmed
+   * promove para 'active' (marcada) ou 'suspended' (desmarcada).
+   */
+  isActive?: boolean;
   // target-bound actions
   targetProfileId?: string;
   // update
@@ -82,7 +91,7 @@ async function getCaller(
   }
   const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id, user_id, role, tenant_id, status')
+    .select('id, user_id, role, tenant_id, status, capabilities')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -90,9 +99,26 @@ async function getCaller(
     throw new SecureError('Profile do caller não encontrado', 'NO_PROFILE', 403);
   }
   if (profile.status !== 'active') {
-    throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
+    throw new SecureError(
+      profile.status === 'pending'
+        ? 'Complete seu cadastro para acessar o sistema.'
+        : 'Sua conta foi suspensa. Entre em contato com o administrador.',
+      'INACTIVE',
+      403,
+    );
   }
   return profile as CallerProfile;
+}
+
+/**
+ * Gerenciar usuários é `store.admin` — atendente não faz. As regras finas de
+ * quem-pode-sobre-quem continuam em ensureCanCreate/ensureCanManage; isto é o
+ * corte grosso, escrito uma vez na matriz compartilhada.
+ */
+function ensureStoreAdmin(caller: CallerProfile): void {
+  if (!can(caller.role, 'store.admin', caller.capabilities)) {
+    throw new SecureError(CAPABILITY_DENIAL_MESSAGES['store.admin'], 'FORBIDDEN', 403);
+  }
 }
 
 function ensureCanCreate(caller: CallerProfile, role: UserRole): void {
@@ -190,7 +216,12 @@ async function actionCreate(
     tenantId,
     parentId,
     redirectTo,
+    isActive,
   } = body;
+
+  // Ausente = marcada. Chamadores antigos (e o auto-cadastro) não mandam o
+  // campo e devem continuar produzindo usuário ativo ao aceitar o convite.
+  const inviteIntentActive = isActive === undefined ? true : isActive !== false;
 
   if (!email || !firstName || !lastName) {
     throw new SecureError(
@@ -266,7 +297,11 @@ async function actionCreate(
         role: effectiveRole,
         tenant_id: resolvedTenantId,
         parent_id: resolvedParentId,
+        // Convidado sempre nasce 'pending': ele ainda não definiu a senha.
+        // Quem decide o estado FINAL é invite_intent_active, aplicado pelo
+        // trigger on_auth_user_confirmed quando o cadastro é concluído.
         status: 'pending',
+        invite_intent_active: inviteIntentActive,
       },
     });
 
@@ -287,7 +322,12 @@ async function actionCreate(
       role: effectiveRole,
       tenantId: resolvedTenantId,
       parentId: resolvedParentId,
+      status: 'pending',
+      inviteIntentActive: inviteIntentActive,
     },
+    warning: inviteIntentActive
+      ? undefined
+      : 'O usuário foi convidado com "Usuário ativo" desmarcado: ao concluir o cadastro ele já entrará suspenso.',
   };
 }
 
@@ -491,6 +531,9 @@ Deno.serve(async (req: Request) => {
     if (!body?.action) {
       throw new SecureError('action é obrigatório', 'VALIDATION_ERROR', 400);
     }
+
+    // Toda ação desta função é administração de usuários da Loja.
+    ensureStoreAdmin(caller);
 
     console.log(
       'manage-user',

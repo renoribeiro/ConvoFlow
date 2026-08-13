@@ -8,6 +8,10 @@
 // Mapeamentos:
 //   POST   { email, firstName, lastName, phone, role, isActive, tenantId, redirectTo }
 //                 ->  manage-user action='create' (role legado é convertido)
+//                     `isActive` é a caixa "Usuário ativo" do painel. ELA ESTAVA
+//                     SENDO JOGADA FORA AQUI: o corpo remontado abaixo não a
+//                     repassava, então o convite sempre nascia sem a intenção do
+//                     admin. Corrigido em 2026-08-13.
 //   DELETE { userId }
 //                 ->  manage-user action='soft_delete' (não apaga auth.users)
 // =============================================================================
@@ -117,6 +121,11 @@ Deno.serve(async (req: Request) => {
         role: mapRole(body.role),
         tenantId: body.tenantId,
         redirectTo: body.redirectTo,
+        // Caixa "Usuário ativo": o convidado continua nascendo 'pending' (ele
+        // ainda precisa concluir o cadastro), mas a intenção viaja junto e é
+        // aplicada no aceite. Ausente/indefinida = marcada, por compatibilidade
+        // com chamadores antigos.
+        isActive: body.isActive === undefined ? true : body.isActive !== false,
       }),
     });
     const data = await upstream.json();
