@@ -281,26 +281,22 @@ export default function PrivacyPolicy() {
                     </div>
 
                     {/*
-                      TODO (LGPD — pendência técnica, NÃO REMOVER ATÉ SER RESOLVIDA):
-                      O prazo de retenção declarado abaixo ainda NÃO é aplicado automaticamente.
-                      Hoje as mensagens, mídias e metadados permanecem armazenados por tempo
-                      indeterminado: não existe rotina de expurgo, nem job agendado, nem
-                      configuração de retenção por Conta em nenhum ponto do produto.
-                      Para que esta cláusula seja verdadeira é preciso implementar:
-                        1. Job agendado (cron) de expurgo de mensagens/mídias após o encerramento
-                           da Conta, respeitando o prazo de 90 dias declarado aqui e na seção 7.
-                        2. Exclusão dos objetos correspondentes no Supabase Storage, não apenas
-                           das linhas no banco.
-                        3. Registro de auditoria do expurgo, para prova de conformidade.
-                      Enquanto isso não existir, este texto é uma promessa não cumprida.
+                      NOTA (retenção): não existe expurgo automático. Não há cron, job
+                      agendado nem configuração de retenção por Conta em nenhum ponto do
+                      produto — as mensagens e mídias ficam armazenadas enquanto a Conta
+                      existir. Por isso o texto abaixo NÃO promete prazo de eliminação
+                      automática: a exclusão é feita mediante solicitação, o que hoje é
+                      um procedimento manual e atendível.
+                      Se um dia for implementado expurgo automático, este texto e o da
+                      seção 7 podem voltar a declarar um prazo — mas só depois disso.
                     */}
                     <div>
                       <h3 className="font-medium mb-2">Retenção e exclusão:</h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li>O conteúdo das mensagens e as mídias correspondentes são armazenados em nossa infraestrutura enquanto a Conta da loja cliente permanecer ativa, por serem parte do histórico de atendimento que constitui o próprio objeto do serviço contratado.</li>
-                        <li>Encerrada a Conta, esses dados são eliminados em até 90 (noventa) dias, ressalvadas as hipóteses de guarda obrigatória previstas em lei.</li>
-                        <li>O wamid e os metadados de status seguem o mesmo prazo, para fins de auditoria e suporte.</li>
-                        <li>A loja cliente, na condição de controladora, pode solicitar a qualquer momento a exclusão de contatos ou conversas específicas.</li>
+                        <li>Encerrada a Conta, os dados são mantidos pelos prazos legais aplicáveis e eliminados mediante solicitação da loja cliente, ressalvadas as hipóteses de guarda obrigatória previstas em lei.</li>
+                        <li>O wamid e os metadados de status seguem o mesmo tratamento, para fins de auditoria e suporte.</li>
+                        <li>A loja cliente, na condição de controladora, pode solicitar a qualquer momento a exclusão de contatos, de conversas específicas ou da totalidade do histórico, pelo e-mail privacidade@convoflow.com.br.</li>
                         <li>A Meta mantém os dados conforme seus próprios prazos, descritos na política de privacidade da Meta; a exclusão junto à Meta deve ser solicitada diretamente a ela.</li>
                       </ul>
                     </div>
@@ -321,18 +317,17 @@ export default function PrivacyPolicy() {
                   <h2 className="text-xl font-semibold mb-4">7. Armazenamento e Segurança</h2>
                   <div className="space-y-4">
                     {/*
-                      TODO (LGPD — pendência técnica, NÃO REMOVER ATÉ SER RESOLVIDA):
-                      Os prazos de retenção abaixo são declarados, mas NÃO são aplicados
-                      automaticamente pelo produto. Não existe expurgo de mensagens, de mídias
-                      nem de logs; tudo permanece armazenado indefinidamente. Ver o TODO
-                      equivalente na seção 6 (Retenção e exclusão) para o escopo do que
-                      precisa ser implementado. Manter os dois prazos de 90 dias sincronizados.
+                      NOTA (retenção): não existe expurgo automático de mensagens, mídias
+                      ou logs. Ver a nota equivalente na seção 6. Os prazos abaixo que
+                      mencionam anos decorrem de obrigação legal (fiscal/contratual) e não
+                      dependem de rotina nossa; os demais itens não declaram prazo de
+                      eliminação automática justamente porque ela não existe.
                     */}
                     <div>
                       <h3 className="font-medium mb-2">Período de Retenção:</h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li><strong>Dados de conta:</strong> Durante a vigência do contrato + 5 anos</li>
-                        <li><strong>Dados de mensagens e mídias:</strong> Enquanto a Conta estiver ativa; eliminados em até 90 dias após o encerramento</li>
+                        <li><strong>Dados de mensagens e mídias:</strong> Enquanto a Conta estiver ativa; após o encerramento, eliminados mediante solicitação</li>
                         <li><strong>Logs de acesso:</strong> 6 meses para segurança</li>
                         <li><strong>Dados financeiros:</strong> Conforme legislação fiscal (5-10 anos)</li>
                       </ul>

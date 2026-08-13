@@ -172,11 +172,10 @@ export default function TermsOfService() {
                       <p className="text-muted-foreground">
                         Não confirmado o pagamento na data de vencimento, o acesso à plataforma poderá ser
                         <strong> suspenso</strong> após comunicação prévia ao cliente. Durante a suspensão, os dados
-                        da Conta são preservados e permanecem disponíveis para regularização e exportação pelo prazo
-                        de <strong>90 (noventa) dias</strong>. Persistindo a inadimplência após esse prazo, o
-                        contrato poderá ser rescindido e os dados eliminados, conforme a nossa Política de
-                        Privacidade, ressalvadas as obrigações legais de guarda. Recomendamos solicitar cópia dos
-                        dados antes do fim desse período.
+                        da Conta são <strong>preservados</strong>, e o cliente pode solicitar cópia deles a qualquer
+                        momento para regularizar a situação. Persistindo a inadimplência, o contrato poderá ser
+                        rescindido na forma da cláusula 11, e os dados tratados conforme a nossa Política de
+                        Privacidade, ressalvadas as obrigações legais de guarda.
                       </p>
                     </div>
 
@@ -333,11 +332,11 @@ export default function TermsOfService() {
                   <h2 className="text-xl font-semibold mb-4">11. Rescisão</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Qualquer uma das partes pode rescindir este acordo a qualquer momento, observado o disposto na
-                    cláusula 4.4. Após a rescisão, o acesso aos serviços é interrompido e os dados da Conta são
-                    mantidos por 90 (noventa) dias para eventual exportação, findos os quais são eliminados,
-                    conforme a nossa{' '}
-                    <Link to="/privacy-policy" className="text-primary underline">Política de Privacidade</Link>
-                    {' '}e ressalvadas as obrigações legais de guarda.
+                    cláusula 4.4. Após a rescisão, o acesso aos serviços é interrompido e os dados da Conta passam a
+                    ser tratados conforme a nossa{' '}
+                    <Link to="/privacy-policy" className="text-primary underline">Política de Privacidade</Link>,
+                    {' '}podendo o cliente solicitar cópia ou a exclusão do histórico, ressalvadas as obrigações
+                    legais de guarda.
                   </p>
                 </section>
 
