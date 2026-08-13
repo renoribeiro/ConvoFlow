@@ -1,5 +1,5 @@
 
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import logoHorizontalDark from '@/assets/logos/logo-horizontal-dark.svg';
 
@@ -23,12 +23,8 @@ export const LandingFooter = () => {
                 <span>contato@convoflow.com.br</span>
               </div>
               <div className="flex items-center text-gray-300 text-sm sm:text-base">
-                <Phone className="w-4 h-4 mr-2 flex-shrink-0" />
-                <span>(11) 99999-9999</span>
-              </div>
-              <div className="flex items-center text-gray-300 text-sm sm:text-base">
                 <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                <span>São Paulo, SP - Brasil</span>
+                <span>Fortaleza, CE - Brasil</span>
               </div>
             </div>
           </div>
