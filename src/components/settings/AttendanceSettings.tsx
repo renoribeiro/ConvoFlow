@@ -48,7 +48,7 @@ const THRESHOLD_FIELDS: ReadonlyArray<{
 ];
 
 export const AttendanceSettings = () => {
-  const { updateTenantSettings } = useTenant();
+  const { tenant, updateTenantSettings } = useTenant();
   const { enabled: savedEnabled, thresholds: savedThresholds, isLoading } = useSlaConfig();
   // Gerente e Gestor administram a Loja; Atendente enxerga, mas não altera.
   const canEdit = useCan('store.admin');
@@ -133,6 +133,31 @@ export const AttendanceSettings = () => {
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
           ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Superadmin sem Loja escolhida no seletor de Conta cai aqui: a configuração é
+  // por Loja, então não há o que salvar. Melhor dizer isso do que oferecer um
+  // formulário que só vai falhar no Salvar.
+  if (!tenant) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sinalização de conversas não respondidas</CardTitle>
+          <CardDescription>
+            Marque visualmente as conversas que estão há muito tempo sem resposta da sua equipe.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Esta configuração é por Loja. Escolha uma Loja no seletor de Conta, no topo da tela,
+              para poder ajustá-la.
+            </p>
+          </div>
         </CardContent>
       </Card>
     );

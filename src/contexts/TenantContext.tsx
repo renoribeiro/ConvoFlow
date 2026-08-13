@@ -215,28 +215,27 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     try {
-      const { error } = await supabase
-        .from('tenants')
-        .update({
-          settings: {
-            ...tenant.settings,
-            ...settings
-          }
-        })
-        .eq('id', tenant.id);
+      // Vai por RPC, não por UPDATE direto: public.tenants não tem policy de
+      // UPDATE para gerente/gestor, e um UPDATE que o RLS filtra devolve 204 sem
+      // erro — o que fazia esta função "salvar" com sucesso e não gravar nada.
+      // A RPC (20260813000003) escreve só a coluna settings e reclama alto
+      // quando o usuário não pode. Cast local: função nova, fora dos tipos
+      // gerados.
+      const { data, error } = await (supabase as any).rpc('set_tenant_settings', {
+        p_tenant_id: tenant.id,
+        p_patch: settings,
+      });
 
       if (error) {
         throw error;
       }
 
-      // Atualizar estado local
-      setTenant(prev => prev ? {
-        ...prev,
-        settings: {
-          ...prev.settings,
-          ...settings
-        }
-      } : null);
+      // Atualizar estado local com o que o banco confirmou ter gravado.
+      const merged = (data as Record<string, unknown> | null) ?? {
+        ...(tenant.settings as Record<string, unknown> | null ?? {}),
+        ...settings,
+      };
+      setTenant(prev => prev ? { ...prev, settings: merged as typeof prev.settings } : null);
 
       if (!options?.silent) {
         toast({
