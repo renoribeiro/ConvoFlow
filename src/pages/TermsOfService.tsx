@@ -13,9 +13,9 @@ export default function TermsOfService() {
           transition={{ duration: 0.6 }}
         >
           <div className="text-center mb-8">
-            <Link to="/register" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
+            <Link to="/auth" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar para o registro
+              Voltar
             </Link>
             
             <div className="flex items-center justify-center mb-4">
@@ -28,7 +28,7 @@ export default function TermsOfService() {
             <CardHeader>
               <CardTitle className="text-3xl text-center">Termos de Uso</CardTitle>
               <p className="text-center text-muted-foreground">
-                Última atualização: 25 de maio de 2026
+                Última atualização: 13 de agosto de 2026
               </p>
             </CardHeader>
             <CardContent className="prose prose-slate dark:prose-invert max-w-none">
@@ -70,8 +70,13 @@ export default function TermsOfService() {
                     <li>Automação de campanhas de marketing</li>
                     <li>Análise e relatórios de conversas</li>
                     <li>Gestão de contatos e leads</li>
-                    <li>Integração com WhatsApp Business API</li>
+                    <li>Integração com a WhatsApp Business Platform (Meta Cloud API)</li>
                   </ul>
+                  <p className="text-muted-foreground leading-relaxed mt-3">
+                    O envio e o recebimento de mensagens ocorrem <strong>exclusivamente</strong> por meio da
+                    WhatsApp Business Platform oficial da Meta (Cloud API). O ConvoFlow não utiliza, não oferece e
+                    não dá suporte a métodos não oficiais de conexão ao WhatsApp.
+                  </p>
                 </section>
 
                 <section>
@@ -83,8 +88,111 @@ export default function TermsOfService() {
                   </p>
                 </section>
 
+                <section className="bg-primary/5 p-6 rounded-lg border">
+                  <h2 className="text-xl font-semibold mb-4">4. Planos, Pagamento e Cancelamento</h2>
+                  {/*
+                    TODO (produto — pendências que sustentam esta seção):
+                      1. NÃO existe cancelamento self-service. `handlePortal` em
+                         SubscriptionSettings.tsx apenas exibe um toast mandando o cliente
+                         procurar o e-mail do Stripe; não há chamada a billing_portal.
+                         Enquanto isso, o canal declarado em 4.4 é o e-mail — e ele
+                         PRECISA ser efetivamente monitorado.
+                      2. O reembolso do art. 49 (cláusula 4.3) é processo manual no painel
+                         do Stripe; não existe rotina automatizada.
+
+                    NÃO REINTRODUZIR sem implementar antes:
+                      - Período de teste gratuito. `trial_ends_at` não é gravado por nenhum
+                        código nem trigger, e `create-checkout-session` não envia
+                        `trial_period_days`. A infraestrutura existe, mas o mecanismo não —
+                        por isso o teste foi retirado de TODA a comunicação ao cliente
+                        (landing, FAQ, CTA, Terms e tela de assinatura).
+                      - Garantia de satisfação / reembolso além dos 7 dias do art. 49 do
+                        CDC. Foi removida daqui e da PricingSection/FAQ. Qualquer promessa
+                        desse tipo na página de vendas volta a vincular por força do
+                        art. 30 do CDC e precisa constar aqui também.
+                  */}
+
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-medium mb-2">4.1. Planos e preços</h3>
+                      <p className="text-muted-foreground mb-2">
+                        O acesso à plataforma é prestado mediante assinatura do <strong>Plano Gerente</strong>, no
+                        valor de <strong>R$ 499,90 (quatrocentos e noventa e nove reais e noventa centavos) por
+                        mês</strong>, que inclui a operação de até 5 (cinco) lojas.
+                      </p>
+                      <p className="text-muted-foreground">
+                        Cada loja adicional é contratada por <strong>R$ 99,90 (noventa e nove reais e noventa
+                        centavos) por mês</strong>, cobrada de forma cumulativa à mensalidade do plano. Os preços
+                        podem ser reajustados mediante comunicação prévia de, no mínimo, 30 (trinta) dias,
+                        aplicando-se o novo valor somente aos ciclos posteriores ao aviso. O cliente que não
+                        concordar com o reajuste poderá cancelar a assinatura antes de sua vigência, sem ônus.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">4.2. Contratação e renovação automática</h3>
+                      <p className="text-muted-foreground">
+                        A contratação é feita pela própria plataforma, por meio do <strong>Stripe</strong>, que
+                        processa os pagamentos e armazena os dados do meio de pagamento — o ConvoFlow não tem
+                        acesso ao número do seu cartão. A assinatura é mensal e
+                        <strong> renova-se automaticamente</strong> ao fim de cada ciclo, com cobrança na mesma
+                        forma de pagamento, até que haja cancelamento. A data da primeira cobrança marca o início
+                        do ciclo de faturamento.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">4.3. Direito de arrependimento</h3>
+                      <p className="text-muted-foreground">
+                        Por se tratar de contratação realizada fora do estabelecimento comercial, você pode desistir
+                        da contratação no prazo de <strong>7 (sete) dias corridos</strong>, contados da data da
+                        contratação, nos termos do <strong>art. 49 do Código de Defesa do Consumidor</strong>.
+                        Exercido o arrependimento nesse prazo, os valores eventualmente pagos são devolvidos
+                        integralmente e de forma imediata, pelo mesmo meio de pagamento utilizado.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">4.4. Cancelamento</h3>
+                      <p className="text-muted-foreground mb-2">
+                        O cancelamento pode ser solicitado a qualquer momento, sem multa ou fidelidade, pelo e-mail
+                        <strong> administrativo@re9.online</strong>, a partir do endereço de e-mail cadastrado na
+                        Conta. O pedido é processado em até 2 (dois) dias úteis, e a confirmação é enviada por
+                        e-mail.
+                      </p>
+                      <p className="text-muted-foreground">
+                        Cancelada a assinatura, <strong>o acesso permanece ativo até o término do ciclo já
+                        pago</strong>, não havendo novas cobranças a partir de então. Não há devolução proporcional
+                        dos dias não utilizados do ciclo em curso, ressalvada a hipótese da cláusula 4.3.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">4.5. Inadimplência</h3>
+                      <p className="text-muted-foreground">
+                        Não confirmado o pagamento na data de vencimento, o acesso à plataforma poderá ser
+                        <strong> suspenso</strong> após comunicação prévia ao cliente. Durante a suspensão, os dados
+                        da Conta são <strong>preservados</strong>, e o cliente pode solicitar cópia deles a qualquer
+                        momento para regularizar a situação. Persistindo a inadimplência, o contrato poderá ser
+                        rescindido na forma da cláusula 11, e os dados tratados conforme a nossa Política de
+                        Privacidade, ressalvadas as obrigações legais de guarda.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">4.6. Tributos</h3>
+                      <p className="text-muted-foreground">
+                        Os valores anunciados são <strong>finais e já incluem todos os tributos</strong> incidentes
+                        sobre a prestação do serviço. Não há taxa de adesão, taxa de instalação ou qualquer cobrança
+                        adicional além das expressamente previstas nesta seção. A nota fiscal correspondente é
+                        emitida a cada ciclo de faturamento.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">4. Uso Permitido e Proibido</h2>
+                  <h2 className="text-xl font-semibold mb-4">5. Uso Permitido e Proibido</h2>
                   <div className="space-y-4">
                     <div>
                       <h3 className="font-medium mb-2">Uso Permitido:</h3>
@@ -109,7 +217,7 @@ export default function TermsOfService() {
                 </section>
 
                 <section className="bg-green-50 dark:bg-green-950/20 p-6 rounded-lg border border-green-200 dark:border-green-900">
-                  <h2 className="text-xl font-semibold mb-4">5. Uso do WhatsApp Business Platform (Meta)</h2>
+                  <h2 className="text-xl font-semibold mb-4">6. Uso do WhatsApp Business Platform (Meta)</h2>
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     A funcionalidade de envio e recebimento de mensagens do ConvoFlow é prestada por meio da
                     integração com a <strong>WhatsApp Business Platform</strong>, operada pela Meta Platforms, Inc.
@@ -119,7 +227,7 @@ export default function TermsOfService() {
 
                   <div className="space-y-4">
                     <div>
-                      <h3 className="font-medium mb-2">5.1. Aceitação das políticas da Meta</h3>
+                      <h3 className="font-medium mb-2">6.1. Aceitação das políticas da Meta</h3>
                       <p className="text-muted-foreground">
                         Você declara que leu, compreendeu e está vinculado à{' '}
                         <a href="https://www.whatsapp.com/legal/business-policy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
@@ -135,7 +243,7 @@ export default function TermsOfService() {
                     </div>
 
                     <div>
-                      <h3 className="font-medium mb-2">5.2. Consentimento (opt-in) e descadastramento (opt-out)</h3>
+                      <h3 className="font-medium mb-2">6.2. Consentimento (opt-in) e descadastramento (opt-out)</h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li>Você é o único responsável por obter consentimento prévio, livre, informado e expresso dos destinatários antes de enviar qualquer mensagem por WhatsApp.</li>
                         <li>O consentimento deve ser registrado de forma auditável (formulário, opt-in em site, etc.) e deve estar disponível mediante solicitação.</li>
@@ -145,7 +253,7 @@ export default function TermsOfService() {
                     </div>
 
                     <div>
-                      <h3 className="font-medium mb-2">5.3. Janela de atendimento de 24 horas e Templates</h3>
+                      <h3 className="font-medium mb-2">6.3. Janela de atendimento de 24 horas e Templates</h3>
                       <p className="text-muted-foreground">
                         Fora da janela de 24 horas após a última mensagem recebida do destinatário, o envio só pode ser
                         feito por meio de <strong>templates de mensagem previamente aprovados pela Meta</strong>,
@@ -155,7 +263,7 @@ export default function TermsOfService() {
                     </div>
 
                     <div>
-                      <h3 className="font-medium mb-2">5.4. Limitações da WhatsApp Cloud API</h3>
+                      <h3 className="font-medium mb-2">6.4. Limitações da WhatsApp Cloud API</h3>
                       <p className="text-muted-foreground mb-2">Você reconhece que a Cloud API da Meta possui limitações inerentes, entre elas:</p>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li>Indisponibilidade de histórico de mensagens anteriores à conexão do número.</li>
@@ -166,7 +274,7 @@ export default function TermsOfService() {
                     </div>
 
                     <div>
-                      <h3 className="font-medium mb-2">5.5. Responsabilidade do cliente</h3>
+                      <h3 className="font-medium mb-2">6.5. Responsabilidade do cliente</h3>
                       <p className="text-muted-foreground">
                         O ConvoFlow atua como provedor de tecnologia (Tech Provider) e não se responsabiliza por
                         suspensões, bloqueios, alterações ou descontinuações de serviço impostas pela Meta em
@@ -178,7 +286,7 @@ export default function TermsOfService() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">6. Propriedade Intelectual</h2>
+                  <h2 className="text-xl font-semibold mb-4">7. Propriedade Intelectual</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Todos os direitos de propriedade intelectual relacionados à plataforma ConvoFlow são de nossa propriedade 
                     ou de nossos licenciadores. Você recebe uma licença limitada e revogável para usar nossos serviços 
@@ -187,16 +295,24 @@ export default function TermsOfService() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">7. Privacidade e Proteção de Dados</h2>
+                  <h2 className="text-xl font-semibold mb-4">8. Privacidade e Proteção de Dados</h2>
                   <p className="text-muted-foreground leading-relaxed">
-                    O tratamento de dados pessoais segue nossa Política de Privacidade e está em conformidade com a 
-                    Lei Geral de Proteção de Dados (LGPD - Lei 13.709/2018). Ao usar nossos serviços, você concorda 
-                    com o tratamento de seus dados conforme descrito em nossa política.
+                    O tratamento de dados pessoais segue nossa{' '}
+                    <Link to="/privacy-policy" className="text-primary underline">Política de Privacidade</Link>
+                    {' '}e está em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei 13.709/2018).
+                    Ao usar nossos serviços, você concorda com o tratamento de seus dados conforme descrito em
+                    nossa política.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed mt-3">
+                    Você reconhece que, em relação aos dados dos seus próprios clientes tratados na plataforma
+                    (contatos, mensagens e mídias), <strong>você é o controlador</strong> e o ConvoFlow atua como
+                    <strong> operador</strong>, cabendo a você assegurar a base legal, o consentimento e o
+                    atendimento às solicitações dos titulares, conforme detalhado na Política de Privacidade.
                   </p>
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">8. Limitação de Responsabilidade</h2>
+                  <h2 className="text-xl font-semibold mb-4">9. Limitação de Responsabilidade</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     A ConvoFlow não será responsável por danos indiretos, incidentais, especiais ou consequenciais 
                     decorrentes do uso de nossos serviços. Nossa responsabilidade total está limitada ao valor pago 
@@ -205,7 +321,7 @@ export default function TermsOfService() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">9. Modificações nos Termos</h2>
+                  <h2 className="text-xl font-semibold mb-4">10. Modificações nos Termos</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Reservamo-nos o direito de modificar estes termos a qualquer momento. As alterações serão 
                     comunicadas através da plataforma e entrarão em vigor 30 dias após a notificação.
@@ -213,16 +329,19 @@ export default function TermsOfService() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">10. Rescisão</h2>
+                  <h2 className="text-xl font-semibold mb-4">11. Rescisão</h2>
                   <p className="text-muted-foreground leading-relaxed">
-                    Qualquer uma das partes pode rescindir este acordo a qualquer momento. Após a rescisão, 
-                    seu acesso aos serviços será interrompido e seus dados podem ser excluídos conforme nossa 
-                    política de retenção.
+                    Qualquer uma das partes pode rescindir este acordo a qualquer momento, observado o disposto na
+                    cláusula 4.4. Após a rescisão, o acesso aos serviços é interrompido e os dados da Conta passam a
+                    ser tratados conforme a nossa{' '}
+                    <Link to="/privacy-policy" className="text-primary underline">Política de Privacidade</Link>,
+                    {' '}podendo o cliente solicitar cópia ou a exclusão do histórico, ressalvadas as obrigações
+                    legais de guarda.
                   </p>
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">11. Lei Aplicável e Foro</h2>
+                  <h2 className="text-xl font-semibold mb-4">12. Lei Aplicável e Foro</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Estes Termos são regidos pelas leis da República Federativa do Brasil. Qualquer disputa
                     decorrente ou relacionada a estes Termos será resolvida no foro da comarca de

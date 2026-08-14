@@ -87,7 +87,7 @@ export const PricingSection = () => {
               </Button>
 
               <p className="text-sm text-muted-foreground px-4 sm:px-0">
-                Teste grátis por 3 dias • Cancele quando quiser
+                Cancele quando quiser
               </p>
             </div>
 
@@ -108,13 +108,6 @@ export const PricingSection = () => {
                   <span className="text-sm sm:text-base text-foreground">{feature}</span>
                 </motion.div>
               ))}
-            </div>
-
-            {/* Money Back Guarantee */}
-            <div className="mt-6 sm:mt-8 p-4 bg-muted rounded-lg text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                💰 <strong>Garantia de 30 dias</strong> - Se não ficar satisfeito, devolvemos 100% do seu dinheiro
-              </p>
             </div>
           </div>
         </motion.div>

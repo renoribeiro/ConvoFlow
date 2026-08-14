@@ -125,11 +125,18 @@ export const SubscriptionSettings = () => {
           {!isPro && (
             <Alert variant={isExpired ? 'destructive' : 'default'}>
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>{isExpired ? 'Nenhuma assinatura' : 'Período de avaliação'}</AlertTitle>
+              <AlertTitle>{isExpired ? 'Nenhuma assinatura' : 'Acesso temporário'}</AlertTitle>
               <AlertDescription>
+                {/*
+                  O acesso temporário NÃO é anunciado como teste gratuito em lugar
+                  nenhum do produto: `trial_ends_at` não é preenchido por nenhum
+                  código e o checkout não envia `trial_period_days`. A infraestrutura
+                  permanece, mas a promessa ao cliente foi retirada — não reintroduzir
+                  texto de "teste grátis" aqui sem implementar o mecanismo.
+                */}
                 {isExpired
                   ? 'Você ainda não tem uma assinatura ativa.'
-                  : `Você está utilizando a avaliação gratuita.${trialEnds ? ` Expira em ${trialEnds.toLocaleDateString()}` : ''}`}
+                  : `Seu acesso está liberado temporariamente.${trialEnds ? ` Expira em ${trialEnds.toLocaleDateString()}` : ''}`}
               </AlertDescription>
             </Alert>
           )}

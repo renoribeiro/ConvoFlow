@@ -107,11 +107,11 @@ export const Auth = () => {
 
         <p className="text-center text-sm text-muted-foreground mt-6">
           Ao continuar, você concorda com nossos{' '}
-          <Link to="/terms" className="underline hover:text-foreground">
-            Termos de Serviço
+          <Link to="/terms-of-service" className="underline hover:text-foreground">
+            Termos de Uso
           </Link>{' '}
           e{' '}
-          <Link to="/privacy" className="underline hover:text-foreground">
+          <Link to="/privacy-policy" className="underline hover:text-foreground">
             Política de Privacidade
           </Link>
         </p>

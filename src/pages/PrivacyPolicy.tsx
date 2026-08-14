@@ -13,9 +13,9 @@ export default function PrivacyPolicy() {
           transition={{ duration: 0.6 }}
         >
           <div className="text-center mb-8">
-            <Link to="/register" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
+            <Link to="/auth" className="inline-flex items-center text-brand-primary hover:text-brand-secondary transition-colors mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar para o registro
+              Voltar
             </Link>
             
             <div className="flex items-center justify-center mb-4">
@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
             <CardHeader>
               <CardTitle className="text-3xl text-center">Política de Privacidade</CardTitle>
               <p className="text-center text-muted-foreground">
-                Última atualização: 25 de maio de 2026 • Conforme LGPD
+                Última atualização: 13 de agosto de 2026 • Conforme LGPD
               </p>
             </CardHeader>
             <CardContent className="prose prose-slate dark:prose-invert max-w-none">
@@ -46,11 +46,16 @@ export default function PrivacyPolicy() {
                     O ConvoFlow é uma plataforma de automação para WhatsApp operada por
                     <strong> RE9 ONLINE BRANDING LTDA</strong>, inscrita no CNPJ sob nº 27.286.273/0001-09,
                     com sede na Rua Barbosa de Freitas, nº 1741, Sala 04, Aldeota, Fortaleza/CE,
-                    CEP 60.170-021 (doravante denominada simplesmente "ConvoFlow" ou "Controladora").
+                    CEP 60.170-021 (doravante denominada simplesmente "ConvoFlow").
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed mt-3">
+                    O ConvoFlow atua ora como <strong>controlador</strong>, ora como <strong>operador</strong> de
+                    dados pessoais, conforme o tipo de dado tratado. Essa distinção é essencial para a correta
+                    leitura desta Política e está detalhada na seção 2 abaixo.
                   </p>
                   <div className="mt-4 p-4 bg-background rounded border-l-4 border-primary">
                     <p className="text-sm text-muted-foreground mb-0">
-                      <strong>Controladora:</strong> RE9 ONLINE BRANDING LTDA (CNPJ 27.286.273/0001-09)<br />
+                      <strong>Empresa responsável pela plataforma:</strong> RE9 ONLINE BRANDING LTDA (CNPJ 27.286.273/0001-09)<br />
                       <strong>Encarregado de Dados (DPO):</strong> privacidade@convoflow.com.br<br />
                       <strong>Endereço:</strong> Rua Barbosa de Freitas, 1741, Sala 04, Aldeota, Fortaleza/CE, CEP 60.170-021<br />
                       <strong>Telefone:</strong> (85) 99176-4169
@@ -58,10 +63,71 @@ export default function PrivacyPolicy() {
                   </div>
                 </section>
 
+                <section className="bg-primary/5 p-6 rounded-lg border">
+                  <div className="flex items-center mb-4">
+                    <Users className="w-6 h-6 text-primary mr-3" />
+                    <h2 className="text-xl font-semibold mb-0">2. Papéis no Tratamento de Dados</h2>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed mb-4">
+                    Nos termos do art. 5º da LGPD, o ConvoFlow assume papéis distintos conforme a natureza dos dados
+                    tratados. Compreender essa divisão é fundamental para saber a quem dirigir solicitações relativas
+                    a dados pessoais.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="p-4 bg-background rounded border-l-4 border-primary">
+                      <h3 className="font-medium mb-2">ConvoFlow como Controlador</h3>
+                      <p className="text-muted-foreground text-sm mb-2">
+                        O ConvoFlow é o <strong>controlador</strong> dos dados pessoais de seus próprios usuários — as
+                        pessoas que contratam e operam a plataforma (proprietários, gestores e atendentes da loja
+                        cliente). Nessa condição, o ConvoFlow define as finalidades e os meios do tratamento de:
+                      </p>
+                      <ul className="list-disc pl-6 text-muted-foreground text-sm">
+                        <li>Dados de cadastro e de perfil do usuário da plataforma</li>
+                        <li>Dados de faturamento e da relação contratual</li>
+                        <li>Logs de acesso, registros de autenticação e dados técnicos de uso da plataforma</li>
+                        <li>Comunicações de suporte mantidas diretamente com o ConvoFlow</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-4 bg-background rounded border-l-4 border-amber-500">
+                      <h3 className="font-medium mb-2">ConvoFlow como Operador</h3>
+                      <p className="text-muted-foreground text-sm mb-2">
+                        Em relação aos dados dos <strong>clientes finais</strong> — as pessoas com quem a loja cliente
+                        se comunica por WhatsApp —, o ConvoFlow atua exclusivamente como <strong>operador</strong>,
+                        tratando os dados por conta e ordem da loja cliente e conforme as instruções desta. São dados
+                        tratados nessa condição:
+                      </p>
+                      <ul className="list-disc pl-6 text-muted-foreground text-sm">
+                        <li>Contatos: nome, número de telefone, etiquetas e campos personalizados</li>
+                        <li>Conteúdo das mensagens trocadas e mídias enviadas ou recebidas</li>
+                        <li>Métricas e histórico das conversas, incluindo status de entrega e leitura</li>
+                      </ul>
+                      <p className="text-muted-foreground text-sm mt-3 mb-0">
+                        A <strong>loja cliente é a controladora</strong> desses dados. Cabe exclusivamente a ela
+                        definir as finalidades do tratamento, assegurar a base legal adequada, obter e comprovar o
+                        consentimento (opt-in) dos destinatários, respeitar pedidos de descadastramento (opt-out) e
+                        responder às solicitações dos titulares. O ConvoFlow não utiliza esses dados para finalidades
+                        próprias, não os comercializa e não os emprega para treinar modelos ou para publicidade.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-muted/30 rounded">
+                      <p className="text-muted-foreground text-sm mb-0">
+                        <strong>A quem se dirigir:</strong> se você é cliente final de uma loja que utiliza o ConvoFlow
+                        e deseja exercer seus direitos sobre mensagens ou dados de contato, a solicitação deve ser
+                        encaminhada diretamente à loja com a qual você se comunicou, na condição de controladora.
+                        Recebendo tal solicitação, o ConvoFlow a encaminhará à loja responsável e prestará o apoio
+                        técnico necessário, sem, contudo, decidir sobre o pedido.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 <section>
                   <div className="flex items-center mb-4">
                     <Database className="w-6 h-6 text-primary mr-3" />
-                    <h2 className="text-xl font-semibold mb-0">2. Dados Coletados</h2>
+                    <h2 className="text-xl font-semibold mb-0">3. Dados Coletados</h2>
                   </div>
                   
                   <div className="space-y-4">
@@ -86,12 +152,18 @@ export default function PrivacyPolicy() {
                     </div>
 
                     <div>
-                      <h3 className="font-medium mb-2">Dados de Terceiros (WhatsApp):</h3>
+                      <h3 className="font-medium mb-2">
+                        Dados de Clientes Finais (WhatsApp) — tratados na condição de operador:
+                      </h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li><strong>Mensagens:</strong> Conteúdo das conversas processadas</li>
                         <li><strong>Contatos:</strong> Números e perfis de destinatários</li>
-                        <li><strong>Métricas:</strong> Status de entrega e engagement</li>
+                        <li><strong>Métricas:</strong> Status de entrega e engajamento</li>
                       </ul>
+                      <p className="text-sm text-muted-foreground mt-2 mb-0">
+                        Estes dados são fornecidos e controlados pela loja cliente, conforme a seção 2. O ConvoFlow os
+                        trata apenas para viabilizar o serviço contratado por ela.
+                      </p>
                     </div>
                   </div>
                 </section>
@@ -99,7 +171,7 @@ export default function PrivacyPolicy() {
                 <section>
                   <div className="flex items-center mb-4">
                     <Eye className="w-6 h-6 text-primary mr-3" />
-                    <h2 className="text-xl font-semibold mb-0">3. Finalidade do Tratamento</h2>
+                    <h2 className="text-xl font-semibold mb-0">4. Finalidade do Tratamento</h2>
                   </div>
                   
                   <div className="grid md:grid-cols-2 gap-4">
@@ -128,7 +200,7 @@ export default function PrivacyPolicy() {
                 <section>
                   <div className="flex items-center mb-4">
                     <Users className="w-6 h-6 text-primary mr-3" />
-                    <h2 className="text-xl font-semibold mb-0">4. Compartilhamento de Dados</h2>
+                    <h2 className="text-xl font-semibold mb-0">5. Compartilhamento de Dados</h2>
                   </div>
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     Seus dados podem ser compartilhados nas seguintes situações:
@@ -151,7 +223,7 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section className="bg-green-50 dark:bg-green-950/20 p-6 rounded-lg border border-green-200 dark:border-green-900">
-                  <h2 className="text-xl font-semibold mb-4">5. Integração com WhatsApp Business e Meta Platforms</h2>
+                  <h2 className="text-xl font-semibold mb-4">6. Integração com WhatsApp Business e Meta Platforms</h2>
                   <p className="text-muted-foreground leading-relaxed mb-4">
                     O ConvoFlow se integra à <strong>WhatsApp Business Platform</strong> (Meta Cloud API) e à infraestrutura
                     da <strong>Meta Platforms, Inc.</strong> para viabilizar o envio e recebimento de mensagens em nome de
@@ -186,7 +258,8 @@ export default function PrivacyPolicy() {
                         <li>
                           <strong>Execução de contrato</strong> com o cliente que contratou o ConvoFlow e
                           <strong> consentimento</strong> dos destinatários finais (opt-in), conforme exigido pela
-                          WhatsApp Business Policy.
+                          WhatsApp Business Policy. A base legal do tratamento dos dados dos destinatários é definida
+                          e assegurada pela loja cliente, na condição de controladora (seção 2).
                         </li>
                         <li>
                           A Meta atua como <strong>operadora</strong> dos dados de mensageria conforme seus próprios termos e
@@ -207,13 +280,24 @@ export default function PrivacyPolicy() {
                       </ul>
                     </div>
 
+                    {/*
+                      NOTA (retenção): não existe expurgo automático. Não há cron, job
+                      agendado nem configuração de retenção por Conta em nenhum ponto do
+                      produto — as mensagens e mídias ficam armazenadas enquanto a Conta
+                      existir. Por isso o texto abaixo NÃO promete prazo de eliminação
+                      automática: a exclusão é feita mediante solicitação, o que hoje é
+                      um procedimento manual e atendível.
+                      Se um dia for implementado expurgo automático, este texto e o da
+                      seção 7 podem voltar a declarar um prazo — mas só depois disso.
+                    */}
                     <div>
                       <h3 className="font-medium mb-2">Retenção e exclusão:</h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
-                        <li>O conteúdo das mensagens é armazenado em nossa infraestrutura pelo prazo configurado pelo cliente, com limite máximo de 2 (dois) anos.</li>
-                        <li>O wamid e metadados de status são retidos pelo mesmo prazo para fins de auditoria e suporte.</li>
-                        <li>A Meta mantém os dados conforme seus próprios prazos, descritos na política de privacidade da Meta.</li>
-                        <li>Mediante solicitação do titular, podemos excluir o histórico armazenado em nossos servidores; a exclusão na Meta deve ser solicitada diretamente a ela.</li>
+                        <li>O conteúdo das mensagens e as mídias correspondentes são armazenados em nossa infraestrutura enquanto a Conta da loja cliente permanecer ativa, por serem parte do histórico de atendimento que constitui o próprio objeto do serviço contratado.</li>
+                        <li>Encerrada a Conta, os dados são mantidos pelos prazos legais aplicáveis e eliminados mediante solicitação da loja cliente, ressalvadas as hipóteses de guarda obrigatória previstas em lei.</li>
+                        <li>O wamid e os metadados de status seguem o mesmo tratamento, para fins de auditoria e suporte.</li>
+                        <li>A loja cliente, na condição de controladora, pode solicitar a qualquer momento a exclusão de contatos, de conversas específicas ou da totalidade do histórico, pelo e-mail privacidade@convoflow.com.br.</li>
+                        <li>A Meta mantém os dados conforme seus próprios prazos, descritos na política de privacidade da Meta; a exclusão junto à Meta deve ser solicitada diretamente a ela.</li>
                       </ul>
                     </div>
 
@@ -230,13 +314,20 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">6. Armazenamento e Segurança</h2>
+                  <h2 className="text-xl font-semibold mb-4">7. Armazenamento e Segurança</h2>
                   <div className="space-y-4">
+                    {/*
+                      NOTA (retenção): não existe expurgo automático de mensagens, mídias
+                      ou logs. Ver a nota equivalente na seção 6. Os prazos abaixo que
+                      mencionam anos decorrem de obrigação legal (fiscal/contratual) e não
+                      dependem de rotina nossa; os demais itens não declaram prazo de
+                      eliminação automática justamente porque ela não existe.
+                    */}
                     <div>
                       <h3 className="font-medium mb-2">Período de Retenção:</h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li><strong>Dados de conta:</strong> Durante a vigência do contrato + 5 anos</li>
-                        <li><strong>Dados de mensagens:</strong> Conforme configuração do usuário (máx. 2 anos)</li>
+                        <li><strong>Dados de mensagens e mídias:</strong> Enquanto a Conta estiver ativa; após o encerramento, eliminados mediante solicitação</li>
                         <li><strong>Logs de acesso:</strong> 6 meses para segurança</li>
                         <li><strong>Dados financeiros:</strong> Conforme legislação fiscal (5-10 anos)</li>
                       </ul>
@@ -256,7 +347,7 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section className="bg-primary/5 p-6 rounded-lg border">
-                  <h2 className="text-xl font-semibold mb-4">7. Seus Direitos (LGPD)</h2>
+                  <h2 className="text-xl font-semibold mb-4">8. Seus Direitos (LGPD)</h2>
                   <p className="text-muted-foreground mb-4">
                     Como titular de dados pessoais, você possui os seguintes direitos:
                   </p>
@@ -304,25 +395,89 @@ export default function PrivacyPolicy() {
                     </div>
                   </div>
                   
-                  <div className="mt-4 p-4 bg-background rounded border">
+                  <div className="mt-4 p-4 bg-background rounded border space-y-3">
                     <p className="text-sm text-muted-foreground mb-0">
-                      <strong>Como exercer seus direitos:</strong> Entre em contato através do e-mail privacidade@convoflow.com.br
-                      ou pela área de configurações da plataforma. Responderemos em até 15 dias úteis.
+                      <strong>Como exercer seus direitos:</strong> Entre em contato através do e-mail
+                      privacidade@convoflow.com.br. Responderemos em até 15 dias úteis. O atendimento às
+                      solicitações é feito por esse canal; a plataforma não dispõe de área de autoatendimento
+                      para exportação ou exclusão de dados.
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-0">
+                      <strong>Se você é cliente final de uma loja:</strong> os direitos acima devem ser exercidos
+                      perante a loja com a qual você se comunicou, que é a controladora desses dados (seção 2).
+                      Solicitações recebidas por nós serão encaminhadas a ela, à qual cabe a decisão sobre o pedido.
                     </p>
                   </div>
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">8. Cookies e Tecnologias Similares</h2>
+                  <h2 className="text-xl font-semibold mb-4">9. Cookies e Tecnologias Similares</h2>
+                  {/*
+                    NÃO ALTERAR SEM VERIFICAR O CÓDIGO.
+                    Esta seção descreve exatamente o que a aplicação grava hoje no navegador:
+                      - localStorage 'convoflow-auth' — sessão do Supabase (essencial)
+                      - cookie 'sidebar:state' (7 dias) — estado da barra lateral (preferência)
+                      - localStorage — Conta ativa, agrupamento de conversas, painel de contato
+                    NÃO existe Google Analytics, Meta Pixel, Hotjar ou similar em index.html
+                    nem no bundle. Se algum rastreador for adicionado — inclusive ativando o
+                    Rewardful via VITE_REWARDFUL_API_KEY, que injeta r.wdfl.co/rw.js e grava
+                    cookie de indicação — esta seção passa a estar incorreta e um banner de
+                    consentimento passa a ser exigível. Atualize os dois juntos.
+                  */}
                   <p className="text-muted-foreground leading-relaxed">
-                    Utilizamos cookies essenciais para o funcionamento da plataforma, cookies de performance para melhorar 
-                    a experiência e cookies de funcionalidade para personalização. Você pode gerenciar suas preferências 
-                    nas configurações do navegador.
+                    O ConvoFlow utiliza <strong>apenas cookies e armazenamento local estritamente necessários</strong>
+                    {' '}ao funcionamento da plataforma. Não utilizamos cookies de publicidade, de rastreamento
+                    comportamental ou de análise de audiência por terceiros.
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <h3 className="font-medium mb-2">Necessários à autenticação:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>
+                          Token de sessão armazenado localmente no navegador, sob a chave
+                          {' '}<code className="text-xs">convoflow-auth</code>, indispensável para manter você
+                          autenticado. Sem ele, não é possível acessar a plataforma.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Preferências de interface:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>Estado da barra lateral (recolhida ou expandida), com validade de 7 dias.</li>
+                        <li>Conta ativa selecionada, forma de exibição das conversas e visibilidade do painel de contato.</li>
+                      </ul>
+                      <p className="text-sm text-muted-foreground mt-2 mb-0">
+                        São gravados exclusivamente no seu navegador, em decorrência de ações suas na interface, e
+                        não são transmitidos a terceiros.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium mb-2">Componentes de terceiros:</h3>
+                      <ul className="list-disc pl-6 text-muted-foreground">
+                        <li>
+                          O SDK da Meta (<code className="text-xs">connect.facebook.net</code>) é carregado
+                          somente dentro da área autenticada e apenas quando o usuário opta por conectar um número
+                          de WhatsApp pelo cadastro incorporado da Meta. Nessa hipótese, a Meta poderá gravar seus
+                          próprios cookies, conforme a política de privacidade dela.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <p className="text-muted-foreground leading-relaxed mt-4">
+                    Por se limitarem ao estritamente necessário e às preferências decorrentes de ação do próprio
+                    usuário, esses registros dispensam banner de consentimento, nos termos do Guia Orientativo da
+                    ANPD sobre cookies. Você pode, ainda assim, bloqueá-los ou removê-los nas configurações do seu
+                    navegador, ciente de que isso impedirá a autenticação na plataforma. Caso venhamos a adotar
+                    cookies não essenciais, solicitaremos seu consentimento previamente e atualizaremos esta seção.
                   </p>
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">9. Alterações na Política</h2>
+                  <h2 className="text-xl font-semibold mb-4">10. Alterações na Política</h2>
                   <p className="text-muted-foreground leading-relaxed">
                     Esta política pode ser atualizada periodicamente. Notificaremos sobre mudanças significativas 
                     por e-mail e através da plataforma. Recomendamos revisar esta política regularmente.
@@ -330,13 +485,21 @@ export default function PrivacyPolicy() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold mb-4">10. Base Legal para Tratamento</h2>
+                  <h2 className="text-xl font-semibold mb-4">11. Base Legal para Tratamento</h2>
+                  <p className="text-muted-foreground mb-3">
+                    As bases legais abaixo aplicam-se ao tratamento em que o ConvoFlow atua como controlador,
+                    conforme a seção 2:
+                  </p>
                   <div className="space-y-2 text-muted-foreground">
                     <p><strong>Execução de contrato:</strong> Prestação dos serviços contratados</p>
                     <p><strong>Interesse legítimo:</strong> Melhorias, segurança e prevenção à fraude</p>
                     <p><strong>Consentimento:</strong> Marketing e comunicações opcionais</p>
                     <p><strong>Cumprimento legal:</strong> Obrigações fiscais e regulatórias</p>
                   </div>
+                  <p className="text-muted-foreground mt-3">
+                    Quanto aos dados de clientes finais, tratados na condição de operador, a definição e a
+                    comprovação da base legal competem à loja cliente, na qualidade de controladora.
+                  </p>
                 </section>
 
                 <section className="bg-muted/50 p-6 rounded-lg">
