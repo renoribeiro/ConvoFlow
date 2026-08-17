@@ -8,6 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 
 interface Crumb {
   label: string;
@@ -20,6 +21,12 @@ interface PageHeaderProps {
   description?: string;
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
+  /**
+   * Chave de ajuda contextual em src/lib/help/featureHelp.ts (ex.:
+   * 'page:conversations'). Renderiza o botão (?) ao lado do título. Toda tela
+   * nova deve passar a sua — é o único acoplamento necessário para ter ajuda.
+   */
+  helpKey?: string;
 }
 
 export const PageHeader = ({
@@ -28,6 +35,7 @@ export const PageHeader = ({
   description,
   breadcrumbs,
   actions,
+  helpKey,
 }: PageHeaderProps) => {
   return (
     <div className="flex flex-col gap-3 pb-5 border-b border-border">
@@ -54,7 +62,10 @@ export const PageHeader = ({
 
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-foreground leading-tight truncate">{title}</h1>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h1 className="text-xl font-semibold text-foreground leading-tight truncate min-w-0">{title}</h1>
+            {helpKey && <FeatureHelp helpKey={helpKey} className="flex-shrink-0" />}
+          </div>
           {subtitle && (
             <p className="text-sm font-medium text-muted-foreground mt-0.5">{subtitle}</p>
           )}

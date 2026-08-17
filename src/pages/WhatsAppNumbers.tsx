@@ -349,6 +349,7 @@ export default function WhatsAppNumbers() {
       <div className="space-y-6">
         <PageHeader
           title="Instâncias e APIs"
+          helpKey="page:whatsapp-numbers"
           description="Gerencie suas instâncias e integrações de WhatsApp"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
@@ -372,6 +373,7 @@ export default function WhatsAppNumbers() {
       <div className="space-y-6">
         <PageHeader
           title="Instâncias e APIs"
+          helpKey="page:whatsapp-numbers"
           description="Gerencie suas instâncias e integrações de WhatsApp"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
@@ -396,6 +398,7 @@ export default function WhatsAppNumbers() {
       <div className="space-y-6">
         <PageHeader
           title="Instâncias e APIs"
+          helpKey="page:whatsapp-numbers"
           description="Gerencie suas instâncias e integrações de WhatsApp"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
@@ -418,6 +421,7 @@ export default function WhatsAppNumbers() {
     <div className="space-y-6">
       <PageHeader
         title="Instâncias e APIs"
+        helpKey="page:whatsapp-numbers"
         description="Gerencie suas instâncias e integrações de WhatsApp"
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },

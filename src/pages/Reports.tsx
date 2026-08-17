@@ -21,6 +21,7 @@ export default function Reports() {
     <div className="space-y-6">
       <PageHeader
         title="Relatórios"
+        helpKey="page:reports"
         description="Gere relatórios detalhados e configure envios automáticos por email e WhatsApp"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },

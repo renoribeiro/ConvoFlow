@@ -45,9 +45,11 @@ Vite's production build (`mode === 'production'` in `vite.config.ts`) throws if 
 **Route guarding.** Three composable guards under `src/components/auth/`:
 - `AuthGuard` — requires a session, otherwise redirects to `/auth`.
 - `ModuleGuard` — checks `is_enabled` for the module in `useModules()` AND, for modules in the hard-coded `PREMIUM_MODULES` list (`chatbots, automation, campaigns, followups, reports, tracking, funnel`), checks the tenant's plan/trial/manual-access flags. Super admins bypass both.
-- `RoleGuard` — exact role match against `user.user_metadata.role`; super admins bypass.
+- `RoleGuard` — role match against the role coming from `profiles.role` (exposed via `useRole()` in `TenantContext`), **not** `user.user_metadata.role`. Accepts `role` for an exact match or `minRole` for "this level or above" (`atendente` < `gestor` < `gerente` < `superadmin`); super admins bypass.
 
 When adding a new dashboard route, wrap it in `ModuleGuard` with the matching `moduleName` and add the module to the database's module config; otherwise non-super-admins see redirects.
+
+**Exception — routes visible to every role.** A screen that must open for anyone with a session takes no `ModuleGuard` and no `RoleGuard`: it sits under the `/dashboard` `AuthGuard` alone, and its sidebar entry uses `moduleName: null` (which makes `isItemVisible` in `Sidebar.tsx` short-circuit to `true`). `settings`, `profile` and `notifications` are the existing examples of this pattern — follow them rather than inventing a permissive module.
 
 **Multi-tenancy.** Every domain table has `tenant_id`. Roles seen in code: `super_admin`, `tenant_admin`, regular users. Use `useTenantId()`, `useIsTenantAdmin()`, `useIsSuperAdmin()` from `TenantContext` rather than re-deriving from raw profile data.
 
@@ -115,3 +117,117 @@ grupos, status), siga este protocolo antes de escrever qualquer linha de código
 
 4. Após implementar, verifique se o código respeita as "Regras de Uso para o
    Agente" listadas no final de cada arquivo SKILL.md.
+
+## Regras Obrigatórias para a Ajuda no Produto
+
+Toda mudança no sistema também atualiza a ajuda que o usuário lê. O conteúdo
+mora em `src/lib/help/featureHelp.ts` e é exibido pelo `<FeatureHelp />`. Não
+existe entrega "só de código": código sem ajuda correspondente está incompleto.
+
+1. **Nova tela do dashboard** → crie a entrada `page:<segmento-da-rota>` em
+   `featureHelp.ts` (com `category: 'tela'` e a `area` da seção do menu) e passe
+   `helpKey` no `PageHeader` da tela. Se a tela não usa `PageHeader`, monte o
+   `<FeatureHelp />` ao lado do título dela. Declare também o acesso da tela na
+   própria entrada — `moduleName` (o mesmo nome do `ModuleGuard` da rota) e/ou
+   `minRole` (a mesma escala do `RoleGuard`). Isso não é permissão: é o que faz
+   a página de Ajuda não oferecer leitura sobre tela que o cargo não alcança.
+
+2. **Novo nó de chatbot** → crie a entrada com a chave igual ao `node_type`
+   (`category: 'chatbot'`, `area` = categoria da paleta em `flowConstants.ts`).
+   O `NodeConfigPanel` já monta a ajuda a partir do tipo do nó.
+
+3. **Novo gatilho, ação ou condição de automação** → crie a entrada
+   `trigger:*` / `action:*` / `condition:*` (`category: 'automacao'`) e preencha
+   o `helpKey` da entrada correspondente em `automationCatalog.ts`.
+
+4. **Mudança de comportamento de algo que já existe** → atualize a entrada
+   correspondente no mesmo commit. Ajuda que descreve o comportamento antigo é
+   pior que ajuda nenhuma: o usuário segue o passo-a-passo e não funciona.
+
+4b. **Mudança em fluxo de onboarding** → atualize o tutorial correspondente em
+   `src/lib/help/tutorials.ts`, no mesmo commit. Contam como onboarding:
+   conectar WhatsApp, convidar usuário / montar equipe, configurar o funil,
+   criar chatbot e disparar campanha. Isso inclui renomear um botão, trocar a
+   ordem dos passos de um assistente, acrescentar campo obrigatório ou mudar
+   quem pode fazer a ação. Tutorial é passo-a-passo: um label errado no meio do
+   caminho para o usuário.
+
+5. **Nunca use o nome "pelado" de uma tela como chave.** O namespace é plano e
+   já tem colisões potenciais (`condition` é nó do chatbot e `condition:*` são
+   condições de automação; `update_contact` é nó e também `action:*`). O prefixo
+   é o que evita o conflito.
+
+6. **Conteúdo em pt-BR**, na voz das entradas existentes: segunda pessoa, frases
+   curtas. O `whatItDoes` começa onde a `description` do `PageHeader` termina —
+   parafrasear a descrição genérica não ajuda ninguém. Onde o comportamento muda
+   por cargo (`superadmin` / `gerente` / `gestor` / `atendente`), diga isso no
+   texto.
+
+### Dois tipos de conteúdo
+
+- **Referência** (`src/lib/help/featureHelp.ts`) — explica UMA tela ou UM bloco.
+- **Tutorial** (`src/lib/help/tutorials.ts`) — cumpre um OBJETIVO, e objetivo
+  atravessa várias telas. Cada passo é uma AÇÃO com verbo; passo sem verbo é
+  referência disfarçada e o lugar dele é numa entrada do featureHelp.
+
+Os dois declaram acesso do mesmo jeito (`moduleName` / `minRole`) e são
+filtrados pelo mesmo `useHelpVisibility`. Não crie uma segunda fonte de permissão.
+
+### Onde o conteúdo aparece
+
+Cada entrada de referência é exibida em dois lugares, sempre pelo mesmo
+componente de corpo (`src/components/shared/FeatureHelpBody.tsx` — não duplique
+esse JSX):
+
+1. **Painel lateral contextual** — o `<FeatureHelp />` da própria tela.
+2. **Página de Ajuda** (`/dashboard/help`, `src/pages/Help.tsx`) — a
+   documentação navegável.
+
+Os tutoriais aparecem só na página de Ajuda, na primeira seção, renderizados por
+`src/components/shared/TutorialBody.tsx`. O único ponto de descoberta deles no
+produto é o cartão do Dashboard
+(`src/components/dashboard/OnboardingTutorialsCard.tsx`), que aparece enquanto a
+Conta não tem nenhuma instância de WhatsApp. **Não espalhe outros banners,
+tooltips ou modais de tutorial pelo produto** — um ponto de entrada, por decisão.
+
+**A página de Ajuda não precisa ser editada para receber conteúdo novo.** Ela
+monta tudo por `getHelpByCategory()` e por `TUTORIALS`, na ordem de
+`HELP_CATEGORIES`, com os rótulos de `HELP_CATEGORY_LABELS` e o sub-agrupamento
+de `area`. Entrada e tutorial novos aparecem sozinhos. Não escreva texto de
+ajuda dentro de `Help.tsx`.
+
+Só há **uma** mudança que exige mexer na página: um valor NOVO de `category`.
+Nesse caso, acrescente-o a `HELP_CATEGORIES` **na posição em que deve aparecer**
+(o array define a ordem das seções) e dê a ele um rótulo em
+`HELP_CATEGORY_LABELS`. Sem o rótulo a seção sai sem título; fora de posição,
+sai na ordem errada.
+
+A tela de Ajuda em si **não tem** entrada `page:help` — ela é a documentação, não
+um assunto documentado. É a única exceção à regra 1.
+
+Deep link: `/dashboard/help#<chave>` abre e rola até a entrada (ex.:
+`/dashboard/help#page:conversations`). É o que o link "Ver toda a documentação"
+do painel lateral usa.
+
+### Testes que protegem a ajuda
+
+`src/lib/help/featureHelp.test.ts` varre o `src/` atrás de chaves de ajuda e
+**falha** quando: uma `helpKey` usada não tem entrada, uma entrada existe mas não
+é alcançável por nenhum ponto de montagem, um tipo de nó ou entrada do catálogo
+aponta para chave inexistente, uma entrada está sem título, `whatItDoes`, passos
+ou `category` válida, ou um `moduleName` declarado não existe como `ModuleGuard`
+em `App.tsx`.
+
+`src/lib/help/tutorials.test.ts` protege os tutoriais e **falha** quando: um
+passo aponta em `screen` para uma rota que não existe mais em `App.tsx` (renomear
+rota quebra este teste), um `helpKey` de passo não existe em `FEATURE_HELP`, um
+`moduleName` não corresponde a nenhum `ModuleGuard`, um `minRole` não é cargo
+válido, ou um tutorial sai da faixa de 5 a 9 passos.
+
+`src/pages/Help.test.tsx` cobre a página: renderização de todas as entradas e
+tutoriais, busca sem acento, deep link (`#page:*` e `#tutorial:*`) e filtro por
+cargo. `src/components/dashboard/OnboardingTutorialsCard.test.tsx` cobre o
+cartão do Dashboard.
+
+Rode `npm run test:run` antes de abrir PR — o `<FeatureHelp />` falha em silêncio
+na tela, então o teste é o único lugar onde um typo de chave aparece.

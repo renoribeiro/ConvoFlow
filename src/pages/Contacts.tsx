@@ -137,6 +137,7 @@ export default function Contacts() {
     <div className="space-y-6">
       <PageHeader
         title="Contatos"
+        helpKey="page:contacts"
         description="Gerencie todos os seus leads e contatos em um só lugar"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },

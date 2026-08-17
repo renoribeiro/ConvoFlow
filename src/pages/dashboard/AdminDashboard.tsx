@@ -393,6 +393,7 @@ const AdminDashboard = () => {
     <div className="space-y-6">
       <PageHeader
         title="Administração"
+        helpKey="page:admin"
         description="Painel de controle para super administradores"
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },

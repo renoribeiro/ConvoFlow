@@ -54,6 +54,7 @@ import {
 import { NODE_TYPES } from '@/components/chatbots/flow/nodes/FlowNodes';
 import NodeConfigPanel from '@/components/chatbots/flow/panels/NodeConfigPanel';
 import NewChatbotFlowModal from '@/components/chatbots/NewChatbotFlowModal';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { FlowEdgeContext, EDGE_TYPES } from '@/components/chatbots/flow/edges/DeletableEdge';
 import type { ChatbotNodeType, ChatbotNodeData, ChatbotVariableRow } from '@/types/chatbot-flow.types';
 
@@ -551,6 +552,9 @@ const ChatbotFlowBuilder: React.FC = () => {
           onChange={(e) => { setBotName(e.target.value); setIsDirty(true); }}
           className="h-8 w-52 text-sm font-medium"
         />
+
+        {/* O construtor não tem PageHeader: a ajuda da tela fica na barra do topo. */}
+        <FeatureHelp helpKey="page:chatbot-builder" />
 
         {isDirty && (
           <Badge variant="outline" className="text-orange-500 border-orange-500 text-xs">

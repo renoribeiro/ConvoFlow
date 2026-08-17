@@ -62,6 +62,7 @@ export default function UsageLimitsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Limites de uso por nível"
+        helpKey="page:admin-usage-limits"
         description="Configure os limites aplicados a cada nível da hierarquia. Deixe vazio para sem limite."
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },

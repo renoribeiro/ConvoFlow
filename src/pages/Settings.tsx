@@ -15,8 +15,21 @@ import { NotificationSettings } from '@/components/settings/NotificationSettings
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
 import { SubscriptionSettings } from '@/components/settings/SubscriptionSettings';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { useSearchParams } from 'react-router-dom';
 
+/**
+ * Ajuda contextual de cada aba. "profile" fica de fora de propósito:
+ * ProfileSettings já traz o próprio botão no cabeçalho do card, porque o mesmo
+ * componente também atende a rota /dashboard/profile.
+ */
+const TAB_HELP_KEYS: Record<string, string> = {
+  attendance: 'page:settings-attendance',
+  subscription: 'page:settings-subscription',
+  notifications: 'page:settings-notifications',
+  security: 'page:settings-security',
+  integrations: 'page:settings-integrations',
+};
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,6 +51,7 @@ export default function Settings() {
     <div className="space-y-6">
       <PageHeader
         title="Configurações"
+        helpKey="page:settings"
         description="Gerencie as configurações da sua conta e preferências do sistema"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
@@ -72,6 +86,13 @@ export default function Settings() {
             Integrações
           </TabsTrigger>
         </TabsList>
+
+        {TAB_HELP_KEYS[currentTab] && (
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <span>Como funciona esta aba</span>
+            <FeatureHelp helpKey={TAB_HELP_KEYS[currentTab]} />
+          </div>
+        )}
 
         <TabsContent value="profile">
           <ProfileSettings />

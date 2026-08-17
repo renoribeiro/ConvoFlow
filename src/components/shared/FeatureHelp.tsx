@@ -3,10 +3,13 @@
  * lateral explicando o que a função faz, como configurá-la e um exemplo.
  *
  * O conteúdo vem de src/lib/help/featureHelp.ts, indexado por `helpKey`.
- * Se a chave não existir, nada é renderizado (degradação segura).
+ * Se a chave não existir, nada é renderizado (degradação segura em produção) e
+ * em desenvolvimento sai um aviso no console — chave sem conteúdo é quase sempre
+ * typo, e o silêncio esconderia o erro.
  */
-import React from 'react';
-import { HelpCircle, Lightbulb, ListChecks, Wand2 } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { HelpCircle } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -15,7 +18,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { FeatureHelpBody } from '@/components/shared/FeatureHelpBody';
 import { getFeatureHelp } from '@/lib/help/featureHelp';
+import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -24,8 +30,25 @@ interface Props {
   className?: string;
 }
 
+/** Chaves já avisadas — o alerta sai uma vez por chave, não a cada render. */
+const warnedKeys = new Set<string>();
+
 export const FeatureHelp: React.FC<Props> = ({ helpKey, className }) => {
   const entry = getFeatureHelp(helpKey);
+
+  // Aviso só em desenvolvimento. A chave vai na própria mensagem porque o
+  // logger censura qualquer campo de contexto cujo nome contenha "key".
+  useEffect(() => {
+    if (entry || !helpKey) return;
+    if (!env.isDevelopment()) return;
+    if (warnedKeys.has(helpKey)) return;
+    warnedKeys.add(helpKey);
+    logger.warn(
+      `FeatureHelp: nenhum conteúdo de ajuda para a chave "${helpKey}". ` +
+        'Adicione a entrada em src/lib/help/featureHelp.ts.',
+    );
+  }, [entry, helpKey]);
+
   if (!entry) return null;
 
   return (
@@ -49,42 +72,16 @@ export const FeatureHelp: React.FC<Props> = ({ helpKey, className }) => {
           <SheetDescription>{entry.whatItDoes}</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6 text-sm">
-          <section className="space-y-2">
-            <h4 className="flex items-center gap-2 font-medium text-foreground">
-              <ListChecks className="h-4 w-4 text-primary" />
-              Como configurar
-            </h4>
-            <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
-              {entry.howToConfigure.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </section>
+        <FeatureHelpBody entry={entry} className="mt-6" />
 
-          {entry.example && (
-            <section className="space-y-2">
-              <h4 className="flex items-center gap-2 font-medium text-foreground">
-                <Wand2 className="h-4 w-4 text-primary" />
-                Exemplo
-              </h4>
-              <p className="rounded-md bg-muted p-3 text-muted-foreground">{entry.example}</p>
-            </section>
-          )}
-
-          {entry.tips && entry.tips.length > 0 && (
-            <section className="space-y-2">
-              <h4 className="flex items-center gap-2 font-medium text-foreground">
-                <Lightbulb className="h-4 w-4 text-amber-500" />
-                Dicas
-              </h4>
-              <ul className="list-disc space-y-1.5 pl-5 text-muted-foreground">
-                {entry.tips.map((tip, i) => (
-                  <li key={i}>{tip}</li>
-                ))}
-              </ul>
-            </section>
-          )}
+        {/* Saída para a documentação completa, já ancorada nesta mesma entrada. */}
+        <div className="mt-8 border-t border-border pt-4">
+          <Link
+            to={`/dashboard/help#${helpKey}`}
+            className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+          >
+            Ver toda a documentação
+          </Link>
         </div>
       </SheetContent>
     </Sheet>

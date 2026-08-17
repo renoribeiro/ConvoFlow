@@ -19,6 +19,7 @@ import {
   Shield,
   Smartphone,
   UsersRound,
+  HelpCircle,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -77,6 +78,8 @@ const marketingItems: NavItem[] = [
 const configItems: NavItem[] = [
   { name: 'Instâncias e APIs', href: '/dashboard/whatsapp-numbers', icon: Smartphone, moduleName: 'whatsapp-numbers' },
   { name: 'Configurações', href: '/dashboard/settings', icon: Settings, moduleName: null },
+  // moduleName null => visível para todo cargo (ver isItemVisible).
+  { name: 'Ajuda', href: '/dashboard/help', icon: HelpCircle, moduleName: null },
 ];
 
 const teamItems: NavItem[] = [

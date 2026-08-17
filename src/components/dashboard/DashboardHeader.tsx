@@ -40,6 +40,7 @@ export const DashboardHeader = ({ period }: DashboardHeaderProps) => {
   return (
     <PageHeader
       title="Dashboard"
+      helpKey="page:dashboard"
       description="Visão geral das suas conversas, contatos e métricas de WhatsApp"
       actions={
         <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-muted/60 p-1">

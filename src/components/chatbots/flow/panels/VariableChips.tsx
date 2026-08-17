@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { SYSTEM_VARIABLES } from '@/lib/chatbot/flowConstants';
 import type { ChatbotVariableRow } from '@/types/chatbot-flow.types';
 
@@ -34,7 +35,13 @@ const VariableChips: React.FC<Props> = ({ variables, textareaRef, onInsert, curr
 
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Variáveis do sistema</p>
+      {/* Explica o conceito de variável no ponto em que ele aparece pela primeira
+          vez. Este componente é compartilhado por Enviar Texto, Fazer Pergunta e
+          Menu de Opções, então um único ponto cobre os três painéis. */}
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Variáveis do sistema</p>
+        <FeatureHelp helpKey="concept:variables" className="h-4 w-4" />
+      </div>
       <div className="flex flex-wrap gap-1">
         {SYSTEM_VARIABLES.map((v) => (
           <Badge

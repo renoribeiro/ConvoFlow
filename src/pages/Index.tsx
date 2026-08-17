@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { OnboardingTutorialsCard } from '@/components/dashboard/OnboardingTutorialsCard';
 import { EnhancedMetricCard } from '@/components/dashboard/EnhancedMetricCard';
 import { AttentionPanel } from '@/components/dashboard/AttentionPanel';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
@@ -75,6 +76,10 @@ const Index = () => {
   return (
     <div className="space-y-6">
       <DashboardHeader period={period} />
+
+      {/* Seção 1.5 — Convite aos tutoriais, só enquanto a Conta está no zero.
+          Único ponto de descoberta dos tutoriais no produto. */}
+      <OnboardingTutorialsCard />
 
       {/* Seção 2 — KPI cards com sparkline + variação */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

@@ -243,6 +243,7 @@ export default function Conversations() {
       >
         <PageHeader
           title="Conversas"
+          helpKey="page:conversations"
           description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },

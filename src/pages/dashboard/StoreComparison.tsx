@@ -9,6 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { useStoreComparison } from '@/hooks/useStoreComparison';
 
 const numberFmt = new Intl.NumberFormat('pt-BR');
@@ -36,7 +37,11 @@ const StoreComparison = () => {
           <BarChart3 className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-semibold">Comparar Lojas</h1>
+          {/* Esta tela não usa PageHeader, então a ajuda vai ao lado do título. */}
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-semibold">Comparar Lojas</h1>
+            <FeatureHelp helpKey="page:store-comparison" />
+          </div>
           <p className="text-sm text-muted-foreground">
             Métricas lado a lado das lojas do seu grupo.
           </p>

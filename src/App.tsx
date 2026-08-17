@@ -36,6 +36,7 @@ const Automation = React.lazy(() => import("./pages/Automation"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const ProfileSettings = React.lazy(() => import("@/components/settings/ProfileSettings").then(module => ({ default: module.ProfileSettings })));
 const Notifications = React.lazy(() => import("./pages/Notifications"));
+const Help = React.lazy(() => import("./pages/Help"));
 const AdminDashboard = React.lazy(() => import("./pages/dashboard/AdminDashboard"));
 const UsersPage = React.lazy(() => import("./pages/dashboard/admin/UsersPage"));
 const UsageLimitsPage = React.lazy(() => import("./pages/dashboard/admin/UsageLimitsPage"));
@@ -223,6 +224,14 @@ const App = () => (
                   <Route path="notifications" element={
                     <Suspense fallback={<PageLoadingSkeleton />}>
                       <Notifications />
+                    </Suspense>
+                  } />
+                  {/* Ajuda: sem ModuleGuard e sem RoleGuard de propósito — a
+                      documentação abre para qualquer sessão, como settings,
+                      profile e notifications. */}
+                  <Route path="help" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Help />
                     </Suspense>
                   } />
 

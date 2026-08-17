@@ -75,6 +75,11 @@ describe('Dashboard', () => {
   // ── 1. Loading state ────────────────────────────────────────────────────────
 
   describe('loading state', () => {
+    // Timeout ampliado só aqui: este é o primeiro teste do arquivo, então é ele
+    // que paga o custo do `await import('./Dashboard')` (transform + árvore de
+    // dependências). Rodando sozinho leva ~1,3s, mas sob a concorrência da
+    // suíte inteira já chegou a 13s e estourou o limite padrão de 10s. Os outros
+    // testes reaproveitam o módulo já carregado e rodam em ~100ms.
     it('renders skeleton cards while contacts count is loading', async () => {
       // One of the count hooks is still loading
       mockUseSupabaseCount.mockImplementation((table: string) => {
@@ -86,7 +91,7 @@ describe('Dashboard', () => {
 
       // Stat cards replaced by skeletons — "Total de Conversas" title must NOT be visible
       expect(screen.queryByText('Total de Conversas')).toBeNull();
-    });
+    }, 30_000);
 
     it('renders skeleton cards while conversations count is loading', async () => {
       mockUseSupabaseCount.mockImplementation((table: string) => {

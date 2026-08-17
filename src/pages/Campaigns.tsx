@@ -35,6 +35,7 @@ export default function Campaigns() {
     <div className="space-y-6">
       <PageHeader
         title="Campanhas de Disparo"
+        helpKey="page:campaigns"
         description="Crie e gerencie campanhas de mensagens em massa para seus contatos"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },

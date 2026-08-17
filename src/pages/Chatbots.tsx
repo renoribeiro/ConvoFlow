@@ -90,6 +90,7 @@ const Chatbots: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Chatbots"
+        helpKey="page:chatbots"
         description="Crie fluxos visuais de atendimento automático para o WhatsApp"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Chatbots' }]}
         actions={

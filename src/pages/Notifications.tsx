@@ -131,6 +131,7 @@ export default function Notifications() {
     <div className="space-y-6">
       <PageHeader
         title="Notificações"
+        helpKey="page:notifications"
         description={`${unreadCount} não lida${unreadCount !== 1 ? 's' : ''}`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },

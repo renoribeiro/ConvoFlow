@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from 'sonner';
 import { Camera, Save } from 'lucide-react';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 
 export function ProfileSettings() {
   const { user } = useAuth();
@@ -128,7 +129,12 @@ export function ProfileSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Perfil</CardTitle>
+        {/* A ajuda mora aqui (e não na aba de Configurações) porque este mesmo
+            componente atende a aba "Perfil" e a rota /dashboard/profile. */}
+        <div className="flex items-center gap-1.5">
+          <CardTitle>Perfil</CardTitle>
+          <FeatureHelp helpKey="page:settings-profile" />
+        </div>
         <CardDescription>
           Gerencie suas informações pessoais e preferências de conta
         </CardDescription>

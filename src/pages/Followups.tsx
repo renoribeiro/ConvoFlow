@@ -34,6 +34,7 @@ export default function Followups() {
     <div className="space-y-6">
       <PageHeader
         title="Follow-ups"
+        helpKey="page:followups"
         description="Gerencie e acompanhe todas as suas tarefas de follow-up com clientes"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },

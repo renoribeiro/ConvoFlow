@@ -169,6 +169,7 @@ const Automation = () => {
     <div className="space-y-6">
       <PageHeader
         title="Automação"
+        helpKey="page:automation"
         description="Crie e gerencie fluxos de automação para otimizar seu atendimento"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Automação' }]}
         actions={<Button size="sm" onClick={() => setShowBuilder(true)}><Plus className="h-4 w-4 mr-2" />Novo Fluxo</Button>}

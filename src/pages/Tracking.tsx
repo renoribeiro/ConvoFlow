@@ -71,6 +71,7 @@ export default function Tracking() {
     <div className="space-y-6">
       <PageHeader
         title="Rastreamento de Leads"
+        helpKey="page:tracking"
         description="Configure e monitore suas fontes de tráfego para otimizar a geração de leads"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },

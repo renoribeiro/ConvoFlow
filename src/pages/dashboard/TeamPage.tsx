@@ -30,6 +30,7 @@ export default function TeamPage() {
     <div className="space-y-6">
       <PageHeader
         title={heading}
+        helpKey="page:team"
         description={description}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },

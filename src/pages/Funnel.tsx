@@ -18,6 +18,7 @@ export default function Funnel() {
     <div className="space-y-6">
       <PageHeader
         title="Funil de Vendas"
+        helpKey="page:funnel"
         description="Visualize e gerencie o progresso dos seus leads através do funil"
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
