@@ -39,7 +39,9 @@ export type RenderableMessage = {
   content: string | null;
   created_at: string;
   direction: 'inbound' | 'outbound';
-  status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
+  // 'deleted' é gravado pelos webhooks quando o cliente apaga a mensagem
+  // (evolution-webhook: processMessageDelete), junto com content='[Mensagem apagada]'.
+  status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending' | 'deleted';
   message_type: string; // 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'reaction' | 'contact' | 'deleted' | ...
   media_url?: string | null;
   // Optional metadata fields some webhooks store inside content as JSON.
