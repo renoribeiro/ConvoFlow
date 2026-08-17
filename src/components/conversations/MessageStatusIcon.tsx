@@ -1,4 +1,4 @@
-import { AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle, Ban, Clock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { RenderableMessage } from './MessageBubble';
 
@@ -10,6 +10,7 @@ const STATUS_LABEL: Record<NonNullable<MessageStatus>, string> = {
   delivered: 'Entregue',
   read: 'Lida',
   failed: 'Falhou',
+  deleted: 'Mensagem apagada',
 };
 
 /** Single WhatsApp-style checkmark (inline SVG, ~14px). */
@@ -70,6 +71,9 @@ interface MessageStatusIconProps {
 /**
  * Delivery-status indicator shown on outbound messages, mirroring WhatsApp:
  * one tick (sent), two ticks (delivered), two lilac ticks (read), error / clock.
+ * A deleted message leaves the delivery track entirely and shows a muted ban
+ * sign — without its own case it would fall through to the pulsing clock and
+ * read as "still sending".
  * Color transitions smoothly so a sent→read change animates.
  */
 export function MessageStatusIcon({ status }: MessageStatusIconProps) {
@@ -85,6 +89,8 @@ export function MessageStatusIcon({ status }: MessageStatusIconProps) {
         return <DoubleTick className="text-accent transition-colors duration-200" />;
       case 'failed':
         return <AlertCircle className="w-3.5 h-3.5 text-destructive" />;
+      case 'deleted':
+        return <Ban className="w-3.5 h-3.5 text-muted-foreground" />;
       case 'pending':
       default:
         return <Clock className="w-3.5 h-3.5 text-warning animate-pulse" />;

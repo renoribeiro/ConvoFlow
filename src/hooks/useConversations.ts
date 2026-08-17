@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tansta
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
+import { logger } from '@/lib/logger';
 
 interface Contact {
   id: string;
@@ -39,8 +40,15 @@ interface Conversation {
   updated_at: string;
   tenant_id: string;
   contacts: Contact;
+  /**
+   * Prévia da última mensagem. `undefined` = conversa sem mensagem nenhuma.
+   *
+   * Contrato inalterado para quem lê (ConversationsList). Só o `created_at` que
+   * o código antigo carregava saiu: a lista sempre usou `last_message_at` da
+   * própria conversa para o horário, e nunca leu esse campo.
+   */
   last_message?: {
-    content: string;
+    content: string | null;
     direction: 'inbound' | 'outbound';
     message_type: string;
     status?: string | null;
@@ -52,6 +60,98 @@ interface ConversationsPage {
   nextCursor?: string;
   hasMore: boolean;
 }
+
+/**
+ * Colunas desnormalizadas da última mensagem, mantidas pela trigger
+ * `update_conversation_on_message` (AFTER INSERT em `messages`).
+ *
+ * Antes disto a lista buscava a última mensagem de CADA conversa em uma query
+ * separada — 1 + 20 idas ao servidor por página, repetidas a cada 10s pelo
+ * polling. Lendo as quatro colunas junto com a conversa, a página inteira volta
+ * a ser 1 query.
+ */
+const LAST_MESSAGE_COLUMNS = `last_message_content,
+          last_message_direction,
+          last_message_status,
+          last_message_type,
+          `;
+
+/** Linha crua da conversa; as colunas novas podem não existir ainda no banco. */
+interface LastMessageColumns {
+  last_message_content?: string | null;
+  last_message_direction?: string | null;
+  last_message_status?: string | null;
+  last_message_type?: string | null;
+}
+
+type ConversationRow = Omit<Conversation, 'last_message'> & LastMessageColumns;
+
+/**
+ * Traduz a direção vinda do banco para o vocabulário do front.
+ *
+ * O banco aceita 'incoming' como sinônimo histórico de 'inbound' (a trigger
+ * sempre casou `IN ('inbound','incoming')`), mas aqui a união é
+ * 'inbound' | 'outbound' e TODO leitor testa `!== 'inbound'` — agrupamento por
+ * atendimento, nível de SLA, pílulas de filtro e o ícone de confirmação. Um
+ * 'incoming' sem normalizar seria lido como mensagem NOSSA e a conversa sairia
+ * da fila de trabalho sem ninguém perceber.
+ *
+ * Espelha o CASE da trigger: qualquer valor que não seja entrada conta como
+ * saída. Vazio/ausente significa "conversa sem mensagem".
+ */
+export const normalizeLastMessageDirection = (
+  value: unknown,
+): 'inbound' | 'outbound' | null => {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  return value === 'inbound' || value === 'incoming' ? 'inbound' : 'outbound';
+};
+
+/**
+ * Monta `last_message` a partir das colunas desnormalizadas.
+ *
+ * Devolve `undefined` quando a conversa não tem mensagem — é o mesmo valor que
+ * o código antigo produzia quando a busca não achava nada. A lista mostra
+ * "Nenhuma mensagem" e, por aplicar `?? 'inbound'` na direção, mantém a conversa
+ * no grupo "Aguardando".
+ *
+ * A direção é a sentinela de "existe mensagem": a trigger e o backfill sempre a
+ * preenchem, enquanto conteúdo, status e tipo podem ser nulos legitimamente
+ * (mídia sem legenda, por exemplo).
+ */
+export const mapLastMessage = (
+  row: LastMessageColumns | null | undefined,
+): Conversation['last_message'] => {
+  const direction = normalizeLastMessageDirection(row?.last_message_direction);
+  if (!direction) return undefined;
+
+  return {
+    content: row?.last_message_content ?? null,
+    direction,
+    message_type: row?.last_message_type ?? 'text',
+    status: row?.last_message_status ?? null,
+  };
+};
+
+/**
+ * As migrações deste projeto são aplicadas à mão, então o frontend pode subir
+ * antes do SQL. Sem tratamento, pedir colunas inexistentes faz o PostgREST
+ * responder 42703 e a lista INTEIRA some da tela.
+ *
+ * Detectando o caso, repetimos a query sem as colunas novas: a lista aparece
+ * sem prévia até a migração rodar, em vez de quebrar.
+ */
+export type SupabaseQueryError = { code?: string | null; message?: string | null } | null;
+
+export const isMissingLastMessageColumnsError = (
+  error: SupabaseQueryError | undefined,
+): boolean => {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  return /last_message_(content|direction|status|type)/.test(error.message ?? '');
+};
+
+/** Vira false na primeira resposta 42703 e não tenta de novo nesta sessão. */
+let lastMessageColumnsAvailable = true;
 
 interface UseConversationsOptions {
   pageSize?: number;
@@ -105,82 +205,106 @@ export const useConversations = ({
       // veio junto.
       const contactsEmbed = term ? 'contacts!inner' : 'contacts';
 
-      let query = supabase
-        .from('conversations')
-        .select(`
-          id,
-          contact_id,
-          last_message_at,
-          unread_count,
-          is_archived,
-          created_at,
-          updated_at,
-          tenant_id,
-          ${contactsEmbed} (
+      // Uma única query monta a página inteira, prévia incluída. `comPrevia`
+      // existe só para o caso da migração ainda não ter rodado (ver
+      // `isMissingLastMessageColumnsError`).
+      const executarQuery = async (
+        comPrevia: boolean,
+      ): Promise<{ data: ConversationRow[] | null; error: SupabaseQueryError }> => {
+        let query = supabase
+          .from('conversations')
+          .select(`
             id,
-            name,
-            phone,
-            avatar_url,
-            lead_source_id,
-            current_stage_id,
-            last_interaction_at,
+            contact_id,
+            last_message_at,
+            unread_count,
+            is_archived,
             created_at,
             updated_at,
             tenant_id,
-            stage:funnel_stages!contacts_current_stage_id_fkey (
-              name
-            ),
-            lead_sources:lead_source_id (
-              name
-            ),
-            contact_tags (
-              tag_id,
-              tags (
-                id,
-                name,
-                color
+            ${comPrevia ? LAST_MESSAGE_COLUMNS : ''}${contactsEmbed} (
+              id,
+              name,
+              phone,
+              avatar_url,
+              lead_source_id,
+              current_stage_id,
+              last_interaction_at,
+              created_at,
+              updated_at,
+              tenant_id,
+              stage:funnel_stages!contacts_current_stage_id_fkey (
+                name
+              ),
+              lead_sources:lead_source_id (
+                name
+              ),
+              contact_tags (
+                tag_id,
+                tags (
+                  id,
+                  name,
+                  color
+                )
               )
             )
-          )
-        `)
-        .eq('tenant_id', tenant.id)
-        .eq('is_archived', isArchived)
-        .order('last_message_at', { ascending: false })
-        .limit(pageSize);
+          `)
+          .eq('tenant_id', tenant.id)
+          .eq('is_archived', isArchived)
+          .order('last_message_at', { ascending: false })
+          .limit(pageSize);
 
-      // Only filter by instance if explicitly specified
-      if (whatsappInstanceId) {
-        query = query.eq('whatsapp_instance_id', whatsappInstanceId);
-      }
+        // Only filter by instance if explicitly specified
+        if (whatsappInstanceId) {
+          query = query.eq('whatsapp_instance_id', whatsappInstanceId);
+        }
 
-      // Aplicar filtro de busca — o `.or()` vai no recurso embutido (`contacts`)
-      // e, com o join inner acima, recorta as conversas. O valor vai entre aspas
-      // porque nome e telefone podem conter vírgula e parênteses, que são
-      // separadores na gramática de filtros do PostgREST.
-      if (term) {
-        const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        query = query.or(
-          `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
-          { referencedTable: 'contacts' }
+        // Aplicar filtro de busca — o `.or()` vai no recurso embutido (`contacts`)
+        // e, com o join inner acima, recorta as conversas. O valor vai entre aspas
+        // porque nome e telefone podem conter vírgula e parênteses, que são
+        // separadores na gramática de filtros do PostgREST.
+        if (term) {
+          const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          query = query.or(
+            `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
+            { referencedTable: 'contacts' }
+          );
+        }
+
+        if (hasUnread) {
+          query = query.gt('unread_count', 0);
+        }
+        if (dateFrom) {
+          query = query.gte('last_message_at', dateFrom.toISOString());
+        }
+        if (dateTo) {
+          query = query.lte('last_message_at', dateTo.toISOString());
+        }
+
+        // Aplicar cursor para paginação
+        if (pageParam) {
+          query = query.lt('last_message_at', pageParam);
+        }
+
+        const { data, error } = await query;
+        return {
+          data: data as unknown as ConversationRow[] | null,
+          error: error as SupabaseQueryError,
+        };
+      };
+
+      let { data, error } = await executarQuery(lastMessageColumnsAvailable);
+
+      // Migração ainda não aplicada: repete sem as colunas novas para a lista
+      // aparecer sem prévia, em vez de sumir inteira da tela.
+      if (error && lastMessageColumnsAvailable && isMissingLastMessageColumnsError(error)) {
+        lastMessageColumnsAvailable = false;
+        logger.warn(
+          'Colunas de prévia da última mensagem ausentes em conversations. A lista segue sem prévia até a migração ser aplicada.',
+          { code: error.code },
         );
+        ({ data, error } = await executarQuery(false));
       }
-
-      if (hasUnread) {
-        query = query.gt('unread_count', 0);
-      }
-      if (dateFrom) {
-        query = query.gte('last_message_at', dateFrom.toISOString());
-      }
-      if (dateTo) {
-        query = query.lte('last_message_at', dateTo.toISOString());
-      }
-
-      // Aplicar cursor para paginação
-      if (pageParam) {
-        query = query.lt('last_message_at', pageParam);
-      }
-
-      const { data, error } = await query;
 
       if (error) {
         throw error;
@@ -188,39 +312,17 @@ export const useConversations = ({
 
       const conversations = data || [];
       const hasMore = conversations.length === pageSize;
-      const nextCursor = hasMore && conversations.length > 0 
-        ? conversations[conversations.length - 1].last_message_at 
+      const nextCursor = hasMore && conversations.length > 0
+        ? conversations[conversations.length - 1].last_message_at
         : undefined;
 
-      // Fetch last messages for these conversations
-      let conversationsWithMessages = conversations;
-      if (conversations.length > 0) {
-        conversationsWithMessages = await Promise.all(
-          conversations.map(async (conv) => {
-            const { data: msg } = await supabase
-              .from('messages')
-              .select('content, created_at, direction, status, message_type')
-              .eq('contact_id', conv.contact_id)
-              .eq('tenant_id', tenant.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            return {
-              ...conv,
-              last_message: msg
-                ? {
-                    content: msg.content,
-                    created_at: msg.created_at,
-                    direction: msg.direction,
-                    status: msg.status,
-                    message_type: msg.message_type,
-                  }
-                : undefined,
-            };
-          })
-        );
-      }
+      // A prévia vem desnormalizada na própria linha da conversa: nenhuma query
+      // extra por conversa. Sem as colunas (migração pendente) `mapLastMessage`
+      // devolve undefined e a lista mostra "Nenhuma mensagem".
+      const conversationsWithMessages = conversations.map((conv) => ({
+        ...conv,
+        last_message: mapLastMessage(conv),
+      }));
 
       return {
         data: conversationsWithMessages,
@@ -236,103 +338,6 @@ export const useConversations = ({
     refetchOnMount: true,
     refetchInterval: 1000 * 10, // Polling a cada 10s como fallback do Realtime
     initialPageParam: null
-  });
-};
-
-// Hook para buscar conversas recentes (dashboard)
-export const useRecentConversations = (limit: number = 5) => {
-  const { tenant } = useTenant();
-
-  return useQuery({
-    queryKey: ['recent-conversations', tenant?.id, limit],
-    queryFn: async () => {
-      if (!tenant?.id) {
-        throw new Error('Tenant ID is required');
-      }
-
-      let query = supabase
-        .from('conversations')
-        .select(`
-          id,
-          contact_id,
-          last_message_at,
-          unread_count,
-          is_archived,
-          created_at,
-          updated_at,
-          tenant_id,
-          contacts (
-            id,
-            name,
-            phone,
-            avatar_url,
-            lead_source_id,
-            current_stage_id,
-            stage:funnel_stages!contacts_current_stage_id_fkey (
-              name
-            ),
-            lead_sources:lead_source_id (
-              name
-            ),
-            contact_tags (
-              tag_id,
-              tags (
-                id,
-                name,
-                color
-              )
-            )
-          )
-        `)
-        .eq('tenant_id', tenant.id)
-        .eq('is_archived', false)
-        .order('last_message_at', { ascending: false })
-        .limit(limit);
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      const conversations = data || [];
-
-      // Fetch last messages for these recent conversations
-      let conversationsWithMessages = conversations;
-      if (conversations.length > 0) {
-        conversationsWithMessages = await Promise.all(
-          conversations.map(async (conv) => {
-            const { data: msg } = await supabase
-              .from('messages')
-              .select('content, created_at, direction, status, message_type')
-              .eq('contact_id', conv.contact_id)
-              .eq('tenant_id', tenant.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            return {
-              ...conv,
-              last_message: msg
-                ? {
-                    content: msg.content,
-                    created_at: msg.created_at,
-                    direction: msg.direction,
-                    status: msg.status,
-                    message_type: msg.message_type,
-                  }
-                : undefined,
-            };
-          })
-        );
-      }
-
-      return conversationsWithMessages;
-    },
-    enabled: !!tenant?.id,
-    staleTime: 1000 * 60 * 1, // 1 minuto
-    gcTime: 1000 * 60 * 5, // 5 minutos
-    refetchOnWindowFocus: true,
   });
 };
 
