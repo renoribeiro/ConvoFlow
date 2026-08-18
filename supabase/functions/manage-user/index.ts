@@ -615,6 +615,25 @@ async function actionResetPassword(
     redirectTo ? { redirectTo } : undefined,
   );
   if (resetErr) {
+    // Teto de envio do mailer EMBUTIDO do Supabase (poucos e-mails por hora).
+    // Sem esta tradução o usuário lia "non-2xx status code" e não tinha como
+    // saber que bastava esperar — ou configurar um SMTP próprio, que é o que
+    // realmente resolve para valer.
+    const status = (resetErr as { status?: number }).status;
+    const code = (resetErr as { code?: string }).code;
+    const ehLimite =
+      status === 429 ||
+      code === 'over_email_send_rate_limit' ||
+      /rate limit/i.test(resetErr.message ?? '');
+
+    if (ehLimite) {
+      throw new SecureError(
+        'Limite de envio de e-mail atingido. O servidor de e-mail padrão libera poucos envios por hora — espere cerca de uma hora e tente de novo, ou configure um SMTP próprio para não esbarrar nisso.',
+        'EMAIL_RATE_LIMIT',
+        429,
+      );
+    }
+
     throw new SecureError(
       `Falha ao enviar o e-mail de redefinição: ${resetErr.message}`,
       'RESET_FAILED',

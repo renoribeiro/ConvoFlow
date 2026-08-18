@@ -82,8 +82,9 @@ describe('link já usado ou vencido', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar novo link/i }));
 
     await waitFor(() => expect(mockResetPasswordForEmail).toHaveBeenCalled());
-    expect(mockResetPasswordForEmail.mock.calls[0][0]).toBe('alguem@exemplo.com');
-    expect(mockResetPasswordForEmail.mock.calls[0][1].redirectTo).toContain('/definir-senha');
+    const [email, opcoes] = mockResetPasswordForEmail.mock.calls[0] ?? [];
+    expect(email).toBe('alguem@exemplo.com');
+    expect(opcoes?.redirectTo).toContain('/definir-senha');
   });
 
   it('não confirma se o e-mail existe — mesma resposta com ou sem erro', async () => {
