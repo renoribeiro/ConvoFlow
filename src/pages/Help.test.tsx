@@ -11,6 +11,17 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { UserRole } from '@/types/userHierarchy';
 
+// Cada teste daqui monta a página de Ajuda INTEIRA — toda entrada de
+// featureHelp mais todos os tutoriais, de uma vez. É a renderização mais cara
+// da suíte, e ela só cresce conforme o produto ganha telas.
+//
+// Com os 10s globais (vitest.config.ts), os dois testes de catálogo completo
+// estouravam por tempo quando a suíte roda em paralelo e a máquina está
+// disputada — sem nenhuma asserção falhando. Isso é calibragem de tempo, não
+// regressão: o mesmo arquivo passa sozinho em ~500ms por teste. O limite maior
+// vale só para este arquivo.
+vi.setConfig({ testTimeout: 30000 });
+
 // ── mocks ────────────────────────────────────────────────────────────────────
 
 /** Cargo do usuário no teste corrente. */
