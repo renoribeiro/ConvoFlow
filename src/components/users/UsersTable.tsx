@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { UserDetailsDialog } from './UserDetailsDialog';
+import { useState } from 'react';
 import { Eye, MoreHorizontal, Pause, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -30,10 +32,23 @@ import {
 
 interface UsersTableProps {
   rows: UserRow[];
-  onView?: (row: UserRow) => void;
+  /**
+   * Nome da Loja/Conta por id, para a coluna "Loja". Sem isto a coluna mostra
+   * um traco -- a tabela nao busca tenant sozinha de proposito, quem monta a
+   * tela ja tem essa lista em maos.
+   */
+  tenantNames?: Record<string, string>;
 }
 
-export function UsersTable({ rows, onView }: UsersTableProps) {
+/**
+ * Tabela de pessoas.
+ *
+ * O "Ver detalhes" abre o dialogo DAQUI. Antes era uma prop opcional
+ * (`onView?`) que NENHUMA das duas telas passava, entao o item existia no menu,
+ * era clicavel, e nao fazia nada -- em Equipe e em Administracao.
+ */
+export function UsersTable({ rows, tenantNames }: UsersTableProps) {
+  const [detalhe, setDetalhe] = useState<UserRow | null>(null);
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
   const resetPwd = useResetUserPassword();
@@ -47,6 +62,7 @@ export function UsersTable({ rows, onView }: UsersTableProps) {
             <TableHead>Nome</TableHead>
             <TableHead>Função</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Loja</TableHead>
             <TableHead>Último acesso</TableHead>
             <TableHead>Acessos</TableHead>
             <TableHead className="text-right">Ações</TableHead>
@@ -55,7 +71,7 @@ export function UsersTable({ rows, onView }: UsersTableProps) {
         <TableBody>
           {rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                 Nenhum usuário encontrado.
               </TableCell>
             </TableRow>
@@ -75,6 +91,9 @@ export function UsersTable({ rows, onView }: UsersTableProps) {
                 <TableCell>
                   <UserStatusBadge status={u.status} />
                 </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {(u.tenant_id && tenantNames?.[u.tenant_id]) || '—'}
+                </TableCell>
                 <TableCell>{lastLogin}</TableCell>
                 <TableCell>{u.login_count}</TableCell>
                 <TableCell className="text-right">
@@ -86,7 +105,7 @@ export function UsersTable({ rows, onView }: UsersTableProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onView?.(u)}>
+                      <DropdownMenuItem onClick={() => setDetalhe(u)}>
                         <Eye className="mr-2 h-4 w-4" /> Ver detalhes
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => resetPwd.mutate(u.id)}>
@@ -124,6 +143,12 @@ export function UsersTable({ rows, onView }: UsersTableProps) {
           })}
         </TableBody>
       </Table>
+
+      <UserDetailsDialog
+        row={detalhe}
+        tenantName={detalhe?.tenant_id ? tenantNames?.[detalhe.tenant_id] : undefined}
+        onClose={() => setDetalhe(null)}
+      />
     </div>
   );
 }

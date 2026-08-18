@@ -116,7 +116,11 @@ export function useSoftDeleteUser() {
 export function useResetUserPassword() {
   return useMutation({
     mutationFn: (targetProfileId: string) =>
-      invokeManageUser({ targetProfileId, action: 'reset_password' }),
+      invokeManageUser({
+        targetProfileId,
+        action: 'reset_password',
+        redirectTo: `${window.location.origin}/definir-senha`,
+      }),
     onSuccess: () => {
       toast.success('Link de redefinição de senha enviado por e-mail.');
     },

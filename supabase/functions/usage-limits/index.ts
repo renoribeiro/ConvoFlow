@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Method not allowed' }, 405, cors);
   } catch (err) {
     if (err instanceof SecureError) {
-      return createErrorResponse(err);
+      return createErrorResponse(err, undefined, req.headers.get('origin'));
     }
     console.error('usage-limits error:', err);
     return json(

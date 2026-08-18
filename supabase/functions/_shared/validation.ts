@@ -123,7 +123,22 @@ export class SecureError extends Error {
   }
 }
 
-export function createErrorResponse(error: SecureError | Error, requestId?: string): Response {
+/**
+ * Resposta de erro em JSON.
+ *
+ * `requestOrigin` NAO e opcional por preguica -- passe sempre. Sem ele a
+ * resposta sai com o CORS estatico, que devolve a PRIMEIRA origem da lista
+ * (https://convoflow.com.br). Se a pessoa esta no dominio com www, o navegador
+ * ve a origem trocada, BLOQUEIA a leitura do corpo, e o supabase-js reporta
+ * "Failed to send a request to the Edge Function" -- engolindo a mensagem em
+ * pt-BR que estava dentro. Foi assim que um 403 "Esta loja nao pertence a sua
+ * conta." virou meia hora de caca ao tesouro em 2026-08-18.
+ */
+export function createErrorResponse(
+  error: SecureError | Error,
+  requestId?: string,
+  requestOrigin?: string | null,
+): Response {
   const isSecureError = error instanceof SecureError;
   const statusCode = isSecureError ? error.statusCode : 500;
   const code = isSecureError ? error.code : 'INTERNAL_ERROR';
@@ -140,7 +155,7 @@ export function createErrorResponse(error: SecureError | Error, requestId?: stri
     status: statusCode,
     headers: {
       'Content-Type': 'application/json',
-      ...corsHeaders
+      ...buildCorsHeaders(requestOrigin)
     }
   });
 }

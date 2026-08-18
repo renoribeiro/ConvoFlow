@@ -278,7 +278,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     if (err instanceof SecureError) {
-      return createErrorResponse(err);
+      return createErrorResponse(err, undefined, req.headers.get('origin'));
     }
     console.error('create-store error:', err);
     return json(

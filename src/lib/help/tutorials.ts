@@ -174,10 +174,10 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Confirme que a pessoa conseguiu entrar',
         body:
-          'Ela recebe um e-mail de convite e define a própria senha no primeiro acesso. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
+          'Ela recebe um e-mail de convite, clica no link e cai numa tela para criar a própria senha. Depois disso já entra no sistema. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
         screen: '/dashboard/team',
         note:
-          'A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema. Se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta — resolva em Configurações › Assinatura e vale para todas as Lojas de uma vez.',
+          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "link expirado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta.',
       },
       {
         title: 'Remova o acesso de quem sair do time no mesmo dia',
