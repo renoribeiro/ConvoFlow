@@ -121,14 +121,16 @@ serve(async (req) => {
       );
     }
 
-    // `billing.manage`, NÃO `billing.view`.
+    // `billing.manage`, NÃO `billing.view`. Nega o atendente, que é quem
+    // realmente não pode contratar nada.
     //
-    // billing.view é de gerente para cima — mas quem assina o plano de uma Loja
-    // é o próprio GESTOR: é assim que o paywall dela é destravado
-    // (useTenantAccess: subscription_status = 'active'). Autorizar o checkout
-    // por billing.view mataria o fluxo de pagamento que está no ar desde
-    // 2026-07-27. billing.manage nega só o atendente, que é quem realmente não
-    // pode contratar nada.
+    // ATENÇÃO — o motivo original desta escolha caducou. Ela existia porque
+    // "quem assina o plano de uma Loja é o próprio GESTOR". Desde 2026-08-18
+    // isso não é mais verdade: só a Conta assina, e a Loja herda o acesso dela
+    // (ver a trava de `kind` logo abaixo, que é quem barra o gestor hoje).
+    // A capability foi mantida como está de propósito: trocar por billing.view
+    // é mudança de comportamento em cima do fluxo de pagamento, e o gestor já
+    // não passa da trava de `kind` de qualquer jeito.
     if (!can(profile.role as string, "billing.manage", profile.capabilities as Record<string, unknown> | null)) {
       return new Response(
         JSON.stringify({ error: CAPABILITY_DENIAL_MESSAGES["billing.manage"] }),
@@ -141,9 +143,33 @@ serve(async (req) => {
     // Já assinante? Evita checkout duplicado.
     const { data: tenant } = await admin
       .from("tenants")
-      .select("subscription_status")
+      .select("kind, subscription_status")
       .eq("id", tenantId)
       .maybeSingle();
+
+    // -------------------------------------------------------------------
+    // Só a CONTA assina.
+    //
+    // `profile.tenant_id` de um gestor é uma LOJA. Sem esta trava, o checkout
+    // dele gravaria subscription_id/subscription_status numa linha de Loja —
+    // e desde que o acesso passou a ser herdado da Conta
+    // (tenant_access_state, migração 20260818000001) essa assinatura não
+    // liberaria nem a própria Loja: quem é lido é o pai. Seria dinheiro
+    // cobrado sem acesso entregue.
+    //
+    // A capability continua sendo `billing.manage` logo acima: ela nega o
+    // atendente. Esta checagem é a que decide QUAL tenant pode assinar.
+    // Tenant não encontrado também cai aqui, em vez de virar checkout órfão.
+    // -------------------------------------------------------------------
+    if (tenant?.kind !== "account") {
+      return new Response(
+        JSON.stringify({
+          error:
+            "O plano é contratado pela Conta, não pela Loja. Fale com o Gerente responsável pela sua Conta para assinar.",
+        }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     if (tenant?.subscription_status === "active") {
       return new Response(

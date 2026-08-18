@@ -185,12 +185,33 @@ const AdminDashboard = () => {
   const { data: tenantsRows = [], refetch: refetchTenants } = useSupabaseQuery({
     table: 'tenants',
     queryKey: ['admin-tenants-access'],
-    select: 'id, name, kind, subscription_status, manual_access_granted, manual_access_granted_at',
+    select: 'id, name, kind, parent_tenant_id, subscription_status, manual_access_granted, manual_access_granted_at',
     orderBy: [{ column: 'name', ascending: true }],
     enabled: !!user && !authLoading && isSuperAdmin,
   });
   const tenantById: Record<string, any> = {};
   for (const t of tenantsRows as any[]) tenantById[t.id] = t;
+
+  /**
+   * A linha que responde pela cobrança de um tenant.
+   *
+   *   Loja COM pai            → a Conta pai.
+   *   Conta, ou Loja SEM pai  → ela mesma.
+   *
+   * Mesma regra da RPC `tenant_access_state` e de
+   * `src/lib/access/tenantAccess.ts`. Aqui ela é feita no cliente porque o
+   * superadmin lê todos os tenants pelo RLS, então a Conta pai já está na mão.
+   *
+   * Isto é o que faz o botão de liberação manual escrever no lugar certo: só a
+   * Conta assina, então liberar um Gestor tem que marcar a CONTA dele — marcar a
+   * Loja não destrava mais nada desde que o acesso passou a ser herdado.
+   */
+  const contaDeCobranca = (tenantId?: string | null): any | null => {
+    const t = tenantId ? tenantById[tenantId] : null;
+    if (!t) return null;
+    if (t.kind === 'store' && t.parent_tenant_id) return tenantById[t.parent_tenant_id] ?? t;
+    return t;
+  };
 
   // Filtrar usuários com base no termo de busca
   const filteredUsers = usersWithEmails.filter((u: any) => {
@@ -508,21 +529,37 @@ const AdminDashboard = () => {
                         <TableCell>{(user.tenant_id && tenantById[user.tenant_id]?.name) || 'N/A'}</TableCell>
                         <TableCell>
                           {(() => {
-                            const t = user.tenant_id ? tenantById[user.tenant_id] : null;
-                            if (t?.subscription_status === 'active') {
-                              return <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>;
-                            }
-                            if (t?.manual_access_granted) {
-                              return (
+                            // Quem responde pelo acesso é a Conta, não a Loja.
+                            const t = contaDeCobranca(user.tenant_id);
+                            const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
+                            const herda = !!t && !!propria && t.id !== propria.id;
+
+                            const selo =
+                              t?.subscription_status === 'active' ? (
+                                <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>
+                              ) : t?.manual_access_granted ? (
                                 <Badge
                                   className="bg-purple-500 hover:bg-purple-600"
                                   title={t.manual_access_granted_at ? `Liberado em ${format(new Date(t.manual_access_granted_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}` : undefined}
                                 >
                                   Manual (Liberado)
                                 </Badge>
+                              ) : (
+                                <Badge variant="destructive">Bloqueado</Badge>
                               );
-                            }
-                            return <Badge variant="destructive">Bloqueado</Badge>;
+
+                            if (!herda) return selo;
+
+                            // Deixa visível de onde vem o acesso, sem precisar
+                            // passar o mouse: a Loja não decide nada sozinha.
+                            return (
+                              <div className="flex flex-col items-start gap-1">
+                                {selo}
+                                <span className="text-xs text-muted-foreground">
+                                  herda da Conta {t.name}
+                                </span>
+                              </div>
+                            );
                           })()}
                         </TableCell>
                         <TableCell>
@@ -530,50 +567,90 @@ const AdminDashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={tenantById[user.tenant_id]?.manual_access_granted ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
-                              onClick={async () => {
-                                try {
-                                  if (!user.tenant_id) {
-                                    toast.error('Usuário não possui uma Conta associada.');
-                                    return;
+                            {(() => {
+                              // O alvo da liberação é sempre a Conta que responde
+                              // pela cobrança — para um Gestor, a Conta pai da
+                              // Loja dele. Marcar a Loja não destrava mais nada.
+                              const alvo = contaDeCobranca(user.tenant_id);
+                              const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
+                              const herda = !!alvo && !!propria && alvo.id !== propria.id;
+                              const liberado = !!alvo?.manual_access_granted;
+                              const nomeAlvo = alvo?.name ?? 'Conta';
+
+                              // O superadmin precisa saber ANTES de clicar que
+                              // está mexendo na Conta inteira, não só nesta Loja.
+                              const aviso = herda
+                                ? ` — vale para a Conta ${nomeAlvo} e todas as Lojas dela`
+                                : '';
+
+                              return (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className={liberado ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
+                                  onClick={async () => {
+                                    try {
+                                      if (!user.tenant_id) {
+                                        toast.error('Usuário não possui uma Conta associada.');
+                                        return;
+                                      }
+                                      if (!alvo) {
+                                        toast.error('Não foi possível identificar a Conta que responde por este usuário.');
+                                        return;
+                                      }
+
+                                      const newValue = !liberado;
+                                      const { error } = await supabase
+                                        .from('tenants')
+                                        .update({
+                                          manual_access_granted: newValue,
+                                          manual_access_granted_by: newValue ? currentUserId : null,
+                                          manual_access_granted_at: newValue ? new Date().toISOString() : null,
+                                        })
+                                        .eq('id', alvo.id);
+
+                                      if (error) throw error;
+
+                                      // Auditoria: registra em QUAL tenant a marca
+                                      // foi feita, e de onde a ação partiu — sem a
+                                      // nota, o histórico da Conta não explica por
+                                      // que alguém a liberou a partir de uma Loja.
+                                      await supabase
+                                        .from('tenant_access_events' as never)
+                                        .insert({
+                                          tenant_id: alvo.id,
+                                          action: newValue ? 'granted' : 'revoked',
+                                          source: 'manual',
+                                          actor_user_id: currentUserId,
+                                          note: herda
+                                            ? `Ação feita a partir do usuário ${user.email} (Loja ${propria?.name ?? user.tenant_id}); aplicada na Conta ${nomeAlvo}.`
+                                            : `Ação feita a partir do usuário ${user.email}.`,
+                                        } as never);
+
+                                      toast.success(
+                                        newValue
+                                          ? `Acesso liberado para a Conta ${nomeAlvo}.`
+                                          : `Acesso manual revogado da Conta ${nomeAlvo}.`,
+                                        herda
+                                          ? { description: 'Vale para todas as Lojas dessa Conta.' }
+                                          : undefined,
+                                      );
+                                      refetchTenants();
+                                      refetchUsers();
+                                    } catch (error: any) {
+                                      toast.error('Erro ao alterar acesso: ' + error.message);
+                                    }
+                                  }}
+                                  title={
+                                    liberado
+                                      ? `Revogar o acesso manual da Conta ${nomeAlvo}${aviso}`
+                                      : `Liberar manualmente a Conta ${nomeAlvo}${aviso}`
                                   }
-
-                                  const newValue = !tenantById[user.tenant_id]?.manual_access_granted;
-                                  const { error } = await supabase
-                                    .from('tenants')
-                                    .update({
-                                      manual_access_granted: newValue,
-                                      manual_access_granted_by: newValue ? currentUserId : null,
-                                      manual_access_granted_at: newValue ? new Date().toISOString() : null,
-                                    })
-                                    .eq('id', user.tenant_id);
-
-                                  if (error) throw error;
-
-                                  // Auditoria: registra o evento (quem liberou/revogou e quando).
-                                  await supabase
-                                    .from('tenant_access_events' as never)
-                                    .insert({
-                                      tenant_id: user.tenant_id,
-                                      action: newValue ? 'granted' : 'revoked',
-                                      source: 'manual',
-                                      actor_user_id: currentUserId,
-                                    } as never);
-
-                                  toast.success(`Acesso manual ${newValue ? 'liberado' : 'revogado'} com sucesso!`);
-                                  refetchTenants();
-                                  refetchUsers();
-                                } catch (error: any) {
-                                  toast.error('Erro ao alterar acesso: ' + error.message);
-                                }
-                              }}
-                              title={tenantById[user.tenant_id]?.manual_access_granted ? "Revogar Acesso Manual" : "Liberar Acesso Manualmente"}
-                            >
-                              {tenantById[user.tenant_id]?.manual_access_granted ? 'Revogar Acesso' : 'Liberar Manualmente'}
-                            </Button>
+                                >
+                                  {liberado ? 'Revogar Acesso' : 'Liberar Manualmente'}
+                                </Button>
+                              );
+                            })()}
                             <Button
 
                               variant="ghost"

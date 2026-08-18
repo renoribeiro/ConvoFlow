@@ -685,17 +685,19 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings-subscription': {
     title: 'Configurações › Assinatura',
     whatItDoes:
-      'É onde você vê e resolve o pagamento da Conta. O acesso aos módulos pagos depende do que está aqui, então esta aba é a explicação mais comum para "a tela não abre".',
+      'É onde você vê e resolve o pagamento da Conta. Quem assina é a Conta, nunca a Loja: um único plano paga a Conta inteira, e todas as Lojas dela funcionam por causa dele. É a explicação mais comum para "o sistema não abre".',
     howToConfigure: [
       'Confira o plano atual e a situação do pagamento.',
       'Para assinar ou atualizar a forma de pagamento, siga para o checkout.',
-      'Depois de pagar, confira se os módulos voltaram a abrir.',
+      'Depois de pagar, recarregue a página e confirme que o sistema abriu.',
     ],
     example:
-      'A assinatura vence e Chatbots, Automação, Campanhas, Follow-ups, Relatórios, Rastreamento e Funil param de abrir. Conversas e Contatos continuam funcionando, e o acesso volta quando o pagamento é regularizado.',
+      'A Conta fica sem pagamento e todo mundo que trabalha nas Lojas dela passa a ver a tela "Acesso bloqueado" no lugar do sistema. Regularizado o pagamento da Conta, todas as Lojas voltam juntas — não é preciso liberar uma por uma.',
     tips: [
-      'Liberação manual concedida pelo Superadmin também abre os módulos pagos, sem assinatura ativa.',
-      'Se um módulo não abre para todo o time ao mesmo tempo, o problema é aqui — não é permissão de usuário.',
+      'A Loja não tem assinatura própria: ela herda o acesso da Conta. Se uma Loja está bloqueada, o que resolve é o pagamento da Conta.',
+      'Liberação manual concedida pelo Superadmin também abre o sistema, sem assinatura ativa — e vale para a Conta inteira.',
+      'Como Gestor, você vê esta aba mas não contrata: o plano é assinado pelo Gerente responsável pela Conta.',
+      'Se o sistema não abre para todo o time ao mesmo tempo, o problema é aqui — não é permissão de usuário.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -793,6 +795,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Você abre a segunda unidade: cria a Loja "Filial Norte", convida um Gestor para ela e depois os corretores como Atendentes — cada um com o login próprio, em vez de todos usarem o mesmo acesso.',
     tips: [
       'Os cargos vão de Atendente (atende) a Gestor (administra a Loja) e Gerente (administra várias Lojas).',
+      'Loja nova já nasce com acesso: ela herda o da sua Conta. Quem você convidar entra direto, sem precisar de liberação separada para cada Loja.',
       'O plano Gerente inclui 5 Lojas. Quando elas acabam, "Nova Loja" fica cinza e o motivo aparece ao passar o mouse — Lojas adicionais são contratadas em Configurações › Assinatura.',
       'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
       'Como Gerente esta tela mostra as Lojas da sua Conta e as pessoas delas; como Gestor, mostra as pessoas da sua Loja.',

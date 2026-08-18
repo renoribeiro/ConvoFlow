@@ -176,6 +176,8 @@ export const TUTORIALS: Tutorial[] = [
         body:
           'Ela recebe um e-mail de convite e define a própria senha no primeiro acesso. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
         screen: '/dashboard/team',
+        note:
+          'A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema. Se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta — resolva em Configurações › Assinatura e vale para todas as Lojas de uma vez.',
       },
       {
         title: 'Remova o acesso de quem sair do time no mesmo dia',

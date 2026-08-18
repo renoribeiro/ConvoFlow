@@ -44,12 +44,14 @@ Vite's production build (`mode === 'production'` in `vite.config.ts`) throws if 
 
 **Route guarding.** Three composable guards under `src/components/auth/`:
 - `AuthGuard` — requires a session, otherwise redirects to `/auth`.
-- `ModuleGuard` — checks `is_enabled` for the module in `useModules()` AND, for modules in the hard-coded `PREMIUM_MODULES` list (`chatbots, automation, campaigns, followups, reports, tracking, funnel`), checks the tenant's plan/trial/manual-access flags. Super admins bypass both.
+- `ModuleGuard` — checks **only** `is_enabled` for the module in `useModules()` (the product toggle in ModuleSettings). It does **not** check plan, trial or manual access: the `PREMIUM_MODULES` gate was removed, and the code says so at `ModuleGuard.tsx:36-42`. Super admins bypass it.
 - `RoleGuard` — role match against the role coming from `profiles.role` (exposed via `useRole()` in `TenantContext`), **not** `user.user_metadata.role`. Accepts `role` for an exact match or `minRole` for "this level or above" (`atendente` < `gestor` < `gerente` < `superadmin`); super admins bypass.
 
 When adding a new dashboard route, wrap it in `ModuleGuard` with the matching `moduleName` and add the module to the database's module config; otherwise non-super-admins see redirects.
 
 **Exception — routes visible to every role.** A screen that must open for anyone with a session takes no `ModuleGuard` and no `RoleGuard`: it sits under the `/dashboard` `AuthGuard` alone, and its sidebar entry uses `moduleName: null` (which makes `isItemVisible` in `Sidebar.tsx` short-circuit to `true`). `settings`, `profile` and `notifications` are the existing examples of this pattern — follow them rather than inventing a permissive module.
+
+**Paywall (the only plan gate).** `useTenantAccess` → `DashboardLayout` replaces the whole dashboard with `<PaywallScreen />`. `superadmin` and `gerente` bypass it client-side. For everyone else the decision comes from the `public.tenant_access_state(uuid)` RPC (migration `20260818000001`): **only an account (`kind='account'`) holds a subscription**; a store with a `parent_tenant_id` inherits its parent's `subscription_status`/`manual_access_granted`, and an account — or an orphan store with no parent — is evaluated on its own row. There is no store-level access override. The RPC is required because `tenants` RLS deliberately gives a store member no way to read the parent account row; do not "fix" that with a policy. The rule is mirrored in `src/lib/access/tenantAccess.ts`, which is also the hook's degradation path when the RPC is unavailable — keep the two in sync (tests: `src/lib/access/tenantAccess.test.ts`).
 
 **Multi-tenancy.** Every domain table has `tenant_id`. Roles seen in code: `super_admin`, `tenant_admin`, regular users. Use `useTenantId()`, `useIsTenantAdmin()`, `useIsSuperAdmin()` from `TenantContext` rather than re-deriving from raw profile data.
 
