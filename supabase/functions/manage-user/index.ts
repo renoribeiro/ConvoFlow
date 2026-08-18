@@ -596,13 +596,46 @@ async function actionResetPassword(
     throw new SecureError('Não foi possível obter email do usuário', 'NOT_FOUND', 404);
   }
 
-  const { error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'recovery',
-    email: authUser.user.email,
-  });
-  if (linkErr) {
+  // `resetPasswordForEmail`, NÃO `admin.generateLink`.
+  //
+  // generateLink apenas GERA o link e devolve — não manda e-mail nenhum. O
+  // código antigo ainda descartava o link (só lia o `error`), então esta ação
+  // não fazia absolutamente nada enquanto a tela dizia "Link de redefinição de
+  // senha enviado por e-mail". Ninguém nunca recebeu esse e-mail.
+  //
+  // O redirectTo aponta para /definir-senha, a tela que existe desde
+  // 2026-08-18. Sem ele o link cai na home (site_url), que é a página de
+  // vendas, e o token se perde sem nada para recebê-lo.
+  const redirectTo = typeof body.redirectTo === 'string' && body.redirectTo
+    ? body.redirectTo
+    : undefined;
+
+  const { error: resetErr } = await admin.auth.resetPasswordForEmail(
+    authUser.user.email,
+    redirectTo ? { redirectTo } : undefined,
+  );
+  if (resetErr) {
+    // Teto de envio do mailer EMBUTIDO do Supabase (poucos e-mails por hora).
+    // Sem esta tradução o usuário lia "non-2xx status code" e não tinha como
+    // saber que bastava esperar — ou configurar um SMTP próprio, que é o que
+    // realmente resolve para valer.
+    const status = (resetErr as { status?: number }).status;
+    const code = (resetErr as { code?: string }).code;
+    const ehLimite =
+      status === 429 ||
+      code === 'over_email_send_rate_limit' ||
+      /rate limit/i.test(resetErr.message ?? '');
+
+    if (ehLimite) {
+      throw new SecureError(
+        'Limite de envio de e-mail atingido. O servidor de e-mail padrão libera poucos envios por hora — espere cerca de uma hora e tente de novo, ou configure um SMTP próprio para não esbarrar nisso.',
+        'EMAIL_RATE_LIMIT',
+        429,
+      );
+    }
+
     throw new SecureError(
-      `Falha ao gerar reset: ${linkErr.message}`,
+      `Falha ao enviar o e-mail de redefinição: ${resetErr.message}`,
       'RESET_FAILED',
       500,
     );
@@ -709,7 +742,7 @@ Deno.serve(async (req: Request) => {
     return json(result, 200, cors);
   } catch (err) {
     if (err instanceof SecureError) {
-      return createErrorResponse(err);
+      return createErrorResponse(err, undefined, req.headers.get('origin'));
     }
     console.error('manage-user error:', err);
     return json(

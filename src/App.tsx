@@ -18,6 +18,7 @@ import { DashboardCardSkeleton } from "@/components/shared/Skeleton";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import { Auth } from "./pages/Auth";
+import { DefinirSenha } from "./pages/DefinirSenha";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
@@ -81,6 +82,10 @@ const App = () => (
                 {/* Public Routes */}
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/auth" element={<Auth />} />
+                {/* Convite e recuperacao de senha caem aqui. Rota PUBLICA de
+                    proposito: quem chega ainda nao tem senha para logar, so a
+                    sessao que o link do e-mail criou. */}
+                <Route path="/definir-senha" element={<DefinirSenha />} />
                 <Route path="/login" element={<Login />} />
                 {/* Auto-cadastro desativado — entrada só por convite de admin.
                     Mantemos a rota redirecionando pro login pra não quebrar links. */}

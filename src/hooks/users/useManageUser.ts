@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { QUERY_KEYS } from '@/lib/queryClient';
 import { UserRole } from '@/types/userHierarchy';
+import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
 
 type Action =
   | 'create'
@@ -35,7 +36,14 @@ async function invokeManageUser(payload: ManageUserPayload) {
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: payload,
   });
-  if (error) throw error;
+  // O erro do servidor vem no corpo do Response, nao na `message` do erro do
+  // supabase-js -- sem abrir o corpo, todo 4xx/5xx vira "non-2xx status code"
+  // e a frase em pt-BR que explica o problema e jogada fora.
+  if (error) {
+    throw new Error(
+      await mensagemDaEdgeFunction(error, 'Nao foi possivel concluir a acao.'),
+    );
+  }
   if (data && typeof data === 'object' && 'error' in data) {
     throw new Error((data as { error: { message?: string } }).error?.message ?? 'Erro desconhecido');
   }
@@ -116,7 +124,11 @@ export function useSoftDeleteUser() {
 export function useResetUserPassword() {
   return useMutation({
     mutationFn: (targetProfileId: string) =>
-      invokeManageUser({ targetProfileId, action: 'reset_password' }),
+      invokeManageUser({
+        targetProfileId,
+        action: 'reset_password',
+        redirectTo: `${window.location.origin}/definir-senha`,
+      }),
     onSuccess: () => {
       toast.success('Link de redefinição de senha enviado por e-mail.');
     },

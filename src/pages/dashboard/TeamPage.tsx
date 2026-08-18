@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,23 @@ export default function TeamPage() {
   // não sai query nenhuma e a tela fica exatamente como era.
   const { stores, isLoading: lojasCarregando } = useMyStores();
   const { capacity, isLoading: vagasCarregando } = useAccountStoreSlots();
+
+  /**
+   * Nome da Loja por id, para a coluna "Loja" da tabela de pessoas.
+   *
+   * A hierarquia Conta > Loja > pessoa nao aparecia em lugar nenhum: a tabela
+   * listava gente sem dizer onde cada uma trabalha, e num grupo com varias
+   * lojas isso e a primeira pergunta de quem olha.
+   *
+   * Junta as Lojas filhas (gerente) com a propria Conta/Loja em foco, que
+   * cobre o gestor -- ele nao tem lista de filhas, so a Loja dele.
+   */
+  const tenantNames = useMemo(() => {
+    const mapa: Record<string, string> = {};
+    for (const loja of stores) mapa[loja.id] = loja.name;
+    if (tenant?.id && tenant.name) mapa[tenant.id] = tenant.name;
+    return mapa;
+  }, [stores, tenant?.id, tenant?.name]);
 
   const lojasUsadas = stores.length;
   const dadosDeVagaProntos = isGerente && !lojasCarregando && !vagasCarregando;
@@ -195,7 +212,7 @@ export default function TeamPage() {
               ))}
             </div>
           ) : (
-            <UsersTable rows={users} />
+            <UsersTable rows={users} tenantNames={tenantNames} />
           )}
         </CardContent>
       </Card>

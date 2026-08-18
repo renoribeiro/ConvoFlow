@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
     return json({ success: true }, 200, cors);
   } catch (err) {
     if (err instanceof SecureError) {
-      return createErrorResponse(err);
+      return createErrorResponse(err, undefined, req.headers.get('origin'));
     }
     console.error('track-login error:', err);
     return json(

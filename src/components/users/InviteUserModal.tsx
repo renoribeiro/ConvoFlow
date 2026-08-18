@@ -83,7 +83,10 @@ export function InviteUserModal({
       phone: phone || undefined,
       role,
       tenantId: tenantId || null,
-      redirectTo: `${window.location.origin}/dashboard`,
+      // /definir-senha, NAO /dashboard: o convidado chega sem senha nenhuma.
+      // Mandando para o dashboard ele entrava uma vez pelo link e nunca mais
+      // conseguia voltar -- nao havia tela para definir senha em lugar nenhum.
+      redirectTo: `${window.location.origin}/definir-senha`,
     });
     reset();
     onOpenChange(false);

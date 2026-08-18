@@ -796,6 +796,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Os cargos vão de Atendente (atende) a Gestor (administra a Loja) e Gerente (administra várias Lojas).',
       'Loja nova já nasce com acesso: ela herda o da sua Conta. Quem você convidar entra direto, sem precisar de liberação separada para cada Loja.',
+      'A coluna "Loja" diz onde cada pessoa trabalha, e "Ver detalhes" no menu de Ações abre o resto: telefone, último acesso e o que o cargo dela alcança.',
+      'O link do convite vale por um acesso só. Quem perdeu o prazo, ou esqueceu a senha, resolve sozinho pelo "Esqueci minha senha" da tela de login — você também pode disparar pelo "Redefinir senha" no menu de Ações.',
       'O plano Gerente inclui 5 Lojas. Quando elas acabam, "Nova Loja" fica cinza e o motivo aparece ao passar o mouse — Lojas adicionais são contratadas em Configurações › Assinatura.',
       'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
       'Como Gerente esta tela mostra as Lojas da sua Conta e as pessoas delas; como Gestor, mostra as pessoas da sua Loja.',

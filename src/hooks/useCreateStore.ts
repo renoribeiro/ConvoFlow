@@ -2,36 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { QUERY_KEYS } from '@/lib/queryClient';
+import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
 
 export interface CreatedStore {
   id: string;
   name: string;
   slug: string;
-}
-
-/**
- * Mensagem de erro da edge function, em pt-BR.
- *
- * Quando a função responde 4xx/5xx, o supabase-js devolve um FunctionsHttpError
- * com o `Response` original em `context` e deixa `data` nulo — a frase que o
- * servidor escreveu fica dentro desse corpo. Sem ler `context`, o usuário veria
- * só "Edge Function returned a non-2xx status code", que não ajuda ninguém.
- */
-async function mensagemDoErro(error: unknown): Promise<string> {
-  const context = (error as { context?: unknown } | null)?.context;
-
-  if (context && typeof (context as Response).json === 'function') {
-    try {
-      const body = await (context as Response).json();
-      const mensagem = body?.error?.message ?? body?.error;
-      if (typeof mensagem === 'string' && mensagem.trim()) return mensagem;
-    } catch {
-      // corpo vazio ou não-JSON: cai no fallback abaixo
-    }
-  }
-
-  if (error instanceof Error && error.message) return error.message;
-  return 'Não foi possível criar a loja. Tente novamente.';
 }
 
 /**
@@ -55,7 +31,14 @@ export function useCreateStore() {
         body: { name },
       });
 
-      if (error) throw new Error(await mensagemDoErro(error));
+      if (error) {
+        throw new Error(
+          await mensagemDaEdgeFunction(
+            error,
+            'Não foi possível criar a loja. Tente novamente.',
+          ),
+        );
+      }
 
       // Resposta 200 carregando erro no corpo (padrão de algumas funções).
       if (data && typeof data === 'object' && 'error' in data) {

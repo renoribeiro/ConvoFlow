@@ -74,7 +74,20 @@ export const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Senha</Label>
+                      {/*
+                        Até 2026-08-18 não havia recuperação nenhuma no produto:
+                        quem esquecia a senha só voltava se um superadmin
+                        mexesse no painel do Supabase. Este link é a porta.
+                      */}
+                      <Link
+                        to="/definir-senha"
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        Esqueci minha senha
+                      </Link>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
