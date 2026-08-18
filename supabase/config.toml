@@ -51,6 +51,13 @@ verify_jwt = true
 [functions.manage-user]
 verify_jwt = true
 
+[functions.create-store]
+# Cria uma Loja dentro da Conta do Gerente logado. `public.tenants` não tem
+# policy de INSERT para gerente, então a escrita é feita aqui com a service key
+# depois de conferir permissão e vaga. O caller é resolvido pelo JWT — nada
+# relativo a cargo vem do corpo da requisição.
+verify_jwt = true
+
 [functions.track-login]
 verify_jwt = true
 

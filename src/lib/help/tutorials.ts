@@ -132,11 +132,20 @@ export const TUTORIALS: Tutorial[] = [
         helpKey: 'page:team',
       },
       {
+        title: 'Crie a Loja em "Nova Loja", se ela ainda não existe',
+        body:
+          'Gestor e Atendente sempre pertencem a uma Loja, então ela vem primeiro. Em Equipe, clique em "Nova Loja", dê o nome pelo qual o time reconhece a operação e confirme em "Criar Loja". A Loja nasce vazia, dentro da sua Conta.',
+        screen: '/dashboard/team',
+        helpKey: 'page:team',
+        note:
+          'Seu plano inclui 5 Lojas, e o contador ao lado do botão mostra quantas já foram usadas. Quando acabam, "Nova Loja" fica cinza — aí é contratar Lojas adicionais em Configurações › Assinatura.',
+      },
+      {
         title: 'Coloque em foco a Loja onde a pessoa vai trabalhar',
         body:
-          'Use o seletor de Conta no topo da tela para entrar na Loja de destino. O convite usa a Loja que está em foco, então trocar antes evita convidar para o lugar errado.',
+          'Use o seletor de Conta no topo da tela, ou "Abrir" na lista de Lojas, para entrar na Loja de destino. O convite usa a Loja que está em foco, então trocar antes evita convidar para o lugar errado.',
         note:
-          'A Loja precisa existir antes do convite. A criação de Loja não é feita por esta tela hoje — se a Loja ainda não existe, fale com quem opera a plataforma.',
+          'Acabou de criar a Loja? O aviso de sucesso traz o atalho "Abrir a loja", que já coloca ela em foco.',
       },
       {
         title: 'Abra Equipe e clique em "Convidar"',

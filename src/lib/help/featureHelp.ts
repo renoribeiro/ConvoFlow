@@ -780,17 +780,22 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     minRole: 'gerente',
     title: 'Equipe',
     whatItDoes:
-      'É onde você dá e tira acesso. Convidar por aqui é o único jeito de alguém entrar no ConvoFlow — não existe cadastro público.',
+      'É onde a Conta ganha Lojas e as Lojas ganham gente. Como Gerente, você cria a Loja aqui e convida quem vai trabalhar nela. Convidar por aqui é o único jeito de alguém entrar no ConvoFlow — não existe cadastro público.',
     howToConfigure: [
+      'Como Gerente, crie a Loja em "Nova Loja" antes de convidar: Gestor e Atendente sempre pertencem a uma.',
+      'Confira o contador ao lado do botão ("2 de 5 lojas") — é quanto do seu plano já foi usado.',
+      'Use "Abrir" na lista de Lojas para colocar uma delas em foco e trabalhar dentro dela.',
       'Convide a pessoa pelo e-mail dela.',
       'Escolha o cargo: ele define o que a pessoa vê e o que pode fazer.',
       'Quem sai do time deve ter o acesso removido no mesmo dia.',
     ],
     example:
-      'Entra um corretor novo: você convida como Atendente e ele passa a atender as conversas da loja com o login próprio, em vez de todos usarem o mesmo acesso.',
+      'Você abre a segunda unidade: cria a Loja "Filial Norte", convida um Gestor para ela e depois os corretores como Atendentes — cada um com o login próprio, em vez de todos usarem o mesmo acesso.',
     tips: [
       'Os cargos vão de Atendente (atende) a Gestor (administra a Loja) e Gerente (administra várias Lojas).',
-      'Como Gerente esta tela lista as Lojas da sua Conta; como Gestor, lista as pessoas da sua Loja.',
+      'O plano Gerente inclui 5 Lojas. Quando elas acabam, "Nova Loja" fica cinza e o motivo aparece ao passar o mouse — Lojas adicionais são contratadas em Configurações › Assinatura.',
+      'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
+      'Como Gerente esta tela mostra as Lojas da sua Conta e as pessoas delas; como Gestor, mostra as pessoas da sua Loja.',
       'Login compartilhado quebra relatório por pessoa e apaga o histórico de quem atendeu o quê.',
     ],
     category: 'tela',
