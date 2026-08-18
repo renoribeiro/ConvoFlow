@@ -683,6 +683,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     area: 'Configuração',
   },
   'page:settings-subscription': {
+    // Quem responde pela cobranca e a CONTA, e a Conta e do Gerente. A aba
+    // exige a capacidade billing.view, verdadeira so para gerente/superadmin
+    // (ver src/pages/Settings.tsx). Gestor e Atendente nao a enxergam.
+    minRole: 'gerente',
     title: 'Configurações › Assinatura',
     whatItDoes:
       'É onde você vê e resolve o pagamento da Conta. Quem assina é a Conta, nunca a Loja: um único plano paga a Conta inteira, e todas as Lojas dela funcionam por causa dele. É a explicação mais comum para "o sistema não abre".',
@@ -696,7 +700,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'A Loja não tem assinatura própria: ela herda o acesso da Conta. Se uma Loja está bloqueada, o que resolve é o pagamento da Conta.',
       'Liberação manual concedida pelo Superadmin também abre o sistema, sem assinatura ativa — e vale para a Conta inteira.',
-      'Como Gestor, você vê esta aba mas não contrata: o plano é assinado pelo Gerente responsável pela Conta.',
+      'Esta aba é só do Gerente: quem assina é a Conta, e Gestor e Atendente pertencem a uma Loja, que não contrata nada.',
       'Se o sistema não abre para todo o time ao mesmo tempo, o problema é aqui — não é permissão de usuário.',
     ],
     category: 'tela',

@@ -7,7 +7,7 @@ import {
   Shield,
   Database,
   CreditCard,
-  Headset
+  Headset,
 } from 'lucide-react';
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
@@ -16,6 +16,8 @@ import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { IntegrationSettings } from '@/components/settings/IntegrationSettings';
 import { SubscriptionSettings } from '@/components/settings/SubscriptionSettings';
 import { FeatureHelp } from '@/components/shared/FeatureHelp';
+import { useCapabilities } from '@/contexts/TenantContext';
+import { Capability } from '@/types/userHierarchy';
 import { useSearchParams } from 'react-router-dom';
 
 /**
@@ -31,9 +33,64 @@ const TAB_HELP_KEYS: Record<string, string> = {
   integrations: 'page:settings-integrations',
 };
 
+interface AbaConfig {
+  value: string;
+  label: string;
+  icon: typeof User;
+  /** Capacidade exigida para a aba existir. Ausente = todo mundo vê. */
+  requer?: Capability;
+  render: () => JSX.Element;
+}
+
+/**
+ * As abas e quem alcança cada uma.
+ *
+ * ASSINATURA exige `billing.view`, que na matriz de capacidades é verdadeiro
+ * só para gerente e superadmin. Quem responde pela cobrança é a CONTA, e a
+ * Conta é do Gerente — Gestor e Atendente pertencem a uma Loja, que não assina
+ * nada (ver a RPC tenant_access_state e a trava de `kind` no
+ * create-checkout-session).
+ *
+ * Até 2026-08-18 esta lista era fixa e a aba aparecia para todo mundo: um
+ * Atendente via o plano, o preço e um botão "Assinar Agora". O servidor já
+ * recusava o checkout dele (`billing.manage` nega o atendente, e o tenant dele
+ * não é `kind='account'`), então isto é conserto de VISIBILIDADE — nunca houve
+ * risco de um atendente contratar de fato. Mas oferecer um botão que não
+ * poderia funcionar é errado por si só.
+ *
+ * ATENDIMENTO fica sem `requer` de propósito: o AttendanceSettings já mostra as
+ * preferências da Loja em modo leitura para quem não tem `store.admin`, e ver
+ * como a Loja está configurada é útil para o atendente.
+ */
+const ABAS: AbaConfig[] = [
+  { value: 'profile', label: 'Perfil', icon: User, render: () => <ProfileSettings /> },
+  { value: 'attendance', label: 'Atendimento', icon: Headset, render: () => <AttendanceSettings /> },
+  {
+    value: 'subscription',
+    label: 'Assinatura',
+    icon: CreditCard,
+    requer: 'billing.view',
+    render: () => <SubscriptionSettings />,
+  },
+  { value: 'notifications', label: 'Notificações', icon: Bell, render: () => <NotificationSettings /> },
+  { value: 'security', label: 'Segurança', icon: Shield, render: () => <SecuritySettings /> },
+  { value: 'integrations', label: 'Integrações', icon: Database, render: () => <IntegrationSettings /> },
+];
+
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = searchParams.get('tab') || 'profile';
+  const capabilities = useCapabilities();
+
+  const abasVisiveis = ABAS.filter((aba) => !aba.requer || capabilities[aba.requer]);
+
+  /**
+   * Aba pedida pela URL, se ela existir PARA ESTE CARGO. Sem esta checagem, um
+   * `?tab=subscription` digitado à mão abriria o painel de cobrança mesmo sem a
+   * aba na barra — esconder o botão não é esconder a tela.
+   */
+  const pedida = searchParams.get('tab');
+  const currentTab =
+    pedida && abasVisiveis.some((a) => a.value === pedida) ? pedida : 'profile';
 
   // Aba controlada pela URL: sobrevive a remontagens (foco da janela, etc.) e
   // permite deep-link (ex.: /dashboard/settings?tab=integrations).
@@ -60,31 +117,19 @@ export default function Settings() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Perfil
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2">
-            <Headset className="w-4 h-4" />
-            Atendimento
-          </TabsTrigger>
-          <TabsTrigger value="subscription" className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4" />
-            Assinatura
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Notificações
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Segurança
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Integrações
-          </TabsTrigger>
+        <TabsList
+          className="grid w-full"
+          style={{ gridTemplateColumns: `repeat(${abasVisiveis.length}, minmax(0, 1fr))` }}
+        >
+          {abasVisiveis.map((aba) => {
+            const Icon = aba.icon;
+            return (
+              <TabsTrigger key={aba.value} value={aba.value} className="flex items-center gap-2">
+                <Icon className="w-4 h-4" />
+                {aba.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         {TAB_HELP_KEYS[currentTab] && (
@@ -94,29 +139,11 @@ export default function Settings() {
           </div>
         )}
 
-        <TabsContent value="profile">
-          <ProfileSettings />
-        </TabsContent>
-
-        <TabsContent value="attendance">
-          <AttendanceSettings />
-        </TabsContent>
-
-        <TabsContent value="subscription">
-          <SubscriptionSettings />
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <NotificationSettings />
-        </TabsContent>
-
-        <TabsContent value="security">
-          <SecuritySettings />
-        </TabsContent>
-
-        <TabsContent value="integrations">
-          <IntegrationSettings />
-        </TabsContent>
+        {abasVisiveis.map((aba) => (
+          <TabsContent key={aba.value} value={aba.value}>
+            {aba.render()}
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );
