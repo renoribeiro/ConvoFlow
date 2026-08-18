@@ -9,6 +9,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getRewardfulReferral } from '@/lib/rewardful';
+import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/queryClient';
+import { useTenant as useTenantCtx } from '@/contexts/TenantContext';
 
 // =============================================================================
 // PLANO GERENTE — R$ 499,90/mês (inclui 5 lojas) + lojas extras R$ 99,90/mês
@@ -29,6 +33,8 @@ const CHECKOUT_ENABLED = true;
 
 export const SubscriptionSettings = () => {
   const { tenant } = useTenant();
+  const { refreshTenant } = useTenantCtx();
+  const queryClient = useQueryClient();
   const isGerente = useIsGerente();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -83,8 +89,62 @@ export const SubscriptionSettings = () => {
   };
 
   const handleSubscribe = () => startCheckout({}, setLoading);
-  const handleBuySlots = () =>
-    startCheckout({ extraSlots: Math.max(1, Math.min(100, extraSlots)) }, setBuyingSlots);
+
+  /**
+   * Contratar Loja adicional segue por DOIS caminhos, e escolher errado era o
+   * defeito:
+   *
+   *   sem assinatura  -> checkout, levando as vagas junto no carrinho
+   *   com assinatura  -> muda a QUANTIDADE do item na assinatura existente
+   *                      (update-store-slots). Um segundo checkout era recusado
+   *                      com 409 pelo create-checkout-session, entao quem ja
+   *                      assinava nunca conseguia contratar mais nenhuma Loja.
+   *
+   * A funcao recebe o TOTAL desejado, nao o incremento: repetir o pedido nao
+   * acumula. Por isso somamos aqui, uma vez, ao que ja existe.
+   */
+  const handleBuySlots = async () => {
+    const pedido = Math.max(1, Math.min(100, extraSlots));
+
+    if (!isPro) {
+      await startCheckout({ extraSlots: pedido }, setBuyingSlots);
+      return;
+    }
+
+    try {
+      setBuyingSlots(true);
+      const { data, error } = await supabase.functions.invoke('update-store-slots', {
+        body: { totalExtraSlots: purchasedExtra + pedido },
+      });
+      if (error) {
+        throw new Error(
+          await mensagemDaEdgeFunction(error, 'Não foi possível contratar as Lojas adicionais.'),
+        );
+      }
+      if (data?.error) throw new Error(data.error);
+
+      const capacidade = data?.slots?.capacity;
+      toast({
+        title: 'Lojas adicionais contratadas',
+        description: capacidade
+          ? `Sua Conta passa a ter ${capacidade} lojas. A diferença entra na próxima fatura.`
+          : 'A diferença entra na próxima fatura.',
+      });
+
+      // A linha da Conta mudou: refaz o tenant e o contador de vagas, senão a
+      // tela segue mostrando o número antigo por 30 minutos (faixa estática).
+      await refreshTenant();
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TENANT] });
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao contratar Lojas',
+        description: err.message || 'Tente novamente mais tarde.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBuyingSlots(false);
+    }
+  };
 
   const handlePortal = () => {
     toast({

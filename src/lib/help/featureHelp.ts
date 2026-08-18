@@ -701,6 +701,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A Loja não tem assinatura própria: ela herda o acesso da Conta. Se uma Loja está bloqueada, o que resolve é o pagamento da Conta.',
       'Liberação manual concedida pelo Superadmin também abre o sistema, sem assinatura ativa — e vale para a Conta inteira.',
       'Esta aba é só do Gerente: quem assina é a Conta, e Gestor e Atendente pertencem a uma Loja, que não contrata nada.',
+      'Lojas adicionais são contratadas aqui, e o jeito muda conforme o momento: antes de assinar elas entram junto no checkout; depois de assinar, elas são somadas à assinatura que já existe e a diferença cai na próxima fatura, proporcional ao que falta do mês.',
+      'Não dá para reduzir as Lojas abaixo do que você já usa. Exclua a Loja primeiro, depois reduza a vaga.',
       'Se o sistema não abre para todo o time ao mesmo tempo, o problema é aqui — não é permissão de usuário.',
     ],
     category: 'tela',
