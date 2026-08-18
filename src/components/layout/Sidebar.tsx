@@ -223,9 +223,10 @@ export const Sidebar = ({ isOpen, onToggle, mobileOpen, onMobileClose }: Sidebar
   const visibleMarketing = marketingItems.filter(isItemVisible);
   const visibleConfig = configItems.filter(isItemVisible);
 
-  // Equipe é a visão escopada (agência gerencia suas Lojas). O superadmin não
-  // precisa dela — usa a Administração (visão global) + o seletor de Conta.
-  const showTeam = role === 'gerente';
+  // Equipe é a visão escopada: o Gerente administra as Lojas da Conta, o Gestor
+  // administra a equipe da própria Loja. O superadmin não precisa dela — usa a
+  // Administração (visão global) + o seletor de Conta.
+  const showTeam = role === 'gerente' || role === 'gestor';
   const showAdmin = isSuperAdmin;
 
   const renderNav = (mode: SidebarMode, onNavigate?: () => void) => (

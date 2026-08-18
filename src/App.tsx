@@ -207,8 +207,11 @@ const App = () => (
                       </Suspense>
                     </RoleGuard>
                   } />
+                  {/* minRole="gestor": o Gestor administra a equipe da Loja
+                      dele (convida ate 5 atendentes). O backend ja permitia
+                      isso desde sempre -- so a rota estava fechada. */}
                   <Route path="team" element={
-                    <RoleGuard minRole="gerente" fallbackPath="/dashboard">
+                    <RoleGuard minRole="gestor" fallbackPath="/dashboard">
                       <Suspense fallback={<PageLoadingSkeleton />}>
                         <TeamPage />
                       </Suspense>

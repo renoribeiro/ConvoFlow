@@ -63,8 +63,11 @@ export const DefinirSenha = () => {
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [pronto, setPronto] = useState(false);
 
-  // Reenvio de link, para quem chegou com link vencido.
+  // Entrada por CÓDIGO, para quem chegou sem sessão.
   const [emailReenvio, setEmailReenvio] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [verificando, setVerificando] = useState(false);
+  const [erroCodigo, setErroCodigo] = useState<string | null>(null);
   const [reenviando, setReenviando] = useState(false);
   const [reenviado, setReenviado] = useState(false);
 
@@ -123,8 +126,51 @@ export const DefinirSenha = () => {
     }
   };
 
-  const reenviarLink = async (e: React.FormEvent) => {
+  /**
+   * Troca o código de 6 dígitos por uma sessão.
+   *
+   * Existe porque o LINK não é confiável: ele vale por um acesso só, e em
+   * 2026-08-18 os logs do Auth mostraram três vezes o mesmo padrão — um
+   * primeiro `/verify` bem-sucedido que ninguém pediu (varredura de e-mail ou
+   * pré-carregamento do navegador) e, logo depois, o acesso do usuário
+   * chegando num token já gasto. Com código não há nada para um robô consumir:
+   * ele é inútil sem alguém digitando.
+   */
+  const verificarCodigo = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErroCodigo(null);
+
+    const limpo = codigo.replace(/\D/g, '');
+    if (limpo.length < 6) {
+      setErroCodigo('O código tem 6 dígitos.');
+      return;
+    }
+
+    setVerificando(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: emailReenvio.trim(),
+        token: limpo,
+        type: 'recovery',
+      });
+      if (error) throw error;
+      // A sessão criada aqui derruba o ramo "sem sessão" e o formulário de
+      // senha aparece sozinho — quem manda é o `session` do AuthContext.
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Código inválido.';
+      logger.warn('[DefinirSenha] verifyOtp falhou', { message: msg });
+      setErroCodigo(
+        /expired|invalid|not found/i.test(msg)
+          ? 'Código inválido ou vencido. Peça um novo abaixo.'
+          : msg,
+      );
+    } finally {
+      setVerificando(false);
+    }
+  };
+
+  const reenviarLink = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!emailReenvio.trim()) return;
 
     setReenviando(true);
@@ -185,11 +231,11 @@ export const DefinirSenha = () => {
               <img src={logoVerticalDark} alt="ConvoFlow" className="h-20 w-auto hidden dark:block" />
             </div>
             <CardTitle className="text-xl">
-              {semSessao ? 'Link inválido' : 'Defina sua senha'}
+              {semSessao ? 'Confirme seu acesso' : 'Defina sua senha'}
             </CardTitle>
             <CardDescription>
               {semSessao
-                ? 'Peça um link novo para continuar.'
+                ? 'Digite o código que enviamos para o seu e-mail.'
                 : 'É com ela que você vai entrar daqui pra frente.'}
             </CardDescription>
           </CardHeader>
@@ -207,17 +253,8 @@ export const DefinirSenha = () => {
             )}
 
             {semSessao ? (
-              reenviado ? (
-                <Alert>
-                  <Check className="h-4 w-4" />
-                  <AlertTitle>Link enviado</AlertTitle>
-                  <AlertDescription>
-                    Se esse e-mail estiver cadastrado, o link chega em instantes. Abra ele{' '}
-                    <strong>uma vez só</strong>, e no mesmo aparelho em que for usar o sistema.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <form onSubmit={reenviarLink} className="space-y-4">
+              <div className="space-y-4">
+                <form onSubmit={verificarCodigo} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="reenvio-email">Seu e-mail</Label>
                     <Input
@@ -226,15 +263,66 @@ export const DefinirSenha = () => {
                       placeholder="seu@email.com"
                       value={emailReenvio}
                       onChange={(ev) => setEmailReenvio(ev.target.value)}
+                      autoComplete="email"
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={reenviando}>
-                    {reenviando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Enviar novo link
+
+                  <div className="space-y-2">
+                    <Label htmlFor="codigo-acesso">Código recebido por e-mail</Label>
+                    <Input
+                      id="codigo-acesso"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={codigo}
+                      onChange={(ev) => setCodigo(ev.target.value.replace(/\D/g, ''))}
+                      className="text-center text-lg tracking-[0.5em]"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      São 6 dígitos. O código não se gasta sozinho — diferente do link,
+                      só funciona se alguém digitar.
+                    </p>
+                  </div>
+
+                  {erroCodigo && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{erroCodigo}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Button type="submit" className="w-full" disabled={verificando}>
+                    {verificando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Continuar
                   </Button>
                 </form>
-              )
+
+                <div className="border-t border-border pt-4">
+                  {reenviado ? (
+                    <Alert>
+                      <Check className="h-4 w-4" />
+                      <AlertTitle>Enviado</AlertTitle>
+                      <AlertDescription>
+                        Se esse e-mail estiver cadastrado, o código chega em instantes.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      disabled={reenviando || !emailReenvio.trim()}
+                      onClick={() => reenviarLink()}
+                    >
+                      {reenviando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Não recebi — enviar de novo
+                    </Button>
+                  )}
+                </div>
+              </div>
             ) : (
               <form onSubmit={salvar} className="space-y-4">
                 <div className="space-y-2">

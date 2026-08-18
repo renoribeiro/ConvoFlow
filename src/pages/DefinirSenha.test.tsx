@@ -5,10 +5,10 @@
  * vez pelo link do e-mail e nunca mais conseguia voltar, e quem esquecia a
  * senha dependia de um superadmin abrir o painel do Supabase.
  *
- * O que os testes travam:
- *   - link já usado (otp_expired) explica o que houve, em pt-BR, e oferece saída
- *   - sem sessão não mostra formulário de senha (não adianta digitar)
- *   - com sessão, salva pelo updateUser e valida antes de mandar
+ * O caminho por CÓDIGO existe porque o link não é confiável: em 2026-08-18 os
+ * logs do Auth mostraram três vezes o mesmo padrão — um `/verify` bem-sucedido
+ * que ninguém pediu (varredura de e-mail ou pré-carregamento do navegador) e,
+ * segundos depois, o acesso do usuário chegando num token já gasto.
  */
 
 import React from 'react';
@@ -16,17 +16,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-const { mockUpdateUser, mockResetPasswordForEmail, mockToast } = vi.hoisted(() => ({
-  mockUpdateUser: vi.fn(),
-  mockResetPasswordForEmail: vi.fn(),
-  mockToast: vi.fn(),
-}));
+const { mockUpdateUser, mockResetPasswordForEmail, mockVerifyOtp, mockToast } = vi.hoisted(
+  () => ({
+    mockUpdateUser: vi.fn(),
+    mockResetPasswordForEmail: vi.fn(),
+    mockVerifyOtp: vi.fn(),
+    mockToast: vi.fn(),
+  }),
+);
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
       updateUser: mockUpdateUser,
       resetPasswordForEmail: mockResetPasswordForEmail,
+      verifyOtp: mockVerifyOtp,
     },
   },
 }));
@@ -54,12 +58,18 @@ function renderTela(hash = '') {
   );
 }
 
+const preencherCodigo = (email: string, cod: string) => {
+  fireEvent.change(screen.getByLabelText(/seu e-mail/i), { target: { value: email } });
+  fireEvent.change(screen.getByLabelText(/código recebido/i), { target: { value: cod } });
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   session = { user: { id: 'u1' } };
   authLoading = false;
   mockUpdateUser.mockResolvedValue({ data: {}, error: null });
   mockResetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+  mockVerifyOtp.mockResolvedValue({ data: {}, error: null });
 });
 
 describe('link já usado ou vencido', () => {
@@ -72,14 +82,79 @@ describe('link já usado ou vencido', () => {
     expect(screen.queryByText(/Email link is invalid/i)).not.toBeInTheDocument();
   });
 
-  it('oferece pedir um link novo em vez de deixar a pessoa parada', async () => {
+  it('mesmo com link vencido, oferece o caminho por código', () => {
     session = null;
     renderTela('#error=access_denied&error_code=otp_expired');
 
+    expect(screen.getByLabelText(/código recebido/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /continuar/i })).toBeInTheDocument();
+  });
+
+  it('sem sessão não mostra campo de senha nenhum', () => {
+    session = null;
+    renderTela();
+
+    expect(screen.queryByLabelText(/nova senha/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Confirme seu acesso/i)).toBeInTheDocument();
+  });
+});
+
+describe('entrada por código (imune ao link ser aberto por robô)', () => {
+  beforeEach(() => {
+    session = null;
+  });
+
+  it('troca o código por uma sessão', async () => {
+    renderTela();
+    preencherCodigo('alguem@exemplo.com', '123456');
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await waitFor(() =>
+      expect(mockVerifyOtp).toHaveBeenCalledWith({
+        email: 'alguem@exemplo.com',
+        token: '123456',
+        type: 'recovery',
+      }),
+    );
+  });
+
+  it('só aceita dígitos no campo', () => {
+    renderTela();
+    const campo = screen.getByLabelText(/código recebido/i) as HTMLInputElement;
+    fireEvent.change(campo, { target: { value: '12a3b4' } });
+    expect(campo.value).toBe('1234');
+  });
+
+  it('código curto não chega a chamar o servidor', async () => {
+    renderTela();
+    preencherCodigo('alguem@exemplo.com', '123');
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    // Ancorado em "O código tem": a dica embaixo do campo também fala em
+    // "6 dígitos", e um match solto pegaria as duas.
+    await waitFor(() =>
+      expect(screen.getByText(/O código tem 6 dígitos/i)).toBeInTheDocument(),
+    );
+    expect(mockVerifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('código recusado vira frase que diz o que fazer', async () => {
+    mockVerifyOtp.mockResolvedValue({ error: new Error('Token has expired or is invalid') });
+    renderTela();
+    preencherCodigo('alguem@exemplo.com', '999999');
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Código inválido ou vencido/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('reenvio manda para /definir-senha, não para a home', async () => {
+    renderTela();
     fireEvent.change(screen.getByLabelText(/seu e-mail/i), {
       target: { value: 'alguem@exemplo.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /enviar novo link/i }));
+    fireEvent.click(screen.getByRole('button', { name: /não recebi/i }));
 
     await waitFor(() => expect(mockResetPasswordForEmail).toHaveBeenCalled());
     const [email, opcoes] = mockResetPasswordForEmail.mock.calls[0] ?? [];
@@ -88,28 +163,18 @@ describe('link já usado ou vencido', () => {
   });
 
   it('não confirma se o e-mail existe — mesma resposta com ou sem erro', async () => {
-    session = null;
     mockResetPasswordForEmail.mockResolvedValue({ error: { message: 'User not found' } });
-    renderTela('#error=access_denied&error_code=otp_expired');
-
+    renderTela();
     fireEvent.change(screen.getByLabelText(/seu e-mail/i), {
       target: { value: 'naoexiste@exemplo.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /enviar novo link/i }));
+    fireEvent.click(screen.getByRole('button', { name: /não recebi/i }));
 
-    await waitFor(() => expect(screen.getByText(/Link enviado/i)).toBeInTheDocument());
-  });
-
-  it('sem sessão não mostra campo de senha nenhum', () => {
-    session = null;
-    renderTela();
-
-    expect(screen.queryByLabelText(/nova senha/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Link inválido/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Enviado/i)).toBeInTheDocument());
   });
 });
 
-describe('com sessão vinda do link', () => {
+describe('com sessão vinda do link ou do código', () => {
   it('mostra o formulário de senha', () => {
     renderTela();
     expect(screen.getByLabelText(/nova senha/i)).toBeInTheDocument();
@@ -168,6 +233,6 @@ describe('enquanto o token do link ainda está sendo processado', () => {
     session = null;
     renderTela();
 
-    expect(screen.queryByText(/Link inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Confirme seu acesso/i)).not.toBeInTheDocument();
   });
 });

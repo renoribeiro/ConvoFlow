@@ -26,6 +26,12 @@ interface ManageUserPayload {
   parentId?: string | null;
   affiliateId?: string | null;
   redirectTo?: string;
+  /**
+   * Nome da Conta a criar junto com um GERENTE. Gerente e dono de uma Conta,
+   * nao funcionario de uma Loja -- sem isto o manage-user recusa o convite com
+   * "Informe o nome da Conta do gerente." (o modal nunca mandava este campo).
+   */
+  newTenantName?: string;
   // target-bound
   targetProfileId?: string;
   patch?: Record<string, unknown>;

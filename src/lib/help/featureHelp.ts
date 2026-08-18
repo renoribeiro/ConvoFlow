@@ -779,10 +779,12 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
 
   // ---------------------------------------------------------- Telas: Equipe
   'page:team': {
-    minRole: 'gerente',
+    // 'gestor', nao 'gerente': desde 2026-08-18 a rota /dashboard/team tambem
+    // abre para o Gestor, que administra a equipe da propria Loja.
+    minRole: 'gestor',
     title: 'Equipe',
     whatItDoes:
-      'É onde a Conta ganha Lojas e as Lojas ganham gente. Como Gerente, você cria a Loja aqui e convida quem vai trabalhar nela. Convidar por aqui é o único jeito de alguém entrar no ConvoFlow — não existe cadastro público.',
+      'É onde a Conta ganha Lojas e as Lojas ganham gente. Como Gerente, você cria a Loja aqui e convida quem vai trabalhar nela; como Gestor, você convida os Atendentes da sua Loja. Convidar por aqui é o único jeito de alguém entrar no ConvoFlow — não existe cadastro público.',
     howToConfigure: [
       'Como Gerente, crie a Loja em "Nova Loja" antes de convidar: Gestor e Atendente sempre pertencem a uma.',
       'Confira o contador ao lado do botão ("2 de 5 lojas") — é quanto do seu plano já foi usado.',
@@ -800,7 +802,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'O link do convite vale por um acesso só. Quem perdeu o prazo, ou esqueceu a senha, resolve sozinho pelo "Esqueci minha senha" da tela de login — você também pode disparar pelo "Redefinir senha" no menu de Ações.',
       'O plano Gerente inclui 5 Lojas. Quando elas acabam, "Nova Loja" fica cinza e o motivo aparece ao passar o mouse — Lojas adicionais são contratadas em Configurações › Assinatura.',
       'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
-      'Como Gerente esta tela mostra as Lojas da sua Conta e as pessoas delas; como Gestor, mostra as pessoas da sua Loja.',
+      'Como Gerente esta tela mostra as Lojas da sua Conta e as pessoas delas; como Gestor, mostra as pessoas da sua Loja e o convite já entra nela — você não escolhe Loja, porque só tem a sua.',
       'Login compartilhado quebra relatório por pessoa e apaga o histórico de quem atendeu o quê.',
     ],
     category: 'tela',

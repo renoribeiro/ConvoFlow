@@ -391,10 +391,12 @@ describe('Help — visibilidade por cargo', () => {
     }
   });
 
-  it('gestor não vê Equipe nem Admin', () => {
+  it('gestor vê Equipe (administra a própria Loja) mas não vê Admin', () => {
+    // A rota /dashboard/team passou a aceitar minRole="gestor" em 2026-08-18:
+    // o Gestor convida os Atendentes da Loja dele. A ajuda acompanha o acesso.
     currentRole = 'gestor';
     renderHelp();
-    expect(topic('Equipe')).toBeNull();
+    expect(topic('Equipe')).not.toBeNull();
     expect(topic('Administração')).toBeNull();
   });
 

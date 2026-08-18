@@ -114,6 +114,17 @@ describe('lista de Lojas', () => {
     },
   );
 
+  it('para o Gestor a tela é "Minha Equipe" — a Loja dele, não as Lojas da Conta', () => {
+    // A rota /dashboard/team passou a aceitar minRole="gestor" em 2026-08-18.
+    // Este ramo existia no codigo e era inalcancavel: o guard exigia gerente.
+    currentRole = 'gestor';
+    renderPage();
+    // O texto aparece no título e no breadcrumb — miramos no cabeçalho.
+    expect(screen.getByRole('heading', { name: 'Minha Equipe' })).toBeInTheDocument();
+    expect(screen.queryByText('Minhas Lojas')).not.toBeInTheDocument();
+    expect(screen.getByTestId('users-table')).toBeInTheDocument();
+  });
+
   it('cargo não carregado ainda não é tratado como gerente', () => {
     currentRole = null;
     renderPage();

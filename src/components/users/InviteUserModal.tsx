@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,15 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Store } from 'lucide-react';
 import { RoleDescriptionCard } from '@/components/admin/RoleDescriptionCard';
-import { useRole } from '@/contexts/TenantContext';
+import { useRole, useTenant } from '@/contexts/TenantContext';
+import { useMyStores } from '@/hooks/useMyStores';
 import { useInviteUser } from '@/hooks/users/useManageUser';
 import { ROLE_LABELS, UserRole } from '@/types/userHierarchy';
 
 interface InviteUserModalProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** Tenant a vincular (obrigatório se role escolhida ≠ superadmin). */
+  /** Loja sugerida (a que está em foco). Só vale para Gestor e Atendente. */
   defaultTenantId?: string | null;
 }
 
@@ -55,6 +58,8 @@ export function InviteUserModal({
   defaultTenantId,
 }: InviteUserModalProps) {
   const callerRole = useRole();
+  const { tenant } = useTenant();
+  const { stores, isLoading: lojasCarregando } = useMyStores();
   const allowed = allowedRolesFor(callerRole);
   const invite = useInviteUser();
 
@@ -64,14 +69,36 @@ export function InviteUserModal({
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>(allowed[0] ?? 'atendente');
   const [tenantId, setTenantId] = useState(defaultTenantId ?? '');
+  const [nomeDaConta, setNomeDaConta] = useState('');
 
-  const requiresTenant = role === 'gestor' || role === 'atendente';
+  /**
+   * Quem escolhe a Loja, e como.
+   *
+   *   gestor     → não escolhe: é sempre a Loja dele. O servidor ignora o que
+   *                vier do navegador e usa `caller.tenant_id`
+   *                (manage-user, actionCreate), então mostrar um campo aqui
+   *                seria teatro.
+   *   gerente    → escolhe entre as Lojas da Conta dele.
+   *   superadmin → convida Gerente, que é dono de uma CONTA nova — não de uma
+   *                Loja. Aqui o campo é o NOME da Conta a criar.
+   */
+  const ehGestor = callerRole === 'gestor';
+  const precisaDeLoja = role === 'gestor' || role === 'atendente';
+  const precisaNomeDaConta = role === 'gerente';
+
+  const lojaDoGestor = ehGestor ? tenant : null;
+
+  // Loja em foco muda (ou o modal reabre) → o seletor acompanha.
+  useEffect(() => {
+    if (open) setTenantId(defaultTenantId ?? '');
+  }, [open, defaultTenantId]);
 
   const reset = () => {
     setEmail('');
     setFirstName('');
     setLastName('');
     setPhone('');
+    setNomeDaConta('');
     setTenantId(defaultTenantId ?? '');
   };
 
@@ -82,15 +109,25 @@ export function InviteUserModal({
       lastName,
       phone: phone || undefined,
       role,
-      tenantId: tenantId || null,
-      // /definir-senha, NAO /dashboard: o convidado chega sem senha nenhuma.
-      // Mandando para o dashboard ele entrava uma vez pelo link e nunca mais
-      // conseguia voltar -- nao havia tela para definir senha em lugar nenhum.
+      // Para o gestor o servidor resolve sozinho; mandamos a própria Loja
+      // mesmo assim para o payload ficar honesto com o que a tela mostrou.
+      tenantId: precisaDeLoja ? (ehGestor ? lojaDoGestor?.id ?? null : tenantId || null) : null,
+      newTenantName: precisaNomeDaConta ? nomeDaConta.trim() : undefined,
       redirectTo: `${window.location.origin}/definir-senha`,
     });
     reset();
     onOpenChange(false);
   };
+
+  const semLojas = callerRole === 'gerente' && !lojasCarregando && stores.length === 0;
+
+  const podeEnviar =
+    !invite.isPending &&
+    !!email &&
+    !!firstName &&
+    !!lastName &&
+    (!precisaDeLoja || ehGestor || !!tenantId) &&
+    (!precisaNomeDaConta || !!nomeDaConta.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,18 +198,69 @@ export function InviteUserModal({
             */}
             <RoleDescriptionCard role={role} />
           </div>
-          {requiresTenant && (
+
+          {/* ---------------------------------------------------------------
+              Vínculo. Até 2026-08-18 isto era um campo de texto livre pedindo
+              "UUID do tenant" — digitado à mão, sem lista, e sem dizer que
+              tinha de ser uma LOJA. Colar o id da Conta ali devolvia um 403
+              que ainda por cima chegava ilegível na tela.
+             --------------------------------------------------------------- */}
+          {precisaDeLoja && ehGestor && (
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 flex items-center gap-2">
+              <Store className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm">
+                Entra na sua Loja: <strong>{lojaDoGestor?.name ?? '—'}</strong>
+              </span>
+            </div>
+          )}
+
+          {precisaDeLoja && !ehGestor && (
             <div>
-              <Label htmlFor="invite-tenantId">Tenant ID</Label>
+              <Label htmlFor="invite-loja">Loja</Label>
+              {semLojas ? (
+                <Alert className="mt-1">
+                  <AlertDescription>
+                    Você ainda não tem nenhuma Loja. Crie uma em "Nova Loja" antes de
+                    convidar — Gestor e Atendente sempre pertencem a uma.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <Select value={tenantId} onValueChange={setTenantId}>
+                    <SelectTrigger id="invite-loja">
+                      <SelectValue
+                        placeholder={lojasCarregando ? 'Carregando...' : 'Escolha a Loja'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stores.map((loja) => (
+                        <SelectItem key={loja.id} value={loja.id}>
+                          {loja.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    A pessoa vai enxergar as conversas e os contatos desta Loja.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {precisaNomeDaConta && (
+            <div>
+              <Label htmlFor="invite-conta">Nome da Conta</Label>
               <Input
-                id="invite-tenantId"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
-                placeholder="UUID do tenant"
+                id="invite-conta"
+                value={nomeDaConta}
+                onChange={(e) => setNomeDaConta(e.target.value)}
+                placeholder="Ex.: Imobiliária Silva"
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Obrigatório para Gestor e Atendente (vinculados a uma loja).
+                O Gerente é dono de uma Conta, não de uma Loja. A Conta é criada agora,
+                vazia — as Lojas dela ele cria depois.
               </p>
             </div>
           )}
@@ -182,16 +270,7 @@ export function InviteUserModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              invite.isPending ||
-              !email ||
-              !firstName ||
-              !lastName ||
-              (requiresTenant && !tenantId)
-            }
-          >
+          <Button onClick={handleSubmit} disabled={!podeEnviar}>
             {invite.isPending ? 'Enviando...' : 'Enviar convite'}
           </Button>
         </DialogFooter>

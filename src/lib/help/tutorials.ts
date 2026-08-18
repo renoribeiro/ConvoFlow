@@ -167,9 +167,11 @@ export const TUTORIALS: Tutorial[] = [
           'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
       },
       {
-        title: 'Confira o campo de vínculo e clique em "Enviar convite"',
+        title: 'Escolha a Loja e clique em "Enviar convite"',
         body:
-          'Para Gestor e Atendente aparece um campo de identificação da Loja, já preenchido com a Loja que você colocou em foco. O servidor recusa o convite se a Loja não pertencer à sua Conta, então um valor trocado por engano não passa.',
+          'Para Gestor e Atendente aparece uma lista com as Lojas da sua Conta, já marcada na que você colocou em foco. Confira se é a certa antes de enviar — é ela que define quais conversas e contatos a pessoa vai enxergar.',
+        note:
+          'Como Gestor você não escolhe nada aqui: o convite entra na sua Loja, que é a única que você administra.',
       },
       {
         title: 'Confirme que a pessoa conseguiu entrar',
