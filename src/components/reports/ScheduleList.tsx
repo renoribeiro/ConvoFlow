@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ScheduleModal } from './ScheduleModal';
+import { ScheduleModal, type SchedulePayload } from './ScheduleModal';
 import { 
   useReportSchedules, 
   useCreateReportSchedule, 
@@ -17,24 +17,27 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, Clock, Mail, MessageSquare, MoreHorizontal, Plus, Edit, AlertCircle } from 'lucide-react';
 
-// Tipos baseados no schema do banco
+// Tipos baseados no schema do banco.
+// Nullable onde a coluna é nullable: a linha que vem do Supabase tem
+// `is_active: boolean | null`, `recipients: Json` etc., e declarar tudo como
+// não-nulo aqui só empurrava a divergência para um erro de tipo no handleEdit.
 interface Schedule {
   id: string;
   name: string;
-  template_id: string;
+  template_id: string | null;
   cron_expression: string;
-  recipients: string[];
+  recipients: unknown;
   parameters?: any;
-  is_active: boolean;
-  last_run?: string;
-  next_run?: string;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
+  is_active: boolean | null;
+  last_run?: string | null;
+  next_run?: string | null;
+  created_by?: string | null;
+  created_at: string | null;
+  updated_at: string | null;
   report_templates?: {
     name: string;
-    type: string;
-  };
+    type: string | null;
+  } | null;
 }
 
 // Função para detectar frequência baseada na cron expression
@@ -62,12 +65,21 @@ const getFrequencyLabel = (frequency: string) => {
   return labels[frequency as keyof typeof labels] || frequency;
 };
 
-const getMethodIcon = (method: string) => {
-  switch (method) {
-    case 'email': return <Mail className="w-4 h-4" />;
-    case 'whatsapp': return <MessageSquare className="w-4 h-4" />;
-    default: return null;
+// (Havia aqui um getMethodIcon com ícone de WhatsApp. Ninguém o chamava, e a
+// entrega agendada é só por e-mail — removido para não sugerir um canal que o
+// agendador não usa.)
+
+/**
+ * `recipients` é jsonb: pode chegar como array (o que a tela grava) ou como
+ * string. `recipients?.length` numa string contava as LETRAS — um único e-mail
+ * aparecia como "18 destinatário(s)".
+ */
+const recipientCount = (recipients: unknown): number => {
+  if (Array.isArray(recipients)) return recipients.length;
+  if (typeof recipients === 'string') {
+    return recipients.split(/[,;\n]/).filter((r) => r.trim()).length;
   }
+  return 0;
 };
 
 export const ScheduleList = () => {
@@ -89,46 +101,25 @@ export const ScheduleList = () => {
     setShowModal(true);
   };
 
-  const handleSave = async (scheduleData: any) => {
+  const handleSave = async (scheduleData: SchedulePayload) => {
     try {
-      console.log('Iniciando salvamento de agendamento:', scheduleData);
-      
+      // A modal já entrega no formato da tabela (SchedulePayload): repassamos
+      // sem remapear. O remapeamento que existia aqui lia campos que a modal
+      // nunca mandou (`reportName`, `isActive`), então `name` chegava undefined
+      // numa coluna NOT NULL e `template_id` ia com a string 'default_template'
+      // numa coluna uuid. Nenhum agendamento conseguia ser salvo.
       if (selectedSchedule) {
-        // Atualizar agendamento existente
-        console.log('Atualizando agendamento existente:', selectedSchedule.id);
         await updateScheduleMutation.mutateAsync({
           id: selectedSchedule.id,
-          name: scheduleData.reportName,
-          cron_expression: scheduleData.cron_expression,
-          recipients: scheduleData.recipients,
-          parameters: {
-            deliveryMethods: scheduleData.deliveryMethods,
-            frequency: scheduleData.frequency,
-            dayOfWeek: scheduleData.dayOfWeek,
-            dayOfMonth: scheduleData.dayOfMonth,
-            time: scheduleData.time
-          },
-          is_active: scheduleData.isActive,
+          ...scheduleData,
         });
-        console.log('Agendamento atualizado com sucesso');
       } else {
-        // Criar novo agendamento
-        console.log('Criando novo agendamento');
-        const newSchedule = await createScheduleMutation.mutateAsync({
-          name: scheduleData.reportName,
-          template_id: 'default_template', // TODO: Permitir seleção de template
-          cron_expression: scheduleData.cron_expression,
-          recipients: scheduleData.recipients,
-          parameters: {
-            deliveryMethods: scheduleData.deliveryMethods,
-            frequency: scheduleData.frequency,
-            dayOfWeek: scheduleData.dayOfWeek,
-            dayOfMonth: scheduleData.dayOfMonth,
-            time: scheduleData.time
-          },
-          is_active: scheduleData.isActive,
+        await createScheduleMutation.mutateAsync({
+          ...scheduleData,
+          // Sem template: o relatório é montado pelo tipo/período gravados em
+          // `parameters`, não por uma linha de report_templates.
+          template_id: null,
         });
-        console.log('Novo agendamento criado:', newSchedule);
       }
       
       // Fechar modal e limpar seleção apenas após sucesso
@@ -309,7 +300,7 @@ export const ScheduleList = () => {
                       
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4" />
-                        <span>{schedule.recipients?.length || 0} destinatário(s)</span>
+                        <span>{recipientCount(schedule.recipients)} destinatário(s)</span>
                       </div>
                       
                       <div>
@@ -331,7 +322,7 @@ export const ScheduleList = () => {
 
                   <div className="flex items-center gap-2">
                     <Switch
-                      checked={schedule.is_active}
+                      checked={!!schedule.is_active}
                       onCheckedChange={(checked) => {
                         toggleScheduleMutation.mutate({
                           id: schedule.id,

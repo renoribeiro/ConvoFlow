@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -20,36 +19,74 @@ interface Schedule {
   dayOfWeek?: string;
   dayOfMonth?: number;
   time: string;
-  deliveryMethods: ('email' | 'whatsapp' | 'dashboard')[];
   recipients: string[];
   isActive: boolean;
 }
 
-// Interface para dados do banco
+/**
+ * O que a modal entrega para quem salva — já no formato da tabela
+ * report_schedules. Antes a modal devolvia um objeto e a ScheduleList lia
+ * outros nomes de campo (`reportName`, `isActive`), então `name` chegava
+ * `undefined` numa coluna NOT NULL. O tipo abaixo existe para que essa
+ * divergência não volte em silêncio.
+ */
+export interface SchedulePayload {
+  name: string;
+  cron_expression: string;
+  recipients: string[];
+  parameters: {
+    deliveryMethods: 'email'[];
+    frequency: 'daily' | 'weekly' | 'monthly';
+    dayOfWeek?: string;
+    dayOfMonth?: number;
+    time: string;
+    dateRange: string;
+    reportType: string;
+  };
+  is_active: boolean;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Período de dados de cada frequência. Relatório semanal fala dos últimos 7
+ * dias — o usuário não precisa escolher isso à mão. O agendador respeita o
+ * valor gravado aqui (ver resolveDateRange em _shared/report-scheduler.ts).
+ */
+const DATE_RANGE_BY_FREQUENCY: Record<'daily' | 'weekly' | 'monthly', string> = {
+  daily: '1day',
+  weekly: '7days',
+  monthly: '30days',
+};
+
+// Interface para dados do banco — espelha a linha real de report_schedules,
+// com as colunas nullable como nullable e `recipients` como jsonb.
 interface DatabaseSchedule {
   id?: string;
   name: string;
-  template_id: string;
+  template_id?: string | null;
   cron_expression: string;
-  recipients: string[];
+  recipients?: unknown;
   parameters?: any;
-  is_active: boolean;
-  last_run?: string;
-  next_run?: string;
-  created_by?: string;
-  created_at?: string;
-  updated_at?: string;
+  is_active?: boolean | null;
+  last_run?: string | null;
+  next_run?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   report_templates?: {
     name: string;
-    type: string;
-  };
+    type: string | null;
+  } | null;
 }
 
 interface ScheduleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schedule?: Schedule | null;
-  onSave: (schedule: Schedule) => void;
+  // Aceita o formato do formulário e a linha crua do banco: a lista passa a
+  // linha direto ao clicar em Editar.
+  schedule?: Schedule | DatabaseSchedule | null;
+  onSave: (schedule: SchedulePayload) => void | Promise<void>;
 }
 
 const reportTemplates = [
@@ -77,7 +114,6 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
     reportName: '',
     frequency: 'weekly',
     time: '09:00',
-    deliveryMethods: [],
     recipients: [],
     isActive: true
   });
@@ -117,9 +153,10 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
           time: cronData.time,
           dayOfWeek: cronData.dayOfWeek,
           dayOfMonth: cronData.dayOfMonth,
-          deliveryMethods: dbSchedule.parameters?.deliveryMethods || ['email'],
-          recipients: dbSchedule.recipients || [],
-          isActive: dbSchedule.is_active,
+          recipients: Array.isArray(dbSchedule.recipients)
+            ? dbSchedule.recipients.filter((r): r is string => typeof r === 'string')
+            : [],
+          isActive: dbSchedule.is_active !== false,
         });
       } else {
         setFormData(schedule);
@@ -129,35 +166,37 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
         reportName: '',
         frequency: 'weekly',
         time: '09:00',
-        deliveryMethods: [],
         recipients: [],
         isActive: true
       });
     }
   }, [schedule, open]);
 
-  const handleDeliveryMethodChange = (method: 'email' | 'whatsapp' | 'dashboard', checked: boolean) => {
-    if (checked) {
-      setFormData({
-        ...formData,
-        deliveryMethods: [...formData.deliveryMethods, method]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        deliveryMethods: formData.deliveryMethods.filter(m => m !== method)
-      });
-    }
-  };
-
   const addRecipient = () => {
-    if (newRecipient.trim() && !formData.recipients.includes(newRecipient.trim())) {
-      setFormData({
-        ...formData,
-        recipients: [...formData.recipients, newRecipient.trim()]
+    const value = newRecipient.trim();
+    if (!value) return;
+
+    // Só e-mail: a entrega agendada é por e-mail. Um telefone digitado aqui
+    // seria aceito e depois ignorado pelo envio, sem ninguém avisar.
+    if (!EMAIL_RE.test(value)) {
+      toast({
+        title: 'E-mail inválido',
+        description: 'Digite um endereço de e-mail válido, como nome@empresa.com.br.',
+        variant: 'destructive',
       });
-      setNewRecipient('');
+      return;
     }
+
+    if (formData.recipients.includes(value)) {
+      setNewRecipient('');
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      recipients: [...formData.recipients, value]
+    });
+    setNewRecipient('');
   };
 
   const removeRecipient = (recipient: string) => {
@@ -205,19 +244,10 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
       return;
     }
 
-    if (formData.deliveryMethods.length === 0) {
-      toast({
-        title: 'Erro de Validação',
-        description: 'Por favor, selecione pelo menos um método de entrega.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     if (formData.recipients.length === 0) {
       toast({
         title: 'Erro de Validação',
-        description: 'Por favor, adicione pelo menos um destinatário.',
+        description: 'Adicione pelo menos um e-mail de destinatário.',
         variant: 'destructive',
       });
       return;
@@ -244,25 +274,27 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
     }
 
     try {
-      // Converter dados do modal para formato do banco
-      const scheduleData = {
+      // Formato do banco. `template_id` NÃO é enviado daqui: a coluna é uuid e
+      // o valor fixo que existia ('template_1') fazia o Postgres recusar a
+      // linha inteira (22P02) — nenhum agendamento chegava a ser salvo.
+      const scheduleData: SchedulePayload = {
         name: formData.reportName,
-        template_id: 'template_1', // Por enquanto usando um ID fixo
         cron_expression: generateCronExpression(),
         recipients: formData.recipients,
         parameters: {
-          deliveryMethods: formData.deliveryMethods,
+          deliveryMethods: ['email'],
           frequency: formData.frequency,
           dayOfWeek: formData.dayOfWeek,
           dayOfMonth: formData.dayOfMonth,
+          time: formData.time,
+          dateRange: DATE_RANGE_BY_FREQUENCY[formData.frequency],
+          reportType: 'general',
         },
         is_active: formData.isActive,
       };
-      
-      console.log('Salvando agendamento:', scheduleData);
-      await onSave(scheduleData as any);
-      console.log('Agendamento salvo com sucesso');
-      
+
+      await onSave(scheduleData);
+
       // Fechar o modal após salvar com sucesso
       onOpenChange(false);
     } catch (error) {
@@ -388,44 +420,12 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
 
           <Separator />
 
-          {/* Métodos de Entrega */}
-          <div className="space-y-4">
-            <h3 className="font-medium">Métodos de Entrega</h3>
-            
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="email"
-                  checked={formData.deliveryMethods.includes('email')}
-                  onCheckedChange={(checked) => handleDeliveryMethodChange('email', checked as boolean)}
-                />
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="whatsapp"
-                  checked={formData.deliveryMethods.includes('whatsapp')}
-                  onCheckedChange={(checked) => handleDeliveryMethodChange('whatsapp', checked as boolean)}
-                />
-                <label htmlFor="whatsapp" className="text-sm font-medium">
-                  WhatsApp
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="dashboard"
-                  checked={formData.deliveryMethods.includes('dashboard')}
-                  onCheckedChange={(checked) => handleDeliveryMethodChange('dashboard', checked as boolean)}
-                />
-                <label htmlFor="dashboard" className="text-sm font-medium">
-                  Notificação no Dashboard
-                </label>
-              </div>
-            </div>
+          {/* Entrega */}
+          <div className="space-y-2">
+            <h3 className="font-medium">Entrega</h3>
+            <p className="text-sm text-muted-foreground">
+              O relatório é enviado por e-mail para os destinatários abaixo.
+            </p>
           </div>
 
           <Separator />
@@ -433,12 +433,13 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
           {/* Destinatários */}
           <div className="space-y-4">
             <h3 className="font-medium">Destinatários</h3>
-            
+
             <div className="flex gap-2">
               <Input
+                type="email"
                 value={newRecipient}
                 onChange={(e) => setNewRecipient(e.target.value)}
-                placeholder="Email ou número do WhatsApp"
+                placeholder="nome@empresa.com.br"
                 onKeyPress={(e) => e.key === 'Enter' && addRecipient()}
               />
               <Button onClick={addRecipient}>

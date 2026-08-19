@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ShieldCheck, RefreshCw, Info, Loader2, Zap } from 'lucide-react';
+import { ShieldCheck, Info, Loader2, Zap, Copy } from 'lucide-react';
 import { env } from '@/lib/env';
+import { useToast } from '@/hooks/use-toast';
 import { useMetaEmbeddedSignup } from '@/hooks/useMetaEmbeddedSignup';
 
 export interface OfficialFormValues {
@@ -13,7 +13,6 @@ export interface OfficialFormValues {
   phoneNumberId: string;
   wabaId: string;
   accessToken: string;
-  verifyToken: string;
 }
 
 export const initialOfficialValues = (): OfficialFormValues => ({
@@ -21,9 +20,6 @@ export const initialOfficialValues = (): OfficialFormValues => ({
   phoneNumberId: '',
   wabaId: '',
   accessToken: '',
-  verifyToken: typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
 });
 
 interface Props {
@@ -36,22 +32,18 @@ interface Props {
 export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: Props) => {
   const { isAvailable: embeddedSignupAvailable, startSignup, loading: signupLoading } =
     useMetaEmbeddedSignup();
-
-  // Ensure verifyToken is populated on first render
-  useEffect(() => {
-    if (!values.verifyToken) {
-      const seed = initialOfficialValues();
-      onChange({ verifyToken: seed.verifyToken });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { toast } = useToast();
 
   const supabaseUrl = env.get('SUPABASE_URL') || '';
   const webhookUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/meta-webhook` : '';
 
-  const regenerateVerifyToken = () => {
-    const seed = initialOfficialValues();
-    onChange({ verifyToken: seed.verifyToken });
+  const copyWebhookUrl = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl);
+    toast({
+      title: 'Copiado!',
+      description: 'Callback URL copiada para a área de transferência',
+    });
   };
 
   const handleEmbeddedSignup = async () => {
@@ -123,8 +115,9 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
           >
             Meta for Developers
           </a>
-          {' '}com WhatsApp Business habilitado, o webhook URL e Verify Token configurados no console
-          da Meta, e um Access Token permanente (System User).
+          {' '}com WhatsApp Business habilitado e um Access Token permanente (System User). O webhook
+          do ConvoFlow é configurado uma única vez na instalação, não a cada número — veja o aviso
+          no fim do formulário.
         </AlertDescription>
       </Alert>
 
@@ -178,51 +171,50 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="meta-verify">Webhook Verify Token *</Label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={regenerateVerifyToken}
-            disabled={isDisabled}
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Gerar novo
-          </Button>
-        </div>
-        <Input
-          id="meta-verify"
-          value={values.verifyToken}
-          onChange={(e) => onChange({ verifyToken: e.target.value })}
-          disabled={isDisabled}
-        />
-      </div>
-
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle className="text-sm">Configuração no Meta for Developers</AlertTitle>
+        <AlertTitle className="text-sm">Webhook da Meta: configuração única da plataforma</AlertTitle>
         <AlertDescription className="text-xs space-y-2">
-          <p>No Meta App → Webhooks → WhatsApp Business Account, configure:</p>
+          <p>
+            O webhook vale para a instalação inteira do ConvoFlow, não para cada número. Se algum
+            número já recebe mensagens aqui, ele já está configurado e não há nada a fazer nesta
+            etapa — siga para "Validar e conectar".
+          </p>
+          <p>
+            Na primeira instalação, quem opera a plataforma configura, no Meta App → Webhooks →
+            WhatsApp Business Account:
+          </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
               <strong>Callback URL:</strong>{' '}
               <code className="bg-background border px-1.5 py-0.5 rounded text-[11px]">
                 {webhookUrl || 'Configure VITE_SUPABASE_URL'}
               </code>
+              {webhookUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 ml-1 align-middle"
+                  onClick={copyWebhookUrl}
+                >
+                  <Copy className="h-3 w-3" />
+                  <span className="sr-only">Copiar Callback URL</span>
+                </Button>
+              )}
             </li>
             <li>
-              <strong>Verify Token:</strong> use o mesmo valor exato do campo acima.
+              <strong>Verify Token:</strong> o token da instalação, guardado no secret{' '}
+              <code className="bg-background border px-1.5 py-0.5 rounded text-[11px]">
+                META_GLOBAL_VERIFY_TOKEN
+              </code>{' '}
+              do Supabase. Por segurança ele não é exibido aqui — quem administra a instalação lê o
+              valor no painel do Supabase. Não use o token do campo acima.
             </li>
             <li>
               Subscreva os campos: <code>messages</code>, <code>message_template_status_update</code>.
             </li>
           </ul>
-          <p>
-            O webhook só funcionará após a Meta validar o handshake com o verify token configurado em
-            <code className="ml-1">META_GLOBAL_VERIFY_TOKEN</code> (Supabase secret).
-          </p>
         </AlertDescription>
       </Alert>
     </div>

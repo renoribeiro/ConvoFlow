@@ -89,16 +89,16 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Preencha os campos da instância',
         body:
-          'Dê um nome que identifique a linha (ex.: "WhatsApp Vendas Oficial") e cole o Phone Number ID, o WhatsApp Business Account ID e o Access Token. O campo Webhook Verify Token já vem preenchido com um valor gerado.',
+          'Dê um nome que identifique a linha (ex.: "WhatsApp Vendas Oficial") e cole o Phone Number ID, o WhatsApp Business Account ID e o Access Token. São só esses quatro campos — nenhum token de webhook é pedido aqui.',
         note:
           'O Access Token é guardado cifrado no Supabase Vault, não em texto puro.',
       },
       {
-        title: 'Aponte o webhook da Meta para o ConvoFlow',
+        title: 'Confirme o webhook da Meta (uma vez por instalação)',
         body:
-          'No painel da Meta, em Webhooks › WhatsApp Business Account, use como Callback URL o endereço que o próprio formulário mostra (termina em /functions/v1/meta-webhook) e assine os campos "messages" e "message_template_status_update". Sem isso, você envia mensagem mas não recebe resposta.',
+          'Este passo é da plataforma, não do número: vale para a instalação inteira do ConvoFlow e é feito uma única vez. Se algum número já recebe mensagens aqui, pule para o passo seguinte. Na primeira instalação, quem opera a plataforma abre o painel da Meta em Webhooks › WhatsApp Business Account, usa como Callback URL o endereço que o formulário mostra (termina em /functions/v1/meta-webhook) e assina os campos "messages" e "message_template_status_update". Sem isso, você envia mensagem mas não recebe resposta.',
         note:
-          'O token que valida esse handshake é único da instalação do ConvoFlow (secret META_GLOBAL_VERIFY_TOKEN), configurado uma vez por quem opera a plataforma — não é o valor do campo Webhook Verify Token da tela. Se o webhook já foi validado antes, não há nada a fazer aqui.',
+          'O Verify Token do handshake é único da instalação (secret META_GLOBAL_VERIFY_TOKEN no Supabase) e por segurança não aparece na tela — quem administra a instalação lê o valor no painel do Supabase e cola no console da Meta.',
       },
       {
         title: 'Clique em "Validar e conectar"',

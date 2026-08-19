@@ -486,14 +486,18 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     howToConfigure: [
       'Escolha o período e o recorte: o relatório sai exatamente do que estiver selecionado.',
       'Gere uma vez e confira os números na tela.',
-      'Se for repassar para alguém de fora, configure os destinatários do envio.',
+      'Para repassar sozinho toda semana, abra a aba Agendamentos e crie um agendamento: nome, frequência, horário e os e-mails que recebem.',
+      'Acompanhe a aba Histórico depois do primeiro disparo — é lá que aparece se o envio saiu ou falhou.',
     ],
     example:
       'Relatório de segunda-feira com leads novos, conversas atendidas e negócios fechados por corretor, para o dono acompanhar a semana sem pedir print para ninguém.',
     tips: [
+      'O envio agendado é por e-mail. Não há envio recorrente por WhatsApp: no agendamento você informa endereços de e-mail, não telefones.',
+      'O horário é o de Brasília e o disparo acontece na janela dos 5 minutos seguintes — marcar 09:00 significa receber entre 09:00 e 09:05.',
+      'O período segue a frequência: agendamento diário fala do último dia, semanal dos últimos 7 dias, mensal dos últimos 30.',
       'Antes de confiar em qualquer envio recorrente, faça um envio de teste para você mesmo.',
       'Relatório com número errado é pior que relatório nenhum: confira o recorte antes de programar o envio.',
-      'Como Gerente, gere um relatório por Loja trocando a Conta em foco antes de gerar.',
+      'Como Gerente, gere um relatório por Loja trocando a Conta em foco antes de gerar. O agendamento também é por Conta: cada Loja tem os seus.',
     ],
     category: 'tela',
     area: 'Marketing',
@@ -615,7 +619,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Crie a instância e escolha o provedor.',
       'Conecte lendo o QR Code no celular que tem o número, ou use o código de pareamento se preferir não escanear.',
       'Confirme que o status ficou "Conectado" antes de configurar chatbot ou campanha.',
-      'Configure o webhook para o sistema receber as mensagens em tempo real.',
+      'Confira o webhook, que é o que faz as mensagens chegarem em tempo real. Na API Oficial ele é configurado uma única vez para a instalação inteira, não a cada número.',
     ],
     example:
       'A imobiliária liga o número do plantão como uma instância e o do comercial como outra. O chatbot de triagem fica publicado só no número do plantão.',
@@ -623,6 +627,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Instâncias pertencem à Conta. Como Superadmin você não tem instâncias próprias — gerencie pela Administração, entrando na Conta desejada.',
       'Linha desconectada é atendimento parado: mensagem que chega com a instância fora pode não entrar no sistema. Reconecte assim que ver "Desconectado".',
       'Usar o mesmo número no WhatsApp do celular e aqui ao mesmo tempo pode derrubar a sessão.',
+      'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Ao conectar um número, você só informa Phone Number ID, WABA ID e Access Token.',
     ],
     category: 'tela',
     area: 'Configuração',

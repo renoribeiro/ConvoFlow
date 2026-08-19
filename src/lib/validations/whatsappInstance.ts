@@ -29,11 +29,6 @@ const officialSchema = z.object({
     .string()
     .trim()
     .min(40, 'Access Token muito curto'),
-  verifyToken: z
-    .string()
-    .trim()
-    .min(8, 'Verify Token deve ter pelo menos 8 caracteres')
-    .max(128, 'Verify Token muito longo'),
   graphApiVersion: z
     .string()
     .regex(/^v\d{1,2}\.\d{1,2}$/, 'Versão da Graph API inválida')

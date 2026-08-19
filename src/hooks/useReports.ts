@@ -3,16 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupabaseQuery } from './useSupabaseQuery';
-import { 
-  getMockReportTemplates, 
-  getMockReportSchedules,
-  addMockReportTemplate,
-  addMockReportSchedule,
-  updateMockReportSchedule,
-  removeMockReportSchedule,
-  type MockReportTemplate,
-  type MockReportSchedule
-} from '@/data/mockReportsData';
+
+// Sem fallback para dados mockados, de propósito.
+//
+// Até 2026-08-19 estes hooks devolviam agendamentos e templates inventados
+// sempre que a consulta falhava ou a Conta ainda não tinha carregado. O efeito
+// prático era o pior possível: a tela mostrava agendamento que não existia no
+// banco, o usuário acreditava que o relatório seria enviado, e não era. Agora o
+// erro sobe para a tela e a lista vazia é vazia de verdade.
+const CONTA_NAO_CARREGADA = 'Conta não carregada. Recarregue a página e tente de novo.';
 
 // Interfaces para tipos de dados
 export interface ReportTemplate {
@@ -54,7 +53,9 @@ export interface MetricsCache {
 export interface ReportSchedule {
   id: string;
   tenant_id: string;
-  template_id: string;
+  // Agendamento não depende de report_templates: o relatório é montado pelo
+  // tipo/período gravados em `parameters`. A coluna é uuid NULLABLE no banco.
+  template_id: string | null;
   name: string;
   description?: string;
   cron_expression: string;
@@ -82,7 +83,7 @@ export interface ReportExecution {
   created_at: string;
 }
 
-// Hook para buscar templates de relatórios com fallback para dados mockados
+// Hook para buscar templates de relatórios
 export function useReportTemplates(options?: {
   category?: string;
   type?: string;
@@ -93,60 +94,35 @@ export function useReportTemplates(options?: {
   return useQuery({
     queryKey: ['report-templates', options, tenant?.id],
     queryFn: async () => {
-      try {
-        // Verificar se há uma sessão autenticada
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.user || !tenant?.id) {
-          // Se não há sessão ou tenant, usar dados mockados
-          const mockData = getMockReportTemplates({
-            type: options?.type,
-          });
-          return mockData;
-        }
-        
-        // Fazer consulta com usuário autenticado
-        let query = supabase
-          .from('report_templates')
-          .select('*');
-        
-        // Aplicar filtros
-        if (options?.includePublic) {
-          query = query.or(`tenant_id.eq.${tenant.id},is_public.eq.true`);
-        } else {
-          query = query.eq('tenant_id', tenant.id);
-        }
-        
-        if (options?.category) {
-          query = query.eq('category', options.category);
-        }
-        
-        if (options?.type) {
-          query = query.eq('type', options.type);
-        }
-        
-        const { data, error } = await query.order('usage_count', { ascending: false });
-        
-        if (error) {
-          console.error('Erro ao buscar templates:', error);
-          // Fallback para dados mockados em caso de erro
-          const mockData = getMockReportTemplates({
-            type: options?.type,
-          });
-          return mockData;
-        }
-        
-        return data || [];
-      } catch (error) {
-        console.error('Erro não tratado ao buscar templates:', error);
-        // Fallback final para dados mockados
-        const mockData = getMockReportTemplates({
-          type: options?.type,
-        });
-        return mockData;
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
+
+      let query = supabase
+        .from('report_templates')
+        .select('*');
+
+      // Aplicar filtros
+      if (options?.includePublic) {
+        query = query.or(`tenant_id.eq.${tenant.id},is_public.eq.true`);
+      } else {
+        query = query.eq('tenant_id', tenant.id);
       }
+
+      if (options?.category) {
+        query = query.eq('category', options.category);
+      }
+
+      if (options?.type) {
+        query = query.eq('type', options.type);
+      }
+
+      const { data, error } = await query.order('usage_count', { ascending: false });
+
+      // O erro sobe: template que não carregou não pode virar template inventado.
+      if (error) throw error;
+
+      return data || [];
     },
-    enabled: !tenantLoading, // Só executa quando o tenant não está carregando
+    enabled: !tenantLoading && !!tenant?.id,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -238,29 +214,21 @@ export function useCreateReportTemplate() {
 
   return useMutation({
     mutationFn: async (templateData: Omit<ReportTemplate, 'id' | 'created_at' | 'updated_at' | 'usage_count' | 'created_by'>) => {
-      // Tentar usar Supabase primeiro
-      try {
-        const { data, error } = await supabase
-          .from('report_templates')
-          .insert({
-            ...templateData,
-            tenant_id: tenant?.id,
-            usage_count: 0
-          })
-          .select()
-          .single();
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
 
-        if (error) throw error;
-        return data;
-      } catch (error) {
-        console.log('Usando dados mockados para criar template:', error);
-        // Fallback para dados mockados
-        return addMockReportTemplate({
+      const { data, error } = await supabase
+        .from('report_templates')
+        .insert({
           ...templateData,
-          tenant_id: tenant?.id || 'tenant-1',
-          template_type: 'custom'
-        });
-      }
+          tenant_id: tenant.id,
+          usage_count: 0
+        })
+        .select()
+        .single();
+
+      // Sem fallback: template "criado" só na memória sumia no reload.
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['report-templates'] });
@@ -287,34 +255,27 @@ export function useReportSchedules(templateId?: string) {
   return useQuery({
     queryKey: ['report-schedules', templateId, tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) {
-        return getMockReportSchedules({ templateId });
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
+
+      let query = supabase
+        .from('report_schedules')
+        .select('*, report_templates(name, type)')
+        .eq('tenant_id', tenant.id);
+
+      if (templateId) {
+        query = query.eq('template_id', templateId);
       }
-      
-      try {
-        let query = supabase
-          .from('report_schedules')
-          .select('*, report_templates(name, type)')
-          .eq('tenant_id', tenant.id);
-        
-        if (templateId) {
-          query = query.eq('template_id', templateId);
-        }
-        
-        const { data, error } = await query.order('created_at', { ascending: false });
-        
-        if (error) {
-          console.warn('Erro ao buscar agendamentos, usando dados mockados:', error);
-          return getMockReportSchedules({ templateId });
-        }
-        
-        return data || [];
-      } catch (error) {
-        console.warn('Erro na consulta de agendamentos, usando dados mockados:', error);
-        return getMockReportSchedules({ templateId });
-      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      // O erro sobe para a tela (ScheduleList já tem o alerta). Mostrar
+      // agendamento inventado aqui fazia o usuário confiar num envio que
+      // nunca ia acontecer.
+      if (error) throw error;
+
+      return data || [];
     },
-    enabled: true,
+    enabled: !!tenant?.id,
   });
 }
 
@@ -326,17 +287,8 @@ export function useCreateReportSchedule() {
   
   return useMutation({
     mutationFn: async (scheduleData: Partial<ReportSchedule>) => {
-      if (!tenant?.id) {
-        const mockSchedule = addMockReportSchedule({
-          ...scheduleData,
-          tenant_id: 'mock-tenant',
-          id: `mock-${Date.now()}`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as MockReportSchedule);
-        return mockSchedule;
-      }
-      
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
+
       const { data, error } = await supabase
         .from('report_schedules')
         .insert({
@@ -374,10 +326,8 @@ export function useUpdateReportSchedule() {
   
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<ReportSchedule> & { id: string }) => {
-      if (!tenant?.id) {
-        return updateMockReportSchedule(id, updates);
-      }
-      
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
+
       const { data, error } = await supabase
         .from('report_schedules')
         .update(updates)
@@ -414,11 +364,8 @@ export function useDeleteReportSchedule() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!tenant?.id) {
-        removeMockReportSchedule(id);
-        return;
-      }
-      
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
+
       const { error } = await supabase
         .from('report_schedules')
         .delete()
@@ -452,14 +399,7 @@ export function useToggleReportSchedule() {
 
   return useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      if (!tenant?.id) {
-        // Para dados mockados, usar a função de atualização mock
-        const updatedSchedule = updateMockReportSchedule(id, { is_active: isActive });
-        if (!updatedSchedule) {
-          throw new Error('Agendamento não encontrado');
-        }
-        return updatedSchedule;
-      }
+      if (!tenant?.id) throw new Error(CONTA_NAO_CARREGADA);
 
       const { data, error } = await supabase
         .from('report_schedules')

@@ -102,6 +102,13 @@ verify_jwt = false
 # Dispara agendados, avança sequências e gera recorrências.
 verify_jwt = false
 
+[functions.process-report-dispatch]
+# Envia os relatórios agendados (report_schedules). Dirigido por pg_cron a cada
+# 5 minutos (anon bearer); autentica internamente via SUPABASE_SERVICE_ROLE_KEY
+# (mesmo padrão de process-campaign-dispatch). Percorre todas as Contas, e o
+# tenant_id de cada relatório sai sempre da própria agenda.
+verify_jwt = false
+
 [functions.webhook-dispatcher]
 # Consome a fila webhook_deliveries e faz POST nos webhooks de saída do usuário.
 # Dirigido por pg_cron (anon bearer); autentica internamente via

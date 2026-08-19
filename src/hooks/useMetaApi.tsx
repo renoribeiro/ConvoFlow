@@ -35,7 +35,6 @@ export const useMetaApi = (): UseMetaApiReturn => {
       const connectionConfig = {
         phoneNumberId: input.phoneNumberId,
         wabaId: input.wabaId,
-        verifyToken: input.verifyToken,
         graphApiVersion: input.graphApiVersion || 'v20.0',
       };
 
@@ -47,7 +46,6 @@ export const useMetaApi = (): UseMetaApiReturn => {
           instance_key: input.phoneNumberId,
           provider: 'official',
           status: 'connecting',
-          // @ts-expect-error generated types may not yet include connection_config
           connection_config: connectionConfig,
         })
         .select('id')
