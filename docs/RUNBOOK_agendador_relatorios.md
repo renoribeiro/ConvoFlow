@@ -13,7 +13,9 @@ que conserta isso já está na `main`; falta ligar em produção.
 
 - [x] **1. Código na `main`** — commit `5019236` (20 arquivos: executor, cron,
       testes, remoção do mock). Nada mais a fazer aqui.
-- [ ] **2. Deploy das duas Edge Functions**
+- [x] **2. Deploy das duas Edge Functions** — feito em 2026-08-19. `send-report`
+      e `process-report-dispatch` no ar. Precisou de `npx supabase login`: além
+      da variável de ambiente, a credencial salva também tinha expirado.
 - [ ] **3. Ligar o cron** (SQL Editor)
 - [ ] **4. Remover a tabela morta `scheduled_reports`** (SQL Editor)
 - [ ] **5. Regerar os tipos** e commitar
@@ -63,7 +65,25 @@ npx supabase functions deploy send-report
 npx supabase functions deploy process-report-dispatch
 ```
 
-Se pedir login: `npx supabase login`, e repita os dois deploys.
+**Se der `unexpected deploy status 401: {"message":"Unauthorized"}`:** limpar a
+variável não basta — a credencial salva pelo `login` (Windows Credential
+Manager, `LegacyGeneric:target=Supabase CLI:access-token`) também expira. Renove
+na mesma janela e repita os deploys:
+
+```powershell
+npx supabase login
+```
+
+Se o login pelo navegador não rolar, gere um token em
+https://supabase.com/dashboard/account/tokens e use ele direto na sessão:
+
+```powershell
+$env:SUPABASE_ACCESS_TOKEN = "sbp_cole_o_token_aqui"
+```
+
+`WARNING: Docker is not running` é normal e não atrapalha — o bundle é remoto.
+Se o deploy listou os `Uploading asset ...` antes do erro, o código compilou; o
+problema é só de autenticação.
 
 O `Remove-Item` vale só para a janela atual do terminal. Para matar a variável
 de vez (ela está morta, só atrapalha):
