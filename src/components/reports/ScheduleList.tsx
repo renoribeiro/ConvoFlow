@@ -69,6 +69,30 @@ const getFrequencyLabel = (frequency: string) => {
 // entrega agendada é só por e-mail — removido para não sugerir um canal que o
 // agendador não usa.)
 
+const DIAS_DA_SEMANA: Record<string, string> = {
+  '0': 'domingo', '1': 'segunda-feira', '2': 'terça-feira', '3': 'quarta-feira',
+  '4': 'quinta-feira', '5': 'sexta-feira', '6': 'sábado', '7': 'domingo',
+};
+
+/**
+ * Mostra a expressão cron em português. Antes a tela exibia a expressão crua
+ * ("8 18 * * 3"), que não diz nada para quem usa — e, pior, exibia igual uma
+ * expressão quebrada, escondendo que aquela agenda nunca ia disparar.
+ */
+const descreverCron = (expr?: string | null): string => {
+  if (!expr) return 'Horário não definido';
+  const [min, hora, dia, , dow] = expr.trim().split(/\s+/);
+  if (!min || !hora || !/^\d+$/.test(min) || !/^\d+$/.test(hora)) return expr;
+
+  const horario = `${hora.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  if (dow && dow !== '*') {
+    const nome = DIAS_DA_SEMANA[dow];
+    return nome ? `Toda ${nome} às ${horario}` : expr;
+  }
+  if (dia && dia !== '*') return `Todo dia ${dia} às ${horario}`;
+  return `Todo dia às ${horario}`;
+};
+
 /**
  * `recipients` é jsonb: pode chegar como array (o que a tela grava) ou como
  * string. `recipients?.length` numa string contava as LETRAS — um único e-mail
@@ -294,7 +318,7 @@ export const ScheduleList = () => {
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4" />
                         <span>
-                          {schedule.cron_expression || 'Horário não definido'}
+                          {descreverCron(schedule.cron_expression)}
                         </span>
                       </div>
                       

@@ -98,14 +98,17 @@ const reportTemplates = [
   'Performance de Campanhas'
 ];
 
+// O `value` é o número que vai para a expressão cron (0 = domingo), NÃO o
+// rótulo. Guardar "Quarta-feira" gerava `8 18 * * Quarta-feira`, que o leitor de
+// cron do agendador não entende — e agenda que não é entendida nunca dispara.
 const daysOfWeek = [
-  'Segunda-feira',
-  'Terça-feira',
-  'Quarta-feira',
-  'Quinta-feira',
-  'Sexta-feira',
-  'Sábado',
-  'Domingo'
+  { value: '1', label: 'Segunda-feira' },
+  { value: '2', label: 'Terça-feira' },
+  { value: '3', label: 'Quarta-feira' },
+  { value: '4', label: 'Quinta-feira' },
+  { value: '5', label: 'Sexta-feira' },
+  { value: '6', label: 'Sábado' },
+  { value: '0', label: 'Domingo' },
 ];
 
 export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: ScheduleModalProps) => {
@@ -386,8 +389,8 @@ export const ScheduleModal = ({ open, onOpenChange, schedule, onSave }: Schedule
                   </SelectTrigger>
                   <SelectContent>
                     {daysOfWeek.map(day => (
-                      <SelectItem key={day} value={day}>
-                        {day}
+                      <SelectItem key={day.value} value={day.value}>
+                        {day.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -16,10 +16,17 @@ que conserta isso já está na `main`; falta ligar em produção.
 - [x] **2. Deploy das duas Edge Functions** — feito em 2026-08-19. `send-report`
       e `process-report-dispatch` no ar. Precisou de `npx supabase login`: além
       da variável de ambiente, a credencial salva também tinha expirado.
-- [ ] **3. Ligar o cron** (SQL Editor)
+- [x] **3. Ligar o cron** — feito em 2026-08-19. 6 jobs em `cron.job`,
+      `process-report-dispatch-every-5min` ativo.
 - [ ] **4. Remover a tabela morta `scheduled_reports`** (SQL Editor)
 - [ ] **5. Regerar os tipos** e commitar
-- [ ] **6. Teste de ponta a ponta**
+- [x] **6. Teste de ponta a ponta** — feito em 2026-08-19. Agendamento marcado
+      para 18:08 foi entregue no tick das 18:10, sem intervenção. Envio manual
+      também confirmado.
+
+> **Lembre do atraso de até 5 minutos.** O envio não sai no minuto exato: sai no
+> primeiro tick do cron depois dele. Marcou 18:08, chega até 18:10. Isso é do
+> desenho, não é falha.
 
 ---
 
