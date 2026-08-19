@@ -233,3 +233,47 @@ cartão do Dashboard.
 
 Rode `npm run test:run` antes de abrir PR — o `<FeatureHelp />` falha em silêncio
 na tela, então o teste é o único lugar onde um typo de chave aparece.
+
+## Operação: aplicar coisas em produção
+
+O ambiente do dono do projeto tem três armadilhas que já quebraram entregas.
+Respeite-as ao escrever qualquer comando para ele rodar.
+
+1. **O terminal dele é PowerShell, não bash.** Nunca use `\` para quebrar linha
+   — cada comando vai numa linha só. Com `\`, o `git add` morre com
+   `fatal: '\' is outside repository` e, pior, os comandos seguintes na mesma
+   colagem (`git commit`, `git push`) rodam assim mesmo e sobem pela metade.
+   Também não valem `&&`, `||` nem here-strings de bash.
+
+2. **O CLI do Supabase é devDependency, não está instalado no sistema.** Sempre
+   `npx supabase ...`. Sem o `npx`, dá `'supabase' não é reconhecido como nome
+   de cmdlet`.
+
+3. **`SUPABASE_ACCESS_TOKEN` está setada no nível de usuário do Windows e está
+   morta.** Ela sobrescreve o login e faz todo comando do CLI devolver 401,
+   mesmo depois de `npx supabase login`. Limpe antes, na mesma sessão:
+   `Remove-Item Env:\SUPABASE_ACCESS_TOKEN -ErrorAction SilentlyContinue`.
+
+**Nunca rode nem sugira `supabase db push`.** 81 das 94 migrações locais não
+estão no ledger e algumas mexem em dado real de usuário. Migração aqui se aplica
+colando um script no SQL Editor.
+
+Por isso toda migração vem em par: o arquivo em `supabase/migrations/` (registro)
+e um script pronto para colar em `docs/`, transacional, idempotente e com o
+`INSERT` no ledger — o padrão está em `docs/aplicar_rls_lojas_do_gerente.sql`.
+Os dois precisam ficar equivalentes, inclusive no `INSERT` do ledger: quem roda
+o arquivo de migração direto no SQL Editor também tem que registrar o histórico.
+
+Escreva o script defensivo: se ele apaga ou sobrescreve algo, cheque a premissa
+dentro da transação e aborte com `RAISE EXCEPTION` quando ela não valer (ver
+`docs/remover_scheduled_reports.sql`). E prefira falhar alto a usar `CASCADE`.
+
+### Runbooks
+
+Entrega que precisa de vários passos manuais ganha um runbook em `docs/`, com o
+estado atual marcado, os comandos exatos e as verificações. Não deixe o
+passo-a-passo só no chat: ele se perde e vira pergunta repetida.
+
+- `docs/RUNBOOK_agendador_relatorios.md` — envio recorrente de relatórios por
+  e-mail (deploy, cron, remoção da tabela morta, teste de ponta a ponta).
+- `docs/HIERARCHY_V2_CUTOVER_RUNBOOK.md` — corte da hierarquia Conta/Loja.
