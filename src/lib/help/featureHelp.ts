@@ -580,7 +580,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     example:
       'Lead visitou o imóvel e sumiu: follow-up em 1 dia ("o que você achou?"), em 3 dias (condições de pagamento) e em 7 dias (um imóvel parecido).',
     tips: [
-      'Assim que o cliente responde, trate a sequência como cumprida — continuar insistindo depois da resposta queima o contato.',
+      'Quando o cliente responde, o sistema já para a sequência e cancela as mensagens agendadas dele — você não precisa limpar a lista na mão. O que ele cancela é ajustável em Configurações › Follow-ups.',
+      'Tarefa manual é a exceção: por padrão ela sobrevive à resposta, porque foi você quem planejou aquele passo.',
       'Follow-up sem mensagem definida é só um lembrete para o corretor; com mensagem, vira envio.',
       'Cadência curta demais irrita e cadência longa demais perde a venda. Uma semana é o intervalo em que a maioria dos leads ainda lembra de você.',
     ],
@@ -635,10 +636,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings': {
     title: 'Configurações',
     whatItDoes:
-      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento e Integrações mudam o comportamento para todo o time.',
+      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento, Follow-ups e Integrações mudam o comportamento para todo o time.',
     howToConfigure: [
       'Escolha a aba. Cada aba tem o próprio botão de ajuda com o passo-a-passo dela.',
-      'Antes de salvar algo em Atendimento ou Integrações, lembre que a mudança atinge o time todo.',
+      'Antes de salvar algo em Atendimento, Follow-ups ou Integrações, lembre que a mudança atinge o time todo.',
       'Depois de salvar, confira na tela afetada: preferência de atendimento aparece nas Conversas, webhook aparece no sistema de destino.',
     ],
     example:
@@ -683,6 +684,26 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A configuração vale para a Loja inteira, não só para você.',
       'Vem desligada por escolha: ligue quando o time já souber que o aviso vai aparecer, para não parecer cobrança de surpresa.',
       'Dá para silenciar o aviso de uma conversa específica quando a demora é justificada.',
+    ],
+    category: 'tela',
+    area: 'Configuração',
+  },
+  'page:settings-followups': {
+    title: 'Configurações › Follow-ups',
+    whatItDoes:
+      'Decide o que o sistema desmarca sozinho quando o cliente responde. Sem isso, quem já respondeu continua recebendo a cobrança automática marcada dias antes — e percebe que estava falando com uma agenda, não com você.',
+    howToConfigure: [
+      'Deixe "Cancelar mensagens agendadas" ligado: é o que evita o envio automático depois da resposta.',
+      'Decida sobre "Cancelar tarefas manuais". Ligado, a resposta apaga os lembretes que o time criou; desligado, quem criou decide o que fazer.',
+      'Salve e teste com um contato real: responda de outro celular e confira se o follow-up agendado saiu da lista.',
+    ],
+    example:
+      'A corretora agenda "posso mandar as condições?" para sexta. O cliente responde na quarta. Com a opção ligada, o envio de sexta é cancelado e a conversa segue no tom que o cliente começou.',
+    tips: [
+      'As duas opções valem para a Loja inteira, não só para você.',
+      'Tarefa manual é trabalho que uma pessoa planejou — por isso o padrão é NÃO apagar. Ligue só se o seu time preferir a lista sempre limpa.',
+      'Sequências não obedecem a esta tela: cada sequência tem a própria trava, em Follow-ups › Sequências.',
+      'Uma tarefa que fazia parte de uma sequência interrompida é encerrada junto, independente das opções aqui — ela ficou sem cadência a que servir.',
     ],
     category: 'tela',
     area: 'Configuração',
