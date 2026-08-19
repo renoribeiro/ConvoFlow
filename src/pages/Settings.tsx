@@ -8,8 +8,10 @@ import {
   Database,
   CreditCard,
   Headset,
+  CalendarClock,
 } from 'lucide-react';
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
+import { FollowupSettings } from '@/components/settings/FollowupSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
@@ -27,6 +29,7 @@ import { useSearchParams } from 'react-router-dom';
  */
 const TAB_HELP_KEYS: Record<string, string> = {
   attendance: 'page:settings-attendance',
+  followups: 'page:settings-followups',
   subscription: 'page:settings-subscription',
   notifications: 'page:settings-notifications',
   security: 'page:settings-security',
@@ -65,6 +68,15 @@ interface AbaConfig {
 const ABAS: AbaConfig[] = [
   { value: 'profile', label: 'Perfil', icon: User, render: () => <ProfileSettings /> },
   { value: 'attendance', label: 'Atendimento', icon: Headset, render: () => <AttendanceSettings /> },
+  // Sem `requer`, pelo mesmo motivo de ATENDIMENTO: o painel já mostra os
+  // valores em modo leitura para quem não tem `store.admin`, e saber o que a
+  // Loja cancela sozinho muda como o atendente planeja o proprio follow-up.
+  {
+    value: 'followups',
+    label: 'Follow-ups',
+    icon: CalendarClock,
+    render: () => <FollowupSettings />,
+  },
   {
     value: 'subscription',
     label: 'Assinatura',

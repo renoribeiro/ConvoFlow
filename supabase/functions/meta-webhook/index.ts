@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createLogger } from '../_shared/logger.ts';
-import { stopSequencesOnReply } from '../_shared/followup-reply.ts';
+import { applyReplyCancellations } from '../_shared/followup-reply.ts';
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts';
 import { verifyMetaSignature } from '../_shared/cryptoSignature.ts';
 import { ProviderFactory } from '../_shared/provider-factory.ts';
@@ -394,8 +394,8 @@ async function handleIncomingMessage(
       message: content,
     }, logger);
 
-    // Follow-up: pausa sequências ativas do contato ao detectar resposta (não-fatal).
-    await stopSequencesOnReply(supabase, contactId, logger);
+    // Follow-up: aplica o que a resposta do contato cancela (não-fatal).
+    await applyReplyCancellations(supabase, instance.tenant_id, contactId, logger);
 
     // Campaign reply tracking (additive, isolated). If this contact has a recently-sent
     // campaign message, an inbound reply marks that execution as 'replied'.
