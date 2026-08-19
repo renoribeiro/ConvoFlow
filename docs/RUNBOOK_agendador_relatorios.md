@@ -18,8 +18,10 @@ que conserta isso já está na `main`; falta ligar em produção.
       da variável de ambiente, a credencial salva também tinha expirado.
 - [x] **3. Ligar o cron** — feito em 2026-08-19. 6 jobs em `cron.job`,
       `process-report-dispatch-every-5min` ativo.
-- [ ] **4. Remover a tabela morta `scheduled_reports`** (SQL Editor)
-- [ ] **5. Regerar os tipos** e commitar
+- [x] **4. Remover a tabela morta `scheduled_reports`** — feito em 2026-08-19.
+- [x] **5. Regerar os tipos** — feito em 2026-08-19. Cuidado com a codificação:
+      a primeira tentativa com `>` gravou o arquivo em UTF-16 e precisou ser
+      refeita (ver o aviso no passo 5 abaixo).
 - [x] **6. Teste de ponta a ponta** — feito em 2026-08-19. Agendamento marcado
       para 18:08 foi entregue no tick das 18:10, sem intervenção. Envio manual
       também confirmado.
@@ -216,8 +218,23 @@ SELECT CASE WHEN to_regclass('public.scheduled_reports') IS NULL
 
 Só depois do passo 4.
 
+⚠️ **Não use `>` aqui.** O redirecionamento do PowerShell 5.1 grava o arquivo em
+**UTF-16**, e aí o git mostra `0 insertions(+), 0 deletions(-)`, o `grep` não
+acha mais nada dentro do arquivo e o build fica numa corda bamba. Use isto, que
+força UTF-8 sem BOM:
+
 ```powershell
-npx supabase gen types typescript --project-id pqjkuwyshybxldzpfbbs > src/integrations/supabase/types.ts
+$t = npx supabase gen types typescript --project-id pqjkuwyshybxldzpfbbs | Out-String
+```
+
+```powershell
+[IO.File]::WriteAllText("$PWD\src\integrations\supabase\types.ts", $t, (New-Object Text.UTF8Encoding $false))
+```
+
+Confira que deu certo antes de commitar — tem que devolver um número maior que zero:
+
+```powershell
+(Select-String -Path src\integrations\supabase\types.ts -Pattern 'report_schedules').Count
 ```
 
 ```powershell
