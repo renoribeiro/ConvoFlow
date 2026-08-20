@@ -30,10 +30,24 @@ bloqueada antes (órfã sem liberação).
 
 ---
 
-## Passo 0 — Conferir os secrets do Stripe (o único item não verificado)
+## Passo 0 — Secrets do Stripe — ✅ CONFERIDO EM 2026-08-20, PULE
+
+Testado em runtime, não no papel: com a **Conta Teste Gerente** bloqueada de
+propósito, o botão "Assinar agora" da tela de bloqueio abriu
+`checkout.stripe.com/c/pay/cs_live_...` da **RE9 Online**, com "Assinar Plano
+Gerente — R$ 499,90 por mês" e o e-mail `gerente.teste@re9.online` já
+preenchido. Ou seja: `STRIPE_SECRET_KEY` e `STRIPE_PRICE_GERENTE` existem, estão
+em modo live e a Edge Function `create-checkout-session` responde certo a partir
+de um gerente trancado.
+
+`STRIPE_PRICE_STORE_SLOT` (Loja extra, R$ 99,90) não foi exercitado por este
+teste — ele só entra quando se contrata Loja adicional, na aba Assinatura.
+
+O texto abaixo fica como referência para quando algum secret precisar ser
+trocado ou rotacionado.
 
 Não dá para ler secret pelo MCP, e o conector do Stripe desta máquina aponta
-para outra conta (ImobIA). **Confira à mão antes de subir:**
+para outra conta (ImobIA). Para conferir à mão:
 
 https://supabase.com/dashboard/project/pqjkuwyshybxldzpfbbs/settings/functions
 
