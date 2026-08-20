@@ -48,13 +48,24 @@ const decidido = (d: AccessDecision): TenantAccess => ({
  * Decide se o usuário atual pode usar o sistema (paywall).
  *
  * Regras:
- *   - superadmin e gerente (agência): sempre liberados (bypass), sem consulta.
+ *   - superadmin: sempre liberado (bypass), sem consulta. É quem opera a
+ *     plataforma; trancá-lo trancaria também quem conserta o bloqueio.
+ *   - gerente: NÃO tem mais bypass (mudança de 2026-08-19). O acesso dele vem
+ *     da própria Conta, avaliada como a de qualquer um. Ele é o único cargo que
+ *     pode resolver o pagamento, e é a PaywallScreen que carrega esse caminho —
+ *     ver o comentário lá.
  *   - gestor/atendente: o acesso vem da CONTA. Como o tenant deles é uma Loja e
  *     o RLS de `tenants` não deixa uma Loja ler a Conta pai, quem responde é a
  *     função `public.tenant_access_state` (migração 20260818000001), que sobe
  *     para o pai e devolve só dois valores: liberado e por quê.
  *   - Loja órfã (sem `parent_tenant_id`) responde por si mesma — é o que mantém
  *     as Lojas antigas funcionando.
+ *
+ * QUAL LINHA É PERGUNTADA. Para o gerente é sempre a PRÓPRIA Conta
+ * (`profile.tenant_id`), nunca a Loja que ele esteja visitando pelo seletor:
+ * quem assina é a Conta, e a Loja herda dela. Isso também deixa a chave de
+ * cache estável enquanto ele troca de Loja — trocar de Loja não refaz a
+ * consulta de acesso, porque a resposta é a mesma.
  *
  * DEGRADAÇÃO. Se a RPC falhar (função ainda não aplicada em produção, rede
  * caindo), o hook NÃO tranca ninguém: cai para a avaliação da linha que já está
@@ -67,17 +78,25 @@ const decidido = (d: AccessDecision): TenantAccess => ({
  */
 export function useTenantAccess(): TenantAccess {
   const role = useRole();
-  const { tenant, loading } = useTenant();
+  const { tenant, profile, loading } = useTenant();
   const tenantId = tenant?.id ?? null;
 
-  const temBypass = role === 'superadmin' || role === 'gerente';
-  const habilitada = !loading && role !== null && !temBypass && !!tenantId;
+  // Superadmin e SÓ ele. O gerente saiu daqui em 2026-08-19: ele passou a ser
+  // avaliado como todo mundo, e ganhou em troca o caminho de pagamento dentro
+  // da própria tela de bloqueio.
+  const temBypass = role === 'superadmin';
+
+  // Linha que responde pela cobrança deste usuário.
+  const contaDeCobranca =
+    role === 'gerente' ? ((profile?.tenant_id as string | null) ?? tenantId) : tenantId;
+
+  const habilitada = !loading && role !== null && !temBypass && !!contaDeCobranca;
 
   // Primeiro segmento 'tenant' → faixa estática do cache (ver queryClient.ts).
-  // A chave inclui o tenant ativo, então trocar de Loja pelo seletor já busca o
-  // acesso da Loja nova sozinho, sem invalidação manual.
+  // A chave inclui a Conta de cobrança, então trocar de Loja pelo seletor já
+  // busca o acesso certo sozinho, sem invalidação manual.
   const consulta = useQuery({
-    queryKey: [QUERY_KEYS.TENANT, 'access-state', tenantId],
+    queryKey: [QUERY_KEYS.TENANT, 'access-state', contaDeCobranca],
     enabled: habilitada,
     // Uma tentativa a mais cobre a queda de rede passageira. Além disso não
     // vale: os dois erros prováveis aqui — função ainda não aplicada e permissão
@@ -88,13 +107,13 @@ export function useTenantAccess(): TenantAccess {
     queryFn: async (): Promise<AccessDecision> => {
       // Cast local: função nova, fora dos tipos gerados em types.ts.
       const { data, error } = await (supabase as any).rpc('tenant_access_state', {
-        p_tenant_id: tenantId,
+        p_tenant_id: contaDeCobranca,
       });
 
       if (error) {
         logger.warn(
           '[useTenantAccess] tenant_access_state falhou; avaliando a linha carregada',
-          { tenantId, message: error.message },
+          { tenantId: contaDeCobranca, message: error.message },
         );
         throw error;
       }
@@ -111,10 +130,23 @@ export function useTenantAccess(): TenantAccess {
   if (temBypass) return BYPASS;
 
   // Sem tenant não há o que avaliar — mesma resposta de antes.
-  if (!tenantId) return decidido({ unlocked: false, source: 'locked' });
+  if (!contaDeCobranca) return decidido({ unlocked: false, source: 'locked' });
 
-  // Degradação: a linha em mãos é a da Loja, então `parent` é nulo de propósito.
-  if (consulta.isError) return decidido(resolveTenantAccess(tenant, null));
+  if (consulta.isError) {
+    // Degradação: só sabemos avaliar a linha que está em mãos. Quando ela É a
+    // linha de cobrança (o caso de todo gestor/atendente e do gerente na
+    // própria Conta), avaliamos — `parent` é nulo de propósito.
+    if (tenant && tenant.id === contaDeCobranca) {
+      return decidido(resolveTenantAccess(tenant, null));
+    }
+
+    // Sobra um caso: gerente visitando uma Loja filha, com a linha da Conta
+    // fora de alcance (o RLS não a entrega numa consulta comum). Não inventamos
+    // bloqueio para quem, até esta mudança, sequer era consultado — o paywall é
+    // uma trava comercial no cliente, não a fronteira de segurança. Quem nega
+    // dado de verdade é o RLS, e ele não depende disto.
+    return BYPASS;
+  }
 
   if (consulta.data) return decidido(consulta.data);
 
