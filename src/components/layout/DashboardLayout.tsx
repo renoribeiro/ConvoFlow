@@ -35,8 +35,15 @@ export const DashboardLayout = () => {
   const firstSegment = location.pathname.replace(/^\/dashboard\/?/, '').split('/')[0] ?? '';
   const blockedForSuperadmin = role === 'superadmin' && LOJA_ONLY_SEGMENTS.includes(firstSegment);
 
-  // Paywall: Loja sem acesso liberado (pago/manual) vê só a tela de bloqueio.
-  // Superadmin e Agência têm bypass (ver useTenantAccess).
+  // Paywall: Conta sem acesso liberado (pago/manual) vê só a tela de bloqueio.
+  // Só o superadmin tem bypass (ver useTenantAccess) — o gerente perdeu o dele
+  // em 2026-08-19 e agora também é barrado quando a Conta dele não está paga.
+  //
+  // O bloqueio continua sendo total AQUI, para todo mundo: nenhuma rota do
+  // dashboard passa. O que muda por cargo é o CONTEÚDO da PaywallScreen — o
+  // gerente recebe dentro dela o caminho de pagamento (checkout do Stripe), e
+  // por isso não existe lista de rotas liberadas neste arquivo. A justificativa
+  // dessa escolha está no cabeçalho da PaywallScreen.
   const { loading: accessLoading, locked } = useTenantAccess();
 
   // Navegou? O drawer do mobile fecha sozinho.

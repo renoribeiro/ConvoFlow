@@ -722,11 +722,13 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Depois de pagar, recarregue a página e confirme que o sistema abriu.',
     ],
     example:
-      'A Conta fica sem pagamento e todo mundo que trabalha nas Lojas dela passa a ver a tela "Acesso bloqueado" no lugar do sistema. Regularizado o pagamento da Conta, todas as Lojas voltam juntas — não é preciso liberar uma por uma.',
+      'A Conta fica sem pagamento e todo mundo — você inclusive — passa a ver a tela "Acesso bloqueado" no lugar do sistema. Regularizado o pagamento da Conta, todas as Lojas voltam juntas: não é preciso liberar uma por uma.',
     tips: [
+      'Você também é bloqueado quando a Conta não está paga. Mas a tela de bloqueio traz o preço e o botão de assinar — dá para resolver de lá, sem precisar chegar até esta aba e sem depender de ninguém.',
+      'Na tela de bloqueio há um "Já paguei — reconferir acesso": use depois de pagar em outra aba ou quando o suporte liberar seu acesso na mão, em vez de sair e entrar de novo.',
       'A Loja não tem assinatura própria: ela herda o acesso da Conta. Se uma Loja está bloqueada, o que resolve é o pagamento da Conta.',
       'Liberação manual concedida pelo Superadmin também abre o sistema, sem assinatura ativa — e vale para a Conta inteira.',
-      'Esta aba é só do Gerente: quem assina é a Conta, e Gestor e Atendente pertencem a uma Loja, que não contrata nada.',
+      'Esta aba é só do Gerente: quem assina é a Conta, e Gestor e Atendente pertencem a uma Loja, que não contrata nada. Bloqueados, eles veem a tela sem preço e sem botão, com o recado de falar com você — não adianta pedir que "assinem por lá".',
       'Lojas adicionais são contratadas aqui, e o jeito muda conforme o momento: antes de assinar elas entram junto no checkout; depois de assinar, elas são somadas à assinatura que já existe e a diferença cai na próxima fatura, proporcional ao que falta do mês.',
       'Não dá para reduzir as Lojas abaixo do que você já usa. Exclua a Loja primeiro, depois reduza a vaga.',
       'Se o sistema não abre para todo o time ao mesmo tempo, o problema é aqui — não é permissão de usuário.',
@@ -876,7 +878,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Liberação manual é auditada: fica gravado quem liberou e quando.',
       'Superadmin não tem Loja própria. Para ver Conversas ou Funil de um cliente, troque a Conta em foco no seletor do topo.',
-      'Revogar acesso fecha os módulos pagos na hora, para todo o time daquela Conta.',
+      'Revogar acesso fecha o sistema na hora para todo o time daquela Conta — o Gerente incluído. Ele não fica de fora do bloqueio: vê a tela de "Acesso bloqueado" com o botão de assinar, e resolve sozinho pelo cartão se quiser.',
+      'O bloqueio não alcança o superadmin. Você continua entrando em qualquer Conta, inclusive nas que acabou de revogar.',
     ],
     category: 'tela',
     area: 'Admin',

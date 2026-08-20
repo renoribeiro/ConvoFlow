@@ -6,7 +6,11 @@
  * DashboardLayout consome:
  *   - `locked` NUNCA verdadeiro enquanto a consulta está no ar (senão pisca o
  *     paywall na cara de quem tem acesso);
- *   - superadmin e gerente passam sem consultar nada;
+ *   - SÓ o superadmin passa sem consultar nada. O gerente perdeu o bypass em
+ *     2026-08-19 e agora é avaliado como todo mundo — a saída dele é o caminho
+ *     de pagamento dentro da própria PaywallScreen;
+ *   - a linha perguntada para o gerente é a PRÓPRIA Conta, nunca a Loja que ele
+ *     esteja visitando pelo seletor;
  *   - RPC fora do ar degrada para o comportamento antigo, não tranca todo mundo.
  */
 
@@ -23,11 +27,12 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 let role: string | null = 'gestor';
 let tenant: Record<string, unknown> | null = null;
+let profile: Record<string, unknown> | null = null;
 let tenantLoading = false;
 
 vi.mock('@/contexts/TenantContext', () => ({
   useRole: () => role,
-  useTenant: () => ({ tenant, loading: tenantLoading }),
+  useTenant: () => ({ tenant, profile, loading: tenantLoading }),
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -52,6 +57,23 @@ const LOJA_ORFA_LIBERADA = {
   manual_access_granted: true,
 };
 
+/** A Conta do gerente: é ela que responde pela cobrança dele. */
+const CONTA_LIBERADA_NA_MAO = {
+  id: 'conta-teste',
+  kind: 'account',
+  parent_tenant_id: null,
+  subscription_status: null,
+  manual_access_granted: true,
+};
+
+const CONTA_TRANCADA = {
+  id: 'conta-teste',
+  kind: 'account',
+  parent_tenant_id: null,
+  subscription_status: null,
+  manual_access_granted: false,
+};
+
 function makeWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -70,6 +92,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   role = 'gestor';
   tenant = LOJA_COM_PAI;
+  profile = { tenant_id: 'loja-teste' };
   tenantLoading = false;
 });
 
@@ -107,8 +130,8 @@ describe('nada de piscar o paywall', () => {
 });
 
 describe('bypass por cargo', () => {
-  it.each(['superadmin', 'gerente'])('%s entra sem consultar a RPC', (cargo) => {
-    role = cargo;
+  it('superadmin entra sem consultar a RPC', () => {
+    role = 'superadmin';
 
     const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
 
@@ -119,6 +142,103 @@ describe('bypass por cargo', () => {
       source: 'bypass',
     });
     expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('superadmin não é afetado nem quando a RPC devolveria trancado', () => {
+    role = 'superadmin';
+    mockRpc.mockResolvedValue({ data: [{ unlocked: false, source: 'locked' }], error: null });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    expect(result.current.unlocked).toBe(true);
+    expect(result.current.source).toBe('bypass');
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('o gerente NÃO tem mais bypass: ele é consultado como todo mundo', async () => {
+    // Este é o teste que trava a regressão. Enquanto o gerente tinha bypass,
+    // uma Conta sem pagamento nunca via o paywall — e não havia nem como cobrar.
+    role = 'gerente';
+    tenant = CONTA_TRANCADA;
+    profile = { tenant_id: 'conta-teste' };
+    mockRpc.mockResolvedValue({ data: [{ unlocked: false, source: 'locked' }], error: null });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current).toEqual({
+      loading: false,
+      unlocked: false,
+      locked: true,
+      source: 'locked',
+    });
+    expect(mockRpc).toHaveBeenCalled();
+  });
+});
+
+describe('gerente é avaliado pela PRÓPRIA Conta', () => {
+  beforeEach(() => {
+    role = 'gerente';
+    profile = { tenant_id: 'conta-teste' };
+  });
+
+  it('Conta liberada na mão continua liberada — é o caso de toda a produção hoje', async () => {
+    tenant = CONTA_LIBERADA_NA_MAO;
+    mockRpc.mockResolvedValue({ data: [{ unlocked: true, source: 'manual' }], error: null });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.unlocked).toBe(true);
+    expect(result.current.source).toBe('manual');
+  });
+
+  it('Conta paga libera com source paid', async () => {
+    tenant = { ...CONTA_TRANCADA, subscription_status: 'active' };
+    mockRpc.mockResolvedValue({ data: [{ unlocked: true, source: 'paid' }], error: null });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.unlocked).toBe(true));
+    expect(result.current.source).toBe('paid');
+  });
+
+  it('visitando uma Loja filha, ainda pergunta pela Conta dele — não pela Loja', async () => {
+    // Quem assina é a Conta. Perguntar pela Loja em foco daria a mesma resposta
+    // pela herança, mas refaria a consulta a cada troca de Loja e abriria a
+    // porta para a Loja parecer ter acesso próprio, que não existe.
+    tenant = LOJA_COM_PAI;
+    mockRpc.mockResolvedValue({ data: [{ unlocked: true, source: 'manual' }], error: null });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mockRpc).toHaveBeenCalledWith('tenant_access_state', {
+      p_tenant_id: 'conta-teste',
+    });
+  });
+
+  it('RPC fora do ar na própria Conta: avalia a linha em mãos e não tranca quem tem liberação', async () => {
+    tenant = CONTA_LIBERADA_NA_MAO;
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'network' } });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 3000 });
+    expect(result.current.unlocked).toBe(true);
+    expect(result.current.source).toBe('manual');
+  });
+
+  it('RPC fora do ar com uma Loja filha em foco não inventa bloqueio', async () => {
+    // A linha da Conta não está em mãos (o RLS não a entrega numa consulta
+    // comum). Trancar aqui seria pior que o comportamento anterior à mudança.
+    tenant = LOJA_COM_PAI;
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'network' } });
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 3000 });
+    expect(result.current.locked).toBe(false);
   });
 });
 

@@ -8,7 +8,6 @@ import { useTenant, useIsGerente } from '@/contexts/TenantContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { getRewardfulReferral } from '@/lib/rewardful';
 import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/queryClient';
@@ -16,20 +15,20 @@ import { useTenant as useTenantCtx } from '@/contexts/TenantContext';
 
 // =============================================================================
 // PLANO GERENTE — R$ 499,90/mês (inclui 5 lojas) + lojas extras R$ 99,90/mês
+// -----------------------------------------------------------------------------
+// Os rótulos do plano, a chave `CHECKOUT_ENABLED` e a chamada ao Stripe moram
+// em `@/lib/billing/checkout`, não aqui. Antes esta tela e a PaywallScreen
+// tinham cada uma a SUA constante `CHECKOUT_ENABLED`, com valores opostos — a
+// tela que bloqueia não cobrava e a tela que cobra ficava atrás do bloqueio.
+// Uma decisão, um arquivo.
 // =============================================================================
-const PLAN_NAME = 'Plano Gerente';
-const PLAN_PRICE_LABEL = 'R$ 499,90';
-const INCLUDED_SLOTS = 5;
-const SLOT_PRICE_LABEL = 'R$ 99,90';
-
-// -----------------------------------------------------------------------------
-// STRIPE — cobrança recorrente via Edge Function `create-checkout-session`.
-// Os Prices e a chave secreta ficam do lado do servidor (env secrets
-// STRIPE_PRICE_GERENTE, STRIPE_PRICE_STORE_SLOT e STRIPE_SECRET_KEY); este
-// componente só dispara o checkout. O tenant é resolvido no servidor a partir
-// do usuário logado. Enviamos apenas { extraSlots } para lojas extras.
-// -----------------------------------------------------------------------------
-const CHECKOUT_ENABLED = true;
+import {
+  criarSessaoDeCheckout,
+  INCLUDED_SLOTS,
+  PLAN_NAME,
+  PLAN_PRICE_LABEL,
+  SLOT_PRICE_LABEL,
+} from '@/lib/billing/checkout';
 
 export const SubscriptionSettings = () => {
   const { tenant } = useTenant();
@@ -55,27 +54,14 @@ export const SubscriptionSettings = () => {
   const purchasedExtra = (tenant as { store_slots_extra?: number }).store_slots_extra ?? 0;
   const totalSlots = includedSlots + purchasedExtra;
 
-  const startCheckout = async (body: Record<string, unknown>, setBusy: (v: boolean) => void) => {
-    if (!CHECKOUT_ENABLED) {
-      toast({
-        title: 'Pagamento em breve',
-        description: 'A assinatura online ainda está sendo configurada.',
-      });
-      return;
-    }
+  const startCheckout = async (body: { extraSlots?: number }, setBusy: (v: boolean) => void) => {
     try {
       setBusy(true);
-      // Se o visitante veio por indicação (Rewardful), anexa o referral ao checkout.
-      const referral = getRewardfulReferral();
-      const payload = referral ? { ...body, referral } : body;
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', { body: payload });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('URL de checkout não retornada');
-      }
+      // `criarSessaoDeCheckout` já anexa o referral do Rewardful, já checa a
+      // chave CHECKOUT_ENABLED compartilhada e já lança com a frase em pt-BR
+      // que o SERVIDOR escreveu (409 de assinatura ativa, cobrança não
+      // configurada, capacidade negada) em vez da genérica "non-2xx".
+      window.location.href = await criarSessaoDeCheckout(body);
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast({
