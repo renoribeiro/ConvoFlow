@@ -46,9 +46,12 @@ export interface AccessDecision {
  *   Loja COM pai            → a Conta pai (`parent`).
  *   Conta, ou Loja SEM pai  → ela mesma.
  *
- * O segundo caso não é detalhe: existem Lojas órfãs em produção
- * (`parent_tenant_id` nulo) com a liberação manual na própria linha. Tratar a
- * subida como um join obrigatório trancaria gente que hoje trabalha.
+ * O segundo caso não é detalhe. Até 2026-08-20 existiam duas Lojas órfãs em
+ * produção, com a liberação manual na própria linha, e tratar a subida como um
+ * join obrigatório trancava as duas. Elas foram removidas
+ * (`docs/remover_lojas_orfas.sql`) e hoje não há nenhuma — a regra fica de pé
+ * assim mesmo: nada no schema impede uma Loja com `parent_tenant_id` nulo, e um
+ * join obrigatório trancaria a próxima que aparecer.
  *
  * `parent` nulo com uma Loja que TEM pai significa "não consegui carregar a
  * Conta" — cai na própria linha em vez de trancar.

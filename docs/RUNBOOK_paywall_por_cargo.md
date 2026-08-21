@@ -25,8 +25,9 @@ Nenhuma Conta tem assinatura ativa; todo o acesso de hoje é liberação manual.
 **Nenhum gerente é trancado por esta mudança.**
 
 As Lojas também não mudam de estado: EncaixaRH e Loja Teste herdam do pai
-liberado, Loja - Yuri Saldanha é órfã liberada, e Loja - Bruno Moura já estava
-bloqueada antes (órfã sem liberação).
+liberado. (À época havia ainda duas Lojas órfãs — Loja - Yuri Saldanha,
+liberada, e Loja - Bruno Moura, bloqueada. As duas foram removidas do banco em
+2026-08-20 por `docs/remover_lojas_orfas.sql`; hoje não existe Loja órfã.)
 
 ---
 

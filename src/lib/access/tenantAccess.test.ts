@@ -15,8 +15,16 @@ import {
 } from './tenantAccess';
 
 // ---------------------------------------------------------------------------
-// As seis linhas de produção em 2026-08-18. Nenhuma tem assinatura ativa: todo
-// o acesso de hoje é liberação manual.
+// As QUATRO formas de linha que `tenants` admite, uma fixture para cada:
+// Conta liberada, Loja com pai liberado, Loja com pai que nada tem na própria
+// linha, e Loja órfã (sem pai) nos dois estados.
+//
+// Elas nasceram copiadas da produção de 2026-08-18, mas o que o teste protege é
+// a FORMA, não o conteúdo do banco: as duas órfãs reais foram removidas em
+// 2026-08-20 (`docs/remover_lojas_orfas.sql`) e estes casos seguem valendo,
+// porque nada no schema impede uma Loja com `parent_tenant_id` nulo de aparecer
+// de novo. Teste que assertasse nome de Loja de produção viraria lixo a cada
+// faxina — este assertaria errado.
 // ---------------------------------------------------------------------------
 const CONTA_MARIO: AccessRow = {
   kind: 'account',
@@ -47,15 +55,15 @@ const LOJA_TESTE: AccessRow = {
 };
 
 /** Órfã COM liberação na própria linha. É esta que um JOIN comum trancaria. */
-const LOJA_YURI_ORFA: AccessRow = {
+const ORFA_LIBERADA: AccessRow = {
   kind: 'store',
   parent_tenant_id: null,
   subscription_status: null,
   manual_access_granted: true,
 };
 
-/** Órfã SEM liberação. Continua trancada — pré-existente, não é regressão. */
-const LOJA_BRUNO_ORFA: AccessRow = {
+/** Órfã SEM liberação: sem pai para herdar e sem marca própria, fica trancada. */
+const ORFA_SEM_LIBERACAO: AccessRow = {
   kind: 'store',
   parent_tenant_id: null,
   subscription_status: null,
@@ -63,8 +71,12 @@ const LOJA_BRUNO_ORFA: AccessRow = {
 };
 
 describe('Loja órfã responde por si mesma', () => {
+  // Não existe nenhuma órfã em produção desde 2026-08-20. Estes casos ficam
+  // porque a FORMA continua possível: `tenants.parent_tenant_id` é nullable e
+  // nenhuma trava impede criar uma Loja sem pai. Sem este caminho, a próxima
+  // órfã nasce trancada e sem como ser liberada.
   it('órfã com liberação manual continua liberada', () => {
-    expect(resolveTenantAccess(LOJA_YURI_ORFA, null)).toEqual({
+    expect(resolveTenantAccess(ORFA_LIBERADA, null)).toEqual({
       unlocked: true,
       source: 'manual',
     });
@@ -72,11 +84,11 @@ describe('Loja órfã responde por si mesma', () => {
 
   it('a órfã não some quando não existe Conta pai para consultar', () => {
     // O erro que este teste trava: tratar a subida como join obrigatório.
-    expect(billingRowFor(LOJA_YURI_ORFA, null)).toBe(LOJA_YURI_ORFA);
+    expect(billingRowFor(ORFA_LIBERADA, null)).toBe(ORFA_LIBERADA);
   });
 
   it('órfã sem liberação segue trancada', () => {
-    expect(resolveTenantAccess(LOJA_BRUNO_ORFA, null)).toEqual({
+    expect(resolveTenantAccess(ORFA_SEM_LIBERACAO, null)).toEqual({
       unlocked: false,
       source: 'locked',
     });
@@ -84,10 +96,17 @@ describe('Loja órfã responde por si mesma', () => {
 
   it('passar um pai por engano não muda a órfã: ela não tem pai', () => {
     const contaPaga: AccessRow = { kind: 'account', subscription_status: 'active' };
-    expect(resolveTenantAccess(LOJA_BRUNO_ORFA, contaPaga)).toEqual({
+    expect(resolveTenantAccess(ORFA_SEM_LIBERACAO, contaPaga)).toEqual({
       unlocked: false,
       source: 'locked',
     });
+  });
+
+  it('órfã com assinatura ativa na própria linha entra como paga', () => {
+    // Hoje nada cria esta linha (só Conta assina), mas a regra é "órfã responde
+    // por si" — e responder por si inclui a assinatura, não só a marca manual.
+    expect(resolveTenantAccess({ ...ORFA_SEM_LIBERACAO, subscription_status: 'active' }, null))
+      .toEqual({ unlocked: true, source: 'paid' });
   });
 });
 

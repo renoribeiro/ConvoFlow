@@ -86,11 +86,17 @@ BEGIN
   --   1) Loja COM pai      → a Conta pai.
   --   2) Conta, ou Loja SEM pai (órfã) → ela mesma.
   --
-  -- O caso (2) não é detalhe: existem Lojas órfãs em produção
-  -- ("Loja - Yuri Saldanha", "Loja - Bruno Moura"), com parent_tenant_id NULL e
-  -- a liberação manual na própria linha. Um JOIN comum devolveria zero linhas
-  -- para elas e trancaria gente que hoje trabalha. Por isso a subida é
-  -- condicional e explícita, nunca um JOIN.
+  -- O caso (2) não é detalhe. Quando esta função foi escrita havia duas Lojas
+  -- órfãs em produção ("Loja - Yuri Saldanha", "Loja - Bruno Moura"), com
+  -- parent_tenant_id NULL e a liberação manual na própria linha: um JOIN comum
+  -- devolveria zero linhas para elas e trancaria as duas.
+  --
+  -- ATUALIZAÇÃO 2026-08-20: essas duas foram removidas do banco
+  -- (docs/remover_lojas_orfas.sql) e hoje NÃO existe nenhuma Loja órfã. O ramo
+  -- continua aqui de propósito: `tenants.parent_tenant_id` é nullable, nada
+  -- impede criar uma Loja sem pai, e sem este caminho ela nasceria trancada sem
+  -- ter como ser liberada. Por isso a subida é condicional e explícita, nunca
+  -- um JOIN.
   --
   -- Pai apagado (FK sem ON DELETE, mas defensivo): cai na própria linha em vez
   -- de trancar.
