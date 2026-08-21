@@ -49,8 +49,16 @@ const LOJA_COM_PAI = {
   manual_access_granted: false,
 };
 
+/**
+ * Loja sem `parent_tenant_id`, com a liberação na própria linha.
+ *
+ * Nenhuma existe em produção desde 2026-08-20 (`docs/remover_lojas_orfas.sql`).
+ * A fixture fica porque o que importa é a FORMA — `tenants.parent_tenant_id` é
+ * nullable e nada impede que apareça outra. O `id` é genérico de propósito:
+ * teste que carrega nome de linha de produção mente na primeira faxina.
+ */
 const LOJA_ORFA_LIBERADA = {
-  id: 'loja-yuri',
+  id: 'loja-orfa',
   kind: 'store',
   parent_tenant_id: null,
   subscription_status: null,
@@ -152,6 +160,27 @@ describe('bypass por cargo', () => {
 
     expect(result.current.unlocked).toBe(true);
     expect(result.current.source).toBe('bypass');
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('superadmin SEM Conta nenhuma entra igual — é como os três rodam hoje', () => {
+    // Desde 2026-08-20 nenhum superadmin tem `tenant_id`: os três (reno,
+    // admin@convoflow e yuri) rodam com NULL, e a Conta em foco vem do seletor.
+    // O bypass é decidido pelo CARGO, antes de olhar linha nenhuma — por isso
+    // `tenant: null` não vira paywall. Sem este teste, mover a checagem de
+    // cargo para depois da linha trancaria os três de uma vez.
+    role = 'superadmin';
+    tenant = null;
+    profile = { tenant_id: null };
+
+    const { result } = renderHook(() => useTenantAccess(), { wrapper: makeWrapper() });
+
+    expect(result.current).toEqual({
+      loading: false,
+      unlocked: true,
+      locked: false,
+      source: 'bypass',
+    });
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
@@ -302,7 +331,7 @@ describe('o que a RPC responde é o que vale', () => {
 });
 
 describe('degradação quando a RPC não responde', () => {
-  it('função ainda não aplicada não tranca a Loja órfã que hoje trabalha', async () => {
+  it('função ainda não aplicada não tranca uma Loja órfã liberada na própria linha', async () => {
     tenant = LOJA_ORFA_LIBERADA;
     mockRpc.mockResolvedValue({
       data: null,

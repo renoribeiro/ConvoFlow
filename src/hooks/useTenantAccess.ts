@@ -58,8 +58,10 @@ const decidido = (d: AccessDecision): TenantAccess => ({
  *     o RLS de `tenants` não deixa uma Loja ler a Conta pai, quem responde é a
  *     função `public.tenant_access_state` (migração 20260818000001), que sobe
  *     para o pai e devolve só dois valores: liberado e por quê.
- *   - Loja órfã (sem `parent_tenant_id`) responde por si mesma — é o que mantém
- *     as Lojas antigas funcionando.
+ *   - Loja órfã (sem `parent_tenant_id`) responde por si mesma. Nenhuma existe
+ *     em produção desde 2026-08-20 (`docs/remover_lojas_orfas.sql`), mas a
+ *     regra continua: o schema permite criar uma, e sem este caminho ela
+ *     nasceria trancada sem ter como ser liberada.
  *
  * QUAL LINHA É PERGUNTADA. Para o gerente é sempre a PRÓPRIA Conta
  * (`profile.tenant_id`), nunca a Loja que ele esteja visitando pelo seletor:

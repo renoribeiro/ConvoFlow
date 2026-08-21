@@ -57,7 +57,9 @@ CREATE POLICY "tenants_parent_reads_child_stores"
   USING (
     kind = 'store'
     -- Redundante em SQL, explícito de propósito: Loja órfã (parent NULL) NÃO é
-    -- alcançada por esta regra. Existem três assim em produção — item separado.
+    -- alcançada por esta regra. Havia duas assim quando isto foi escrito; foram
+    -- removidas em 2026-08-20 (docs/remover_lojas_orfas.sql). Hoje não há
+    -- nenhuma, e o predicado fica para o caso voltar a existir.
     AND parent_tenant_id IS NOT NULL
     AND parent_tenant_id = public.get_current_user_tenant_id()
   );

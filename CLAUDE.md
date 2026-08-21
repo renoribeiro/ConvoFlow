@@ -236,7 +236,7 @@ na tela, então o teste é o único lugar onde um typo de chave aparece.
 
 ## Operação: aplicar coisas em produção
 
-O ambiente do dono do projeto tem três armadilhas que já quebraram entregas.
+O ambiente do dono do projeto tem quatro armadilhas que já quebraram entregas.
 Respeite-as ao escrever qualquer comando para ele rodar.
 
 1. **O terminal dele é PowerShell, não bash.** Nunca use `\` para quebrar linha
@@ -254,6 +254,22 @@ Respeite-as ao escrever qualquer comando para ele rodar.
    mesmo depois de `npx supabase login`. Limpe antes, na mesma sessão:
    `Remove-Item Env:\SUPABASE_ACCESS_TOKEN -ErrorAction SilentlyContinue`.
 
+4. **No SQL Editor do Supabase, `BEGIN;` / `COMMIT;` NÃO garante atomicidade,
+   e tabela temporária não sobrevive de um comando para o outro.** Em
+   2026-08-20 o `docs/remover_lojas_orfas.sql` deu
+   `ERROR: 42P01: relation "_lojas_orfas_inventario" does not exist` — e os
+   `DELETE` já executados **ficaram gravados mesmo assim**. Ou seja: a frase
+   "é transacional, ou entra tudo ou não entra nada", que está no cabeçalho de
+   vários scripts de `docs/`, é falsa nesse editor.
+
+   Consequência ao escrever script de escrita perigosa: **a operação inteira —
+   guardas, escritas e conferência final — vai dentro de UM único bloco
+   `DO $tag$ ... $tag$;`**. Um bloco `DO` é um comando só: ou termina, ou o
+   PostgreSQL desfaz tudo o que ele fez. É a única forma de `RAISE EXCEPTION`
+   significar "nada aconteceu". E nunca dependa de estado de sessão entre
+   comandos (tabela temporária, `SET`, variável de sessão) — use variáveis
+   `DECLARE` dentro do bloco. Modelo pronto: `docs/remover_lojas_orfas.sql`.
+
 **Nunca rode nem sugira `supabase db push`.** 81 das 94 migrações locais não
 estão no ledger e algumas mexem em dado real de usuário. Migração aqui se aplica
 colando um script no SQL Editor.
@@ -265,8 +281,16 @@ Os dois precisam ficar equivalentes, inclusive no `INSERT` do ledger: quem roda
 o arquivo de migração direto no SQL Editor também tem que registrar o histórico.
 
 Escreva o script defensivo: se ele apaga ou sobrescreve algo, cheque a premissa
-dentro da transação e aborte com `RAISE EXCEPTION` quando ela não valer (ver
-`docs/remover_scheduled_reports.sql`). E prefira falhar alto a usar `CASCADE`.
+**dentro do mesmo bloco `DO` que faz a escrita** (ver armadilha 4 acima) e aborte
+com `RAISE EXCEPTION` quando ela não valer. E prefira falhar alto a usar
+`CASCADE`. Exemplos: `docs/remover_lojas_orfas.sql` (bloco único, com guardas de
+identidade, de sinais de vida e de "nada além do inventário levantado") e
+`docs/remover_scheduled_reports.sql`.
+
+Antes de apagar, exporte. Uma consulta somente-leitura em `docs/`, rodada e
+conferida ANTES do script de remoção, custa um clique e é a única rede que
+existe — o SQL Editor não tem desfazer, e restaurar backup por causa de faxina
+não compensa. Modelo: `docs/exportar_loja_yuri_antes_de_remover.sql`.
 
 ### Runbooks
 

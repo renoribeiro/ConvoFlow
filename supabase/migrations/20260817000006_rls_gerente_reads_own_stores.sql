@@ -74,10 +74,16 @@
 --
 -- O QUE FICA DE FORA, DE PROPÓSITO
 --
---   Loja com `parent_tenant_id IS NULL` continua invisível por aqui. Existem
---   três assim em produção (Loja - Yuri Saldanha, Loja - Bruno Moura, Conta
---   Teste Gerente). Elas também escapam do trigger de vagas. Regularizar esses
---   dados é item separado — esta migração não toca em nenhuma linha.
+--   Loja com `parent_tenant_id IS NULL` continua invisível por aqui. Quando
+--   esta migração foi escrita havia duas assim em produção (Loja - Yuri
+--   Saldanha e Loja - Bruno Moura); elas também escapavam do trigger de vagas.
+--   Regularizar esses dados era item separado — esta migração não tocou em
+--   nenhuma linha.
+--
+--   ATUALIZAÇÃO 2026-08-20: as duas foram removidas
+--   (docs/remover_lojas_orfas.sql) e hoje nenhuma Loja tem parent_tenant_id
+--   nulo. A policy segue escrita do mesmo jeito: o schema continua permitindo o
+--   caso, e o predicado explícito deixa à vista que ele fica de fora.
 --
 -- Idempotente: DROP POLICY IF EXISTS antes do CREATE.
 -- Transacional: ou entra tudo, ou não entra nada.

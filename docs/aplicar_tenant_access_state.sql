@@ -82,7 +82,9 @@ BEGIN
 
   -- Loja COM pai sobe para a Conta; Conta e Loja órfã respondem por si.
   -- A subida é condicional de propósito: um JOIN comum devolveria zero linhas
-  -- para as Lojas órfãs que existem em produção e trancaria gente que trabalha.
+  -- para uma Loja órfã e a trancaria. Havia duas assim quando isto foi escrito;
+  -- foram removidas em 2026-08-20 (docs/remover_lojas_orfas.sql) e o ramo fica
+  -- porque o schema continua permitindo uma Loja sem pai.
   v_cobranca := v_linha;
 
   IF v_linha.kind = 'store' AND v_linha.parent_tenant_id IS NOT NULL THEN
@@ -176,6 +178,12 @@ COMMIT;
 --
 --    A única mudança de situação é "Loja Teste", que é exatamente o defeito.
 --    "Loja - Bruno Moura" continua trancada — pré-existente, não é regressão.
+--
+--    ATUALIZAÇÃO 2026-08-20: as duas órfãs foram removidas do banco
+--    (docs/remover_lojas_orfas.sql). Rodando a consulta HOJE saem 4 linhas, e
+--    todas liberadas: Conta Teste Gerente, EncaixaRH, Loja Teste e Mario
+--    Acioli. Se você está aplicando esta função num banco onde as órfãs ainda
+--    existem, vale a lista de 6 acima.
 --
 -- 3) O teste de verdade é pelo produto: convide um Gestor para a "Loja Teste" e
 --    confirme que ele entra no dashboard em vez de ver "Acesso bloqueado".
