@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
+import { useQuickReplies } from '@/hooks/useQuickReplies';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
 import { useTenantVariables } from '@/hooks/useTenantVariables';
@@ -61,13 +62,13 @@ const TRIGGER_SEL = '__trigger__';
 function summarize(
   entry: CatalogEntry,
   config: Record<string, any>,
-  ctx: { funnelStages: { id: string; name: string }[]; messageTemplates: { id: string; name: string }[] },
+  ctx: { funnelStages: { id: string; name: string }[]; quickReplies: { id: string; name: string }[] },
 ): string {
   const stageName = (id: string) => ctx.funnelStages.find((s) => s.id === id)?.name || '—';
-  const tplName = (id: string) => ctx.messageTemplates.find((t) => t.id === id)?.name || '—';
+  const respostaName = (id: string) => ctx.quickReplies.find((r) => r.id === id)?.name || '—';
   switch (entry.key) {
     case 'send_message':
-      return config.custom_message?.trim() || (config.message_template_id ? `Template: ${tplName(config.message_template_id)}` : '');
+      return config.custom_message?.trim() || (config.quick_reply_id ? `Resposta rápida: ${respostaName(config.quick_reply_id)}` : '');
     case 'add_tag':
       return config.tag_name ? `Tag: ${config.tag_name}` : '';
     case 'update_contact':
@@ -123,11 +124,9 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
     enabled: !!flowId,
   });
 
-  const { data: messageTemplates = [] } = useSupabaseQuery({
-    table: 'message_templates',
-    queryKey: ['message-templates'],
-    select: 'id, name, content',
-  });
+  // Mesma fonte do popover do compositor e da aba de Configurações: uma resposta
+  // criada em qualquer um dos três aparece aqui sem recarregar a página.
+  const { quickReplies } = useQuickReplies();
 
   const { data: funnelStages = [] } = useSupabaseQuery({
     table: 'funnel_stages',
@@ -246,7 +245,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
 
   // ---- dados derivados ----
   const triggerEntry = getCatalogEntry(flow.trigger_type);
-  const ctx = { funnelStages, messageTemplates };
+  const ctx = { funnelStages, quickReplies };
   const stat = flowId ? byFlow.get(flowId) : undefined;
 
   // painel: gatilho ou etapa selecionada
@@ -279,7 +278,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
               config={flow.trigger_config}
               onChange={(key, value) => setFlow((prev) => ({ ...prev, trigger_config: { ...prev.trigger_config, [key]: value } }))}
               funnelStages={funnelStages}
-              messageTemplates={messageTemplates}
+              quickReplies={quickReplies}
               customVariables={customVariables}
               attemptedSave={attemptedSave}
             />
@@ -295,7 +294,7 @@ export const AutomationBuilder = ({ flowId, onClose }: AutomationBuilderProps) =
           onChange={(key, value) => updateStepConfig(selectedStepObj.id, key, value)}
           onChangeType={(subtype) => setStepSubtype(selectedStepObj.id, subtype)}
           funnelStages={funnelStages}
-          messageTemplates={messageTemplates}
+          quickReplies={quickReplies}
           customVariables={customVariables}
           attemptedSave={attemptedSave}
         />

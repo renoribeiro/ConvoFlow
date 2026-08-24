@@ -14,7 +14,6 @@ export { IntegrationManager } from './integrations/IntegrationManager';
 export { AdvancedReports } from './reports/AdvancedReports';
 
 // Templates Components
-export { MessageTemplates } from './templates/MessageTemplates';
 
 // API Components
 export { ApiSettings } from './api/ApiSettings';
@@ -119,10 +118,6 @@ export const ReportsComponents = {
   AdvancedReports
 };
 
-export const TemplatesComponents = {
-  MessageTemplates
-};
-
 export const ApiComponents = {
   ApiSettings
 };
@@ -147,9 +142,6 @@ export const ConvoFlowComponents = {
   
   // Reports
   AdvancedReports,
-
-  // Templates
-  MessageTemplates,
   
   // API
   ApiSettings,
@@ -192,12 +184,6 @@ export const ComponentMetadata = {
     description: 'Sistema de relatórios avançados e personalizáveis',
     category: 'Reports',
     features: ['Relatórios personalizados', 'Múltiplos tipos de gráfico', 'Filtros avançados', 'Exportação']
-  },
-  MessageTemplates: {
-    name: 'MessageTemplates',
-    description: 'Gerenciamento de templates de mensagens',
-    category: 'Templates',
-    features: ['Templates personalizáveis', 'Variáveis dinâmicas', 'Categorização', 'Análise de uso']
   },
   ApiSettings: {
     name: 'ApiSettings',

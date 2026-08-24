@@ -53,6 +53,13 @@ class IntersectionObserverMock {
 }
 window.IntersectionObserver = IntersectionObserverMock as any;
 
+// scrollIntoView não existe no jsdom. O cmdk (base do <Command />, usado pela
+// paleta de respostas rápidas e por qualquer combobox com busca) chama isso ao
+// mover o item destacado — sem o stub, o componente estoura no primeiro render.
+if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = function scrollIntoView() { };
+}
+
 // Suppress console during tests (optional, uncomment to enable)
 // const originalError = console.error;
 // beforeAll(() => {

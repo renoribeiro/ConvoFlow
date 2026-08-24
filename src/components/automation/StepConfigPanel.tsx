@@ -37,7 +37,7 @@ interface StepConfigPanelProps {
   config: Record<string, any>;
   onChange: (key: string, value: any) => void;
   funnelStages: { id: string; name: string }[];
-  messageTemplates: { id: string; name: string; content?: string }[];
+  quickReplies: { id: string; name: string; content?: string }[];
   customVariables: string[];
   attemptedSave?: boolean;
   /** Para etapas sem tipo definido ainda: troca o subtipo. */
@@ -49,7 +49,7 @@ export const StepConfigPanel: React.FC<StepConfigPanelProps> = ({
   config,
   onChange,
   funnelStages,
-  messageTemplates,
+  quickReplies,
   customVariables,
   attemptedSave = false,
   onChangeType,
@@ -61,8 +61,8 @@ export const StepConfigPanel: React.FC<StepConfigPanelProps> = ({
   const resolveOptions = (field: CatalogField): { id: string; name: string }[] => {
     if (field.options) return field.options;
     if (field.optionsSource === 'funnelStages') return funnelStages;
-    if (field.optionsSource === 'messageTemplates')
-      return messageTemplates.map((t) => ({ id: t.id, name: t.name }));
+    if (field.optionsSource === 'quickReplies')
+      return quickReplies.map((r) => ({ id: r.id, name: r.name }));
     return [];
   };
 
