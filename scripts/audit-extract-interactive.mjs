@@ -38,6 +38,31 @@ function labelFrom(text, idx) {
   return '';
 }
 
+// Devolve o conteudo de um {...} de JSX contando chaves. Um teto de tamanho
+// no regex deixava de fora handler multilinha (perdia 19 dos 558 onClick).
+function expressaoBalanceada(texto, idxDaChave) {
+  let profundidade = 0;
+  for (let i = idxDaChave; i < texto.length; i++) {
+    const c = texto[i];
+    if (c === '{') profundidade++;
+    else if (c === '}') {
+      profundidade--;
+      if (profundidade === 0) return texto.slice(idxDaChave + 1, i);
+    }
+  }
+  return texto.slice(idxDaChave + 1, idxDaChave + 200);
+}
+
+/** Cataloga todo `atributo={...}` de um arquivo, com a expressao inteira. */
+function coletarHandlers(file, text, atributo, kind, push) {
+  const re = new RegExp(`\\b${atributo}=\\{`, 'g');
+  for (const m of text.matchAll(re)) {
+    const idxChave = m.index + m[0].length - 1;
+    const expr = expressaoBalanceada(text, idxChave).replace(/\s+/g, ' ').trim();
+    push(file, text, m.index, kind, expr.slice(0, 160));
+  }
+}
+
 const files = walk(SRC);
 const rows = [];
 let id = 0;
@@ -90,25 +115,11 @@ for (const file of files) {
 
   if (isUi) continue; // primitivos shadcn: sem handlers proprios de produto
 
-  // 5. onClick
-  for (const m of text.matchAll(/onClick=\{([\s\S]{0,160}?)\}\s*(?=\n|\/|>|[a-zA-Z-]+=)/g)) {
-    push(file, text, m.index, 'onClick', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
-  }
-
-  // 6. onSubmit
-  for (const m of text.matchAll(/onSubmit=\{([\s\S]{0,120}?)\}/g)) {
-    push(file, text, m.index, 'onSubmit', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
-  }
-
-  // 7. toggles / switches / checkboxes
-  for (const m of text.matchAll(/onCheckedChange=\{([\s\S]{0,140}?)\}\s*(?=\n|\/|>|[a-zA-Z-]+=)/g)) {
-    push(file, text, m.index, 'toggle', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
-  }
-
-  // 8. selects / tabs / radios
-  for (const m of text.matchAll(/onValueChange=\{([\s\S]{0,140}?)\}\s*(?=\n|\/|>|[a-zA-Z-]+=)/g)) {
-    push(file, text, m.index, 'valueChange', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
-  }
+  // 5-8. handlers de produto. A expressao vem inteira (chaves balanceadas).
+  coletarHandlers(file, text, 'onClick', 'onClick', push);
+  coletarHandlers(file, text, 'onSubmit', 'onSubmit', push);
+  coletarHandlers(file, text, 'onCheckedChange', 'toggle', push);
+  coletarHandlers(file, text, 'onValueChange', 'valueChange', push);
 
   // 8b. <ComingSoonButton> — inerte de proposito, mas continua no inventario:
   //     sumir do checklist ao ser corrigido esconderia o que foi decidido.

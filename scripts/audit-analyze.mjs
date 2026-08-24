@@ -53,7 +53,9 @@ const stub = rows.filter((r) => {
   return /^\(\s*\)\s*=>\s*\{\s*\}$/.test(t) ||
     /console\.(log|warn|debug)/.test(t) ||
     /^\(\s*\)\s*=>\s*(null|undefined|void 0)$/.test(t) ||
-    /TODO|FIXME|nao implementado|não implementado|not implemented/i.test(t);
+    // \b e maiuscula de proposito: sem isso, "Todos" (pt-BR) casa com TODO.
+    /\b(TODO|FIXME)\b/.test(t) ||
+    /\b(nao|não) implementado\b|\bnot implemented\b/i.test(t);
 });
 out('HANDLERS VAZIOS / STUB', stub);
 

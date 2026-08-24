@@ -153,6 +153,22 @@ describe('integridade das rotas', () => {
     ).toEqual([]);
   });
 
+  it('nenhum link aponta para docs.convoflow.com (domínio não resolve)', () => {
+    // Havia dois botões em IntegrationSettings abrindo https://docs.convoflow.com
+    // numa aba nova. O domínio não tem DNS: o usuário via uma página de erro.
+    // Se um dia o site existir, apague este teste junto com a volta dos links.
+    // Casa a URL de verdade (entre aspas), não a menção em comentário.
+    const urlMorta = /['"`]https?:\/\/docs\.convoflow\.com/;
+    const encontrados: string[] = [];
+    for (const arquivo of tsxAlcancaveis()) {
+      const texto = readFileSync(arquivo, 'utf8');
+      if (urlMorta.test(texto)) {
+        encontrados.push(norm(arquivo.slice(ROOT.length + 1)));
+      }
+    }
+    expect(encontrados).toEqual([]);
+  });
+
   it('a migalha "Dashboard" leva ao painel, nunca à landing', () => {
     const errados: string[] = [];
     for (const arquivo of tsxAlcancaveis()) {

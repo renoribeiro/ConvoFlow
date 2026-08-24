@@ -111,5 +111,21 @@
   "src/components/tracking/TrafficChart.tsx": {
     "status": "corrigido",
     "nota": "mesma classe do anterior: format(new Date(item.date)) sem guarda derrubava a tela de Rastreamento inteira quando um ponto vinha sem data. Ponto inválido agora sai do gráfico."
+  },
+  "src/components/settings/IntegrationSettings.tsx:372": {
+    "status": "corrigido",
+    "nota": "\"Ver Documentação da API\" abria https://docs.convoflow.com/api numa aba nova — o domínio não resolve (DNS falha), então o usuário via página de erro. Virou ComingSoonButton. Guardado por src/test/routes-integrity.test.ts."
+  },
+  "src/components/settings/IntegrationSettings.tsx:562": {
+    "status": "corrigido",
+    "nota": "\"Ver Documentação\" (webhooks) tinha o mesmo destino morto; mesma correção."
+  },
+  "src/components/settings/IntegrationSettings.tsx:334": {
+    "status": "passa",
+    "nota": "monta a URL como https://www.<id>.com. Conferi os 8 ids no ar: hubspot, salesforce, shopify, woocommerce, google-analytics, zapier, mailchimp e stripe — todos respondem 200. Frágil por construção, mas hoje nenhum está quebrado."
+  },
+  "src/components/settings/IntegrationSettings.tsx:321": {
+    "status": "inerte de propósito",
+    "nota": "\"Conectar\"/\"Configurar\" do catálogo de integrações abre um toast \"Integração em desenvolvimento ... estará disponível em breve\". É um catálogo-vitrine assumido, com resposta honesta ao clique."
   }
 }
