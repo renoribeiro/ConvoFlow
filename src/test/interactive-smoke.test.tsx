@@ -29,38 +29,54 @@ vi.mock('recharts', async (importOriginal) => {
   };
 });
 
-const perfilFalso = { id: 'p1', role: 'superadmin', tenant_id: 't1', full_name: 'Teste' };
+/**
+ * Cargo do usuário simulado. É mutável para a mesma bateria de cliques rodar
+ * como superadmin, gerente, gestor e atendente — telas mudam de conteúdo por
+ * cargo, e um botão que só o atendente vê não seria clicado nunca se o teste
+ * rodasse só como superadmin.
+ */
+const estado = vi.hoisted(() => ({ papel: 'superadmin' as string }));
 
 vi.mock('@/contexts/TenantContext', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/contexts/TenantContext')>();
+  // As decisões por cargo saem das funções REAIS do projeto. Reimplementar a
+  // hierarquia aqui só provaria que o mock concorda com ele mesmo.
+  const { roleAtLeast, resolveCapabilities, can } = await import('@/types/userHierarchy');
   const tenant = { id: 't1', name: 'Loja Teste', kind: 'account', parent_tenant_id: null };
+  const perfil = () => ({
+    id: 'p1',
+    role: estado.papel,
+    tenant_id: 't1',
+    full_name: 'Usuário de Teste',
+  });
   return {
     ...actual,
     // Mesma forma do value real do TenantProvider (TenantContext.tsx:280):
     // nome inventado aqui vira "bug" fantasma na tela.
     useTenant: () => ({
       tenant,
-      profile: perfilFalso,
+      profile: perfil(),
       tenantId: 't1',
       loading: false,
       error: null,
       refreshTenant: vi.fn(),
       updateTenantSettings: vi.fn(),
       isImpersonating: false,
-      canSwitchTenant: false,
+      canSwitchTenant: estado.papel === 'superadmin' || estado.papel === 'gerente',
       setActiveTenant: vi.fn(),
     }),
     useTenantId: () => 't1',
-    useRole: () => 'superadmin',
-    useIsSuperAdmin: () => true,
-    useIsGerente: () => false,
-    useIsGestor: () => false,
-    useIsAtendente: () => false,
-    useIsTenantAdmin: () => false,
-    useCanSwitchTenant: () => false,
-    useHasMinRole: () => true,
-    useCan: () => true,
-    useCapabilities: () => new Proxy({}, { get: () => true }) as any,
+    useRole: () => estado.papel,
+    useIsSuperAdmin: () => estado.papel === 'superadmin',
+    useIsGerente: () => estado.papel === 'gerente',
+    useIsGestor: () => estado.papel === 'gestor',
+    useIsAtendente: () => estado.papel === 'atendente',
+    useIsTenantAdmin: () => estado.papel === 'gestor',
+    useCanSwitchTenant: () =>
+      estado.papel === 'superadmin' || estado.papel === 'gerente',
+    useHasMinRole: (minimo: any) => roleAtLeast(estado.papel as any, minimo),
+    useCan: (capacidade: any) => can(estado.papel as any, capacidade),
+    useCapabilities: () => resolveCapabilities(estado.papel as any),
   };
 });
 
@@ -79,6 +95,23 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
   AuthProvider: ({ children }: any) => <>{children}</>,
 }));
+
+/**
+ * Sem este mock o teste sai para a internet de verdade: a tela de Conversas
+ * chama /instance/connectionState na Evolution API e o erro 404 volta depois,
+ * já dentro de outro teste. Teste de unidade não faz requisição de rede.
+ */
+vi.mock('@/services/evolutionApi', () => {
+  const semResposta = async () => ({ instance: { state: 'close' } });
+  const servico = new Proxy(
+    {},
+    { get: () => vi.fn(semResposta) },
+  );
+  return {
+    EvolutionApiService: vi.fn(() => servico),
+    createEvolutionApiService: vi.fn(() => servico),
+  };
+});
 
 vi.mock('@/integrations/supabase/client', () => {
   const linha = () => ({
@@ -157,6 +190,24 @@ const Moldura = ({ children }: { children: React.ReactNode }) => {
     </QueryClientProvider>
   );
 };
+
+/**
+ * Erro de console que NAO e defeito de botao.
+ *
+ * Duas familias: ruido do React/Radix dentro do jsdom, e a aplicacao reagindo
+ * CERTO a um ambiente sem backend (nao ha realtime, nem Evolution API, nem
+ * resposta no formato que as consultas de analise esperam). Nesses casos o
+ * app loga e segue de pe — que e o comportamento desejado.
+ *
+ * Lista curta e explicita de proposito: filtro largo aqui esconderia defeito
+ * de verdade, que e justamente o que este arquivo existe para achar.
+ */
+function ehRuidoDeAmbiente(texto: string): boolean {
+  if (/not wrapped in act|validateDOMNesting|useLayoutEffect|Warning:/i.test(texto)) return true;
+  return /Erro no WebSocket|Erro ao buscar dados de análise|Chat history sync failed/i.test(
+    texto,
+  );
+}
 
 /** Clica em todo botao habilitado e devolve o que explodiu. */
 async function clicarTudo(): Promise<string[]> {
@@ -283,13 +334,7 @@ describe('telas do dashboard: renderizam e aguentam clique', () => {
     erroDeConsole = [];
     espiao = vi.spyOn(console, 'error').mockImplementation((...args) => {
       const texto = String(args[0] ?? '');
-      // Ruido conhecido do React/Radix em jsdom, nao e defeito de botao.
-      if (/not wrapped in act|validateDOMNesting|useLayoutEffect|Warning:/i.test(texto)) return;
-      // Estes dois sao a aplicacao REAGINDO CERTO a um ambiente sem backend:
-      // nao existe realtime no jsdom, e o Supabase mockado nao devolve o
-      // formato que a consulta de analise espera. O app loga e segue de pe —
-      // que e justamente o comportamento desejado. Nao sao defeito de botao.
-      if (/Erro no WebSocket|Erro ao buscar dados de análise/i.test(texto)) return;
+      if (ehRuidoDeAmbiente(texto)) return;
       erroDeConsole.push(texto);
     });
   });
@@ -297,6 +342,12 @@ describe('telas do dashboard: renderizam e aguentam clique', () => {
   afterEach(() => {
     espiao.mockRestore();
     cleanup();
+  });
+
+  // A bateria abaixo roda como superadmin, que e quem enxerga mais tela. Os
+  // outros tres cargos tem describe proprio no fim do arquivo.
+  beforeEach(() => {
+    estado.papel = 'superadmin';
   });
 
   for (const [nome, carregar] of TELAS) {
@@ -380,3 +431,62 @@ describe('telas do dashboard: renderizam e aguentam clique', () => {
     }, TEMPO_LIMITE);
   }
 });
+
+/**
+ * Mesma bateria, nos outros três cargos.
+ *
+ * Tela muda de conteúdo por cargo: o gestor não vê o que o superadmin vê, e o
+ * atendente vê menos ainda. Rodando só como superadmin, um botão que só
+ * aparece para o atendente nunca seria clicado — e é justamente onde defeito
+ * costuma se esconder, porque é o caminho menos usado no desenvolvimento.
+ *
+ * Quem decide o que cada cargo alcança continua sendo o código de verdade
+ * (`roleAtLeast`, `resolveCapabilities`, `can`); este teste não redefine
+ * permissão nenhuma, só troca de quem é a sessão.
+ */
+describe.each(['gerente', 'gestor', 'atendente'])(
+  'telas do dashboard como %s: renderizam e aguentam clique',
+  (papel) => {
+    let erroDeConsole: string[] = [];
+    let espiao: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      estado.papel = papel;
+      erroDeConsole = [];
+      espiao = vi.spyOn(console, 'error').mockImplementation((...args) => {
+        const texto = String(args[0] ?? '');
+        if (ehRuidoDeAmbiente(texto)) return;
+        erroDeConsole.push(texto);
+      });
+    });
+
+    afterEach(() => {
+      espiao.mockRestore();
+      cleanup();
+      estado.papel = 'superadmin';
+    });
+
+    for (const [nome, carregar] of TELAS) {
+      it(`${nome}: renderiza e nenhum botão explode`, async () => {
+        const { default: Tela } = await carregar();
+        let erro: unknown = null;
+        try {
+          render(
+            <Moldura>
+              <Tela />
+            </Moldura>,
+          );
+          await new Promise((r) => setTimeout(r, 20));
+        } catch (e) {
+          erro = e;
+        }
+        expect(erro, `${nome} quebrou ao renderizar como ${papel}`).toBeNull();
+
+        const falhas = await clicarTudo();
+        expect(falhas, `${nome} como ${papel}: botões que lançaram`).toEqual([]);
+        expect(erroDeConsole, `${nome} como ${papel}: erros de console`).toEqual([]);
+      }, TEMPO_LIMITE);
+    }
+  },
+);

@@ -131,9 +131,13 @@ let md = `# Checklist de auditoria — botões, links e elementos interativos
 Entrar no dashboard exige sessão real do Supabase, e este projeto não tem
 usuário de teste. Então **nenhum elemento das telas logadas foi clicado num
 navegador de verdade contra o banco de verdade** — o mais perto disso é o
-\`passa (clique automatizado)\`. Diferença de comportamento por cargo
-(superadmin / gerente / gestor / atendente) foi verificada por leitura dos
-guards e pelos testes de cargo que já existiam, não por sessão real de cada um.
+\`passa (clique automatizado)\`, que roda em jsdom com o Supabase mockado.
+
+Os quatro cargos (superadmin, gerente, gestor, atendente) **foram** exercitados:
+a mesma bateria de cliques roda uma vez por cargo, e quem decide o que cada um
+alcança são as funções reais do projeto (\`roleAtLeast\`, \`resolveCapabilities\`,
+\`can\`), não uma tabela reescrita no teste. O que continua sem cobertura é o
+efeito no banco: se o clique gravou, respeitou RLS e voltou o dado certo.
 
 ## Rotas reais (fonte da verdade: \`src/App.tsx\`)
 
