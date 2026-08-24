@@ -79,3 +79,13 @@ Icon?
 
 # estado local do CLI do Supabase — nao versionar
 supabase/.temp/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# artefatos gerados pela auditoria de botoes/links
+/audit-inventory.json
+/audit-reachable.json
