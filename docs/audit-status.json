@@ -1,0 +1,33 @@
+{
+  "_comentario": "Veredicto de cada elemento auditado. Chave = 'arquivo:linha', 'arquivo' (default do arquivo) ou 'pasta/' (prefixo). Consumido por scripts/audit-checklist.mjs.",
+
+  "src/components/landing/": {
+    "status": "passa",
+    "nota": "coberto por e2e/landing.spec.ts (clique real no Chromium)"
+  },
+  "src/components/landing/HeroSection.tsx:53": {
+    "status": "decisão sua",
+    "nota": "\"Ver Demonstração\": sem onClick e sem <Link> em volta — o clique não faz nada. Não existe rota nem vídeo de demonstração no projeto, então inventar um destino seria pior que relatar."
+  },
+  "src/components/landing/CTASection.tsx:41": {
+    "status": "passa",
+    "nota": "/register é rota de compatibilidade e redireciona para /auth (App.tsx:93); verificado no e2e"
+  },
+  "src/pages/LandingPage.tsx": {
+    "status": "passa",
+    "nota": "coberto por e2e/landing.spec.ts"
+  },
+
+  "src/pages/NotFound.tsx": {
+    "status": "passa",
+    "nota": "\"Voltar\" e \"Ir para Home\" verificados por clique real no e2e"
+  },
+  "src/pages/TermsOfService.tsx": {
+    "status": "passa",
+    "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
+  },
+  "src/pages/PrivacyPolicy.tsx": {
+    "status": "passa",
+    "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
+  }
+}

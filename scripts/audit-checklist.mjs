@@ -7,13 +7,24 @@ const rows = JSON.parse(readFileSync('audit-inventory.json', 'utf8'));
 const reachable = new Set(JSON.parse(readFileSync('audit-reachable.json', 'utf8')));
 const OUT = 'docs/audit-checklist.md';
 
-// ---- status preservado entre execucoes -------------------------------------
-const previous = new Map();
-if (existsSync(OUT)) {
-  for (const line of readFileSync(OUT, 'utf8').split('\n')) {
-    const m = line.match(/^\| `([^`]+)` \| ([^|]*) \| ([^|]*) \| ([^|]*) \| ([^|]*) \|$/);
-    if (m) previous.set(m[1].trim(), m[5].trim());
-  }
+// ---- veredictos da auditoria ------------------------------------------------
+// docs/audit-status.json e a fonte da verdade dos status. Chaves aceitas:
+//   "src/x/Y.tsx:123"  -> um elemento
+//   "src/x/Y.tsx"      -> todos os elementos do arquivo (default do arquivo)
+//   "src/x/"           -> todos os elementos da pasta (prefixo)
+const STATUS_FILE = 'docs/audit-status.json';
+const verdicts = existsSync(STATUS_FILE)
+  ? JSON.parse(readFileSync(STATUS_FILE, 'utf8'))
+  : {};
+const prefixKeys = Object.keys(verdicts)
+  .filter((k) => k.endsWith('/'))
+  .sort((a, b) => b.length - a.length);
+
+function verdictFor(file, line) {
+  if (verdicts[`${file}:${line}`]) return verdicts[`${file}:${line}`];
+  if (verdicts[file]) return verdicts[file];
+  const p = prefixKeys.find((k) => file.startsWith(k));
+  return p ? verdicts[p] : null;
 }
 
 // ---- areas -----------------------------------------------------------------
@@ -114,6 +125,18 @@ md += `- Elementos interativos catalogados: **${total}**\n`;
 md += `- Em arquivos alcançáveis pela aplicação: **${total - orphanCount}**\n`;
 md += `- Em arquivos órfãos (código morto): **${orphanCount}**\n\n`;
 
+const tally = {};
+for (const r of rows) {
+  const v = verdictFor(r.file, r.line);
+  const s = v?.status || (!reachable.has(r.file) ? 'código órfão' : 'não testado');
+  tally[s] = (tally[s] || 0) + 1;
+}
+md += `| Status | Elementos |\n| --- | --- |\n`;
+for (const [s, n] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
+  md += `| ${s} | ${n} |\n`;
+}
+md += `\n`;
+
 const areaNames = [...grouped.keys()].sort();
 md += `| Área | Elementos |\n| --- | --- |\n`;
 for (const a of areaNames) md += `| ${a} | ${grouped.get(a).length} |\n`;
@@ -122,15 +145,17 @@ md += `\n---\n\n`;
 for (const a of areaNames) {
   const list = grouped.get(a).sort((x, y) => x.file.localeCompare(y.file) || x.line - y.line);
   md += `## ${a}\n\n`;
-  md += `| Local | Tipo | Rótulo / ícone | O que deve fazer | Status |\n| --- | --- | --- | --- | --- |\n`;
+  md += `| Local | Tipo | Rótulo / ícone | O que deve fazer | Status | Observação |\n| --- | --- | --- | --- | --- | --- |\n`;
   for (const r of list) {
     const key = `${r.file}:${r.line}`;
     const isOrphan = !reachable.has(r.file);
     const should = r.kind === 'link' || r.kind === 'anchor' || r.kind === 'navigate' || r.kind === 'window-open'
       ? `navegar para \`${esc(r.target)}\``
       : `executar \`${esc(r.target)}\``;
-    const status = previous.get(key) || (isOrphan ? 'código órfão' : 'não testado');
-    md += `| \`${key}\` | ${KIND_LABEL[r.kind] || r.kind} | ${esc(r.label) || '—'} | ${should} | ${status} |\n`;
+    const v = verdictFor(r.file, r.line);
+    const status = v?.status || (isOrphan ? 'código órfão' : 'não testado');
+    const nota = v?.nota || (isOrphan ? 'arquivo não alcançável a partir de `src/main.tsx`' : '');
+    md += `| \`${key}\` | ${KIND_LABEL[r.kind] || r.kind} | ${esc(r.label) || '—'} | ${should} | ${status} | ${esc(nota)} |\n`;
   }
   md += `\n`;
 }
