@@ -11,11 +11,18 @@ interface TrafficChartProps {
 }
 
 export const TrafficChart = ({ data, isLoading }: TrafficChartProps) => {
-  const chartData = data?.map(item => ({
-    date: format(new Date(item.date), 'dd/MM', { locale: ptBR }),
-    leads: item.total_leads || 0,
-    conversions: item.conversions || 0,
-  })).reverse() || [];
+  // Um item sem `date` (ou com data invalida) fazia o format() do date-fns
+  // lancar RangeError e derrubar a tela de Rastreamento inteira. Ponto sem
+  // data nao tem onde ser plotado, entao sai do grafico em vez de quebrar.
+  const chartData =
+    data
+      ?.filter((item) => item && !Number.isNaN(new Date(item.date).getTime()))
+      .map((item) => ({
+        date: format(new Date(item.date), 'dd/MM', { locale: ptBR }),
+        leads: item.total_leads || 0,
+        conversions: item.conversions || 0,
+      }))
+      .reverse() || [];
 
   return (
     <Card>

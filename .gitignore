@@ -89,3 +89,4 @@ supabase/.temp/
 # artefatos gerados pela auditoria de botoes/links
 /audit-inventory.json
 /audit-reachable.json
+/audit-coverage.json

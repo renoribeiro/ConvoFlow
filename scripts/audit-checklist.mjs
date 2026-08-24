@@ -5,7 +5,23 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const rows = JSON.parse(readFileSync('audit-inventory.json', 'utf8'));
 const reachable = new Set(JSON.parse(readFileSync('audit-reachable.json', 'utf8')));
+const cobertura = existsSync('audit-coverage.json')
+  ? JSON.parse(readFileSync('audit-coverage.json', 'utf8'))
+  : { smoke: [], e2e: [] };
+const porSmoke = new Set(cobertura.smoke);
+const porE2e = new Set(cobertura.e2e);
 const OUT = 'docs/audit-checklist.md';
+
+/** Status padrao quando nao ha veredicto escrito a mao. */
+function statusPadrao(file) {
+  if (!reachable.has(file)) return ['código órfão', 'arquivo não alcançável a partir de `src/main.tsx`'];
+  if (porE2e.has(file)) return ['passa (e2e navegador)', 'clique real no Chromium — `e2e/landing.spec.ts`'];
+  if (porSmoke.has(file)) return [
+    'passa (clique automatizado)',
+    'renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs`',
+  ];
+  return ['não testado', ''];
+}
 
 // ---- veredictos da auditoria ------------------------------------------------
 // docs/audit-status.json e a fonte da verdade dos status. Chaves aceitas:
@@ -99,15 +115,25 @@ let md = `# Checklist de auditoria — botões, links e elementos interativos
 
 ## Legenda de status
 
-| Status | Significado |
+| Status | O que foi feito — e o que isso prova |
 | --- | --- |
-| \`não testado\` | ainda não verificado |
-| \`passa\` | testado, funciona |
-| \`quebrado\` | testado, defeito confirmado |
-| \`corrigido\` | estava quebrado, corrigido e reteste passou |
+| \`passa (e2e navegador)\` | clicado de verdade no Chromium (\`e2e/landing.spec.ts\`) e o destino conferido. É a verificação mais forte daqui. |
+| \`passa (clique automatizado)\` | a tela foi renderizada e **todo botão habilitado foi clicado** em \`src/test/interactive-smoke.test.tsx\` sem lançar; o handler foi resolvido para um símbolo real por \`scripts/audit-handlers.mjs\`; link interno conferido contra as rotas de \`App.tsx\` por \`src/test/routes-integrity.test.ts\`. **Não prova** que a ação chegou ao banco — o Supabase está mockado. |
+| \`passa\` | verificado à mão, com a razão na coluna de observação |
+| \`corrigido\` | estava quebrado, foi corrigido e o reteste passou |
 | \`inerte de propósito\` | não faz nada por decisão de produto (em breve, desabilitado por permissão, desabilitado durante requisição) |
-| \`código órfão\` | está num arquivo que nenhuma rota alcança — não chega ao usuário |
-| \`decisão sua\` | não dá para saber se é bug ou escolha; listado no relatório final |
+| \`código órfão\` | está num arquivo que nenhuma rota alcança — botão quebrado ali não chega ao usuário |
+| \`decisão sua\` | não dá para saber qual é o comportamento certo; listado no relatório final |
+| \`não testado\` | ainda não verificado |
+
+### O que nenhum status aqui cobre
+
+Entrar no dashboard exige sessão real do Supabase, e este projeto não tem
+usuário de teste. Então **nenhum elemento das telas logadas foi clicado num
+navegador de verdade contra o banco de verdade** — o mais perto disso é o
+\`passa (clique automatizado)\`. Diferença de comportamento por cargo
+(superadmin / gerente / gestor / atendente) foi verificada por leitura dos
+guards e pelos testes de cargo que já existiam, não por sessão real de cada um.
 
 ## Rotas reais (fonte da verdade: \`src/App.tsx\`)
 
@@ -130,7 +156,7 @@ md += `- Em arquivos órfãos (código morto): **${orphanCount}**\n\n`;
 const tally = {};
 for (const r of rows) {
   const v = verdictFor(r.file, r.line);
-  const s = v?.status || (!reachable.has(r.file) ? 'código órfão' : 'não testado');
+  const s = v?.status || statusPadrao(r.file)[0];
   tally[s] = (tally[s] || 0) + 1;
 }
 md += `| Status | Elementos |\n| --- | --- |\n`;
@@ -155,8 +181,9 @@ for (const a of areaNames) {
       ? `navegar para \`${esc(r.target)}\``
       : `executar \`${esc(r.target)}\``;
     const v = verdictFor(r.file, r.line);
-    const status = v?.status || (isOrphan ? 'código órfão' : 'não testado');
-    const nota = v?.nota || (isOrphan ? 'arquivo não alcançável a partir de `src/main.tsx`' : '');
+    const [padrao, notaPadrao] = statusPadrao(r.file);
+    const status = v?.status || padrao;
+    const nota = v?.nota || notaPadrao;
     md += `| \`${key}\` | ${KIND_LABEL[r.kind] || r.kind} | ${esc(r.label) || '—'} | ${should} | ${status} | ${esc(nota)} |\n`;
   }
   md += `\n`;

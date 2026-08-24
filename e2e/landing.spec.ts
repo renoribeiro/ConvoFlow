@@ -128,7 +128,7 @@ test.describe('Landing — links externos', () => {
 });
 
 test.describe('Rotas públicas', () => {
-  for (const rota of ['/auth', '/login', '/terms-of-service', '/privacy-policy']) {
+  for (const rota of ['/auth', '/login', '/definir-senha', '/terms-of-service', '/privacy-policy']) {
     test(`${rota} renderiza sem erro de runtime`, async ({ page }) => {
       const erros = coletarErros(page);
       await page.goto(rota);

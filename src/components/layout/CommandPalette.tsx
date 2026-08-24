@@ -32,6 +32,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
+import { DialogTitle } from '@/components/ui/dialog';
 import { useModules } from '@/hooks/useModules';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import {
@@ -172,6 +173,10 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
+      {/* O CommandDialog do shadcn monta um DialogContent sem titulo, e ai o
+          leitor de tela anuncia um dialogo sem nome. Titulo so para leitor de
+          tela — mesmo padrao ja usado no MessageBubble. */}
+      <DialogTitle className="sr-only">Busca rápida</DialogTitle>
       <CommandInput
         placeholder="Buscar páginas, contatos e sessões..."
         value={search}

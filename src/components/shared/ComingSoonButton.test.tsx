@@ -16,16 +16,16 @@ describe('ComingSoonButton', () => {
   });
 
   it('clicar não dispara nada — é esse o ponto', async () => {
-    const usuario = userEvent.setup();
+    // pointerEventsCheck: 0 porque o alvo e justamente um botao desabilitado —
+    // sem isso o user-event recusa o clique antes de chegar no componente.
+    const usuario = userEvent.setup({ pointerEventsCheck: 0 });
     const espiao = vi.fn();
     montar(
       <div onClick={espiao}>
         <ComingSoonButton>Exportar</ComingSoonButton>
       </div>,
     );
-    await usuario.click(screen.getByRole('button', { name: 'Exportar' }), {
-      pointerEventsCheck: 0,
-    });
+    await usuario.click(screen.getByRole('button', { name: 'Exportar' }));
     expect(espiao).not.toHaveBeenCalled();
   });
 

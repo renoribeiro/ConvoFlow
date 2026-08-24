@@ -1,6 +1,5 @@
 {
   "_comentario": "Veredicto de cada elemento auditado. Chave = 'arquivo:linha', 'arquivo' (default do arquivo) ou 'pasta/' (prefixo). Consumido por scripts/audit-checklist.mjs.",
-
   "src/components/landing/": {
     "status": "passa",
     "nota": "coberto por e2e/landing.spec.ts (clique real no Chromium)"
@@ -17,7 +16,6 @@
     "status": "passa",
     "nota": "coberto por e2e/landing.spec.ts"
   },
-
   "src/pages/NotFound.tsx": {
     "status": "passa",
     "nota": "\"Voltar\" e \"Ir para Home\" verificados por clique real no e2e"
@@ -30,7 +28,6 @@
     "status": "passa",
     "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
   },
-
   "src/components/analytics/AdvancedCharts.tsx:230": {
     "status": "corrigido",
     "nota": "\"Exportar\" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua."
@@ -67,7 +64,6 @@
     "status": "corrigido",
     "nota": "ícone MoreHorizontal sem menu atrás; virou ComingSoonButton"
   },
-
   "src/components/automation/BuilderHeader.tsx:95": {
     "status": "inerte de propósito",
     "nota": "\"Testar\" já vinha disabled com tooltip \"Em breve\" — decisão de produto, não defeito"
@@ -84,7 +80,6 @@
     "status": "passa",
     "nota": "coberto por src/components/shared/ComingSoonButton.test.tsx"
   },
-
   "src/components/conversations/ConversationViewToggle.tsx:73": {
     "status": "passa",
     "nota": "falso positivo do extrator: o onClick existe, só aparece depois do ref multilinha"
@@ -93,14 +88,28 @@
     "status": "passa",
     "nota": "falso positivo: está dentro de <DialogTrigger asChild>, o handler vem do Radix"
   },
-
   "src/pages/dashboard/AdminDashboard.tsx:465": {
     "status": "decisão sua",
     "nota": "botão de lupa ao lado do campo \"Buscar usuários...\" não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua."
   },
-
   "src/pages/Dashboard.tsx": {
     "status": "decisão sua",
     "nota": "arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino."
+  },
+  "src/pages/DefinirSenha.tsx": {
+    "status": "passa",
+    "nota": "coberto por src/pages/DefinirSenha.test.tsx (15 testes: reenvio, entrada por código, salvar senha, erros) e pelo render em e2e/landing.spec.ts"
+  },
+  "src/components/layout/CommandPalette.tsx": {
+    "status": "corrigido",
+    "nota": "o CommandDialog do shadcn montava um DialogContent sem DialogTitle: leitor de tela anunciava um diálogo sem nome. Título sr-only acrescentado (mesmo padrão já usado em MessageBubble). Corrigido no consumidor, não em components/ui, porque CLAUDE.md pede não editar shadcn à mão."
+  },
+  "src/components/conversations/ConversationsList.tsx:95": {
+    "status": "corrigido",
+    "nota": "compactTimestamp() chamava format() sem guarda; conversations.last_message_at é nullable no banco (useConversations declara string). Uma linha sem data derrubava a LISTA INTEIRA de conversas com RangeError. Latente: os dois caminhos de insert conhecidos preenchem o campo."
+  },
+  "src/components/tracking/TrafficChart.tsx": {
+    "status": "corrigido",
+    "nota": "mesma classe do anterior: format(new Date(item.date)) sem guarda derrubava a tela de Rastreamento inteira quando um ponto vinha sem data. Ponto inválido agora sai do gráfico."
   }
 }
