@@ -21,7 +21,7 @@ export default function Funnel() {
         helpKey="page:funnel"
         description="Visualize e gerencie o progresso dos seus leads através do funil"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Funil de Vendas' }
         ]}
         actions={

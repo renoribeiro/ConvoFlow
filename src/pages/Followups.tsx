@@ -37,7 +37,7 @@ export default function Followups() {
         helpKey="page:followups"
         description="Gerencie e acompanhe todas as suas tarefas de follow-up com clientes"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Follow-ups' }
         ]}
         actions={

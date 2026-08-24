@@ -74,7 +74,7 @@ export default function Tracking() {
         helpKey="page:tracking"
         description="Configure e monitore suas fontes de tráfego para otimizar a geração de leads"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Rastreamento' }
         ]}
         actions={

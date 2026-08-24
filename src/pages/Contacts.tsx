@@ -140,7 +140,7 @@ export default function Contacts() {
         helpKey="page:contacts"
         description="Gerencie todos os seus leads e contatos em um só lugar"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Contatos' }
         ]}
         actions={
