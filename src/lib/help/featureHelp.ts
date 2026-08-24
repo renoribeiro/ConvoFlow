@@ -567,6 +567,31 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     category: 'tela',
     area: 'Marketing',
   },
+  // Sem moduleName e sem minRole de propósito: a rota /dashboard/templates não
+  // tem ModuleGuard nem RoleGuard. Quem tem sessão alcança a tela, então a
+  // página de Ajuda também tem de oferecer a leitura para todo cargo.
+  'page:templates': {
+    title: 'Templates',
+    whatItDoes:
+      'Mostra os modelos de mensagem que a Meta já aprovou para a sua conta. É a lista do que você pode disparar para quem está fora da janela de 24 horas — sem precisar abrir o Gerenciador da Meta para conferir.',
+    howToConfigure: [
+      'Confira o selo de cada modelo: só o que está "Aprovado" pode ser enviado. Pendente, Rejeitado, Pausado e Desativado aparecem para você saber por que aquele nome não funciona.',
+      'Leia o corpo da mensagem. Os trechos destacados como {{1}} e {{2}} são as variáveis: você preenche cada uma na hora do envio, na ordem em que aparecem.',
+      'Se a sua Loja tiver mais de uma conta do WhatsApp Business, escolha a conta no seletor do topo — os modelos são de cada conta, não de cada número.',
+      'Use "Atualizar" depois de aprovar um modelo na Meta. A lista é buscada na hora, mas fica alguns minutos em memória.',
+    ],
+    example:
+      'O cliente sumiu há três dias. Você abre esta tela, vê que "retorno_orcamento" está Aprovado com duas variáveis, e usa esse modelo na conversa para reabrir o atendimento.',
+    tips: [
+      'Modelos são criados e enviados para aprovação no WhatsApp Manager da Meta, não aqui. Esta tela é consulta: ela não cria, não edita e não exclui.',
+      'Passadas 24 horas desde a última mensagem do cliente, o WhatsApp bloqueia texto livre. Só um modelo aprovado reabre a conversa — é para isso que eles existem.',
+      'O mesmo nome aparece uma vez por idioma. Aqui eles vêm agrupados: o nome aparece uma vez só, com os idiomas dentro.',
+      'Modelos existem apenas na API Oficial (Meta). Número conectado por QR Code não tem modelo — nele vale texto livre dentro da janela de 24 horas.',
+      'Aprovação na Meta não é definitiva: ela pode pausar ou desativar um modelo depois, por qualidade. Por isso esta tela consulta a Meta na hora, em vez de guardar uma cópia que envelhece.',
+    ],
+    category: 'tela',
+    area: 'Marketing',
+  },
   'page:followups': {
     moduleName: 'followups',
     title: 'Follow-ups',

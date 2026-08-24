@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   normalizeRecipients,
   resolveDateRange,
@@ -137,7 +137,28 @@ function makeSender() {
 }
 
 let db: FakeDb;
-beforeEach(() => { db = new FakeDb(); });
+beforeEach(() => {
+  db = new FakeDb();
+
+  // Congela o relógio do sistema em NOW.
+  //
+  // Sem isto o arquivo é uma bomba-relógio, e ela explodiu em
+  // 2026-08-23T00:00:00Z: `runDueSchedules` recebe o `now` injetado e o usa
+  // para vencimento, claim e last_run — mas a JANELA das métricas não vem
+  // desse relógio. Ela nasce em `rangeToSince()` (report-core.ts), que chama
+  // `new Date()` direto. Com `dateRange: '7days'`, a janela ia escorregando
+  // dia a dia até passar das fixtures semeadas em 2026-08-16, e
+  // `messagesTotal` virou 0 sem que nada no código tivesse mudado.
+  //
+  // Fingimos SÓ a Date, não os timers: o executor usa Promise.all e
+  // await de verdade, e fingir microtask/setTimeout travaria os testes.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 // ── 1. Detecção de vencimento ────────────────────────────────────────────────
 
