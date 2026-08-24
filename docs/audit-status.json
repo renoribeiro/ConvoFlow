@@ -4,10 +4,6 @@
     "status": "passa",
     "nota": "coberto por e2e/landing.spec.ts (clique real no Chromium)"
   },
-  "src/components/landing/HeroSection.tsx:53": {
-    "status": "decisão sua",
-    "nota": "\"Ver Demonstração\": sem onClick e sem <Link> em volta — o clique não faz nada. Não existe rota nem vídeo de demonstração no projeto, então inventar um destino seria pior que relatar."
-  },
   "src/components/landing/CTASection.tsx:41": {
     "status": "passa",
     "nota": "/register é rota de compatibilidade e redireciona para /auth (App.tsx:93); verificado no e2e"
@@ -30,7 +26,7 @@
   },
   "src/components/analytics/AdvancedCharts.tsx:230": {
     "status": "corrigido",
-    "nota": "\"Exportar\" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua."
+    "nota": "\"Exportar\" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Implementar a exportação de verdade continua em aberto — o projeto já tem o idioma de CSV pronto em CampaignReportsModal, se você quiser puxar por aí."
   },
   "src/components/analytics/AdvancedCharts.tsx:343": {
     "status": "corrigido",
@@ -88,14 +84,6 @@
     "status": "passa",
     "nota": "falso positivo: está dentro de <DialogTrigger asChild>, o handler vem do Radix"
   },
-  "src/pages/dashboard/AdminDashboard.tsx:465": {
-    "status": "decisão sua",
-    "nota": "botão de lupa ao lado do campo \"Buscar usuários...\" não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua."
-  },
-  "src/pages/Dashboard.tsx": {
-    "status": "decisão sua",
-    "nota": "arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino."
-  },
   "src/pages/DefinirSenha.tsx": {
     "status": "passa",
     "nota": "coberto por src/pages/DefinirSenha.test.tsx (15 testes: reenvio, entrada por código, salvar senha, erros) e pelo render em e2e/landing.spec.ts"
@@ -127,5 +115,25 @@
   "src/components/settings/IntegrationSettings.tsx:321": {
     "status": "inerte de propósito",
     "nota": "\"Conectar\"/\"Configurar\" do catálogo de integrações abre um toast \"Integração em desenvolvimento ... estará disponível em breve\". É um catálogo-vitrine assumido, com resposta honesta ao clique."
-  }
+  },
+  "src/components/landing/HeroSection.tsx:67": {
+    "status": "corrigido",
+    "nota": "\"Ver Demonstração\" não fazia nada. Agora é uma âncora <a href=\"#features\"> — a mesma seção que o rodapé e o menu já apontam — com rolagem suave via scrollIntoView, como a página de Ajuda faz. Nenhuma rota nem vídeo de demonstração foi inventado. Verificado por clique real no Chromium (e2e/landing.spec.ts)."
+  },
+  "src/components/landing/HeroSection.tsx:72": {
+    "status": "passa",
+    "nota": "falso positivo do extrator: o <Button> está dentro do <a href=\"#features\">, então o clique sobe para a âncora"
+  },
+  "_removidos": [
+    {
+      "local": "src/pages/dashboard/AdminDashboard.tsx:465",
+      "oque": "botão de lupa ao lado de \"Buscar usuários...\"",
+      "porque": "não tinha handler e era redundante: a busca já filtra enquanto se digita. Removido a pedido do dono; o import do ícone Search saiu junto e o layout ficou igual (o Input continua sendo o item da esquerda do flex)."
+    },
+    {
+      "local": "src/pages/Dashboard.tsx (arquivo inteiro)",
+      "oque": "página órfã com 6 links quebrados, entre eles /campaigns/new",
+      "porque": "nenhum import apontava para ela — nem rota, nem barril, nem import dinâmico; a rota /dashboard usa pages/Index. Apagada a pedido do dono, junto com Dashboard.test.tsx, que era o único a referenciá-la. Os 4 comportamentos que aquele teste cobria não existem em pages/Index (dashboard diferente, com useDashboardKpis), então nada de código vivo perdeu cobertura."
+    }
+  ]
 }

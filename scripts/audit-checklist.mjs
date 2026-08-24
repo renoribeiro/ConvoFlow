@@ -201,6 +201,18 @@ md += destaque(
   'corrigido',
   'Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.',
 );
+
+// Elemento apagado nao tem mais linha no inventario. Sem esta secao, a decisao
+// de remover sumiria do registro — pareceria que nunca houve problema ali.
+if (Array.isArray(verdicts._removidos) && verdicts._removidos.length) {
+  md += `## Removido nesta auditoria\n\n`;
+  md += `Estes elementos deixaram de existir, então não aparecem mais nas tabelas abaixo.\n\n`;
+  for (const r of verdicts._removidos) {
+    md += `- **\`${esc(r.local)}\`** — ${esc(r.oque)}\n  ${esc(r.porque)}\n`;
+  }
+  md += `\n`;
+}
+
 md += `---\n\n`;
 
 const areaNames = [...grouped.keys()].sort();

@@ -5,6 +5,20 @@ import { ArrowRight, Play, MessageSquare, TrendingUp, Users } from 'lucide-react
 import { Link } from 'react-router-dom';
 
 export const HeroSection = () => {
+  /**
+   * Leva para a seção de Funcionalidades — a mesma âncora `#features` que o
+   * rodapé e o menu já usam. O href fica no <a> para o link continuar sendo um
+   * link de verdade (teclado, abrir em nova aba, colar o endereço); o
+   * preventDefault só entra quando a seção existe, para trocar o salto seco
+   * pela rolagem suave, do mesmo jeito que a página de Ajuda faz.
+   */
+  const rolarParaFuncionalidades = (evento: React.MouseEvent<HTMLAnchorElement>) => {
+    const secao = document.getElementById('features');
+    if (!secao) return;
+    evento.preventDefault();
+    secao.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <section className="pt-20 sm:pt-24 md:pt-28 lg:pt-32">
       <HeroHighlight>
@@ -50,10 +64,16 @@ export const HeroSection = () => {
                 </Button>
               </Link>
               
-              <Button size="xl" variant="outline" className="group w-full sm:w-auto">
-                <Play className="mr-2 h-5 w-5" />
-                Ver Demonstração
-              </Button>
+              <a
+                href="#features"
+                onClick={rolarParaFuncionalidades}
+                className="w-full sm:w-auto"
+              >
+                <Button size="xl" variant="outline" className="group w-full sm:w-auto">
+                  <Play className="mr-2 h-5 w-5" />
+                  Ver Demonstração
+                </Button>
+              </a>
             </motion.div>
 
             {/* Stats */}

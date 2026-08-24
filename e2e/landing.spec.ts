@@ -64,6 +64,18 @@ test.describe('Landing — navegação', () => {
     await expect(page).toHaveURL(/\/auth$/);
   });
 
+  test('hero: "Ver Demonstração" rola até a seção de Funcionalidades', async ({ page }) => {
+    await page.goto('/');
+    const features = page.locator('#features');
+    await expect(features).not.toBeInViewport();
+
+    await page.getByRole('link', { name: /Ver Demonstração/ }).click();
+
+    // Nao troca de rota: e ancora na propria pagina.
+    await expect(page).toHaveURL(/\/(#features)?$/);
+    await expect(features).toBeInViewport();
+  });
+
   test('CTA final: "Começar Agora" cai em /auth via redirect de /register', async ({ page }) => {
     await page.goto('/');
     const links = page.getByRole('link', { name: /Começar Agora/ });

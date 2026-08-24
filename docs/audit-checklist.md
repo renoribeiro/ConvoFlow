@@ -40,41 +40,31 @@ Qualquer outro caminho cai em `NotFound`.
 
 ## Resumo
 
-- Elementos interativos catalogados: **1008**
-- Em arquivos alcançáveis pela aplicação: **781**
-- Em arquivos órfãos (código morto): **227**
+- Elementos interativos catalogados: **1003**
+- Em arquivos alcançáveis pela aplicação: **782**
+- Em arquivos órfãos (código morto): **221**
 
 | Status | Elementos |
 | --- | --- |
 | passa (clique automatizado) | 699 |
 | código órfão | 221 |
-| passa | 53 |
-| corrigido | 14 |
+| passa | 55 |
+| corrigido | 15 |
 | passa (e2e navegador) | 10 |
-| decisão sua | 8 |
 | inerte de propósito | 3 |
-
-## Precisa da sua decisão
-
-Dá para ver que algo está errado, mas não dá para saber qual é o comportamento certo sem você dizer. Não mexi em nenhum destes.
-
-- **`src/components/landing/HeroSection.tsx:53`** — Ver Demonstração
-  "Ver Demonstração": sem onClick e sem <Link> em volta — o clique não faz nada. Não existe rota nem vídeo de demonstração no projeto, então inventar um destino seria pior que relatar.
-- **`src/pages/dashboard/AdminDashboard.tsx:465`** — Novo Usuário
-  botão de lupa ao lado do campo "Buscar usuários..." não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua.
-- **`src/pages/Dashboard.tsx:189`** — Nova Campanha
-  arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino.
 
 ## Corrigido nesta auditoria
 
 Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 
 - **`src/components/analytics/AdvancedCharts.tsx:230`** — Exportar
-  "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua.
+  "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Implementar a exportação de verdade continua em aberto — o projeto já tem o idioma de CSV pronto em CampaignReportsModal, se você quiser puxar por aí.
 - **`src/components/analytics/AdvancedCharts.tsx:343`** — Exportar
   mesmo caso do outro "Exportar" desta tela
 - **`src/components/automation/AutomationAnalytics.tsx:213`** — Exportar
   "Exportar" sem handler; virou ComingSoonButton
+- **`src/components/landing/HeroSection.tsx:67`** — Ver Demonstração
+  "Ver Demonstração" não fazia nada. Agora é uma âncora <a href="#features"> — a mesma seção que o rodapé e o menu já apontam — com rolagem suave via scrollIntoView, como a página de Ajuda faz. Nenhuma rota nem vídeo de demonstração foi inventado. Verificado por clique real no Chromium (e2e/landing.spec.ts).
 - **`src/components/layout/CommandPalette.tsx:166`** — Busca rápida
   o CommandDialog do shadcn montava um DialogContent sem DialogTitle: leitor de tela anunciava um diálogo sem nome. Título sr-only acrescentado (mesmo padrão já usado em MessageBubble). Corrigido no consumidor, não em components/ui, porque CLAUDE.md pede não editar shadcn à mão.
 - **`src/components/reports/DeliveryLog.tsx:288`** — Exportar Histórico
@@ -92,11 +82,20 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 - **`src/components/tracking/TrafficSourceConfig.tsx:256`** — [icone Copy]
   ícone Copy sem handler; virou ComingSoonButton
 
+## Removido nesta auditoria
+
+Estes elementos deixaram de existir, então não aparecem mais nas tabelas abaixo.
+
+- **`src/pages/dashboard/AdminDashboard.tsx:465`** — botão de lupa ao lado de "Buscar usuários..."
+  não tinha handler e era redundante: a busca já filtra enquanto se digita. Removido a pedido do dono; o import do ícone Search saiu junto e o layout ficou igual (o Input continua sendo o item da esquerda do flex).
+- **`src/pages/Dashboard.tsx (arquivo inteiro)`** — página órfã com 6 links quebrados, entre eles /campaigns/new
+  nenhum import apontava para ela — nem rota, nem barril, nem import dinâmico; a rota /dashboard usa pages/Index. Apagada a pedido do dono, junto com Dashboard.test.tsx, que era o único a referenciá-la. Os 4 comportamentos que aquele teste cobria não existem em pages/Index (dashboard diferente, com useDashboardKpis), então nada de código vivo perdeu cobertura.
+
 ---
 
 | Área | Elementos |
 | --- | --- |
-| Administração | 52 |
+| Administração | 51 |
 | Autenticação | 26 |
 | Automação | 37 |
 | Campanhas | 49 |
@@ -105,10 +104,10 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 | Configurações | 97 |
 | Contatos | 25 |
 | Conversas | 77 |
-| Dashboard (início) | 32 |
+| Dashboard (início) | 26 |
 | Follow-ups | 48 |
 | Funil | 31 |
-| Landing (página de vendas) | 34 |
+| Landing (página de vendas) | 36 |
 | Layout / navegação | 38 |
 | Outras telas | 16 |
 | Outros | 51 |
@@ -152,25 +151,24 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 | `src/pages/dashboard/admin/UsersPage.tsx:39` | Botão / handler de clique | Convidar usuário | executar `() => setInviteOpen(true)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/pages/dashboard/admin/UsersPage.tsx:62` | Select / aba / radio | Todas as funções | executar `(v) => setFilters((f) => ({ ...f, role: v === 'all' ? undefined : (v as UserRole) }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/pages/dashboard/admin/UsersPage.tsx:80` | Select / aba / radio | Todos os status | executar `(v) => setFilters((f) => ({ ...f, status: v === 'all' ? undefined : (v as UserStatus), }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:420` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:425` | Select / aba / radio | Visão Geral | executar `setActiveTab` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:465` | ⚠️ Botão sem handler | Novo Usuário | executar `variant="outline" size="icon"` | decisão sua | botão de lupa ao lado do campo "Buscar usuários..." não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua. |
-| `src/pages/dashboard/AdminDashboard.tsx:469` | Botão / handler de clique | Novo Usuário | executar `() => { resetUserForm(); setIsCreateUserOpen(true); }` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:591` | Botão / handler de clique | — | executar `async () => { try { if (!user.tenant_id) { toast.error('Usuário não possui uma Conta associada.'); return; } if (!alvo) { toast.error('Não foi possível identifi` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:658` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:679` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:713` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:866` | Select / aba / radio | Gestor | executar `(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:919` | Select / aba / radio | ( | executar `(value) => setUserForm(prev => ({ ...prev, tenantId: value }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:945` | Interruptor / checkbox | Usuário ativo | executar `(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:951` | Botão / handler de clique | Cancelar | executar `() => setIsCreateUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:956` | Botão / handler de clique | Editar Usuário | executar `handleCreateUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1016` | Select / aba / radio | Gestor | executar `(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1034` | Interruptor / checkbox | Usuário ativo | executar `(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1040` | Botão / handler de clique | Cancelar | executar `() => setIsEditUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1045` | Botão / handler de clique | Excluir Usuário | executar `handleEditUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1067` | Botão / handler de clique | Detalhes do Usuário | executar `handleDeleteUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/dashboard/AdminDashboard.tsx:1128` | Botão / handler de clique | Fechar | executar `() => setIsViewUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:419` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:424` | Select / aba / radio | Visão Geral | executar `setActiveTab` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:467` | Botão / handler de clique | Novo Usuário | executar `() => { resetUserForm(); setIsCreateUserOpen(true); }` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:589` | Botão / handler de clique | — | executar `async () => { try { if (!user.tenant_id) { toast.error('Usuário não possui uma Conta associada.'); return; } if (!alvo) { toast.error('Não foi possível identifi` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:656` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:677` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:711` | Botão / handler de clique | — | executar `() => { setSelectedUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, email: user.email, role: user.role, status: user.is_active ? 'active' : 'in` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:864` | Select / aba / radio | Gestor | executar `(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:917` | Select / aba / radio | ( | executar `(value) => setUserForm(prev => ({ ...prev, tenantId: value }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:943` | Interruptor / checkbox | Usuário ativo | executar `(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:949` | Botão / handler de clique | Cancelar | executar `() => setIsCreateUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:954` | Botão / handler de clique | Editar Usuário | executar `handleCreateUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1014` | Select / aba / radio | Gestor | executar `(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1032` | Interruptor / checkbox | Usuário ativo | executar `(checked) => setUserForm(prev => ({ ...prev, isActive: checked as boolean }))` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1038` | Botão / handler de clique | Cancelar | executar `() => setIsEditUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1043` | Botão / handler de clique | Excluir Usuário | executar `handleEditUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1065` | Botão / handler de clique | Detalhes do Usuário | executar `handleDeleteUser` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
+| `src/pages/dashboard/AdminDashboard.tsx:1126` | Botão / handler de clique | Fechar | executar `() => setIsViewUserOpen(false)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/pages/dashboard/TeamPage.tsx:82` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/pages/dashboard/TeamPage.tsx:108` | Botão / handler de clique | Nova Loja | executar `() => setNovaLojaOpen(true)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/pages/dashboard/TeamPage.tsx:124` | Botão / handler de clique | Convidar | executar `() => setInviteOpen(true)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
@@ -717,12 +715,6 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:43` | Botão / handler de clique | Gerenciar | executar `() => navigate('/dashboard/whatsapp-numbers')` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:64` | Navegação programática | Conectar WhatsApp | navegar para `/dashboard/whatsapp-numbers` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:64` | Botão / handler de clique | Conectar WhatsApp | executar `() => navigate('/dashboard/whatsapp-numbers')` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/pages/Dashboard.tsx:189` | Link interno (`<Link to>`) | Nova Campanha | navegar para `/campaigns/new` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
-| `src/pages/Dashboard.tsx:316` | Link interno (`<Link to>`) | Ver Conversas | navegar para `/conversations` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
-| `src/pages/Dashboard.tsx:322` | Link interno (`<Link to>`) | Gerenciar Contatos | navegar para `/contacts` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
-| `src/pages/Dashboard.tsx:328` | Link interno (`<Link to>`) | Campanhas | navegar para `/campaigns` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
-| `src/pages/Dashboard.tsx:334` | Link interno (`<Link to>`) | Chatbots | navegar para `/chatbots` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
-| `src/pages/Dashboard.tsx:340` | Link interno (`<Link to>`) | Relatórios | navegar para `/reports` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
 
 ## Follow-ups
 
@@ -821,9 +813,11 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 | `src/components/landing/CTASection.tsx:42` | ⚠️ Botão sem handler | Começar Agora | executar `size="xl" variant="secondary" className="bg-white text-brand-dark hover:bg-white/90 group w-full sm:w-auto"` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/CTASection.tsx:52` | Âncora (`<a href>`) | Falar com Especialista | navegar para `https://wa.me/5585991764169?text=Quero%20falar%20do%20ConvoFlow` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/CTASection.tsx:58` | ⚠️ Botão sem handler | Falar com Especialista | executar `size="xl" className="bg-business-dark text-white hover:bg-business-dark/90 w-full sm:w-auto"` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
-| `src/components/landing/HeroSection.tsx:46` | Link interno (`<Link to>`) | Começar Agora | navegar para `/auth` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
-| `src/components/landing/HeroSection.tsx:47` | ⚠️ Botão sem handler | Começar Agora | executar `size="xl" variant="whatsapp" className="group w-full sm:w-auto"` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
-| `src/components/landing/HeroSection.tsx:53` | ⚠️ Botão sem handler | Ver Demonstração | executar `size="xl" variant="outline" className="group w-full sm:w-auto"` | decisão sua | "Ver Demonstração": sem onClick e sem <Link> em volta — o clique não faz nada. Não existe rota nem vídeo de demonstração no projeto, então inventar um destino seria pior que relatar. |
+| `src/components/landing/HeroSection.tsx:60` | Link interno (`<Link to>`) | Começar Agora | navegar para `/auth` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/HeroSection.tsx:61` | ⚠️ Botão sem handler | Começar Agora | executar `size="xl" variant="whatsapp" className="group w-full sm:w-auto"` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/HeroSection.tsx:67` | Âncora (`<a href>`) | Ver Demonstração | navegar para `#features` | corrigido | "Ver Demonstração" não fazia nada. Agora é uma âncora <a href="#features"> — a mesma seção que o rodapé e o menu já apontam — com rolagem suave via scrollIntoView, como a página de Ajuda faz. Nenhuma rota nem vídeo de demonstração foi inventado. Verificado por clique real no Chromium (e2e/landing.spec.ts). |
+| `src/components/landing/HeroSection.tsx:69` | Botão / handler de clique | Ver Demonstração | executar `rolarParaFuncionalidades` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/HeroSection.tsx:72` | ⚠️ Botão sem handler | Ver Demonstração | executar `size="xl" variant="outline" className="group w-full sm:w-auto"` | passa | falso positivo do extrator: o <Button> está dentro do <a href="#features">, então o clique sobe para a âncora |
 | `src/components/landing/LandingFooter.tsx:36` | Âncora (`<a href>`) | Funcionalidades | navegar para `#features` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingFooter.tsx:37` | Âncora (`<a href>`) | Preços | navegar para `#pricing` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingFooter.tsx:45` | Link interno (`<Link to>`) | Entrar | navegar para `/login` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
@@ -1039,7 +1033,7 @@ Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
 | --- | --- | --- | --- | --- | --- |
 | `src/components/analytics/AdvancedCharts.tsx:217` | Botão / handler de clique | Atualizar | executar `refresh` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/components/analytics/AdvancedCharts.tsx:226` | Botão / handler de clique | Exportar | executar `() => setIsFullscreen(!isFullscreen)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
-| `src/components/analytics/AdvancedCharts.tsx:230` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua. |
+| `src/components/analytics/AdvancedCharts.tsx:230` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Implementar a exportação de verdade continua em aberto — o projeto já tem o idioma de CSV pronto em CampaignReportsModal, se você quiser puxar por aí. |
 | `src/components/analytics/AdvancedCharts.tsx:320` | Select / aba / radio | Leads | executar `(value: any) => setSelectedMetric(value)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/components/analytics/AdvancedCharts.tsx:332` | Select / aba / radio | Linha | executar `(value: any) => setChartType(value)` | passa (clique automatizado) | renderizado e clicado em `src/test/interactive-smoke.test.tsx`; handler resolvido por `scripts/audit-handlers.mjs` |
 | `src/components/analytics/AdvancedCharts.tsx:343` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | mesmo caso do outro "Exportar" desta tela |
