@@ -165,6 +165,40 @@ for (const [s, n] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
 }
 md += `\n`;
 
+// ---- destaques: o que foi corrigido e o que depende de decisao -------------
+// Um item por veredicto (a mesma nota pode valer para varios elementos).
+function destaque(titulo, alvo, intro) {
+  const vistos = new Set();
+  const itens = [];
+  for (const r of rows) {
+    const v = verdictFor(r.file, r.line);
+    if (v?.status !== alvo) continue;
+    const chave = v.nota || r.file;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    itens.push({ local: `${r.file}:${r.line}`, rotulo: r.label, nota: v.nota || '' });
+  }
+  if (!itens.length) return '';
+  let bloco = `## ${titulo}\n\n${intro}\n\n`;
+  for (const i of itens) {
+    const rotulo = i.rotulo ? ` — ${esc(i.rotulo)}` : '';
+    bloco += `- **\`${i.local}\`**${rotulo}\n  ${esc(i.nota)}\n`;
+  }
+  return `${bloco}\n`;
+}
+
+md += destaque(
+  'Precisa da sua decisão',
+  'decisão sua',
+  'Dá para ver que algo está errado, mas não dá para saber qual é o comportamento certo sem você dizer. Não mexi em nenhum destes.',
+);
+md += destaque(
+  'Corrigido nesta auditoria',
+  'corrigido',
+  'Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.',
+);
+md += `---\n\n`;
+
 const areaNames = [...grouped.keys()].sort();
 md += `| Área | Elementos |\n| --- | --- |\n`;
 for (const a of areaNames) md += `| ${a} | ${grouped.get(a).length} |\n`;

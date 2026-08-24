@@ -50,6 +50,46 @@ Qualquer outro caminho cai em `NotFound`.
 | decisão sua | 8 |
 | inerte de propósito | 3 |
 
+## Precisa da sua decisão
+
+Dá para ver que algo está errado, mas não dá para saber qual é o comportamento certo sem você dizer. Não mexi em nenhum destes.
+
+- **`src/components/landing/HeroSection.tsx:53`** — Ver Demonstração
+  "Ver Demonstração": sem onClick e sem <Link> em volta — o clique não faz nada. Não existe rota nem vídeo de demonstração no projeto, então inventar um destino seria pior que relatar.
+- **`src/pages/dashboard/AdminDashboard.tsx:465`** — Novo Usuário
+  botão de lupa ao lado do campo "Buscar usuários..." não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua.
+- **`src/pages/Dashboard.tsx:189`** — Nova Campanha
+  arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino.
+
+## Corrigido nesta auditoria
+
+Cada um estava quebrado de verdade, foi corrigido, e o reteste passou.
+
+- **`src/components/analytics/AdvancedCharts.tsx:230`** — Exportar
+  "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua.
+- **`src/components/analytics/AdvancedCharts.tsx:343`** — Exportar
+  mesmo caso do outro "Exportar" desta tela
+- **`src/components/automation/AutomationAnalytics.tsx:213`** — Exportar
+  "Exportar" sem handler; virou ComingSoonButton
+- **`src/components/layout/CommandPalette.tsx:166`** — Busca rápida
+  o CommandDialog do shadcn montava um DialogContent sem DialogTitle: leitor de tela anunciava um diálogo sem nome. Título sr-only acrescentado (mesmo padrão já usado em MessageBubble). Corrigido no consumidor, não em components/ui, porque CLAUDE.md pede não editar shadcn à mão.
+- **`src/components/reports/DeliveryLog.tsx:288`** — Exportar Histórico
+  "Exportar Histórico" sem handler; virou ComingSoonButton
+- **`src/components/reports/ReportBuilder.tsx:299`** — Visualizar Preview
+  "Visualizar Preview" sem handler; virou ComingSoonButton
+- **`src/components/reports/ReportTemplates.tsx:298`** — [icone Download]
+  ícone Download sem handler; virou ComingSoonButton
+- **`src/components/reports/ScheduleList.tsx:366`** — Nenhum agendamento encontrado
+  ícone MoreHorizontal sem menu atrás; virou ComingSoonButton
+- **`src/components/settings/IntegrationSettings.tsx:372`** — Ver Documentação da API
+  "Ver Documentação da API" abria https://docs.convoflow.com/api numa aba nova — o domínio não resolve (DNS falha), então o usuário via página de erro. Virou ComingSoonButton. Guardado por src/test/routes-integrity.test.ts.
+- **`src/components/settings/IntegrationSettings.tsx:562`** — Ver Documentação
+  "Ver Documentação" (webhooks) tinha o mesmo destino morto; mesma correção.
+- **`src/components/tracking/TrafficSourceConfig.tsx:256`** — [icone Copy]
+  ícone Copy sem handler; virou ComingSoonButton
+
+---
+
 | Área | Elementos |
 | --- | --- |
 | Administração | 52 |
