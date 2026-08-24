@@ -242,6 +242,22 @@ BEGIN
   -- ON DELETE SET NULL: a resposta pertence à Loja, não à pessoa. Apagar um
   -- perfil não pode levar junto a biblioteca do time — e o nome gravado em
   -- created_by_name continua aparecendo depois que a FK vira NULL.
+  -- O RENAME da tabela NÃO renomeia as constraints: sem isto a PK e a FK de
+  -- tenant continuam se chamando message_templates_*, o que confunde quem for
+  -- ler o schema e quebra qualquer embed do PostgREST que cite a FK pelo nome.
+  IF EXISTS (SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'public.quick_replies'::regclass
+                AND conname  = 'message_templates_pkey') THEN
+    ALTER TABLE public.quick_replies RENAME CONSTRAINT message_templates_pkey TO quick_replies_pkey;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'public.quick_replies'::regclass
+                AND conname  = 'message_templates_tenant_id_fkey') THEN
+    ALTER TABLE public.quick_replies
+      RENAME CONSTRAINT message_templates_tenant_id_fkey TO quick_replies_tenant_id_fkey;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
      WHERE conrelid = 'public.quick_replies'::regclass
