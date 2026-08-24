@@ -81,6 +81,8 @@ import { LeadTagsDialog } from '@/components/etiquetas/LeadTagsDialog';
 import { ContactPanel } from './ContactPanel';
 import { ChatSearchBar } from './ChatSearchBar';
 import { QuickRepliesPopover } from './QuickRepliesPopover';
+import { SaveQuickReplyDialog } from './SaveQuickReplyDialog';
+import { shouldOpenQuickReplies } from './quickReplyContext';
 import { AudioRecorder } from './AudioRecorder';
 import { SendTemplateDialog } from './SendTemplateDialog';
 
@@ -149,6 +151,10 @@ export const ChatWindow = ({
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  // Salvar uma mensagem já enviada como resposta rápida. O texto fica em estado
+  // próprio: o diálogo é montado uma vez e reaproveitado a cada mensagem.
+  const [saveQuickReplyOpen, setSaveQuickReplyOpen] = useState(false);
+  const [quickReplyDraft, setQuickReplyDraft] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
@@ -706,7 +712,7 @@ export const ChatWindow = ({
   // Indicador de digitação (best-effort, throttled a 3s)
   const handleTypingChange = (val: string) => {
     // Typing "/" into an empty composer opens the quick replies popover.
-    if (val === '/' && message === '') {
+    if (shouldOpenQuickReplies(val, message)) {
       setQuickRepliesOpen(true);
       return;
     }
@@ -729,12 +735,19 @@ export const ChatWindow = ({
     handleSendMessage();
   };
 
+  // `content` já chega com as variáveis trocadas (a troca acontece no popover,
+  // que é quem tem o contato). Preenche o campo e devolve o foco — nunca envia.
   const handleQuickReplySelect = (content: string) => {
     setMessage((prev) => (prev ? `${prev} ${content}` : content));
     requestAnimationFrame(() => {
       autoGrow();
       textareaRef.current?.focus();
     });
+  };
+
+  const handleSaveAsQuickReply = (content: string) => {
+    setQuickReplyDraft(content);
+    setSaveQuickReplyOpen(true);
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -1039,6 +1052,7 @@ export const ChatWindow = ({
                     onReply={setReplyTo}
                     searchTerm={searchOpen ? searchTerm : undefined}
                     isActiveMatch={activeMatchId === msg.id}
+                    onSaveAsQuickReply={handleSaveAsQuickReply}
                   />
                 </div>
               ))
@@ -1132,6 +1146,7 @@ export const ChatWindow = ({
                   open={quickRepliesOpen}
                   onOpenChange={setQuickRepliesOpen}
                   onSelect={handleQuickReplySelect}
+                  contact={contact}
                   disabled={isSending}
                 />
 
@@ -1259,6 +1274,12 @@ export const ChatWindow = ({
           onSent={handleTemplateSent}
         />
       )}
+
+      <SaveQuickReplyDialog
+        open={saveQuickReplyOpen}
+        onOpenChange={setSaveQuickReplyOpen}
+        initialContent={quickReplyDraft}
+      />
 
       <Dialog open={isEndSessionOpen} onOpenChange={setIsEndSessionOpen}>
         <DialogContent className="sm:max-w-[425px]">

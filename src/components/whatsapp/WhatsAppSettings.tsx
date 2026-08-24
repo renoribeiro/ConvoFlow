@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { InstanceManager } from './InstanceManager';
 import { WebhookConfig } from './WebhookConfig';
-import { MessageTemplates } from './MessageTemplates';
 import { SetupWizard } from './SetupWizard';
 import { WhatsAppApiSettings } from './WhatsAppApiSettings';
 
@@ -172,11 +171,20 @@ export const WhatsAppSettings: React.FC = () => {
 
       {/* Configurações detalhadas */}
       <Tabs defaultValue="instances" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        {/*
+          A aba "Templates" saiu em 2026-08-24. Ela renderizava um componente de
+          maquete: array fixo no código, botão "Salvar Template" sem onClick,
+          Editar e Excluir inertes. Tela alcançável onde salvar não salva é pior
+          que tela nenhuma.
+
+          Onde cada coisa mora agora:
+            - respostas rápidas -> Configurações › Respostas rápidas
+            - templates aprovados na Meta -> /dashboard/templates
+        */}
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="evolution">Evolution API</TabsTrigger>
           <TabsTrigger value="instances">Instâncias</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="evolution">
@@ -193,9 +201,6 @@ export const WhatsAppSettings: React.FC = () => {
           <WebhookConfig />
         </TabsContent>
 
-        <TabsContent value="templates">
-          <MessageTemplates />
-        </TabsContent>
       </Tabs>
 
       {/* Setup Wizard Modal */}

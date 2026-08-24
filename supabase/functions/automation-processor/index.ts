@@ -44,7 +44,14 @@ interface AutomationExecution {
 
 interface StepConfig {
   type?: string;
-  message_template_id?: string;
+  /**
+   * Resposta rápida escolhida na etapa (tabela `quick_replies`).
+   *
+   * Chamava-se `message_template_id` até 2026-08-24 e não há fluxo salvo com o
+   * nome antigo: o seletor que gravava esse campo era alimentado por uma tabela
+   * cuja policy negava tudo, então a lista de opções nunca teve um item.
+   */
+  quick_reply_id?: string;
   custom_message?: string;
   stage_id?: string;
   delay_hours?: number;
@@ -716,31 +723,9 @@ async function scheduleSendMessage(
   logger: any
 ): Promise<boolean> {
   try {
-    // 1. Resolver o conteúdo: template aprovado ou mensagem personalizada.
-    let messageContent = '';
-    if (stepConfig.message_template_id) {
-      const { data: template } = await supabaseClient
-        .from('message_templates')
-        .select('content')
-        .eq('id', stepConfig.message_template_id)
-        .maybeSingle();
-      if (template) {
-        messageContent = template.content;
-      }
-    } else if (stepConfig.custom_message) {
-      messageContent = stepConfig.custom_message;
-    }
-
-    if (!messageContent) {
-      logger.error('send_message: nenhum conteúdo de mensagem encontrado', { contactId });
-      return false;
-    }
-
-    // 1b. Interpolar {variavel} no conteúdo (nome, telefone, custom_fields, etc).
-    messageContent = substituteVariables(messageContent, varCtx);
-
-    // 2. Resolver o contato → tenant, telefone e instância associada.
-    //    service_role ignora RLS; precisamos do tenant_id explícito para o job.
+    // 1. Resolver o contato → tenant, telefone e instância associada.
+    //    service_role ignora RLS; precisamos do tenant_id explícito para o job
+    //    E para recortar a resposta rápida por Conta no passo 2.
     const { data: contact, error: contactErr } = await supabaseClient
       .from('contacts')
       .select('tenant_id, phone, whatsapp_instance_id')
@@ -758,6 +743,42 @@ async function scheduleSendMessage(
       logger.error('send_message: contato sem instância de WhatsApp associada', { contactId });
       return false;
     }
+
+    // 2. Resolver o conteúdo: resposta rápida da Loja ou mensagem personalizada.
+    //
+    //    O `.eq('tenant_id', ...)` NÃO é decorativo. Esta função roda com service
+    //    key, que ignora RLS: sem ele, um fluxo que carregasse o id de uma
+    //    resposta de OUTRA Conta mandaria o texto dela para este contato. O id
+    //    vem de `automation_flows.steps`, que é JSONB gravado pelo cliente — não
+    //    é valor em que dê para confiar sozinho.
+    let messageContent = '';
+    if (stepConfig.quick_reply_id) {
+      const { data: quickReply } = await supabaseClient
+        .from('quick_replies')
+        .select('content')
+        .eq('id', stepConfig.quick_reply_id)
+        .eq('tenant_id', contact.tenant_id)
+        .maybeSingle();
+      if (quickReply) {
+        messageContent = quickReply.content;
+      } else {
+        logger.error('send_message: resposta rápida não encontrada nesta Conta', {
+          contactId,
+          quickReplyId: stepConfig.quick_reply_id,
+          tenantId: contact.tenant_id,
+        });
+      }
+    } else if (stepConfig.custom_message) {
+      messageContent = stepConfig.custom_message;
+    }
+
+    if (!messageContent) {
+      logger.error('send_message: nenhum conteúdo de mensagem encontrado', { contactId });
+      return false;
+    }
+
+    // 2b. Interpolar {variavel} no conteúdo (nome, telefone, custom_fields, etc).
+    messageContent = substituteVariables(messageContent, varCtx);
 
     // 3. Resolver a instância → instance_key (o job-worker busca por instance_key, não por UUID).
     const { data: instance, error: instErr } = await supabaseClient

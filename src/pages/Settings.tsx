@@ -9,9 +9,11 @@ import {
   CreditCard,
   Headset,
   CalendarClock,
+  Zap,
 } from 'lucide-react';
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
 import { FollowupSettings } from '@/components/settings/FollowupSettings';
+import { QuickRepliesSettings } from '@/components/settings/QuickRepliesSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
@@ -29,6 +31,7 @@ import { useSearchParams } from 'react-router-dom';
  */
 const TAB_HELP_KEYS: Record<string, string> = {
   attendance: 'page:settings-attendance',
+  'quick-replies': 'page:settings-quick-replies',
   followups: 'page:settings-followups',
   subscription: 'page:settings-subscription',
   notifications: 'page:settings-notifications',
@@ -68,6 +71,15 @@ interface AbaConfig {
 const ABAS: AbaConfig[] = [
   { value: 'profile', label: 'Perfil', icon: User, render: () => <ProfileSettings /> },
   { value: 'attendance', label: 'Atendimento', icon: Headset, render: () => <AttendanceSettings /> },
+  // Sem `requer` — e aqui não é só leitura para o atendente, é edição mesmo.
+  // Quem atende o dia inteiro é quem sabe qual trecho está faltando, e o RLS
+  // de `quick_replies` reflete isso: compara a Conta e nada mais.
+  {
+    value: 'quick-replies',
+    label: 'Respostas rápidas',
+    icon: Zap,
+    render: () => <QuickRepliesSettings />,
+  },
   // Sem `requer`, pelo mesmo motivo de ATENDIMENTO: o painel já mostra os
   // valores em modo leitura para quem não tem `store.admin`, e saber o que a
   // Loja cancela sozinho muda como o atendente planeja o proprio follow-up.

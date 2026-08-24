@@ -52,7 +52,29 @@ CREATE POLICY message_templates_tenant_policy ON message_templates
   FOR ALL
   USING (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
 
--- Inserir alguns templates padrão
+-- =============================================================================
+-- SEMENTE SUPERADA — não use como referência. Ver 20260824000001.
+-- =============================================================================
+-- Este bloco está mantido INTACTO de propósito: mexer nele faria o arquivo
+-- deixar de descrever o que já rodou na máquina de quem aplicou a migração.
+-- Ele continua aqui como registro histórico, e a migração
+-- 20260824000001_quick_replies_from_message_templates.sql apaga estas 3 linhas
+-- pela assinatura (created_by = 'Sistema' + os três nomes abaixo). Assim
+-- produção e um ambiente reconstruído do zero terminam no mesmo estado: vazio.
+--
+-- Três defeitos, para quem for copiar este padrão:
+--
+--   1. `(SELECT id FROM tenants LIMIT 1)` joga os exemplos numa Conta
+--      ARBITRÁRIA. Nunca semeie dado de Conta assim.
+--   2. Se `tenants` estiver vazia quando isto rodar, o subselect devolve NULL,
+--      bate no NOT NULL de tenant_id e a migração falha. Foi o que aconteceu em
+--      produção — a tabela e a policy entraram, o INSERT não (n_tup_ins = 0).
+--      Se um `db reset` local quebrar aqui, é esta linha.
+--   3. O conteúdo usa `{{nome}}`, chave DUPLA. O interpolador do projeto
+--      (substituteVariables) só entende chave simples `{nome}`: em `{{nome}}`
+--      ele casa o miolo e devolve `Olá {Camila}!`, com as chaves sobrando.
+--      A sintaxe correta em todo o sistema é `{variavel}`.
+-- =============================================================================
 INSERT INTO message_templates (tenant_id, name, description, content, category, type, channel, variables, quick_replies, status, is_favorite, created_by, tags) VALUES
 -- Template de boas-vindas
 ((SELECT id FROM tenants LIMIT 1), 'Boas-vindas Padrão', 'Mensagem de boas-vindas para novos clientes', 'Olá {{nome}}! 👋\n\nSeja bem-vindo(a) à {{empresa}}! Estamos muito felizes em tê-lo(a) conosco.\n\nComo posso ajudá-lo(a) hoje?', 'boas-vindas', 'text', 'whatsapp', '[{"name": "nome", "type": "text", "required": true, "description": "Nome do cliente"}, {"name": "empresa", "type": "text", "required": true, "default_value": "Nossa Empresa", "description": "Nome da empresa"}]'::jsonb, '["Quero fazer um pedido", "Preciso de suporte", "Ver catálogo"]'::jsonb, 'active', true, 'Sistema', '["boas-vindas", "automático", "padrão"]'::jsonb),

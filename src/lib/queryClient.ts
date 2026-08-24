@@ -27,6 +27,13 @@ export const QUERY_KEYS = {
     AUTOMATIONS: 'automations',
     FOLLOWUPS: 'followups',
     FOLLOWUP_SEQUENCES: 'followup-sequences',
+    /**
+     * Respostas rápidas da Loja (tabela `quick_replies`). Cai na faixa
+     * semiStatic (5 min) de propósito: é uma biblioteca que muda pouco. Quem
+     * garante que uma resposta recém-salva aparece na hora no compositor é a
+     * invalidação em `useQuickReplies`, não o TTL.
+     */
+    QUICK_REPLIES: 'quick-replies',
 
     // Static data - rarely changes
     TENANT: 'tenant',

@@ -106,7 +106,7 @@ export type FieldType =
   | 'textarea_with_vars'
   | 'variable';
 
-export type OptionsSource = 'funnelStages' | 'messageTemplates';
+export type OptionsSource = 'funnelStages' | 'quickReplies';
 
 export interface CatalogField {
   key: string;
@@ -228,11 +228,11 @@ export const ACTIONS: CatalogEntry[] = [
     key: 'send_message',
     category: 'action',
     label: 'Enviar Mensagem',
-    description: 'Envia uma mensagem via WhatsApp (template aprovado ou texto personalizado).',
+    description: 'Envia uma mensagem via WhatsApp: uma resposta rápida da Loja ou um texto escrito aqui.',
     Icon: MessageCircle,
     helpKey: 'action:send_message',
     fields: [
-      { key: 'message_template_id', type: 'select', label: 'Template', optionsSource: 'messageTemplates', help: 'Use um template aprovado (obrigatório fora da janela de 24h).' },
+      { key: 'quick_reply_id', type: 'select', label: 'Resposta rápida', optionsSource: 'quickReplies', help: 'Reaproveita um trecho salvo da Loja. Crie e edite em Configurações › Respostas rápidas.' },
       { key: 'custom_message', type: 'textarea_with_vars', label: 'Mensagem personalizada', help: 'Use {variavel} para personalizar, ex.: Olá {first_name}.' },
     ],
   },

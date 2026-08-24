@@ -2651,86 +2651,6 @@ export type Database = {
           },
         ]
       }
-      message_templates: {
-        Row: {
-          buttons: Json | null
-          category: string | null
-          channel: string | null
-          content: string
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          folder_id: string | null
-          id: string
-          is_favorite: boolean | null
-          media: Json | null
-          name: string
-          quick_replies: Json | null
-          status: string | null
-          success_rate: number | null
-          tags: Json | null
-          tenant_id: string
-          type: string | null
-          updated_at: string | null
-          usage_count: number | null
-          variables: Json | null
-        }
-        Insert: {
-          buttons?: Json | null
-          category?: string | null
-          channel?: string | null
-          content: string
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          is_favorite?: boolean | null
-          media?: Json | null
-          name: string
-          quick_replies?: Json | null
-          status?: string | null
-          success_rate?: number | null
-          tags?: Json | null
-          tenant_id: string
-          type?: string | null
-          updated_at?: string | null
-          usage_count?: number | null
-          variables?: Json | null
-        }
-        Update: {
-          buttons?: Json | null
-          category?: string | null
-          channel?: string | null
-          content?: string
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          is_favorite?: boolean | null
-          media?: Json | null
-          name?: string
-          quick_replies?: Json | null
-          status?: string | null
-          success_rate?: number | null
-          tags?: Json | null
-          tenant_id?: string
-          type?: string | null
-          updated_at?: string | null
-          usage_count?: number | null
-          variables?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "message_templates_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       messages: {
         Row: {
           ad_referral: Json | null
@@ -3094,6 +3014,67 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "admin_users_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quick_replies: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_replies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quick_replies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quick_replies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

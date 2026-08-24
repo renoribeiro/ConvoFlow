@@ -268,12 +268,19 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   // -------------------------------------------------------- Automações: ações
   'action:send_message': {
     title: 'Ação: Enviar Mensagem',
-    whatItDoes: 'Envia uma mensagem via WhatsApp para o contato.',
+    whatItDoes:
+      'Envia uma mensagem de WhatsApp para o contato: ou uma resposta rápida da Loja, ou um texto escrito na própria etapa.',
     howToConfigure: [
-      'Escolha um template aprovado ou escreva uma mensagem personalizada.',
+      'Escolha uma resposta rápida da Loja — as mesmas que o atendente usa no botão de raio da conversa.',
+      'Ou deixe o campo em branco e escreva a mensagem personalizada logo abaixo.',
       'Use {variavel} para personalizar (ex.: "Olá {first_name}").',
     ],
-    example: '"Recebemos seus dados, {nome}! Em breve entramos em contato."',
+    example: '"Recebemos seus dados, {first_name}! Em breve entramos em contato."',
+    tips: [
+      'Preencher os dois campos não soma: a resposta rápida vence e a mensagem personalizada é ignorada.',
+      'Editar a resposta rápida em Configurações muda o que esta automação envia da próxima vez — a etapa guarda a referência, não uma cópia do texto.',
+      'Isto NÃO é o template aprovado na Meta. Para falar com quem está fora da janela de 24 horas em número oficial, o caminho é o template aprovado, na tela Templates.',
+    ],
     category: 'automacao',
     area: 'Ações',
   },
@@ -403,6 +410,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     howToConfigure: [
       'Escolha uma conversa na lista da esquerda para abrir o histórico à direita.',
       'Use a busca por nome ou número em vez de rolar a lista inteira.',
+      'Para reaproveitar um trecho pronto, clique no raio ao lado do campo de mensagem — ou digite "/" com o campo vazio, que abre a mesma lista.',
+      'Para guardar um trecho que você acabou de escrever, passe o mouse sobre a mensagem enviada e clique no raio que aparece nela.',
       'Ative a sinalização de conversas não respondidas em Configurações › Atendimento para que os atrasos apareçam marcados aqui.',
       'Se um chatbot estiver conduzindo a conversa, encerre a sessão dele antes de assumir — assim vocês não respondem o cliente ao mesmo tempo.',
     ],
@@ -412,6 +421,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'O agrupamento por nível de atendimento é opcional e só classifica as conversas já carregadas na tela — role a lista para incluir as mais antigas.',
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
       'Conversas é privada por Loja: mesmo o Superadmin não enxerga as conversas de uma Conta sem entrar nela pelo seletor do topo.',
+      'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar — dá para ajustar antes.',
     ],
     category: 'tela',
     area: 'Operação',
@@ -709,6 +719,29 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A configuração vale para a Loja inteira, não só para você.',
       'Vem desligada por escolha: ligue quando o time já souber que o aviso vai aparecer, para não parecer cobrança de surpresa.',
       'Dá para silenciar o aviso de uma conversa específica quando a demora é justificada.',
+    ],
+    category: 'tela',
+    area: 'Configuração',
+  },
+  'page:settings-quick-replies': {
+    title: 'Configurações › Respostas rápidas',
+    whatItDoes:
+      'Guarda os trechos que o time repete o dia inteiro — saudação, horário de funcionamento, dados para pagamento — para o atendente inserir com dois cliques em vez de redigitar. A biblioteca é da Loja: qualquer cargo cria, edita e apaga.',
+    howToConfigure: [
+      'Clique em "Nova resposta" e dê um nome curto — é por ele que você encontra o trecho na busca.',
+      'Escreva a mensagem e troque o que muda de pessoa para pessoa por {first_name}, {name}, {phone} ou {date}.',
+      'Abra uma conversa e teste: clique no raio ao lado do campo de mensagem, ou digite "/" com o campo vazio.',
+      'Para transformar algo que você acabou de mandar em resposta rápida, passe o mouse sobre a mensagem enviada e clique no raio dela.',
+    ],
+    example:
+      '"Horário" com o texto "Olá {first_name}! Atendemos de segunda a sexta, das 9h às 18h." Na conversa com a Camila, o campo já aparece escrito "Olá Camila!" — e você ainda pode ajustar antes de enviar.',
+    tips: [
+      'A escrita de variável é a mesma do chatbot e das automações: chave simples, {first_name}. O que o sistema não reconhecer fica na mensagem do jeito que você escreveu.',
+      'A lista mostra quem criou e quem editou por último. Como todo cargo pode mexer, é assim que o time sabe a quem perguntar antes de mudar um texto.',
+      'Apagar pede confirmação e vale para a Loja inteira — não dá para desfazer.',
+      'Dois trechos não podem ter o mesmo nome na mesma Loja: numa lista onde se escolhe pelo nome, o repetido só atrapalha.',
+      'As automações também usam esta lista: a ação "Enviar Mensagem" escolhe uma resposta rápida daqui.',
+      'Não confunda com a tela Templates, que mostra os modelos aprovados na Meta. Aquilo é exigência da Meta para falar fora da janela de 24 horas; isto aqui é só atalho de digitação e vale para qualquer conversa aberta.',
     ],
     category: 'tela',
     area: 'Configuração',

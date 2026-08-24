@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -10,37 +12,56 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-export interface QuickReply {
-  id: string;
-  title: string;
-  content: string;
-}
-
-/**
- * Static quick replies. A `quick_replies` table (per-tenant, customizable) should
- * replace this constant once it exists in Supabase — see the upgrade report.
- */
-export const QUICK_REPLIES: QuickReply[] = [
-  { id: '1', title: 'Saudação', content: 'Olá! Tudo bem? Como posso te ajudar?' },
-  { id: '2', title: 'Agradecimento', content: 'Muito obrigado pelo contato! Vou verificar e te retorno em breve.' },
-  { id: '3', title: 'Ausência', content: 'No momento estou indisponível, mas retorno assim que possível.' },
-  { id: '4', title: 'Confirmação', content: 'Perfeito, confirmado! Qualquer dúvida é só chamar.' },
-  { id: '5', title: 'Encerramento', content: 'Obrigado pela preferência! Se precisar de algo mais, estou à disposição.' },
-];
+import { Skeleton } from '@/components/ui/skeleton';
+import { substituteVariables } from '@/lib/chatbot/flowEngine';
+import { useQuickReplies } from '@/hooks/useQuickReplies';
+import { buildQuickReplyContext, type QuickReplyContact } from './quickReplyContext';
 
 interface QuickRepliesPopoverProps {
-  /** Called with the selected reply content. Fills the textarea — does NOT auto-send. */
+  /** Recebe o conteúdo JÁ com as variáveis trocadas. Preenche o campo — NÃO envia. */
   onSelect: (content: string) => void;
-  /** Controlled open state (parent opens it when the user types "/" in an empty textarea). */
+  /** Estado controlado (o pai abre quando o usuário digita "/" no campo vazio). */
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Contato da conversa aberta, para resolver {first_name} e companhia. */
+  contact?: QuickReplyContact | null;
   disabled?: boolean;
 }
 
-export function QuickRepliesPopover({ onSelect, open, onOpenChange, disabled }: QuickRepliesPopoverProps) {
-  const handleSelect = (reply: QuickReply) => {
-    onSelect(reply.content);
+/**
+ * Paleta de respostas rápidas do compositor.
+ *
+ * As respostas vêm da tabela `quick_replies` da Loja. Até 2026-08-24 eram cinco
+ * constantes no código — o comentário que pedia esta tabela estava neste
+ * arquivo desde então.
+ *
+ * As variáveis são trocadas na INSERÇÃO, e a lista já mostra o texto resolvido:
+ * o atendente lê "Olá Camila, tudo bem?" e escolhe, em vez de escolher
+ * "Olá {first_name}" e ter que arrumar o token na mão. É o motivo de a
+ * biblioteca morar dentro da conversa e não só numa tela de configuração.
+ */
+export function QuickRepliesPopover({
+  onSelect,
+  open,
+  onOpenChange,
+  contact,
+  disabled,
+}: QuickRepliesPopoverProps) {
+  const { quickReplies, isLoading } = useQuickReplies();
+
+  // Um contexto por abertura basta: {date}/{time} não precisam de precisão de
+  // segundo, e recalcular a cada tecla da busca só geraria lixo.
+  const resolvidas = useMemo(() => {
+    const ctx = buildQuickReplyContext(contact);
+    return quickReplies.map((r) => ({
+      id: r.id,
+      title: r.name,
+      content: substituteVariables(r.content, ctx),
+    }));
+  }, [quickReplies, contact]);
+
+  const handleSelect = (content: string) => {
+    onSelect(content);
     onOpenChange(false);
   };
 
@@ -65,26 +86,53 @@ export function QuickRepliesPopover({ onSelect, open, onOpenChange, disabled }: 
         </TooltipContent>
       </Tooltip>
 
-      <PopoverContent align="start" side="top" className="w-72 p-0">
-        <Command>
-          <CommandInput placeholder="Buscar resposta rápida..." />
-          <CommandList>
-            <CommandEmpty>Nenhuma resposta encontrada.</CommandEmpty>
-            <CommandGroup heading="Respostas rápidas">
-              {QUICK_REPLIES.map((reply) => (
-                <CommandItem
-                  key={reply.id}
-                  value={`${reply.title} ${reply.content}`}
-                  onSelect={() => handleSelect(reply)}
-                  className="flex flex-col items-start gap-0.5 py-2"
-                >
-                  <span className="text-sm font-medium">{reply.title}</span>
-                  <span className="text-xs text-muted-foreground line-clamp-1">{reply.content}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+      <PopoverContent align="start" side="top" className="w-80 p-0">
+        {isLoading ? (
+          <div className="p-3 space-y-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+        ) : resolvidas.length === 0 ? (
+          // Loja sem nenhuma resposta ainda. Uma caixa vazia aqui só faz o
+          // atendente achar que quebrou — o caminho para criar vai junto.
+          <div className="p-4 text-sm space-y-2">
+            <p className="font-medium">Nenhuma resposta rápida ainda</p>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Respostas rápidas são trechos que o time reaproveita — saudação, horário de
+              funcionamento, dados para pagamento. Qualquer cargo pode criar.
+            </p>
+            <Link
+              to="/dashboard/settings?tab=quick-replies"
+              className="inline-block text-xs font-medium text-accent hover:underline"
+              onClick={() => onOpenChange(false)}
+            >
+              Criar em Configurações › Respostas rápidas
+            </Link>
+          </div>
+        ) : (
+          <Command>
+            <CommandInput placeholder="Buscar resposta rápida..." />
+            <CommandList>
+              <CommandEmpty>Nenhuma resposta encontrada.</CommandEmpty>
+              <CommandGroup heading="Respostas rápidas">
+                {resolvidas.map((reply) => (
+                  <CommandItem
+                    key={reply.id}
+                    value={`${reply.title} ${reply.content}`}
+                    onSelect={() => handleSelect(reply.content)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <span className="text-sm font-medium">{reply.title}</span>
+                    <span className="text-xs text-muted-foreground line-clamp-1">
+                      {reply.content}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        )}
       </PopoverContent>
     </Popover>
   );

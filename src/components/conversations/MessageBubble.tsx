@@ -15,7 +15,9 @@ import {
   Megaphone,
   Mic,
   Trash2,
+  Zap,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MessageStatusIcon } from './MessageStatusIcon';
@@ -325,9 +327,35 @@ interface MessageBubbleProps {
   searchTerm?: string;
   /** True quando esta bolha é o resultado de busca ativo. */
   isActiveMatch?: boolean;
+  /**
+   * Salvar o texto desta mensagem como resposta rápida. Quando ausente, o botão
+   * não aparece — a bolha continua servindo para qualquer tela que só exiba
+   * histórico.
+   */
+  onSaveAsQuickReply?: (content: string) => void;
 }
 
-export function MessageBubble({ message, showQuoted = true, onReply, searchTerm, isActiveMatch }: MessageBubbleProps) {
+/** Tipos cujo corpo NÃO é texto reaproveitável como resposta rápida. */
+const NAO_SALVAVEIS = new Set([
+  'image',
+  'video',
+  'audio',
+  'document',
+  'sticker',
+  'location',
+  'contact',
+  'reaction',
+  'deleted',
+]);
+
+export function MessageBubble({
+  message,
+  showQuoted = true,
+  onReply,
+  searchTerm,
+  isActiveMatch,
+  onSaveAsQuickReply,
+}: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
   const meta = useMemo(() => tryParseMetadata(message), [message]);
   const [imageOpen, setImageOpen] = useState(false);
@@ -337,6 +365,15 @@ export function MessageBubble({ message, showQuoted = true, onReply, searchTerm,
   const url = message.media_url ?? (typeof meta.media_url === 'string' ? meta.media_url : undefined);
   const caption = (typeof meta.caption === 'string' ? meta.caption : undefined) ?? message.content ?? undefined;
   const fileName = (typeof meta.file_name === 'string' ? meta.file_name : undefined) ?? (typeof meta.fileName === 'string' ? meta.fileName : undefined);
+
+  // Só mensagem NOSSA e só texto: guardar a fala do cliente como "resposta
+  // rápida" não faz sentido, e o corpo de uma mídia é legenda, não trecho.
+  const podeSalvarComoResposta =
+    Boolean(onSaveAsQuickReply) &&
+    isOutbound &&
+    !NAO_SALVAVEIS.has(type) &&
+    meta.deleted !== true &&
+    Boolean(message.content?.trim());
 
   const renderBody = () => {
     if (type === 'deleted' || meta.deleted === true) return <DeletedPlaceholder />;
@@ -432,11 +469,29 @@ export function MessageBubble({ message, showQuoted = true, onReply, searchTerm,
             </span>
             <OriginBadge message={message} />
           </div>
-          {isOutbound && (
-            <span className="flex items-center">
-              <MessageStatusIcon status={message.status} />
-            </span>
-          )}
+          <span className="flex items-center gap-1">
+            {podeSalvarComoResposta && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    // A bolha já tinha a classe `group`; aqui ela finalmente
+                    // serve para alguma coisa. `focus-visible` mantém o botão
+                    // alcançável por teclado, onde não existe hover.
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-background/30"
+                    aria-label="Salvar como resposta rápida"
+                    onClick={() => onSaveAsQuickReply?.(message.content ?? '')}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Salvar como resposta rápida
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {isOutbound && <MessageStatusIcon status={message.status} />}
+          </span>
         </div>
       </div>
 
