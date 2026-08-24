@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -284,10 +285,10 @@ export const DeliveryLog = () => {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" size="sm">
+            <ComingSoonButton variant="outline" size="sm" motivo="Exportação em breve">
               <Download className="w-4 h-4 mr-2" />
               Exportar Histórico
-            </Button>
+            </ComingSoonButton>
           </div>
         </CardContent>
       </Card>

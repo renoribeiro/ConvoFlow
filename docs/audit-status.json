@@ -29,5 +29,78 @@
   "src/pages/PrivacyPolicy.tsx": {
     "status": "passa",
     "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
+  },
+
+  "src/components/analytics/AdvancedCharts.tsx:230": {
+    "status": "corrigido",
+    "nota": "\"Exportar\" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua."
+  },
+  "src/components/analytics/AdvancedCharts.tsx:343": {
+    "status": "corrigido",
+    "nota": "mesmo caso do outro \"Exportar\" desta tela"
+  },
+  "src/components/automation/AutomationAnalytics.tsx:213": {
+    "status": "corrigido",
+    "nota": "\"Exportar\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/DeliveryLog.tsx:288": {
+    "status": "corrigido",
+    "nota": "\"Exportar Histórico\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ReportBuilder.tsx:299": {
+    "status": "corrigido",
+    "nota": "\"Visualizar Preview\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ReportTemplates.tsx:298": {
+    "status": "corrigido",
+    "nota": "ícone Download sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ScheduleList.tsx:366": {
+    "status": "corrigido",
+    "nota": "ícone MoreHorizontal sem menu atrás; virou ComingSoonButton"
+  },
+  "src/components/tracking/TrafficSourceConfig.tsx:256": {
+    "status": "corrigido",
+    "nota": "ícone Copy sem handler; virou ComingSoonButton"
+  },
+  "src/components/tracking/TrafficSourceConfig.tsx:259": {
+    "status": "corrigido",
+    "nota": "ícone MoreHorizontal sem menu atrás; virou ComingSoonButton"
+  },
+
+  "src/components/automation/BuilderHeader.tsx:95": {
+    "status": "inerte de propósito",
+    "nota": "\"Testar\" já vinha disabled com tooltip \"Em breve\" — decisão de produto, não defeito"
+  },
+  "src/components/whatsapp/forms/OfficialApiForm.tsx:89": {
+    "status": "inerte de propósito",
+    "nota": "\"Conectar com a Meta\" fica disabled quando VITE_FACEBOOK_APP_ID / VITE_META_CONFIG_ID não estão configurados, e o tooltip diz isso"
+  },
+  "src/components/shared/ComingSoonButton.tsx:31": {
+    "status": "inerte de propósito",
+    "nota": "é o próprio componente que desabilita de propósito; coberto por ComingSoonButton.test.tsx"
+  },
+  "src/components/shared/ComingSoonButton.tsx": {
+    "status": "passa",
+    "nota": "coberto por src/components/shared/ComingSoonButton.test.tsx"
+  },
+
+  "src/components/conversations/ConversationViewToggle.tsx:73": {
+    "status": "passa",
+    "nota": "falso positivo do extrator: o onClick existe, só aparece depois do ref multilinha"
+  },
+  "src/components/conversations/NewConversationModal.tsx:216": {
+    "status": "passa",
+    "nota": "falso positivo: está dentro de <DialogTrigger asChild>, o handler vem do Radix"
+  },
+
+  "src/pages/dashboard/AdminDashboard.tsx:465": {
+    "status": "decisão sua",
+    "nota": "botão de lupa ao lado do campo \"Buscar usuários...\" não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua."
+  },
+
+  "src/pages/Dashboard.tsx": {
+    "status": "decisão sua",
+    "nota": "arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino."
   }
 }

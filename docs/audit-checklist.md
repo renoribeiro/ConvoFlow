@@ -26,39 +26,41 @@ Qualquer outro caminho cai em `NotFound`.
 
 ## Resumo
 
-- Elementos interativos catalogados: **937**
-- Em arquivos alcançáveis pela aplicação: **713**
-- Em arquivos órfãos (código morto): **224**
+- Elementos interativos catalogados: **983**
+- Em arquivos alcançáveis pela aplicação: **758**
+- Em arquivos órfãos (código morto): **225**
 
 | Status | Elementos |
 | --- | --- |
-| não testado | 672 |
-| código órfão | 224 |
-| passa | 40 |
-| decisão sua | 1 |
+| não testado | 698 |
+| código órfão | 219 |
+| passa | 46 |
+| corrigido | 9 |
+| decisão sua | 8 |
+| inerte de propósito | 3 |
 
 | Área | Elementos |
 | --- | --- |
-| Administração | 39 |
+| Administração | 45 |
 | Autenticação | 26 |
-| Automação | 36 |
-| Campanhas | 44 |
-| Chatbots | 81 |
-| Compartilhado / infra | 77 |
-| Configurações | 94 |
-| Contatos | 24 |
-| Conversas | 74 |
+| Automação | 37 |
+| Campanhas | 45 |
+| Chatbots | 82 |
+| Compartilhado / infra | 78 |
+| Configurações | 95 |
+| Contatos | 25 |
+| Conversas | 75 |
 | Dashboard (início) | 32 |
-| Follow-ups | 44 |
-| Funil | 30 |
-| Landing (página de vendas) | 30 |
-| Layout / navegação | 21 |
-| Outras telas | 12 |
+| Follow-ups | 45 |
+| Funil | 31 |
+| Landing (página de vendas) | 34 |
+| Layout / navegação | 38 |
+| Outras telas | 16 |
 | Outros | 51 |
 | Páginas legais | 8 |
-| Rastreamento | 40 |
-| Relatórios | 114 |
-| WhatsApp / webhooks | 60 |
+| Rastreamento | 41 |
+| Relatórios | 115 |
+| WhatsApp / webhooks | 64 |
 
 ---
 
@@ -86,10 +88,15 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/users/UsersTable.tsx:111` | Botão / handler de clique | Redefinir senha | executar `() => resetPwd.mutate(u.id)` | não testado |  |
 | `src/components/users/UsersTable.tsx:116` | Botão / handler de clique | Suspender | executar `() => suspend.mutate(u.id)` | não testado |  |
 | `src/components/users/UsersTable.tsx:120` | Botão / handler de clique | Reativar | executar `() => reactivate.mutate(u.id)` | não testado |  |
+| `src/pages/dashboard/admin/UsageLimitsPage.tsx:68` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/pages/dashboard/admin/UsageLimitsPage.tsx:69` | Link declarado em objeto (migalha / menu) | Administração | navegar para `/dashboard/admin` | não testado |  |
+| `src/pages/dashboard/admin/UsersPage.tsx:34` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/pages/dashboard/admin/UsersPage.tsx:35` | Link declarado em objeto (migalha / menu) | Administração | navegar para `/dashboard/admin` | não testado |  |
 | `src/pages/dashboard/admin/UsersPage.tsx:39` | Botão / handler de clique | Convidar usuário | executar `() => setInviteOpen(true)` | não testado |  |
 | `src/pages/dashboard/admin/UsersPage.tsx:62` | Select / aba / radio | Todas as funções | executar `(v) => setFilters((f) => ({ ...f, role: v === 'all' ? undefined : (v as UserRole) }))` | não testado |  |
+| `src/pages/dashboard/AdminDashboard.tsx:420` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/dashboard/AdminDashboard.tsx:425` | Select / aba / radio | Visão Geral | executar `setActiveTab` | não testado |  |
-| `src/pages/dashboard/AdminDashboard.tsx:465` | ⚠️ Botão sem handler | Novo Usuário | executar `variant="outline" size="icon"` | não testado |  |
+| `src/pages/dashboard/AdminDashboard.tsx:465` | ⚠️ Botão sem handler | Novo Usuário | executar `variant="outline" size="icon"` | decisão sua | botão de lupa ao lado do campo "Buscar usuários..." não tem handler. A busca já filtra enquanto se digita, então o botão é redundante — remover é mexer em layout, e isso é decisão sua. |
 | `src/pages/dashboard/AdminDashboard.tsx:469` | Botão / handler de clique | Novo Usuário | executar `() => { resetUserForm(); setIsCreateUserOpen(true); }` | não testado |  |
 | `src/pages/dashboard/AdminDashboard.tsx:866` | Select / aba / radio | Gestor | executar `(value) => setUserForm(prev => ({ ...prev, role: value as User['role'] }))` | não testado |  |
 | `src/pages/dashboard/AdminDashboard.tsx:919` | Select / aba / radio | ( | executar `(value) => setUserForm(prev => ({ ...prev, tenantId: value }))` | não testado |  |
@@ -102,6 +109,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/pages/dashboard/AdminDashboard.tsx:1045` | Botão / handler de clique | Excluir Usuário | executar `handleEditUser` | não testado |  |
 | `src/pages/dashboard/AdminDashboard.tsx:1067` | Botão / handler de clique | Detalhes do Usuário | executar `handleDeleteUser` | não testado |  |
 | `src/pages/dashboard/AdminDashboard.tsx:1128` | Botão / handler de clique | Fechar | executar `() => setIsViewUserOpen(false)` | não testado |  |
+| `src/pages/dashboard/TeamPage.tsx:82` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/dashboard/TeamPage.tsx:108` | Botão / handler de clique | Nova Loja | executar `() => setNovaLojaOpen(true)` | não testado |  |
 | `src/pages/dashboard/TeamPage.tsx:124` | Botão / handler de clique | Convidar | executar `() => setInviteOpen(true)` | não testado |  |
 | `src/pages/dashboard/TeamPage.tsx:171` | Botão / handler de clique | Filtrar | executar `() => setActiveTenant(loja.id)` | não testado |  |
@@ -141,9 +149,9 @@ Qualquer outro caminho cai em `NotFound`.
 
 | Local | Tipo | Rótulo / ícone | O que deve fazer | Status | Observação |
 | --- | --- | --- | --- | --- | --- |
-| `src/components/automation/AutomationAnalytics.tsx:182` | Select / aba / radio | Último dia | executar `setTimeRange` | não testado |  |
-| `src/components/automation/AutomationAnalytics.tsx:195` | Select / aba / radio | Todos os fluxos | executar `(value) => { // Implementar filtro por fluxo específico }` | não testado |  |
-| `src/components/automation/AutomationAnalytics.tsx:212` | ⚠️ Botão sem handler | Exportar | executar `variant="outline" size="sm"` | não testado |  |
+| `src/components/automation/AutomationAnalytics.tsx:183` | Select / aba / radio | Último dia | executar `setTimeRange` | não testado |  |
+| `src/components/automation/AutomationAnalytics.tsx:196` | Select / aba / radio | Todos os fluxos | executar `(value) => { // Implementar filtro por fluxo específico }` | não testado |  |
+| `src/components/automation/AutomationAnalytics.tsx:213` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | "Exportar" sem handler; virou ComingSoonButton |
 | `src/components/automation/AutomationBuilder.tsx:266` | Select / aba / radio | ( | executar `handleTriggerChange` | não testado |  |
 | `src/components/automation/AutomationBuilder.tsx:344` | Botão / handler de clique | — | executar `() => setSelectedStep(TRIGGER_SEL)` | não testado |  |
 | `src/components/automation/AutomationBuilder.tsx:362` | Botão / handler de clique | Aprox | executar `() => setSelectedStep(step.id)` | não testado |  |
@@ -152,7 +160,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/automation/AutomationBuilder.tsx:384` | Botão / handler de clique | Histórico de execuções | executar `() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))` | não testado |  |
 | `src/components/automation/BuilderHeader.tsx:72` | Interruptor / checkbox | 0 && ( | executar `onActiveChange` | não testado |  |
 | `src/components/automation/BuilderHeader.tsx:89` | Botão / handler de clique | Histórico | executar `onHistory` | não testado |  |
-| `src/components/automation/BuilderHeader.tsx:95` | ⚠️ Botão sem handler | Testar | executar `variant="outline" size="sm" disabled className="opacity-60"` | não testado |  |
+| `src/components/automation/BuilderHeader.tsx:95` | ⚠️ Botão sem handler | Testar | executar `variant="outline" size="sm" disabled className="opacity-60"` | inerte de propósito | "Testar" já vinha disabled com tooltip "Em breve" — decisão de produto, não defeito |
 | `src/components/automation/BuilderHeader.tsx:102` | Botão / handler de clique | Fechar | executar `onSave` | não testado |  |
 | `src/components/automation/BuilderHeader.tsx:105` | Botão / handler de clique | Fechar | executar `onClose` | não testado |  |
 | `src/components/automation/EmptyBuilder.tsx:32` | Botão / handler de clique | — | executar `() => onPick(t.key)` | não testado |  |
@@ -161,6 +169,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/automation/StepConfigPanel.tsx:87` | Interruptor / checkbox | );       case 'array':         return ( | executar `set` | não testado |  |
 | `src/components/automation/StepConfigPanel.tsx:106` | Select / aba / radio | ( | executar `set` | não testado |  |
 | `src/components/automation/StepConfigPanel.tsx:126` | Select / aba / radio | ( | executar `set` | não testado |  |
+| `src/pages/Automation.tsx:174` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Automation.tsx:175` | Botão / handler de clique | Novo Fluxo | executar `() => setShowBuilder(true)` | não testado |  |
 | `src/pages/Automation.tsx:209` | Botão / handler de clique | Todos os gatilhos | executar `() => setFilterStatus(status)` | não testado |  |
 | `src/pages/Automation.tsx:215` | Select / aba / radio | Todos os gatilhos | executar `setFilterTrigger` | não testado |  |
@@ -224,6 +233,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/campaigns/CampaignWizardNew.tsx:1530` | Botão / handler de clique | Arraste ou clique para selecionar | executar `() => inputRef.current?.click()` | não testado |  |
 | `src/components/campaigns/CampaignWizardNew.tsx:1557` | Botão / handler de clique | Enviando... | executar `onClear` | não testado |  |
 | `src/components/campaigns/CampaignWizardNew.tsx:1588` | Botão / handler de clique | Clique para substituir | executar `() => inputRef.current?.click()` | não testado |  |
+| `src/pages/Campaigns.tsx:41` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Campaigns.tsx:49` | Botão / handler de clique | Relatórios | executar `() => setShowReports(true)` | não testado |  |
 | `src/pages/Campaigns.tsx:54` | Botão / handler de clique | Nova Campanha | executar `() => setShowWizard(true)` | não testado |  |
 
@@ -306,6 +316,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/pages/ChatbotFlowBuilder.tsx:584` | Botão / handler de clique | : | executar `handleSave` | não testado |  |
 | `src/pages/ChatbotFlowBuilder.tsx:588` | Botão / handler de clique | Publicar | executar `handlePublish` | não testado |  |
 | `src/pages/ChatbotFlowBuilder.tsx:716` | Botão / handler de clique | Entendi | executar `() => setPublishModal({ open: false })` | não testado |  |
+| `src/pages/Chatbots.tsx:95` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Chatbots.tsx:97` | Botão / handler de clique | Novo Chatbot | executar `() => setShowNewModal(true)` | não testado |  |
 | `src/pages/Chatbots.tsx:154` | Botão / handler de clique | Criar Primeiro Chatbot | executar `() => setShowNewModal(true)` | não testado |  |
 | `src/pages/Chatbots.tsx:198` | Interruptor / checkbox | [icone Workflow] | executar `() => handleToggle(chatbot)` | não testado |  |
@@ -375,6 +386,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/notifications/NotificationCenter.tsx:189` | Botão / handler de clique | — | executar `() => handleNotificationClick(notification)` | não testado |  |
 | `src/components/notifications/NotificationCenter.tsx:230` | Botão / handler de clique | Ver todas as notificações | executar `() => { setIsOpen(false); navigate('/dashboard/notifications'); }` | não testado |  |
 | `src/components/notifications/NotificationCenter.tsx:232` | Navegação programática | Ver todas as notificações | navegar para `/dashboard/notifications` | não testado |  |
+| `src/components/shared/ComingSoonButton.tsx:31` | ⚠️ Botão sem handler | — | executar `{...props} disabled` | inerte de propósito | é o próprio componente que desabilita de propósito; coberto por ComingSoonButton.test.tsx |
 | `src/components/shared/ConfirmationDialog.tsx:94` | Botão / handler de clique | Processando... | executar `handleCancel` | não testado |  |
 | `src/components/shared/ConfirmationDialog.tsx:100` | Botão / handler de clique | Processando... | executar `handleConfirm` | não testado |  |
 | `src/components/shared/EmptyState.tsx:28` | Botão / handler de clique | — | executar `action.onClick` | não testado |  |
@@ -492,6 +504,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/settings/SubscriptionSettings.tsx:276` | Botão / handler de clique | [icone Loader2] | executar `handleBuySlots` | não testado |  |
 | `src/components/settings/SystemSettings.tsx:100` | Select / aba / radio | ( | executar `setSelected` | não testado |  |
 | `src/components/settings/SystemSettings.tsx:125` | Botão / handler de clique | [icone Save] | executar `() => saveMutation.mutate(selected)` | não testado |  |
+| `src/pages/Settings.tsx:138` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Settings.tsx:143` | Select / aba / radio | [icone Icon] | executar `handleTabChange` | não testado |  |
 
 ## Contatos
@@ -519,6 +532,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/contacts/ContactsTable.tsx:464` | Link interno (`<Link to>`) | Conversar | navegar para `/dashboard/conversations?contact=${contact.id}` | não testado |  |
 | `src/components/contacts/ContactsTable.tsx:469` | Botão / handler de clique | Editar | executar `() => onEdit(contact.id)` | não testado |  |
 | `src/components/contacts/ContactsTable.tsx:474` | Botão / handler de clique | Excluir | executar `() => handleDeleteClick(contact.id, contact.name?.trim() \|\| 'Contato sem nome')` | não testado |  |
+| `src/pages/Contacts.tsx:143` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Contacts.tsx:155` | Botão / handler de clique | Importar | executar `handleImport` | não testado |  |
 | `src/pages/Contacts.tsx:159` | Botão / handler de clique | Novo Contato | executar `handleExport` | não testado |  |
 | `src/pages/Contacts.tsx:163` | Botão / handler de clique | Novo Contato | executar `() => setIsModalOpen(true)` | não testado |  |
@@ -566,7 +580,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/conversations/ConversationsList.tsx:336` | Botão / handler de clique | [icone Avatar] | executar `() => onSelect(conversation.id)` | não testado |  |
 | `src/components/conversations/ConversationsList.tsx:455` | Botão / handler de clique | 0 && ( | executar `() => syncAllChats(whatsappInstanceId ?? null)` | não testado |  |
 | `src/components/conversations/ConversationsList.tsx:512` | Botão / handler de clique | ) : ( | executar `() => toggleGroup(group)` | não testado |  |
-| `src/components/conversations/ConversationViewToggle.tsx:73` | ⚠️ Botão sem handler | — | executar `key={option.label} ref={(node) =` | não testado |  |
+| `src/components/conversations/ConversationViewToggle.tsx:73` | ⚠️ Botão sem handler | — | executar `key={option.label} ref={(node) =` | passa | falso positivo do extrator: o onClick existe, só aparece depois do ref multilinha |
 | `src/components/conversations/ConversationViewToggle.tsx:84` | Botão / handler de clique | — | executar `() => onChange(option.grouped)` | não testado |  |
 | `src/components/conversations/InstanceSelector.tsx:44` | Select / aba / radio | [icone Avatar] | executar `onChange` | não testado |  |
 | `src/components/conversations/MessageBubble.tsx:99` | Âncora (`<a href>`) | — | navegar para `seg` | não testado |  |
@@ -577,7 +591,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/conversations/MessageBubble.tsx:432` | Botão / handler de clique | — | executar `() => setExpanded((v) => !v)` | não testado |  |
 | `src/components/conversations/MessageBubble.tsx:483` | Botão / handler de clique | Salvar como resposta rápida | executar `() => onSaveAsQuickReply?.(message.content ?? '')` | não testado |  |
 | `src/components/conversations/MessageBubble.tsx:507` | Âncora (`<a href>`) | Baixar | navegar para `url` | não testado |  |
-| `src/components/conversations/NewConversationModal.tsx:216` | ⚠️ Botão sem handler | Nova Conversa | executar `className="w-full" data-new-conversation` | não testado |  |
+| `src/components/conversations/NewConversationModal.tsx:216` | ⚠️ Botão sem handler | Nova Conversa | executar `className="w-full" data-new-conversation` | passa | falso positivo: está dentro de <DialogTrigger asChild>, o handler vem do Radix |
 | `src/components/conversations/NewConversationModal.tsx:232` | Select / aba / radio | ( | executar `setSelectedInstance` | não testado |  |
 | `src/components/conversations/NewConversationModal.tsx:295` | Botão / handler de clique | Cancelar | executar `() => setOpen(false)` | não testado |  |
 | `src/components/conversations/NewConversationModal.tsx:298` | Botão / handler de clique | Iniciar Conversa | executar `handleStartConversation` | não testado |  |
@@ -598,6 +612,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/conversations/SendTemplateDialog.tsx:366` | Botão / handler de clique | — | executar `handleSubmit` | não testado |  |
 | `src/components/conversations/SlaMuteButton.tsx:60` | Botão / handler de clique | ) : ( | executar `handleClick` | não testado |  |
 | `src/components/conversations/SlaMuteButton.tsx:86` | Botão / handler de clique | Marcar | executar `() => toggleMute.mutate({ conversationId, muted: true })` | não testado |  |
+| `src/pages/Conversations.tsx:249` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Conversations.tsx:260` | Botão / handler de clique | Buscar conversas | executar `openMobileSearch` | não testado |  |
 | `src/pages/Conversations.tsx:291` | Botão / handler de clique | Filtros | executar `() => setShowFilters(true)` | não testado |  |
 | `src/pages/Conversations.tsx:307` | Botão / handler de clique | Etiquetas | executar `() => setShowEtiquetas(true)` | não testado |  |
@@ -632,12 +647,12 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:43` | Botão / handler de clique | Gerenciar | executar `() => navigate('/dashboard/whatsapp-numbers')` | não testado |  |
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:64` | Navegação programática | Conectar WhatsApp | navegar para `/dashboard/whatsapp-numbers` | não testado |  |
 | `src/components/dashboard/WhatsAppStatusCompact.tsx:64` | Botão / handler de clique | Conectar WhatsApp | executar `() => navigate('/dashboard/whatsapp-numbers')` | não testado |  |
-| `src/pages/Dashboard.tsx:189` | Link interno (`<Link to>`) | Nova Campanha | navegar para `/campaigns/new` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
-| `src/pages/Dashboard.tsx:316` | Link interno (`<Link to>`) | Ver Conversas | navegar para `/conversations` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
-| `src/pages/Dashboard.tsx:322` | Link interno (`<Link to>`) | Gerenciar Contatos | navegar para `/contacts` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
-| `src/pages/Dashboard.tsx:328` | Link interno (`<Link to>`) | Campanhas | navegar para `/campaigns` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
-| `src/pages/Dashboard.tsx:334` | Link interno (`<Link to>`) | Chatbots | navegar para `/chatbots` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
-| `src/pages/Dashboard.tsx:340` | Link interno (`<Link to>`) | Relatórios | navegar para `/reports` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
+| `src/pages/Dashboard.tsx:189` | Link interno (`<Link to>`) | Nova Campanha | navegar para `/campaigns/new` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
+| `src/pages/Dashboard.tsx:316` | Link interno (`<Link to>`) | Ver Conversas | navegar para `/conversations` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
+| `src/pages/Dashboard.tsx:322` | Link interno (`<Link to>`) | Gerenciar Contatos | navegar para `/contacts` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
+| `src/pages/Dashboard.tsx:328` | Link interno (`<Link to>`) | Campanhas | navegar para `/campaigns` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
+| `src/pages/Dashboard.tsx:334` | Link interno (`<Link to>`) | Chatbots | navegar para `/chatbots` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
+| `src/pages/Dashboard.tsx:340` | Link interno (`<Link to>`) | Relatórios | navegar para `/reports` | decisão sua | arquivo órfão (nenhum import aponta para ele; a rota /dashboard usa pages/Index). Tem 6 links quebrados, entre eles /campaigns/new, que não existe em rota nenhuma. Apagar ou religar é decisão sua — não inventei destino. |
 
 ## Follow-ups
 
@@ -684,6 +699,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/followups/SequencesManager.tsx:267` | Botão / handler de clique | Nova sequência | executar `() => setShowBuilder(true)` | não testado |  |
 | `src/components/followups/SequencesManager.tsx:294` | Interruptor / checkbox | Para ao responder | executar `(c) => toggleActive(seq.id, c)` | não testado |  |
 | `src/components/followups/SequencesManager.tsx:326` | Botão / handler de clique | Excluir | executar `() => { if (confirm(`Excluir a sequência "${seq.name}"?`)) deleteSequence(seq.id); }` | não testado |  |
+| `src/pages/Followups.tsx:40` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Followups.tsx:48` | Botão / handler de clique | Filtros | executar `() => setShowFilters(!showFilters)` | não testado |  |
 | `src/pages/Followups.tsx:56` | Botão / handler de clique | Calendário | executar `() => setShowCalendar(true)` | não testado |  |
 | `src/pages/Followups.tsx:61` | Botão / handler de clique | Novo Follow-up | executar `() => setShowScheduler(true)` | não testado |  |
@@ -719,6 +735,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/funnel/StageConfigModal.tsx:345` | Botão / handler de clique | Cancelar | executar `() => setEditingStage(null)` | não testado |  |
 | `src/components/funnel/StageConfigModal.tsx:355` | Botão / handler de clique | Cancelar | executar `onClose` | não testado |  |
 | `src/components/funnel/StageConfigModal.tsx:358` | Botão / handler de clique | Salvar Configurações | executar `onClose` | não testado |  |
+| `src/pages/Funnel.tsx:24` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Funnel.tsx:32` | Botão / handler de clique | Configurar Estágios | executar `() => setShowMetrics(!showMetrics)` | não testado |  |
 | `src/pages/Funnel.tsx:40` | Botão / handler de clique | Configurar Estágios | executar `() => setShowStageConfig(true)` | não testado |  |
 | `src/pages/Funnel.tsx:45` | Botão / handler de clique | Novo Lead | executar `() => setShowNewLead(true)` | não testado |  |
@@ -740,6 +757,10 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/landing/LandingFooter.tsx:46` | Link interno (`<Link to>`) | Painel | navegar para `/dashboard` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingFooter.tsx:56` | Link interno (`<Link to>`) | Termos de Uso | navegar para `/terms-of-service` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingFooter.tsx:59` | Link interno (`<Link to>`) | Política de Privacidade | navegar para `/privacy-policy` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/LandingNavbar.tsx:14` | Link declarado em objeto (migalha / menu) | Funcionalidades | navegar para `#features` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/LandingNavbar.tsx:15` | Link declarado em objeto (migalha / menu) | Preços | navegar para `#pricing` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/LandingNavbar.tsx:16` | Link declarado em objeto (migalha / menu) | Depoimentos | navegar para `#testimonials` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
+| `src/components/landing/LandingNavbar.tsx:17` | Link declarado em objeto (migalha / menu) | FAQ | navegar para `#faq` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingNavbar.tsx:29` | Link interno (`<Link to>`) | ( | navegar para `/` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingNavbar.tsx:39` | Âncora (`<a href>`) | Entrar | navegar para `item.href` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
 | `src/components/landing/LandingNavbar.tsx:52` | Link interno (`<Link to>`) | Entrar | navegar para `/auth` | passa | coberto por e2e/landing.spec.ts (clique real no Chromium) |
@@ -773,6 +794,23 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/layout/Navbar.tsx:147` | Link interno (`<Link to>`) | Notificações | navegar para `/dashboard/notifications` | não testado |  |
 | `src/components/layout/Navbar.tsx:153` | Link interno (`<Link to>`) | Configurações | navegar para `/dashboard/settings` | não testado |  |
 | `src/components/layout/Navbar.tsx:161` | Botão / handler de clique | Sair | executar `() => logout()` | não testado |  |
+| `src/components/layout/Sidebar.tsx:63` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/components/layout/Sidebar.tsx:64` | Link declarado em objeto (migalha / menu) | Conversas | navegar para `/dashboard/conversations` | não testado |  |
+| `src/components/layout/Sidebar.tsx:65` | Link declarado em objeto (migalha / menu) | Contatos | navegar para `/dashboard/contacts` | não testado |  |
+| `src/components/layout/Sidebar.tsx:66` | Link declarado em objeto (migalha / menu) | Funil de Vendas | navegar para `/dashboard/funnel` | não testado |  |
+| `src/components/layout/Sidebar.tsx:70` | Link declarado em objeto (migalha / menu) | Rastreamento | navegar para `/dashboard/tracking` | não testado |  |
+| `src/components/layout/Sidebar.tsx:71` | Link declarado em objeto (migalha / menu) | Relatórios | navegar para `/dashboard/reports` | não testado |  |
+| `src/components/layout/Sidebar.tsx:72` | Link declarado em objeto (migalha / menu) | Chatbots | navegar para `/dashboard/chatbots` | não testado |  |
+| `src/components/layout/Sidebar.tsx:73` | Link declarado em objeto (migalha / menu) | Campanhas | navegar para `/dashboard/campaigns` | não testado |  |
+| `src/components/layout/Sidebar.tsx:76` | Link declarado em objeto (migalha / menu) | Templates | navegar para `/dashboard/templates` | não testado |  |
+| `src/components/layout/Sidebar.tsx:77` | Link declarado em objeto (migalha / menu) | Follow-ups | navegar para `/dashboard/followups` | não testado |  |
+| `src/components/layout/Sidebar.tsx:78` | Link declarado em objeto (migalha / menu) | Automação | navegar para `/dashboard/automation` | não testado |  |
+| `src/components/layout/Sidebar.tsx:82` | Link declarado em objeto (migalha / menu) | Instâncias e APIs | navegar para `/dashboard/whatsapp-numbers` | não testado |  |
+| `src/components/layout/Sidebar.tsx:83` | Link declarado em objeto (migalha / menu) | Configurações | navegar para `/dashboard/settings` | não testado |  |
+| `src/components/layout/Sidebar.tsx:85` | Link declarado em objeto (migalha / menu) | Ajuda | navegar para `/dashboard/help` | não testado |  |
+| `src/components/layout/Sidebar.tsx:89` | Link declarado em objeto (migalha / menu) | Equipe | navegar para `/dashboard/team` | não testado |  |
+| `src/components/layout/Sidebar.tsx:90` | Link declarado em objeto (migalha / menu) | Comparar Lojas | navegar para `/dashboard/store-comparison` | não testado |  |
+| `src/components/layout/Sidebar.tsx:94` | Link declarado em objeto (migalha / menu) | Administração | navegar para `/dashboard/admin` | não testado |  |
 | `src/components/layout/Sidebar.tsx:119` | Link interno (`<Link to>`) | — | navegar para `item.href` | não testado |  |
 | `src/components/layout/Sidebar.tsx:122` | Botão / handler de clique | — | executar `onNavigate` | não testado |  |
 | `src/components/layout/Sidebar.tsx:311` | Link interno (`<Link to>`) | ) : ( | navegar para `/dashboard` | não testado |  |
@@ -788,16 +826,20 @@ Qualquer outro caminho cai em `NotFound`.
 
 | Local | Tipo | Rótulo / ícone | O que deve fazer | Status | Observação |
 | --- | --- | --- | --- | --- | --- |
+| `src/pages/Help.tsx:153` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Help.tsx:193` | Select / aba / radio | ( | executar `setOpenItems` | não testado |  |
 | `src/pages/NotFound.tsx:27` | Botão / handler de clique | Voltar | executar `() => navigate(-1)` | passa | "Voltar" e "Ir para Home" verificados por clique real no e2e |
 | `src/pages/NotFound.tsx:31` | Navegação programática | Ir para Home | navegar para `/` | passa | "Voltar" e "Ir para Home" verificados por clique real no e2e |
 | `src/pages/NotFound.tsx:31` | Botão / handler de clique | Ir para Home | executar `() => navigate('/')` | passa | "Voltar" e "Ir para Home" verificados por clique real no e2e |
+| `src/pages/Notifications.tsx:137` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Notifications.tsx:141` | Botão / handler de clique | Marcar todas como lidas | executar `markAllAsRead` | não testado |  |
 | `src/pages/Notifications.tsx:207` | Botão / handler de clique | Marcar como lida | executar `() => markAsRead(notification.id)` | não testado |  |
 | `src/pages/Notifications.tsx:217` | Botão / handler de clique | Excluir notificação | executar `() => deleteNotification(notification.id)` | não testado |  |
 | `src/pages/Notifications.tsx:262` | Interruptor / checkbox | — | executar `(checked) => setPreferences((prev) => ({ ...prev, [item.key]: checked }))` | não testado |  |
+| `src/pages/Profile.tsx:11` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
 | `src/pages/Templates.tsx:248` | Link interno (`<Link to>`) | Instâncias e APIs | navegar para `/dashboard/whatsapp-numbers` | não testado |  |
 | `src/pages/Templates.tsx:272` | Botão / handler de clique | Tentar de novo | executar `() => templatesQuery.refetch()` | não testado |  |
+| `src/pages/Templates.tsx:324` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Templates.tsx:330` | Botão / handler de clique | Atualizar | executar `() => templatesQuery.refetch()` | não testado |  |
 | `src/pages/Templates.tsx:350` | Select / aba / radio | ( | executar `(value) => setWabaSelecionado(value)` | não testado |  |
 
@@ -906,11 +948,12 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/tracking/TrackingFilters.tsx:217` | Botão / handler de clique | Limpar | executar `clearAllFilters` | não testado |  |
 | `src/components/tracking/TrackingFilters.tsx:230` | Botão / handler de clique | [icone X] | executar `() => handleSourceToggle(source)` | não testado |  |
 | `src/components/tracking/TrackingFilters.tsx:238` | Botão / handler de clique | [icone X] | executar `() => onStatusChange('Todos')` | não testado |  |
-| `src/components/tracking/TrafficSourceConfig.tsx:192` | Botão / handler de clique | Adicionar Fonte | executar `() => setShowModal(true)` | não testado |  |
-| `src/components/tracking/TrafficSourceConfig.tsx:241` | Botão / handler de clique | : | executar `() => toggleSourceStatus(source.id)` | não testado |  |
-| `src/components/tracking/TrafficSourceConfig.tsx:248` | Botão / handler de clique | [icone Settings] | executar `() => { setSelectedSource(source); setShowModal(true); }` | não testado |  |
-| `src/components/tracking/TrafficSourceConfig.tsx:255` | ⚠️ Botão sem handler | [icone Copy] | executar `variant="ghost" size="icon"` | não testado |  |
-| `src/components/tracking/TrafficSourceConfig.tsx:258` | ⚠️ Botão sem handler | [icone MoreHorizontal] | executar `variant="ghost" size="icon"` | não testado |  |
+| `src/components/tracking/TrafficSourceConfig.tsx:193` | Botão / handler de clique | Adicionar Fonte | executar `() => setShowModal(true)` | não testado |  |
+| `src/components/tracking/TrafficSourceConfig.tsx:242` | Botão / handler de clique | : | executar `() => toggleSourceStatus(source.id)` | não testado |  |
+| `src/components/tracking/TrafficSourceConfig.tsx:249` | Botão / handler de clique | [icone Settings] | executar `() => { setSelectedSource(source); setShowModal(true); }` | não testado |  |
+| `src/components/tracking/TrafficSourceConfig.tsx:256` | Botão inerte de propósito (`ComingSoonButton`) | [icone Copy] | executar `variant="ghost" size="icon" motivo="Duplicar fonte em breve"` | corrigido | ícone Copy sem handler; virou ComingSoonButton |
+| `src/components/tracking/TrafficSourceConfig.tsx:259` | Botão inerte de propósito (`ComingSoonButton`) | [icone MoreHorizontal] | executar `variant="ghost" size="icon" motivo="Mais ações em breve"` | corrigido | ícone MoreHorizontal sem menu atrás; virou ComingSoonButton |
+| `src/pages/Tracking.tsx:77` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Tracking.tsx:82` | Botão / handler de clique | Configurações | executar `handleOpenSettings` | não testado |  |
 | `src/pages/Tracking.tsx:86` | Botão / handler de clique | Nova Fonte | executar `handleCreateNewSource` | não testado |  |
 | `src/pages/Tracking.tsx:94` | Select / aba / radio | Dashboard | executar `setActiveTab` | não testado |  |
@@ -919,12 +962,12 @@ Qualquer outro caminho cai em `NotFound`.
 
 | Local | Tipo | Rótulo / ícone | O que deve fazer | Status | Observação |
 | --- | --- | --- | --- | --- | --- |
-| `src/components/analytics/AdvancedCharts.tsx:216` | Botão / handler de clique | Atualizar | executar `refresh` | não testado |  |
-| `src/components/analytics/AdvancedCharts.tsx:225` | Botão / handler de clique | Exportar | executar `() => setIsFullscreen(!isFullscreen)` | não testado |  |
-| `src/components/analytics/AdvancedCharts.tsx:229` | ⚠️ Botão sem handler | Exportar | executar `variant="outline" size="sm"` | não testado |  |
-| `src/components/analytics/AdvancedCharts.tsx:319` | Select / aba / radio | Leads | executar `(value: any) => setSelectedMetric(value)` | não testado |  |
-| `src/components/analytics/AdvancedCharts.tsx:331` | Select / aba / radio | Linha | executar `(value: any) => setChartType(value)` | não testado |  |
-| `src/components/analytics/AdvancedCharts.tsx:342` | ⚠️ Botão sem handler | Exportar | executar `variant="outline" size="sm"` | não testado |  |
+| `src/components/analytics/AdvancedCharts.tsx:217` | Botão / handler de clique | Atualizar | executar `refresh` | não testado |  |
+| `src/components/analytics/AdvancedCharts.tsx:226` | Botão / handler de clique | Exportar | executar `() => setIsFullscreen(!isFullscreen)` | não testado |  |
+| `src/components/analytics/AdvancedCharts.tsx:230` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | "Exportar" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Ver seção de decisões: implementar a exportação de fato é escolha sua. |
+| `src/components/analytics/AdvancedCharts.tsx:320` | Select / aba / radio | Leads | executar `(value: any) => setSelectedMetric(value)` | não testado |  |
+| `src/components/analytics/AdvancedCharts.tsx:332` | Select / aba / radio | Linha | executar `(value: any) => setChartType(value)` | não testado |  |
+| `src/components/analytics/AdvancedCharts.tsx:343` | Botão inerte de propósito (`ComingSoonButton`) | Exportar | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | mesmo caso do outro "Exportar" desta tela |
 | `src/components/analytics/AdvancedFilters.tsx:247` | Botão / handler de clique | 0 && ( | executar `() => setIsExpanded(!isExpanded)` | não testado |  |
 | `src/components/analytics/AdvancedFilters.tsx:255` | Botão / handler de clique | Limpar | executar `clearAllFilters` | não testado |  |
 | `src/components/analytics/AdvancedFilters.tsx:271` | Select / aba / radio | ( | executar `handleQuickDateChange` | não testado |  |
@@ -975,9 +1018,9 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/reports/AdvancedReports.tsx:987` | Select / aba / radio | Relatórios Salvos | executar `setActiveTab` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
 | `src/components/reports/DeleteConfirmationModal.tsx:94` | Botão / handler de clique | Cancelar | executar `onClose` | não testado |  |
 | `src/components/reports/DeleteConfirmationModal.tsx:102` | Botão / handler de clique | ) : ( | executar `handleConfirm` | não testado |  |
-| `src/components/reports/DeliveryLog.tsx:275` | Select / aba / radio | Todos Status | executar `setStatusFilter` | não testado |  |
-| `src/components/reports/DeliveryLog.tsx:287` | ⚠️ Botão sem handler | Exportar Histórico | executar `variant="outline" size="sm"` | não testado |  |
-| `src/components/reports/DeliveryLog.tsx:414` | Botão / handler de clique | [icone FileText] | executar `() => handleResend(execution)` | não testado |  |
+| `src/components/reports/DeliveryLog.tsx:276` | Select / aba / radio | Todos Status | executar `setStatusFilter` | não testado |  |
+| `src/components/reports/DeliveryLog.tsx:288` | Botão inerte de propósito (`ComingSoonButton`) | Exportar Histórico | executar `variant="outline" size="sm" motivo="Exportação em breve"` | corrigido | "Exportar Histórico" sem handler; virou ComingSoonButton |
+| `src/components/reports/DeliveryLog.tsx:415` | Botão / handler de clique | [icone FileText] | executar `() => handleResend(execution)` | não testado |  |
 | `src/components/reports/EditTemplateModal.tsx:178` | Select / aba / radio | ( | executar `(value) => setFormData(prev => ({ ...prev, type: value }))` | não testado |  |
 | `src/components/reports/EditTemplateModal.tsx:212` | Select / aba / radio | ( | executar `(value) => setFormData(prev => ({ ...prev, category: value }))` | não testado |  |
 | `src/components/reports/EditTemplateModal.tsx:231` | Interruptor / checkbox | Template Público | executar `(checked) => setFormData(prev => ({ ...prev, is_public: checked }))` | não testado |  |
@@ -994,13 +1037,13 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/reports/NewReportModal.tsx:507` | Botão / handler de clique | Anterior | executar `handlePrevious` | não testado |  |
 | `src/components/reports/NewReportModal.tsx:516` | Botão / handler de clique | Próximo | executar `handleNext` | não testado |  |
 | `src/components/reports/NewReportModal.tsx:523` | Botão / handler de clique | Criando... | executar `handleSubmit` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:170` | Select / aba / radio | Performance | executar `setReportCategory` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:200` | Botão / handler de clique | Adicionar Seção | executar `addSection` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:222` | Select / aba / radio | ( | executar `(value) => updateSection(section.id, 'chartType', value)` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:240` | Botão / handler de clique | Métricas para esta seção | executar `() => removeSection(section.id)` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:261` | Interruptor / checkbox | 0 && ( | executar `() => toggleMetric(metric.id, section.id)` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:298` | ⚠️ Botão sem handler | Visualizar Preview | executar `variant="outline"` | não testado |  |
-| `src/components/reports/ReportBuilder.tsx:303` | Botão / handler de clique | [icone Plus] | executar `handleSaveReport` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:171` | Select / aba / radio | Performance | executar `setReportCategory` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:201` | Botão / handler de clique | Adicionar Seção | executar `addSection` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:223` | Select / aba / radio | ( | executar `(value) => updateSection(section.id, 'chartType', value)` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:241` | Botão / handler de clique | Métricas para esta seção | executar `() => removeSection(section.id)` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:262` | Interruptor / checkbox | 0 && ( | executar `() => toggleMetric(metric.id, section.id)` | não testado |  |
+| `src/components/reports/ReportBuilder.tsx:299` | Botão inerte de propósito (`ComingSoonButton`) | Visualizar Preview | executar `variant="outline" motivo="Pré-visualização em breve"` | corrigido | "Visualizar Preview" sem handler; virou ComingSoonButton |
+| `src/components/reports/ReportBuilder.tsx:304` | Botão / handler de clique | [icone Plus] | executar `handleSaveReport` | não testado |  |
 | `src/components/reports/ReportSettingsModal.tsx:129` | Botão / handler de clique | Configurações de Email | executar `handleClose` | não testado |  |
 | `src/components/reports/ReportSettingsModal.tsx:152` | Interruptor / checkbox | Servidor SMTP | executar `(checked) => handleSettingChange('emailSettings', 'enabled', checked)` | não testado |  |
 | `src/components/reports/ReportSettingsModal.tsx:244` | Interruptor / checkbox | Instância do WhatsApp | executar `(checked) => handleSettingChange('whatsappSettings', 'enabled', checked)` | não testado |  |
@@ -1010,18 +1053,18 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/reports/ReportSettingsModal.tsx:377` | Interruptor / checkbox | Dias para Arquivamento | executar `(checked) => handleSettingChange('generalSettings', 'compressionEnabled', checked)` | não testado |  |
 | `src/components/reports/ReportSettingsModal.tsx:413` | Botão / handler de clique | Cancelar | executar `handleClose` | não testado |  |
 | `src/components/reports/ReportSettingsModal.tsx:416` | Botão / handler de clique | Salvando... | executar `handleSave` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:181` | Botão / handler de clique | ( | executar `() => setSelectedCategory(category)` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:292` | Botão / handler de clique | Gerar | executar `() => handleGenerateReport(template)` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:297` | ⚠️ Botão sem handler | [icone Download] | executar `variant="outline" size="sm"` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:302` | Botão gatilho (Radix `asChild`) | Visualizar | executar `variant="outline" size="sm" disabled={deleteTemplateMutation.isPending}` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:311` | Botão / handler de clique | Visualizar | executar `() => handleViewTemplate(template)` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:315` | Botão / handler de clique | Editar | executar `() => handleEditTemplate(template)` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:320` | Botão / handler de clique | Excluir | executar `() => handleDeleteTemplate(template)` | não testado |  |
-| `src/components/reports/ReportTemplates.tsx:348` | Botão / handler de clique | Ver todos os templates | executar `() => setSelectedCategory('Todos')` | não testado |  |
-| `src/components/reports/ScheduleList.tsx:187` | Botão / handler de clique | Novo Agendamento | executar `() => setShowModal(true)` | não testado |  |
-| `src/components/reports/ScheduleList.tsx:361` | Botão / handler de clique | [icone Edit] | executar `() => handleEdit(schedule)` | não testado |  |
-| `src/components/reports/ScheduleList.tsx:365` | ⚠️ Botão sem handler | Nenhum agendamento encontrado | executar `variant="ghost" size="icon"` | não testado |  |
-| `src/components/reports/ScheduleList.tsx:385` | Botão / handler de clique | Criar Agendamento | executar `() => setShowModal(true)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:182` | Botão / handler de clique | ( | executar `() => setSelectedCategory(category)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:293` | Botão / handler de clique | Gerar | executar `() => handleGenerateReport(template)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:298` | Botão inerte de propósito (`ComingSoonButton`) | [icone Download] | executar `variant="outline" size="sm" motivo="Baixar modelo em breve"` | corrigido | ícone Download sem handler; virou ComingSoonButton |
+| `src/components/reports/ReportTemplates.tsx:303` | Botão gatilho (Radix `asChild`) | Visualizar | executar `variant="outline" size="sm" disabled={deleteTemplateMutation.isPending}` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:312` | Botão / handler de clique | Visualizar | executar `() => handleViewTemplate(template)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:316` | Botão / handler de clique | Editar | executar `() => handleEditTemplate(template)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:321` | Botão / handler de clique | Excluir | executar `() => handleDeleteTemplate(template)` | não testado |  |
+| `src/components/reports/ReportTemplates.tsx:349` | Botão / handler de clique | Ver todos os templates | executar `() => setSelectedCategory('Todos')` | não testado |  |
+| `src/components/reports/ScheduleList.tsx:188` | Botão / handler de clique | Novo Agendamento | executar `() => setShowModal(true)` | não testado |  |
+| `src/components/reports/ScheduleList.tsx:362` | Botão / handler de clique | [icone Edit] | executar `() => handleEdit(schedule)` | não testado |  |
+| `src/components/reports/ScheduleList.tsx:366` | Botão inerte de propósito (`ComingSoonButton`) | Nenhum agendamento encontrado | executar `variant="ghost" size="icon" motivo="Mais ações em breve"` | corrigido | ícone MoreHorizontal sem menu atrás; virou ComingSoonButton |
+| `src/components/reports/ScheduleList.tsx:386` | Botão / handler de clique | Criar Agendamento | executar `() => setShowModal(true)` | não testado |  |
 | `src/components/reports/ScheduleModal.tsx:329` | Select / aba / radio | ( | executar `(value) => setFormData({...formData, reportName: value})` | não testado |  |
 | `src/components/reports/ScheduleModal.tsx:356` | Select / aba / radio | Diário | executar `(value: any) => setFormData({...formData, frequency: value})` | não testado |  |
 | `src/components/reports/ScheduleModal.tsx:385` | Select / aba / radio | ( | executar `(value) => setFormData({...formData, dayOfWeek: value})` | não testado |  |
@@ -1030,6 +1073,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/reports/ScheduleModal.tsx:460` | Botão / handler de clique | Cancelar | executar `() => removeRecipient(recipient)` | não testado |  |
 | `src/components/reports/ScheduleModal.tsx:474` | Botão / handler de clique | Cancelar | executar `() => onOpenChange(false)` | não testado |  |
 | `src/components/reports/ScheduleModal.tsx:477` | Botão / handler de clique | — | executar `handleSave` | não testado |  |
+| `src/pages/Reports.tsx:27` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/Reports.tsx:32` | Botão / handler de clique | Configurações | executar `() => setShowSettings(true)` | não testado |  |
 | `src/pages/Reports.tsx:36` | Botão / handler de clique | Novo Relatório | executar `() => setShowNewReport(true)` | não testado |  |
 | `src/pages/Reports.tsx:44` | Select / aba / radio | Templates | executar `setActiveTab` | não testado |  |
@@ -1052,7 +1096,7 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/whatsapp/forms/EvolutionApiForm.tsx:87` | Botão / handler de clique | Gerar | executar `generateInstanceKey` | não testado |  |
 | `src/components/whatsapp/forms/EvolutionApiForm.tsx:105` | Interruptor / checkbox | Status: | executar `(v) => onChange({ enableWebhookAutomation: v })` | não testado |  |
 | `src/components/whatsapp/forms/OfficialApiForm.tsx:75` | Botão / handler de clique | — ou preencha os campos abaixo manualmente — | executar `handleEmbeddedSignup` | não testado |  |
-| `src/components/whatsapp/forms/OfficialApiForm.tsx:89` | ⚠️ Botão sem handler | Conectar com a Meta | executar `type="button" variant="outline" className="w-full opacity-50 cursor-not-allowed" disabled` | não testado |  |
+| `src/components/whatsapp/forms/OfficialApiForm.tsx:89` | ⚠️ Botão sem handler | Conectar com a Meta | executar `type="button" variant="outline" className="w-full opacity-50 cursor-not-allowed" disabled` | inerte de propósito | "Conectar com a Meta" fica disabled quando VITE_FACEBOOK_APP_ID / VITE_META_CONFIG_ID não estão configurados, e o tooltip diz isso |
 | `src/components/whatsapp/forms/OfficialApiForm.tsx:110` | Âncora (`<a href>`) | Meta for Developers | navegar para `https://developers.facebook.com/` | não testado |  |
 | `src/components/whatsapp/forms/OfficialApiForm.tsx:199` | Botão / handler de clique | Copiar Callback URL | executar `copyWebhookUrl` | não testado |  |
 | `src/components/whatsapp/InstanceManager.tsx:155` | Botão / handler de clique | Tentar Novamente | executar `refreshInstances` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
@@ -1086,6 +1130,10 @@ Qualquer outro caminho cai em `NotFound`.
 | `src/components/whatsapp/WhatsAppApiSettings.tsx:193` | Botão / handler de clique | [icone Settings] | executar `testConnection` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
 | `src/components/whatsapp/WhatsAppApiSettings.tsx:197` | Botão / handler de clique | [icone Settings] | executar `saveSettings` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
 | `src/components/whatsapp/WhatsAppSettings.tsx:115` | Botão / handler de clique | Nova Instância | executar `() => setShowSetupWizard(true)` | código órfão | arquivo não alcançável a partir de `src/main.tsx` |
+| `src/pages/WhatsAppNumbers.tsx:355` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/pages/WhatsAppNumbers.tsx:379` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/pages/WhatsAppNumbers.tsx:404` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
+| `src/pages/WhatsAppNumbers.tsx:427` | Link declarado em objeto (migalha / menu) | Dashboard | navegar para `/dashboard` | não testado |  |
 | `src/pages/WhatsAppNumbers.tsx:445` | Botão / handler de clique | Nova Instância | executar `() => setShowCreateModal(true)` | não testado |  |
 | `src/pages/WhatsAppNumbers.tsx:453` | Select / aba / radio | Instâncias | executar `setActiveTab` | não testado |  |
 | `src/pages/WhatsAppNumbers.tsx:529` | Botão / handler de clique | Criar Primeira Instância | executar `() => setShowCreateModal(true)` | não testado |  |

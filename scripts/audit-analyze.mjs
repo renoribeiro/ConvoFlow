@@ -35,7 +35,7 @@ const out = (title, list) => {
   for (const r of list) console.log(`${r.file}:${r.line} | ${r.kind} | "${r.label}" | ${r.target}`);
 };
 
-const navish = rows.filter((r) => ['link', 'anchor', 'navigate', 'window-open'].includes(r.kind));
+const navish = rows.filter((r) => ['link', 'link-objeto', 'anchor', 'navigate', 'window-open'].includes(r.kind));
 
 const internal = navish.filter((r) => typeof r.target === 'string' && r.target.startsWith('/'));
 out('LINKS INTERNOS QUEBRADOS (rota inexistente)', internal.filter((r) => !routeExists(r.target)));

@@ -70,6 +70,12 @@ for (const file of files) {
     push(file, text, m.index, 'anchor', t, { dynamic: m[1] === undefined });
   }
 
+  // 2b. href: '...' declarado em objeto (migalhas do PageHeader, itens de menu
+  //     da Sidebar). Vira <Link to> na renderizacao, entao conta como link.
+  for (const m of text.matchAll(/(?:label|name|title):\s*['"]([^'"]*)['"]\s*,\s*href:\s*['"]([^'"]*)['"]/g)) {
+    push(file, text, m.index, 'link-objeto', m[2], { label: m[1] });
+  }
+
   // 3. navigate('/...') programatico
   for (const m of text.matchAll(/navigate\(\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g)) {
     const t = m[1] ?? m[2] ?? m[3];
@@ -102,6 +108,12 @@ for (const file of files) {
   // 8. selects / tabs / radios
   for (const m of text.matchAll(/onValueChange=\{([\s\S]{0,140}?)\}\s*(?=\n|\/|>|[a-zA-Z-]+=)/g)) {
     push(file, text, m.index, 'valueChange', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
+  }
+
+  // 8b. <ComingSoonButton> — inerte de proposito, mas continua no inventario:
+  //     sumir do checklist ao ser corrigido esconderia o que foi decidido.
+  for (const m of text.matchAll(/<ComingSoonButton\b([\s\S]*?)>/g)) {
+    push(file, text, m.index, 'coming-soon', m[1].replace(/\s+/g, ' ').trim().slice(0, 120));
   }
 
   // 9. <Button ...> sem onClick, sem type=submit, sem asChild => candidato a botao morto.

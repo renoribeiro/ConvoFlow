@@ -72,12 +72,14 @@ const KIND_LABEL = {
   anchor: 'Âncora (`<a href>`)',
   navigate: 'Navegação programática',
   'window-open': 'Abre URL externa',
+  'link-objeto': 'Link declarado em objeto (migalha / menu)',
   onClick: 'Botão / handler de clique',
   onSubmit: 'Envio de formulário',
   toggle: 'Interruptor / checkbox',
   valueChange: 'Select / aba / radio',
   'button-no-handler': '⚠️ Botão sem handler',
   'button-radix-trigger': 'Botão gatilho (Radix `asChild`)',
+  'coming-soon': 'Botão inerte de propósito (`ComingSoonButton`)',
 };
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
@@ -149,7 +151,7 @@ for (const a of areaNames) {
   for (const r of list) {
     const key = `${r.file}:${r.line}`;
     const isOrphan = !reachable.has(r.file);
-    const should = r.kind === 'link' || r.kind === 'anchor' || r.kind === 'navigate' || r.kind === 'window-open'
+    const should = ['link', 'link-objeto', 'anchor', 'navigate', 'window-open'].includes(r.kind)
       ? `navegar para \`${esc(r.target)}\``
       : `executar \`${esc(r.target)}\``;
     const v = verdictFor(r.file, r.line);
