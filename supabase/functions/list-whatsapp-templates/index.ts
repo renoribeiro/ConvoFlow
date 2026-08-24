@@ -99,15 +99,51 @@ Deno.serve(async (req: Request) => {
     const provider = await ProviderFactory.getProvider(instance as any, supabaseAdmin) as MetaProvider;
     const raw = await provider.listTemplates();
 
-    // Normaliza o shape para o frontend: nome, idioma, status, categoria e a
-    // contagem de parâmetros {{n}} do corpo (para montar os campos no diálogo).
+    // Normaliza o shape para o frontend: nome, idioma, status, categoria, a
+    // contagem de parâmetros {{n}} do corpo (para montar os campos no diálogo)
+    // e — desde a tela de Templates — cabeçalho, rodapé e botões.
+    //
+    // Esses três já vinham na resposta da Graph API (o `fields=` do §7.1 pede
+    // `components`) e eram DESCARTADOS aqui. Expô-los não custa chamada nova,
+    // permissão nova nem cota: é só parar de jogar fora.
+    //
+    // A adição é ADITIVA de propósito. O SendTemplateDialog consome
+    // { name, language, status, category, bodyText, paramCount } — esses seis
+    // seguem idênticos, no mesmo lugar. Não renomeie nem reordene.
+    const upper = (v: unknown): string => String(v ?? '').toUpperCase();
+
     const templates = raw.map((t: any) => {
-      const bodyComp = Array.isArray(t.components)
-        ? t.components.find((c: any) => String(c.type).toUpperCase() === 'BODY')
-        : null;
+      const components: any[] = Array.isArray(t.components) ? t.components : [];
+      const compOf = (type: string) => components.find((c: any) => upper(c?.type) === type) || null;
+
+      const bodyComp = compOf('BODY');
       const bodyText: string = bodyComp?.text || '';
       const matches = bodyText.match(/\{\{\s*\d+\s*\}\}/g);
       const paramCount = matches ? new Set(matches.map((m: string) => m.replace(/\D/g, ''))).size : 0;
+
+      // HEADER: em `format: TEXT` o conteúdo vem em `text` (podendo conter
+      // {{1}}); em IMAGE/VIDEO/DOCUMENT não há texto nenhum — só o formato,
+      // que a UI rotula ("Imagem", "Vídeo", "Documento").
+      const headerComp = compOf('HEADER');
+      const header = headerComp
+        ? { format: upper(headerComp.format) || 'TEXT', text: headerComp.text || '' }
+        : null;
+
+      const footerComp = compOf('FOOTER');
+      const footer = footerComp?.text ? { text: String(footerComp.text) } : null;
+
+      // Um template tem no máximo um componente BUTTONS hoje, mas achatamos
+      // todos para não perder botão se a Meta passar a devolver mais de um.
+      const buttons = components
+        .filter((c: any) => upper(c?.type) === 'BUTTONS')
+        .flatMap((c: any) => (Array.isArray(c?.buttons) ? c.buttons : []))
+        .map((b: any) => ({
+          type: upper(b?.type),
+          text: b?.text || '',
+          url: b?.url ?? null,
+          phoneNumber: b?.phone_number ?? null,
+        }));
+
       return {
         name: t.name,
         language: t.language,
@@ -115,6 +151,9 @@ Deno.serve(async (req: Request) => {
         category: t.category,
         bodyText,
         paramCount,
+        header,
+        footer,
+        buttons,
       };
     });
 

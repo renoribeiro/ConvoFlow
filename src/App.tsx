@@ -32,6 +32,7 @@ const Tracking = React.lazy(() => import("./pages/Tracking"));
 const Reports = React.lazy(() => import("./pages/Reports"));
 const Chatbots = React.lazy(() => import("./pages/Chatbots"));
 const Campaigns = React.lazy(() => import("./pages/Campaigns"));
+const Templates = React.lazy(() => import("./pages/Templates"));
 const Followups = React.lazy(() => import("./pages/Followups"));
 const Automation = React.lazy(() => import("./pages/Automation"));
 const Settings = React.lazy(() => import("./pages/Settings"));
@@ -159,6 +160,16 @@ const App = () => (
                         <Campaigns />
                       </Suspense>
                     </ModuleGuard>
+                  } />
+                  {/* Templates: sem ModuleGuard e sem RoleGuard de propósito —
+                      é consulta somente-leitura do que a Meta já aprovou, e o
+                      atendente é justamente quem precisa dela antes de
+                      responder. A edge function list-whatsapp-templates já
+                      confere a Conta do caller e não exige cargo mínimo. */}
+                  <Route path="templates" element={
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Templates />
+                    </Suspense>
                   } />
                   <Route path="followups" element={
                     <ModuleGuard moduleName="followups">

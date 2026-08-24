@@ -71,6 +71,9 @@ const marketingItems: NavItem[] = [
   { name: 'Relatórios', href: '/dashboard/reports', icon: FileText, moduleName: 'reports' },
   { name: 'Chatbots', href: '/dashboard/chatbots', icon: Bot, moduleName: 'chatbots' },
   { name: 'Campanhas', href: '/dashboard/campaigns', icon: Megaphone, moduleName: 'campaigns' },
+  // moduleName null => visível para todo cargo (ver isItemVisible). Consulta
+  // somente-leitura dos templates da Meta; o atendente precisa dela.
+  { name: 'Templates', href: '/dashboard/templates', icon: FileText, moduleName: null },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: UserCheck, moduleName: 'followups' },
   { name: 'Automação', href: '/dashboard/automation', icon: Workflow, moduleName: 'automation' },
 ];

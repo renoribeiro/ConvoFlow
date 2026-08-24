@@ -94,6 +94,35 @@ export interface SendReactionPayload {
   emoji: string;
 }
 
+/** Formato do cabeçalho de um template Meta. */
+export type WhatsAppTemplateHeaderFormat =
+  | 'TEXT'
+  | 'IMAGE'
+  | 'VIDEO'
+  | 'DOCUMENT'
+  | 'LOCATION'
+  | (string & {});
+
+export interface WhatsAppTemplateHeader {
+  format: WhatsAppTemplateHeaderFormat;
+  /** Só vem preenchido quando `format === 'TEXT'`. Pode conter {{1}}. */
+  text: string;
+}
+
+export interface WhatsAppTemplateFooter {
+  text: string;
+}
+
+export interface WhatsAppTemplateButton {
+  /** QUICK_REPLY | URL | PHONE_NUMBER | COPY_CODE | ... */
+  type: string;
+  text: string;
+  /** Só em botões `URL`. */
+  url?: string | null;
+  /** Só em botões `PHONE_NUMBER`. */
+  phoneNumber?: string | null;
+}
+
 export interface WhatsAppTemplate {
   name: string;
   language: string;
@@ -104,6 +133,14 @@ export interface WhatsAppTemplate {
   bodyText?: string;
   /** Quantidade de parâmetros {{n}} distintos no corpo. */
   paramCount?: number;
+  /**
+   * Cabeçalho, rodapé e botões — opcionais porque foram acrescentados depois
+   * do restante do shape (a edge function passou a normalizá-los em vez de
+   * descartá-los). Quem consome o shape antigo continua válido.
+   */
+  header?: WhatsAppTemplateHeader | null;
+  footer?: WhatsAppTemplateFooter | null;
+  buttons?: WhatsAppTemplateButton[];
 }
 
 export interface SendTemplatePayload {

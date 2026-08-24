@@ -18,6 +18,12 @@ export const QUERY_KEYS = {
     CHATBOTS: 'chatbots',
     CAMPAIGNS: 'campaigns',
     TEMPLATES: 'templates',
+    // Templates aprovados na Meta: buscados vivos da Graph API a cada consulta,
+    // sem tabela nossa. Cair na faixa semiStatic (5 min) é intencional — é o TTL
+    // que a SKILL da Cloud API recomenda (§6, regra 9).
+    WHATSAPP_TEMPLATES: 'whatsapp-templates',
+    /** WABAs distintos da Loja, deduplicados a partir das instâncias oficiais. */
+    WHATSAPP_WABAS: 'whatsapp-wabas',
     AUTOMATIONS: 'automations',
     FOLLOWUPS: 'followups',
     FOLLOWUP_SEQUENCES: 'followup-sequences',

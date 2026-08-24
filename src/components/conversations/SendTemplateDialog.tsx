@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { TemplateStatusBadge } from '@/components/shared/TemplateStatusBadge';
 import {
   Select,
   SelectContent,
@@ -53,15 +53,6 @@ function sortTemplates(list: WhatsAppTemplate[]): WhatsAppTemplate[] {
   return [...list].sort(
     (a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name),
   );
-}
-
-function statusBadge(status?: string) {
-  const s = String(status || '').toUpperCase();
-  if (s === 'APPROVED') return <Badge className="bg-success text-success-foreground">Aprovado</Badge>;
-  if (s === 'PENDING') return <Badge variant="secondary">Pendente</Badge>;
-  if (s === 'REJECTED') return <Badge variant="destructive">Rejeitado</Badge>;
-  if (s) return <Badge variant="outline">{s}</Badge>;
-  return null;
 }
 
 /**
@@ -234,7 +225,7 @@ export function SendTemplateDialog({
                         <span className="text-xs text-muted-foreground">
                           {LANGUAGE_LABELS[t.language] || t.language}
                         </span>
-                        {statusBadge(t.status)}
+                        <TemplateStatusBadge status={t.status} />
                       </span>
                     </SelectItem>
                   ))}

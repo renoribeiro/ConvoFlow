@@ -182,6 +182,19 @@ export class MetaProvider implements IWhatsAppProvider {
         if (!this.config.wabaId) {
             throw new Error('Missing wabaId — não é possível listar templates da Meta.');
         }
+        // `components` já traz cabeçalho, rodapé e botões — a edge function
+        // list-whatsapp-templates os normaliza a partir daqui, sem custo extra.
+        //
+        // NÃO acrescente `quality_score` nem `rejected_reason` a este `fields=`.
+        // Já foi avaliado e recusado de propósito:
+        //   - `quality_score` só é preenchido depois que o template acumula
+        //     volume de envio. Template novo volta vazio, e a UI mostraria uma
+        //     coluna em branco que parece bug.
+        //   - `rejected_reason` é um balde genérico (ABUSIVE_CONTENT,
+        //     INVALID_FORMAT, NONE). A explicação de verdade da recusa só existe
+        //     no WhatsApp Manager — prometer o motivo aqui frustra quem clica.
+        // Se um dia forem mesmo necessários, valide antes contra a resposta viva
+        // da Graph API em vez de confiar na doc.
         const url =
             `${this.graphRoot}/${this.config.wabaId}/message_templates` +
             `?fields=name,status,category,language,components&limit=200`;
