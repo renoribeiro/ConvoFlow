@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   schedule_campaign_messages sem as guardas de conformidade — mesmo problema da 20250120000002.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Create function to increment campaign sent count
 CREATE OR REPLACE FUNCTION public.increment_campaign_sent_count(
   p_campaign_id uuid

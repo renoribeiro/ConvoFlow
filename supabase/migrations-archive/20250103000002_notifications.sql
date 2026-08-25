@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Esquema antigo de notifications, com coluna 'read'. Hoje a coluna e 'is_read' (migracao 20260630000002). O CREATE INDEX ON notifications(read) falha: column does not exist.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Criar tabela de notificações
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

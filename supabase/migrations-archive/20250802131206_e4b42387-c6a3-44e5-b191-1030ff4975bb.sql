@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   handle_evolution_webhook() anterior a 20250802131928, que e a versao viva.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Add Evolution API configuration columns to whatsapp_instances
 ALTER TABLE public.whatsapp_instances 
 ADD COLUMN IF NOT EXISTS evolution_api_url text,

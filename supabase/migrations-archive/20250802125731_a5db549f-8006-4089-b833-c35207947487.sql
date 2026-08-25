@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Volta handle_new_user() para a versao de 2025: usuario novo deixaria de nascer com capabilities, parent_id e cargo v2 (a versao viva vem de 20260716000002).
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Fix security function search path issues
 CREATE OR REPLACE FUNCTION public.get_current_user_tenant_id()
 RETURNS UUID AS $$

@@ -1,3 +1,30 @@
+-- #############################################################################
+-- ##  ARQUIVADA — NUNCA FOI APLICADA. NÃO RODE.                            ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. Este arquivo NUNCA rodou em produção.
+-- Prova: `chatbot_interactions` não existe, e `chatbots` AINDA TEM as seis
+-- colunas que este script apaga.
+--
+-- SE VOCÊ RODAR ISTO, PERDE DADO E QUEBRA A TELA DE CHATBOTS. Ele faz
+-- DROP COLUMN em chatbots.trigger_phrases, response_message, response_type,
+-- media_url, variables e conditions — e essas seis colunas ESTÃO EM USO:
+--   src/hooks/useChatbots.ts  transformChatbot()     lê cinco delas
+--   src/hooks/useChatbots.ts  transformToDatabase()  grava as seis
+-- O hook é montado pelo ChatbotProvider em src/App.tsx e consumido por
+-- ChatbotsList, ChatbotAnalytics e ChatbotTester.
+--
+-- Ele também recria triggers que já existem (update_chatbots_updated_at,
+-- update_conversations_updated_at) sem DROP antes → erro de duplicata.
+--
+-- Se um dia essas colunas virarem peso morto de verdade (quando useChatbots.ts
+-- deixar de existir e tudo passar por chatbot_nodes/chatbot_edges), a remoção
+-- vira um script PRÓPRIO em docs/, com export antes. Não reaproveite este.
+--
+-- Carimbado como aplicado no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) de propósito, como trava.
+-- #############################################################################
+
 -- Fix chatbots schema to match TypeScript types and add conversations table
 -- This migration addresses critical issues identified in the analysis
 

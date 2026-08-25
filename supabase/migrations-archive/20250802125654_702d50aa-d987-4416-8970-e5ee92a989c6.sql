@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   37 policies com a nomenclatura antiga, anteriores a hierarquia Conta/Loja. E referencia public.scheduled_reports, tabela apagada pela 20260819000002 → relation does not exist.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Enable Row Level Security on all tables that don't have it
 ALTER TABLE public.affiliate_referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliates ENABLE ROW LEVEL SECURITY;

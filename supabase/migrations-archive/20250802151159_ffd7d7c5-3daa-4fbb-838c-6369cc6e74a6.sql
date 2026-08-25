@@ -1,4 +1,17 @@
--- Create webhook handler functions only (chatbots table already exists)
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   process_incoming_message() sem isolamento por instancia. A versao viva e a de 20260529130000, que casa contato por (tenant_id, phone, whatsapp_instance_id).
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
+-- Create webhook handler for incoming WhatsApp messages and chatbot processing
 CREATE OR REPLACE FUNCTION public.process_incoming_message(
   p_phone text,
   p_message_content text,
@@ -14,7 +27,7 @@ DECLARE
   v_contact_id uuid;
   v_tenant_id uuid;
   v_message_id uuid;
-  v_chatbot public.chatbots%ROWTYPE;
+  v_chatbot chatbots%ROWTYPE;
   v_response_data jsonb;
   v_job_id uuid;
 BEGIN
@@ -127,7 +140,7 @@ SECURITY DEFINER
 SET search_path TO ''
 AS $function$
 DECLARE
-  v_contact public.contacts%ROWTYPE;
+  v_contact contacts%ROWTYPE;
   v_processed_message text;
 BEGIN
   -- Get contact data
