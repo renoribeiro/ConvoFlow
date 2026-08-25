@@ -1,46 +1,17 @@
--- First create the chatbots table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.chatbots (
-  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  description text,
-  trigger_type text NOT NULL DEFAULT 'keyword'::text,
-  trigger_phrases text[] DEFAULT '{}'::text[],
-  response_type text DEFAULT 'text'::text,
-  response_message text NOT NULL,
-  media_url text,
-  priority integer DEFAULT 0,
-  is_active boolean DEFAULT true,
-  whatsapp_instance_id uuid,
-  conditions jsonb DEFAULT '{}'::jsonb,
-  variables jsonb DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now()
-);
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Arquivo identico ao 20250802151159 — mesmo process_incoming_message antigo, sem isolamento por instancia.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
 
--- Enable RLS
-ALTER TABLE public.chatbots ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies
-CREATE POLICY "Super admins can access all chatbots" 
-ON public.chatbots 
-FOR ALL 
-TO authenticated
-USING (public.is_super_admin());
-
-CREATE POLICY "Users can access own tenant chatbots" 
-ON public.chatbots 
-FOR ALL 
-TO authenticated
-USING (tenant_id = public.get_current_user_tenant_id());
-
--- Create updated_at trigger
-CREATE TRIGGER update_chatbots_updated_at
-BEFORE UPDATE ON public.chatbots
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
-
--- Now create the webhook handler functions
+-- Create webhook handler functions only (chatbots table already exists)
 CREATE OR REPLACE FUNCTION public.process_incoming_message(
   p_phone text,
   p_message_content text,

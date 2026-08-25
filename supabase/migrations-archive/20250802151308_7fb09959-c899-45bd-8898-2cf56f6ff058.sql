@@ -1,4 +1,59 @@
--- Create webhook handler for incoming WhatsApp messages and chatbot processing
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Mesmo process_incoming_message antigo, mais CREATE TRIGGER update_chatbots_updated_at sem DROP antes → erro de trigger duplicado.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
+-- First create the chatbots table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.chatbots (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  trigger_type text NOT NULL DEFAULT 'keyword'::text,
+  trigger_phrases text[] DEFAULT '{}'::text[],
+  response_type text DEFAULT 'text'::text,
+  response_message text NOT NULL,
+  media_url text,
+  priority integer DEFAULT 0,
+  is_active boolean DEFAULT true,
+  whatsapp_instance_id uuid,
+  conditions jsonb DEFAULT '{}'::jsonb,
+  variables jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.chatbots ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Super admins can access all chatbots" 
+ON public.chatbots 
+FOR ALL 
+TO authenticated
+USING (public.is_super_admin());
+
+CREATE POLICY "Users can access own tenant chatbots" 
+ON public.chatbots 
+FOR ALL 
+TO authenticated
+USING (tenant_id = public.get_current_user_tenant_id());
+
+-- Create updated_at trigger
+CREATE TRIGGER update_chatbots_updated_at
+BEFORE UPDATE ON public.chatbots
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Now create the webhook handler functions
 CREATE OR REPLACE FUNCTION public.process_incoming_message(
   p_phone text,
   p_message_content text,
@@ -14,7 +69,7 @@ DECLARE
   v_contact_id uuid;
   v_tenant_id uuid;
   v_message_id uuid;
-  v_chatbot chatbots%ROWTYPE;
+  v_chatbot public.chatbots%ROWTYPE;
   v_response_data jsonb;
   v_job_id uuid;
 BEGIN
@@ -127,7 +182,7 @@ SECURITY DEFINER
 SET search_path TO ''
 AS $function$
 DECLARE
-  v_contact contacts%ROWTYPE;
+  v_contact public.contacts%ROWTYPE;
   v_processed_message text;
 BEGIN
   -- Get contact data

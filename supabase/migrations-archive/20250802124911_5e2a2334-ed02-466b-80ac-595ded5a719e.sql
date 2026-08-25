@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Bootstrap ALTERNATIVO que nunca venceu. Cria os enums instance_status, campaign_status, followup_trigger_type e contact_status — nenhum deles existe no banco. Caminho morto. CREATE TYPE sem guarda → erro na primeira linha.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Criar enum para roles de usuário
 CREATE TYPE public.user_role AS ENUM ('super_admin', 'tenant_admin', 'user');
 

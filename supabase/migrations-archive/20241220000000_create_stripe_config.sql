@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Acrescenta uma 4a policy permissiva em stripe_config. A versao viva da tabela veio do ledger 20250805032512 (add_tenant_id_to_stripe_config_fixed) e ja tem tenant_id.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Criação da tabela de configuração do Stripe
 CREATE TABLE IF NOT EXISTS stripe_config (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

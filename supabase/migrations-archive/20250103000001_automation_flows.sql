@@ -1,3 +1,16 @@
+-- #############################################################################
+-- ##  ARQUIVADA — SUPERSEDIDA. NÃO RODE.                                   ##
+-- #############################################################################
+--
+-- Auditoria do ledger em 2026-08-24. O efeito deste arquivo já foi substituído
+-- por uma migração posterior. Rodar hoje DESFAZ o estado atual:
+--
+--   Recria o motor SQL legado de automacao (process_automation_trigger, execute_automation_step, ...) que a 20260623000001 apagou de proposito. Alem disso: CREATE TABLE sem IF NOT EXISTS → erro na primeira linha.
+--
+-- Carimbada como aplicada no ledger (docs/reconciliar_ledger_migracoes.sql,
+-- LOTE 3) para que nenhuma ferramenta tente rodá-la. Mantida só como história.
+-- #############################################################################
+
 -- Criar tabela para fluxos de automação
 CREATE TABLE automation_flows (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

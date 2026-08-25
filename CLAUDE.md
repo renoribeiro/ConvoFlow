@@ -76,7 +76,22 @@ When adding a new dashboard route, wrap it in `ModuleGuard` with the matching `m
 
 **Validation.** Zod schemas in `src/lib/validations/` (per-domain) and `src/lib/validation.ts` (primitives + `validateInput()` helper + `UrlSanitizer`). Apply at trust boundaries — form submit and any externally provided URL/API key. The Edge Function counterpart lives at `supabase/functions/_shared/validation.ts`.
 
-**Database migrations.** SQL files under `supabase/migrations/`, named with `YYYYMMDDHHMMSS_description.sql`. Two tracking tables of note: `module_settings` (drives `ModuleGuard`) and the `webhook_*` tables added by `add_webhook_*` migrations. RLS hardening lives in `20260113000001_security_hardening_rls.sql` — read it before changing any RLS policy.
+**Database migrations.** SQL files under `supabase/migrations/`, named with `YYYYMMDDHHMMSS_description.sql`. Two tracking tables of note: `module_settings` (drives `ModuleGuard`) and the `webhook_*` tables added by `add_webhook_*` migrations.
+
+**Where today's RLS actually comes from.** Read these four before changing any policy — in this order, because each one reshapes the previous:
+
+- `20260513000002_user_hierarchy_rls.sql` — the base `profiles_*` policies, `descendant_profile_ids()`, `can_manage_profile()`.
+- `20260513000003_user_hierarchy_rls_fix.sql` — rewrites those policies on top of `is_my_descendant()` / `is_user_in_my_tenant()` / `is_tenant_in_my_descendants()`. (`is_user_in_my_tenant` was later fixed again by `20260818000002`.)
+- `20260716000002_hierarchy_v2_foundation.sql` — the `gerente`/`gestor`/`atendente` cutover: `ALTER POLICY` on the role literals, plus `tenants.kind` and the store-slot triggers.
+- `20260817000006_rls_gerente_reads_own_stores.sql` — `tenants_parent_reads_child_stores`, so a Gerente can read a Loja that has no members yet.
+
+⚠️ **`20260113000001_security_hardening_rls.sql` is NOT the source of truth and never ran.** The ledger audit of 2026-08-24 confirmed it: the policies it creates do not exist in the database, and the ones it drops are in use. It now lives in `supabase/migrations-archive/` with a warning header. Running it would drop `users_own_profile`, `service_role_full_access` and the three `tenants` policies — locking everyone out, you included. Do not resurrect it.
+
+**Migration ledger.** Reconciled 2026-08-24 — the ledger and the repo now agree. 48 local files had no row in `supabase_migrations.schema_migrations`; 15 of those were superseded or dangerous and moved to `supabase/migrations-archive/` (a sibling directory — the CLI only ever reads `supabase/migrations`). The reconciliation script and its runbook are `docs/reconciliar_ledger_migracoes.sql` and `docs/RUNBOOK_reconciliacao_ledger.md`.
+
+The reverse gap is closed too: 23 live objects that no migration file explained were reconstructed from the catalog into 11 files carrying the ledger's own versions — see `docs/AUDITORIA_objetos_sem_migracao.md`. Those files say so in their header: **they are the current state, not the original SQL.** Don't read them as history.
+
+That audit also found dead objects that are still in the database, kept on purpose until you decide: five `company_id`-era functions that throw if called (both `handle_new_message` overloads, `update_message_status`, `get_delivery_log`, `process_flow_step`), a parallel dead module system (`system_modules` / `tenant_module_settings` / `tenant_active_modules` — the live one is `module_settings`), and six legacy tables locked down by `20260513120200`.
 
 **PWA caching (`vite.config.ts`).** Important runtime cache rules:
 - Supabase `realtime`/`auth`/`functions` are `NetworkOnly` — do not cache them.
@@ -270,9 +285,19 @@ Respeite-as ao escrever qualquer comando para ele rodar.
    comandos (tabela temporária, `SET`, variável de sessão) — use variáveis
    `DECLARE` dentro do bloco. Modelo pronto: `docs/remover_lojas_orfas.sql`.
 
-**Nunca rode nem sugira `supabase db push`.** 81 das 94 migrações locais não
-estão no ledger e algumas mexem em dado real de usuário. Migração aqui se aplica
-colando um script no SQL Editor.
+**Nunca rode nem sugira `supabase db push`.** A auditoria de 2026-08-24 mediu:
+117 arquivos locais, 102 versões no ledger, **48 arquivos sem nenhum rastro**.
+(O número antigo, "81 de 94", contava só as versões e exagerava: 40 daqueles 81
+estavam sim no ledger, gravados com outro carimbo de tempo.)
+
+Dessas 48, várias mexem em dado real de usuário se rodarem — as piores são
+`20260716000002_hierarchy_v2_foundation` (troca a `usage_limits` inteira e
+reescreve `handle_new_user`), `20260513000001_user_hierarchy_schema` (backfill
+de `parent_id`/`tenant_id` em todos os perfis) e
+`20260716000003_hierarchy_v2_mario_camila_encaixarh` (reescreve quatro linhas
+nomeadas). Migração aqui se aplica colando um script no SQL Editor.
+
+Conserto do ledger: `docs/RUNBOOK_reconciliacao_ledger.md`.
 
 Por isso toda migração vem em par: o arquivo em `supabase/migrations/` (registro)
 e um script pronto para colar em `docs/`, transacional, idempotente e com o
