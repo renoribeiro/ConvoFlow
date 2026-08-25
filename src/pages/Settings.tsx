@@ -135,7 +135,7 @@ export default function Settings() {
         helpKey="page:settings"
         description="Gerencie as configurações da sua conta e preferências do sistema"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Configurações' }
         ]}
       />

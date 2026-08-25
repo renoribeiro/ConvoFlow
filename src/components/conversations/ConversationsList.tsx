@@ -92,8 +92,14 @@ function readCollapsedGroups(): Set<AttendanceGroup> {
 }
 
 /** Timestamp relativo compacto: "agora", "5min", "2h", "ontem", "23/06". */
-function compactTimestamp(dateStr: string): string {
+function compactTimestamp(dateStr: string | null | undefined): string {
+  // conversations.last_message_at e nullable no banco, mas useConversations
+  // declara `string`. Sem esta guarda, uma linha sem data faz o format() do
+  // date-fns lancar RangeError e derrubar a lista INTEIRA de conversas —
+  // nao so a linha. Melhor a linha sair sem horario.
+  if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
   const mins = differenceInMinutes(new Date(), date);
   if (mins < 1) return 'agora';
   if (mins < 60) return `${mins}min`;

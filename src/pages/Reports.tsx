@@ -24,7 +24,7 @@ export default function Reports() {
         helpKey="page:reports"
         description="Gere relatórios detalhados e configure envios automáticos por email e WhatsApp"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Relatórios' }
         ]}
         actions={

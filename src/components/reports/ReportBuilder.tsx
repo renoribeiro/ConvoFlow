@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -295,10 +296,10 @@ export const ReportBuilder = () => {
 
       {/* Actions */}
       <div className="flex justify-end space-x-2">
-        <Button variant="outline">
+        <ComingSoonButton variant="outline" motivo="Pré-visualização em breve">
           <TrendingUp className="w-4 h-4 mr-2" />
           Visualizar Preview
-        </Button>
+        </ComingSoonButton>
         <Button 
           onClick={handleSaveReport}
           disabled={saveReportMutation.isPending}

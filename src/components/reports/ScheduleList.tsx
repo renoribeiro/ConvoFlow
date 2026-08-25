@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -362,9 +363,9 @@ export const ScheduleList = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
+                    <ComingSoonButton variant="ghost" size="icon" motivo="Mais ações em breve">
                       <MoreHorizontal className="w-4 h-4" />
-                    </Button>
+                    </ComingSoonButton>
                   </div>
                 </div>
               </CardContent>

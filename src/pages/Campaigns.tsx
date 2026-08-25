@@ -38,7 +38,7 @@ export default function Campaigns() {
         helpKey="page:campaigns"
         description="Crie e gerencie campanhas de mensagens em massa para seus contatos"
         breadcrumbs={[
-          { label: 'Dashboard', href: '/' },
+          { label: 'Dashboard', href: '/dashboard' },
           { label: 'Campanhas' },
         ]}
         actions={

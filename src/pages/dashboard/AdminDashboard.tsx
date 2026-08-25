@@ -34,7 +34,6 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Search,
   Filter,
   Download,
   Eye,
@@ -455,16 +454,15 @@ const AdminDashboard = () => {
 
         <TabsContent value="users" className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            {/* Sem botão de lupa: a busca filtra enquanto se digita, então o
+                botão não tinha o que fazer e não tinha handler. */}
+            <div className="flex items-center">
               <Input
                 placeholder="Buscar usuários..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-[300px]"
               />
-              <Button variant="outline" size="icon">
-                <Search className="h-4 w-4" />
-              </Button>
             </div>
             <Button onClick={() => {
               resetUserForm();

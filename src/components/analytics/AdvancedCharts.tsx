@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -226,10 +227,10 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm">
+            <ComingSoonButton variant="outline" size="sm" motivo="Exportação em breve">
               <Download className="h-4 w-4 mr-2" />
               Exportar
-            </Button>
+            </ComingSoonButton>
           </div>
         </CardHeader>
       </Card>
@@ -339,10 +340,10 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                     </SelectContent>
                   </Select>
 
-                  <Button variant="outline" size="sm">
+                  <ComingSoonButton variant="outline" size="sm" motivo="Exportação em breve">
                     <Download className="w-4 h-4 mr-1" />
                     Exportar
-                  </Button>
+                  </ComingSoonButton>
                 </div>
               </div>
             </CardHeader>

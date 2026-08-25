@@ -1,0 +1,139 @@
+{
+  "_comentario": "Veredicto de cada elemento auditado. Chave = 'arquivo:linha', 'arquivo' (default do arquivo) ou 'pasta/' (prefixo). Consumido por scripts/audit-checklist.mjs.",
+  "src/components/landing/": {
+    "status": "passa",
+    "nota": "coberto por e2e/landing.spec.ts (clique real no Chromium)"
+  },
+  "src/components/landing/CTASection.tsx:41": {
+    "status": "passa",
+    "nota": "/register é rota de compatibilidade e redireciona para /auth (App.tsx:93); verificado no e2e"
+  },
+  "src/pages/LandingPage.tsx": {
+    "status": "passa",
+    "nota": "coberto por e2e/landing.spec.ts"
+  },
+  "src/pages/NotFound.tsx": {
+    "status": "passa",
+    "nota": "\"Voltar\" e \"Ir para Home\" verificados por clique real no e2e"
+  },
+  "src/pages/TermsOfService.tsx": {
+    "status": "passa",
+    "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
+  },
+  "src/pages/PrivacyPolicy.tsx": {
+    "status": "passa",
+    "nota": "âncoras externas com target=_blank e rel=noopener; conteúdo fora do escopo"
+  },
+  "src/components/analytics/AdvancedCharts.tsx:230": {
+    "status": "corrigido",
+    "nota": "\"Exportar\" não tinha handler nenhum: clique sem resposta. Virou ComingSoonButton (desabilitado + tooltip). Implementar a exportação de verdade continua em aberto — o projeto já tem o idioma de CSV pronto em CampaignReportsModal, se você quiser puxar por aí."
+  },
+  "src/components/analytics/AdvancedCharts.tsx:343": {
+    "status": "corrigido",
+    "nota": "mesmo caso do outro \"Exportar\" desta tela"
+  },
+  "src/components/automation/AutomationAnalytics.tsx:213": {
+    "status": "corrigido",
+    "nota": "\"Exportar\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/DeliveryLog.tsx:288": {
+    "status": "corrigido",
+    "nota": "\"Exportar Histórico\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ReportBuilder.tsx:299": {
+    "status": "corrigido",
+    "nota": "\"Visualizar Preview\" sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ReportTemplates.tsx:298": {
+    "status": "corrigido",
+    "nota": "ícone Download sem handler; virou ComingSoonButton"
+  },
+  "src/components/reports/ScheduleList.tsx:366": {
+    "status": "corrigido",
+    "nota": "ícone MoreHorizontal sem menu atrás; virou ComingSoonButton"
+  },
+  "src/components/tracking/TrafficSourceConfig.tsx:256": {
+    "status": "corrigido",
+    "nota": "ícone Copy sem handler; virou ComingSoonButton"
+  },
+  "src/components/tracking/TrafficSourceConfig.tsx:259": {
+    "status": "corrigido",
+    "nota": "ícone MoreHorizontal sem menu atrás; virou ComingSoonButton"
+  },
+  "src/components/automation/BuilderHeader.tsx:95": {
+    "status": "inerte de propósito",
+    "nota": "\"Testar\" já vinha disabled com tooltip \"Em breve\" — decisão de produto, não defeito"
+  },
+  "src/components/whatsapp/forms/OfficialApiForm.tsx:89": {
+    "status": "inerte de propósito",
+    "nota": "\"Conectar com a Meta\" fica disabled quando VITE_FACEBOOK_APP_ID / VITE_META_CONFIG_ID não estão configurados, e o tooltip diz isso"
+  },
+  "src/components/shared/ComingSoonButton.tsx:31": {
+    "status": "inerte de propósito",
+    "nota": "é o próprio componente que desabilita de propósito; coberto por ComingSoonButton.test.tsx"
+  },
+  "src/components/shared/ComingSoonButton.tsx": {
+    "status": "passa",
+    "nota": "coberto por src/components/shared/ComingSoonButton.test.tsx"
+  },
+  "src/components/conversations/ConversationViewToggle.tsx:73": {
+    "status": "passa",
+    "nota": "falso positivo do extrator: o onClick existe, só aparece depois do ref multilinha"
+  },
+  "src/components/conversations/NewConversationModal.tsx:216": {
+    "status": "passa",
+    "nota": "falso positivo: está dentro de <DialogTrigger asChild>, o handler vem do Radix"
+  },
+  "src/pages/DefinirSenha.tsx": {
+    "status": "passa",
+    "nota": "coberto por src/pages/DefinirSenha.test.tsx (15 testes: reenvio, entrada por código, salvar senha, erros) e pelo render em e2e/landing.spec.ts"
+  },
+  "src/components/layout/CommandPalette.tsx": {
+    "status": "corrigido",
+    "nota": "o CommandDialog do shadcn montava um DialogContent sem DialogTitle: leitor de tela anunciava um diálogo sem nome. Título sr-only acrescentado (mesmo padrão já usado em MessageBubble). Corrigido no consumidor, não em components/ui, porque CLAUDE.md pede não editar shadcn à mão."
+  },
+  "src/components/conversations/ConversationsList.tsx:95": {
+    "status": "corrigido",
+    "nota": "compactTimestamp() chamava format() sem guarda; conversations.last_message_at é nullable no banco (useConversations declara string). Uma linha sem data derrubava a LISTA INTEIRA de conversas com RangeError. Latente: os dois caminhos de insert conhecidos preenchem o campo."
+  },
+  "src/components/tracking/TrafficChart.tsx": {
+    "status": "corrigido",
+    "nota": "mesma classe do anterior: format(new Date(item.date)) sem guarda derrubava a tela de Rastreamento inteira quando um ponto vinha sem data. Ponto inválido agora sai do gráfico."
+  },
+  "src/components/settings/IntegrationSettings.tsx:372": {
+    "status": "corrigido",
+    "nota": "\"Ver Documentação da API\" abria https://docs.convoflow.com/api numa aba nova — o domínio não resolve (DNS falha), então o usuário via página de erro. Virou ComingSoonButton. Guardado por src/test/routes-integrity.test.ts."
+  },
+  "src/components/settings/IntegrationSettings.tsx:562": {
+    "status": "corrigido",
+    "nota": "\"Ver Documentação\" (webhooks) tinha o mesmo destino morto; mesma correção."
+  },
+  "src/components/settings/IntegrationSettings.tsx:334": {
+    "status": "passa",
+    "nota": "monta a URL como https://www.<id>.com. Conferi os 8 ids no ar: hubspot, salesforce, shopify, woocommerce, google-analytics, zapier, mailchimp e stripe — todos respondem 200. Frágil por construção, mas hoje nenhum está quebrado."
+  },
+  "src/components/settings/IntegrationSettings.tsx:321": {
+    "status": "inerte de propósito",
+    "nota": "\"Conectar\"/\"Configurar\" do catálogo de integrações abre um toast \"Integração em desenvolvimento ... estará disponível em breve\". É um catálogo-vitrine assumido, com resposta honesta ao clique."
+  },
+  "src/components/landing/HeroSection.tsx:67": {
+    "status": "corrigido",
+    "nota": "\"Ver Demonstração\" não fazia nada. Agora é uma âncora <a href=\"#features\"> — a mesma seção que o rodapé e o menu já apontam — com rolagem suave via scrollIntoView, como a página de Ajuda faz. Nenhuma rota nem vídeo de demonstração foi inventado. Verificado por clique real no Chromium (e2e/landing.spec.ts)."
+  },
+  "src/components/landing/HeroSection.tsx:72": {
+    "status": "passa",
+    "nota": "falso positivo do extrator: o <Button> está dentro do <a href=\"#features\">, então o clique sobe para a âncora"
+  },
+  "_removidos": [
+    {
+      "local": "src/pages/dashboard/AdminDashboard.tsx:465",
+      "oque": "botão de lupa ao lado de \"Buscar usuários...\"",
+      "porque": "não tinha handler e era redundante: a busca já filtra enquanto se digita. Removido a pedido do dono; o import do ícone Search saiu junto e o layout ficou igual (o Input continua sendo o item da esquerda do flex)."
+    },
+    {
+      "local": "src/pages/Dashboard.tsx (arquivo inteiro)",
+      "oque": "página órfã com 6 links quebrados, entre eles /campaigns/new",
+      "porque": "nenhum import apontava para ela — nem rota, nem barril, nem import dinâmico; a rota /dashboard usa pages/Index. Apagada a pedido do dono, junto com Dashboard.test.tsx, que era o único a referenciá-la. Os 4 comportamentos que aquele teste cobria não existem em pages/Index (dashboard diferente, com useDashboardKpis), então nada de código vivo perdeu cobertura."
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -364,15 +365,13 @@ export const IntegrationSettings = () => {
                 >
                   Solicitar Integração
                 </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => {
-                    window.open('https://docs.convoflow.com/api', '_blank');
-                  }}
-                >
+                {/* Apontava para https://docs.convoflow.com/api — dominio que
+                    nao resolve (DNS falha), ou seja, abria uma aba de erro.
+                    Enquanto nao existir site de documentacao, o botao diz que
+                    nao existe em vez de fingir que leva a algum lugar. */}
+                <ComingSoonButton size="sm" variant="outline" motivo="Documentação da API em breve">
                   Ver Documentação da API
-                </Button>
+                </ComingSoonButton>
               </div>
             </div>
           </TabsContent>
@@ -559,15 +558,10 @@ export const IntegrationSettings = () => {
               <p className="text-sm text-muted-foreground mb-3">
                 Os webhooks enviam dados em formato JSON via POST. Consulte nossa documentação para detalhes sobre o formato dos payloads.
               </p>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => {
-                  window.open('https://docs.convoflow.com/webhooks', '_blank');
-                }}
-              >
+              {/* Mesmo caso: docs.convoflow.com nao resolve. */}
+              <ComingSoonButton size="sm" variant="outline" motivo="Documentação de webhooks em breve">
                 Ver Documentação
-              </Button>
+              </ComingSoonButton>
             </div>
           </TabsContent>
         </Tabs>

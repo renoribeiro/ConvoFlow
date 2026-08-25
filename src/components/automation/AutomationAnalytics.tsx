@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CHART_STATUS } from '@/lib/chartColors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -209,10 +210,10 @@ export const AutomationAnalytics = ({ flowId }: AutomationAnalyticsProps) => {
               </Select>
             )}
             
-            <Button variant="outline" size="sm">
+            <ComingSoonButton variant="outline" size="sm" motivo="Exportação em breve">
               <Download className="h-4 w-4 mr-2" />
               Exportar
-            </Button>
+            </ComingSoonButton>
           </div>
         </CardContent>
       </Card>

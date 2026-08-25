@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ComingSoonButton } from '@/components/shared/ComingSoonButton';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -294,9 +295,9 @@ export const ReportTemplates = () => {
                       <Eye className="w-4 h-4 mr-2" />
                       Gerar
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <ComingSoonButton variant="outline" size="sm" motivo="Baixar modelo em breve">
                       <Download className="w-4 h-4" />
-                    </Button>
+                    </ComingSoonButton>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button 
