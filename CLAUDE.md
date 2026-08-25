@@ -87,7 +87,11 @@ When adding a new dashboard route, wrap it in `ModuleGuard` with the matching `m
 
 ⚠️ **`20260113000001_security_hardening_rls.sql` is NOT the source of truth and never ran.** The ledger audit of 2026-08-24 confirmed it: the policies it creates do not exist in the database, and the ones it drops are in use. It now lives in `supabase/migrations-archive/` with a warning header. Running it would drop `users_own_profile`, `service_role_full_access` and the three `tenants` policies — locking everyone out, you included. Do not resurrect it.
 
-**Migration ledger.** 48 local files had no row in `supabase_migrations.schema_migrations`; 15 of those were superseded or dangerous and moved to `supabase/migrations-archive/` (a sibling directory — the CLI only ever reads `supabase/migrations`). The reconciliation script and its runbook are `docs/reconciliar_ledger_migracoes.sql` and `docs/RUNBOOK_reconciliacao_ledger.md`. 22 versions exist only in the ledger, with no local file — those are a real disaster-recovery gap, still open.
+**Migration ledger.** Reconciled 2026-08-24 — the ledger and the repo now agree. 48 local files had no row in `supabase_migrations.schema_migrations`; 15 of those were superseded or dangerous and moved to `supabase/migrations-archive/` (a sibling directory — the CLI only ever reads `supabase/migrations`). The reconciliation script and its runbook are `docs/reconciliar_ledger_migracoes.sql` and `docs/RUNBOOK_reconciliacao_ledger.md`.
+
+The reverse gap is closed too: 23 live objects that no migration file explained were reconstructed from the catalog into 11 files carrying the ledger's own versions — see `docs/AUDITORIA_objetos_sem_migracao.md`. Those files say so in their header: **they are the current state, not the original SQL.** Don't read them as history.
+
+That audit also found dead objects that are still in the database, kept on purpose until you decide: five `company_id`-era functions that throw if called (both `handle_new_message` overloads, `update_message_status`, `get_delivery_log`, `process_flow_step`), a parallel dead module system (`system_modules` / `tenant_module_settings` / `tenant_active_modules` — the live one is `module_settings`), and six legacy tables locked down by `20260513120200`.
 
 **PWA caching (`vite.config.ts`).** Important runtime cache rules:
 - Supabase `realtime`/`auth`/`functions` are `NetworkOnly` — do not cache them.
