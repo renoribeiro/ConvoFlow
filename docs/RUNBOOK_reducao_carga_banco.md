@@ -1,7 +1,23 @@
 # Runbook — reduzir a carga do banco
 
-**Estado:** scripts prontos, **NADA aplicado**. Cada item pede autorização sua no
-momento de rodar (Regra 0 do CLAUDE.md).
+> ## ✅ TUDO APLICADO EM PRODUÇÃO — 2026-08-28
+>
+> Este runbook virou **registro do que foi feito**, não lista de tarefas. Os
+> scripts em `docs/` continuam válidos para repetir a operação no futuro.
+>
+> | Item | Resultado medido |
+> |---|---|
+> | ① `VACUUM FULL net._http_response` | heap **140 MB → 1.752 kB** (17.876 → 219 blocos), 1.522 linhas preservadas |
+> | ③ Poda `cron.job_run_details` | **634.926 → 42.320** linhas; heap **573 MB → 24 MB**; índice **14 MB → 944 kB** |
+> | ③ Retenção diária | cron `purge-cron-job-run-details-daily`, jobid 11, `15 4 * * *` |
+> | ⑦ Índice em `conversations` | criado + ledger `20260828000001` |
+> | Crons `*/5` | 4 jobs desacelerados: **7.488 → 1.440 posts/dia (−80,8%)** |
+> | Salvaguarda | cron `vacuum-http-response-monthly`, jobid 12, `0 5 1 * *` |
+> | **Banco inteiro** | **758 MB → 52 MB (−93,1%)** |
+>
+> Também aplicados no mesmo dia (fora do escopo original deste runbook):
+> `20260828000002` (conserta `dequeue_next_job`) e `20260828000003` (remove
+> `public.jobs`). Ver `docs/RELATORIO_fila_de_jobs.md`.
 
 **Medição de origem:** `pg_stat_statements`, janela de 47,3 h
 (2026-08-26 19:14 → 2026-08-28 18:32 UTC). Banco: 758 MB, 593.939 chamadas,
