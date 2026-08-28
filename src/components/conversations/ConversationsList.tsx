@@ -215,9 +215,20 @@ export const ConversationsList = ({
   // As contagens saem do que já foi carregado, sem query extra. Só as chaves
   // que o recorte de servidor atual consegue cobrir são publicadas; o pai
   // mantém o último valor conhecido das demais.
+  // `hasNextPage` falso = a última página chegou, então o conjunto carregado É
+  // a fila inteira e até as contagens derivadas viram exatas. Enquanto for
+  // verdadeiro elas saem marcadas como piso e a pílula mostra "12+".
+  const allLoaded = !conversationsQuery.hasNextPage;
   const countsPatch = useMemo(
-    () => buildQuickFilterCounts(filteredConversations, { hasUnread, isArchived }, undefined, slaConfig),
-    [filteredConversations, hasUnread, isArchived, slaConfig],
+    () =>
+      buildQuickFilterCounts(
+        filteredConversations,
+        { hasUnread, isArchived },
+        undefined,
+        slaConfig,
+        allLoaded,
+      ),
+    [filteredConversations, hasUnread, isArchived, slaConfig, allLoaded],
   );
 
   const lastCountsSignature = useRef<string>('');

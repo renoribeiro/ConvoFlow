@@ -341,6 +341,114 @@ export const useConversations = ({
   });
 };
 
+/** Recorte de servidor de uma contagem — as mesmas colunas que a lista filtra. */
+export interface UseConversationsCountOptions {
+  searchQuery?: string;
+  isArchived?: boolean;
+  hasUnread?: boolean;
+  whatsappInstanceId?: string;
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
+  enabled?: boolean;
+}
+
+/**
+ * Total de conversas que casam com um recorte — o tamanho da fila, não da página.
+ *
+ * A lista é paginada por cursor e recarrega sozinha a cada 10s. Numa fila
+ * filtrada ("Não lidas"), isso faz o fim da lista se refazer por baixo enquanto
+ * a pessoa trabalha, e é impossível distinguir de mensagem nova chegando: some
+ * uma conversa lida, entra outra que estava fora da página. Sem um total, não
+ * existe fundo visível.
+ *
+ * `head: true` traz só o cabeçalho `Content-Range` — nenhuma linha viaja, então
+ * a contagem custa muito menos que uma página. `count: 'exact'` conta a tabela
+ * inteira sob RLS, e não apenas o que já foi carregado.
+ *
+ * Os filtros aqui espelham exatamente os de `useConversations`, MENOS o cursor
+ * de paginação — é essa ausência que transforma "a página" em "a fila".
+ */
+export const useConversationsCount = ({
+  searchQuery = '',
+  isArchived = false,
+  hasUnread = false,
+  whatsappInstanceId,
+  dateFrom = null,
+  dateTo = null,
+  enabled = true,
+}: UseConversationsCountOptions = {}) => {
+  const { tenant } = useTenant();
+
+  return useQuery({
+    // Primeiro segmento 'conversations' de propósito: cai no nível "realtime" do
+    // createQueryClient e, mais importante, as invalidações que já existem
+    // (`['conversations']` ao ler, arquivar ou apagar) alcançam a contagem por
+    // prefixo. É o que faz o número cair na hora em que ela lê uma conversa.
+    queryKey: [
+      'conversations',
+      'total',
+      tenant?.id,
+      whatsappInstanceId,
+      searchQuery,
+      isArchived,
+      hasUnread,
+      dateFrom?.toISOString() ?? null,
+      dateTo?.toISOString() ?? null,
+    ],
+    queryFn: async () => {
+      if (!tenant?.id) {
+        throw new Error('Tenant ID is required');
+      }
+
+      const term = searchQuery.trim();
+
+      // Mesmo motivo do `!inner` da lista: sem ele o `.or()` recortaria apenas
+      // o recurso embutido e a contagem viria com a Loja inteira.
+      let query = supabase
+        .from('conversations')
+        .select(term ? 'id, contacts!inner(id)' : 'id', {
+          count: 'exact',
+          head: true,
+        })
+        .eq('tenant_id', tenant.id)
+        .eq('is_archived', isArchived);
+
+      if (whatsappInstanceId) {
+        query = query.eq('whatsapp_instance_id', whatsappInstanceId);
+      }
+      if (term) {
+        const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        query = query.or(
+          `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
+          { referencedTable: 'contacts' },
+        );
+      }
+      if (hasUnread) {
+        query = query.gt('unread_count', 0);
+      }
+      if (dateFrom) {
+        query = query.gte('last_message_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        query = query.lte('last_message_at', dateTo.toISOString());
+      }
+
+      const { count, error } = await query;
+      if (error) {
+        throw error;
+      }
+      return count ?? 0;
+    },
+    enabled: enabled && !!tenant?.id,
+    staleTime: 1000 * 15,
+    // Mais espaçado que os 10s da lista de propósito: são três contagens em
+    // paralelo (uma por pílula de servidor) e elas já são invalidadas na hora
+    // por qualquer ação da pessoa. O intervalo só cobre o que chega de fora.
+    refetchInterval: 1000 * 30,
+    refetchOnWindowFocus: true,
+  });
+};
+
 // Hook para buscar uma conversa específica
 export const useConversation = (conversationId: string) => {
   const { tenant } = useTenant();

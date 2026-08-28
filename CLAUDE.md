@@ -251,6 +251,37 @@ na tela, então o teste é o único lugar onde um typo de chave aparece.
 
 ## Operação: aplicar coisas em produção
 
+### Regra 0 — escrita em produção pede autorização explícita, toda vez
+
+**Só o dono do projeto aplica coisa em produção.** Você entrega o script; ele roda.
+
+Sondagem somente-leitura é livre: `SELECT`, ler catálogo, listar edge functions,
+conferir estado. Faça à vontade, não precisa perguntar.
+
+Qualquer coisa que **escreve, executa ou tem efeito colateral** em produção
+espera um "sim" explícito para **aquela ação específica**:
+
+- `INSERT` / `UPDATE` / `DELETE` / DDL, inclusive via MCP do Supabase
+- deploy de edge function, `supabase secrets set`, mexer em cron
+- **chamar uma edge function**, mesmo sem autenticação, mesmo "só para testar" —
+  um POST em `process-report-dispatch` dispara um ciclo de envio de verdade
+- qualquer escrita em serviço externo (Stripe, Meta, Resend)
+
+**A autorização não se propaga.** Ela vale para a ação autorizada e acaba ali.
+Não vale para o próximo passo do mesmo plano, não vale porque "ele já liberou
+escrita nesta conversa", não vale porque o conteúdo já foi revisado, e não vale
+porque você tem certeza de que é seguro. Se a ação é nova, pergunta de novo.
+
+Isto já foi quebrado duas vezes — uma policy de RLS aplicada direto e um POST
+não autenticado que executou um ciclo real de disparo. Nos dois casos o estrago
+foi perto de zero e o raciocínio foi "a escrita já tinha sido liberada antes
+neste fluxo". É exatamente esse raciocínio que está proibido: o hábito afrouxa
+em silêncio, e na próxima o custo pode não ser perto de zero.
+
+Na dúvida sobre se algo escreve: trate como se escrevesse e pergunte.
+
+### As quatro armadilhas do ambiente
+
 O ambiente do dono do projeto tem quatro armadilhas que já quebraram entregas.
 Respeite-as ao escrever qualquer comando para ele rodar.
 

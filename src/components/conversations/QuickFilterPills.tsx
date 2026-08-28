@@ -3,7 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { visibleQuickFilters, type QuickFilterCounts, type QuickFilterType } from './quickFilters';
+import {
+  visibleQuickFilters,
+  type QuickFilterCount,
+  type QuickFilterCounts,
+  type QuickFilterType,
+} from './quickFilters';
 
 interface QuickFilterPillsProps {
   value: QuickFilterType;
@@ -13,6 +18,28 @@ interface QuickFilterPillsProps {
   /** Sinalização de SLA da Loja. Desligada, a pílula "Não respondidas" não existe. */
   slaEnabled?: boolean;
   className?: string;
+}
+
+/**
+ * Texto do selo. O "+" não é enfeite: separa "esta é a fila inteira" de "isto é
+ * o que já carreguei".
+ *
+ * As pílulas de coluna real perguntam o total ao servidor e mostram o número
+ * seco — é o fundo da fila, e é o que faz uma fila filtrada parar de parecer
+ * infinita enquanto ela trabalha. As derivadas só sabem contar o que já veio,
+ * então enquanto houver página por carregar sai "12+", que se lê como "pelo
+ * menos 12". Rolando até o fim, o piso alcança o total e o "+" some sozinho.
+ */
+function formatCount({ value, exact }: QuickFilterCount): string {
+  return exact ? String(value) : `${value}+`;
+}
+
+/** Complemento do tooltip explicando o que aquele número está contando. */
+function countHint(count: QuickFilterCount | undefined): string {
+  if (!count) return '';
+  return count.exact
+    ? ` ${count.value} no total.`
+    : ` ${count.value} entre as conversas já carregadas — role para ver o resto.`;
 }
 
 /** Verde-limão da pílula ativa e o quase-preto que fica legível em cima dele. */
@@ -90,13 +117,16 @@ export const QuickFilterPills = ({
                           : undefined
                       }
                     >
-                      {count}
+                      {formatCount(count)}
                     </Badge>
                   )}
                 </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="text-xs">{hint}</TooltipContent>
+            <TooltipContent className="text-xs">
+              {hint}
+              {countHint(count)}
+            </TooltipContent>
           </Tooltip>
         );
       })}

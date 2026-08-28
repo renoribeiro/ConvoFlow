@@ -412,6 +412,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Use a busca por nome ou número em vez de rolar a lista inteira.',
       'Para reaproveitar um trecho pronto, clique no raio ao lado do campo de mensagem — ou digite "/" com o campo vazio, que abre a mesma lista.',
       'Para guardar um trecho que você acabou de escrever, passe o mouse sobre a mensagem enviada e clique no raio que aparece nela.',
+      'Use as pílulas acima da lista ("Não lidas", "Aguardando"...) para trabalhar uma fila de cada vez; o número em cada uma diz o tamanho dela.',
       'Ative a sinalização de conversas não respondidas em Configurações › Atendimento para que os atrasos apareçam marcados aqui.',
       'Se um chatbot estiver conduzindo a conversa, encerre a sessão dele antes de assumir — assim vocês não respondem o cliente ao mesmo tempo.',
     ],
@@ -419,6 +420,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Chega "ainda está disponível o apartamento do anúncio?". Você responde em minutos e o contato já entra na base com nome e telefone, pronto para acompanhar no Funil.',
     tips: [
       'O agrupamento por nível de atendimento é opcional e só classifica as conversas já carregadas na tela — role a lista para incluir as mais antigas.',
+      'No número da pílula, "12" é o total da fila e "12+" quer dizer "pelo menos 12": as pílulas "Todas", "Não lidas" e "Arquivadas" sabem o total; "Aguardando", "Não respondidas" e "Em atendimento" contam só o que já foi carregado, e o "+" some quando você rola até o fim.',
+      'A lista se atualiza sozinha a cada poucos segundos, então numa fila filtrada entram conversas que estavam fora da tela conforme você trabalha. Acompanhe o número da pílula: é ele que mostra a fila diminuindo.',
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
       'Conversas é privada por Loja: mesmo o Superadmin não enxerga as conversas de uma Conta sem entrar nela pelo seletor do topo.',
       'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar — dá para ajustar antes.',
