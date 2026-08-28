@@ -336,7 +336,49 @@ export const useConversations = ({
     gcTime: 1000 * 60 * 15, // 15 minutos
     refetchOnWindowFocus: true,
     refetchOnMount: true,
-    refetchInterval: 1000 * 10, // Polling a cada 10s como fallback do Realtime
+    /**
+     * Polling como fallback do Realtime — que hoje NÃO entrega nada (a
+     * publicação `supabase_realtime` está vazia em produção, medido 2026-08-28).
+     * Enquanto isso não mudar, este intervalo É o mecanismo de entrega.
+     *
+     * Duas coisas acontecem aqui.
+     *
+     * 1) A base subiu de 10s para 30s. Medido: uma aba aberta gerava ~66s de
+     *    tempo de banco POR HORA — cerca de 7,5x a carga total do banco inteiro
+     *    naquele momento. A lista sozinha era ~80% disso.
+     *
+     * 2) O intervalo cresce junto com o número de páginas carregadas. O
+     *    TanStack refaz TODAS as páginas em cada refetch: com 3 páginas
+     *    abertas, um tick de 30s custava 3 requisições, e o custo por hora
+     *    triplicava só porque a pessoa rolou a lista.
+     *
+     *    Escalando o intervalo pelo número de páginas, o CUSTO POR HORA fica
+     *    constante: 1 página = 1 req/30s; 3 páginas = 3 reqs/90s. A mesma
+     *    vazão, independente de quanto rolaram.
+     *
+     * Por que escalar o intervalo em vez de limitar as páginas com `maxPages`:
+     * `maxPages` faz o TanStack DESCARTAR a página mais antiga ao carregar uma
+     * nova. Como a ConversationsList achata todas as páginas e renderiza o
+     * conjunto inteiro (`getAllConversations`), descartar a primeira faria as
+     * conversas do topo sumirem e o scroll pular no meio do uso. Escalar o
+     * intervalo não perde nenhuma página.
+     *
+     * Efeito na atualidade da lista: quem rolou 3 páginas vê a lista se
+     * atualizar a cada 90s em vez de 30s. Na prática isso não esconde novidade,
+     * porque a ordenação é `last_message_at DESC` — mensagem nova sempre entra
+     * na PÁGINA 1, que continua no ciclo mais curto sempre que ela é a única
+     * carregada. Quem rolou fundo está olhando conversa velha, onde não há
+     * novidade a perder. Além disso, as três pílulas de contagem seguem em 30s
+     * (elas não têm páginas) e qualquer ação da pessoa invalida na hora.
+     *
+     * Nota: o TanStack não dispara `refetchInterval` com a aba fora de foco
+     * (`refetchIntervalInBackground` é `false` por padrão), então aba de fundo
+     * já não custa nada.
+     */
+    refetchInterval: (query) => {
+      const paginasCarregadas = query.state.data?.pages.length ?? 1;
+      return 1000 * 30 * Math.max(1, paginasCarregadas);
+    },
     initialPageParam: null
   });
 };
