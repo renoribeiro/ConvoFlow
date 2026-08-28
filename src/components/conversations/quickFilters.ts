@@ -55,8 +55,48 @@ export function visibleQuickFilters(slaEnabled: boolean): typeof QUICK_FILTERS {
   return QUICK_FILTERS.filter((filter) => filter.id !== 'nao-respondidas');
 }
 
+/**
+ * Contagem de uma pílula, com o alcance dela junto.
+ *
+ * As pílulas não são todas do mesmo tipo, então o número delas não pode ser
+ * lido do mesmo jeito:
+ *
+ *   - "Todas", "Não lidas" e "Arquivadas" são colunas reais, então dá para
+ *     perguntar o total ao servidor: `exact: true`, é o tamanho da fila.
+ *   - "Aguardando", "Não respondidas" e "Em atendimento" são derivadas de
+ *     regras que só existem no cliente. Enquanto houver página por carregar, o
+ *     número é um PISO, não o total: `exact: false`.
+ *
+ * Sem essa distinção os dois significados sairiam com a mesma cara no mesmo
+ * lugar da tela — que é exatamente o problema que a contagem veio resolver.
+ */
+export interface QuickFilterCount {
+  value: number;
+  /** false = só o que já foi carregado; o total real é este número ou maior. */
+  exact: boolean;
+}
+
 /** Contagem por pílula. Chave ausente = desconhecida no conjunto carregado. */
-export type QuickFilterCounts = Partial<Record<QuickFilterType, number>>;
+export type QuickFilterCounts = Partial<Record<QuickFilterType, QuickFilterCount>>;
+
+/**
+ * Pílulas cujo total o servidor sabe responder, porque são coluna de verdade
+ * em `conversations` (`is_archived`, `unread_count`).
+ *
+ * As outras três dependem de `conversationGroups.ts` / `slaLevels.ts`. Traduzir
+ * essas regras para filtro do PostgREST criaria uma segunda fonte da verdade
+ * para uma regra que já mostrou ser sutil (o 'incoming' que a normalização de
+ * direção conserta) — e as duas cópias iam divergir na primeira mudança.
+ */
+export const SERVER_COUNTED_FILTERS: ReadonlyArray<QuickFilterType> = [
+  'todas',
+  'nao-lidas',
+  'arquivadas',
+] as const;
+
+export function isServerCountedFilter(quickFilter: QuickFilterType): boolean {
+  return SERVER_COUNTED_FILTERS.includes(quickFilter);
+}
 
 /** Nível de atendimento exigido por cada pílula — só as derivadas aparecem. */
 const ATTENDANCE_BY_FILTER: Partial<Record<QuickFilterType, AttendanceGroup>> = {
@@ -133,19 +173,28 @@ export function applyQuickFilter<T extends SlaInput>(
  * fora do retorno e quem chama mantém o último valor conhecido, em vez de
  * exibir um zero mentiroso.
  *
- * Limitação assumida: conta apenas as páginas já carregadas, como o
- * agrupamento por nível de atendimento já fazia.
+ * `allLoaded` diz se a última página já chegou. Com ela falsa, todo número
+ * daqui é um piso — a contagem sai marcada `exact: false` e a pílula mostra
+ * isso. Com ela verdadeira, o conjunto carregado É a fila inteira e o número
+ * vira exato sem precisar perguntar nada ao servidor.
+ *
+ * As chaves de `SERVER_COUNTED_FILTERS` continuam saindo daqui como fallback:
+ * valem enquanto a contagem do servidor não chega (ou se ela falhar), e são
+ * sobrescritas por `mergeServerTotals` assim que chega.
  */
 export function buildQuickFilterCounts(
   conversations: SlaInput[],
   scope: QuickFilterScope,
   now: Date = new Date(),
   sla?: SlaFilterConfig,
+  allLoaded: boolean = false,
 ): QuickFilterCounts {
+  const conta = (value: number): QuickFilterCount => ({ value, exact: allLoaded });
+
   // Universo dos arquivados: só sabemos o total deles.
-  if (scope.isArchived) return { arquivadas: conversations.length };
+  if (scope.isArchived) return { arquivadas: conta(conversations.length) };
   // Universo já recortado por não lidas: idem.
-  if (scope.hasUnread) return { 'nao-lidas': conversations.length };
+  if (scope.hasUnread) return { 'nao-lidas': conta(conversations.length) };
 
   let naoLidas = 0;
   let aguardando = 0;
@@ -163,14 +212,38 @@ export function buildQuickFilterCounts(
   }
 
   const counts: QuickFilterCounts = {
-    todas: conversations.length,
-    'nao-lidas': naoLidas,
-    aguardando,
-    'em-atendimento': emAtendimento,
+    todas: conta(conversations.length),
+    'nao-lidas': conta(naoLidas),
+    aguardando: conta(aguardando),
+    'em-atendimento': conta(emAtendimento),
   };
 
   // Com o SLA desligado a chave nem é publicada — a pílula não existe.
-  if (sla?.enabled) counts['nao-respondidas'] = naoRespondidas;
+  if (sla?.enabled) counts['nao-respondidas'] = conta(naoRespondidas);
 
   return counts;
+}
+
+/**
+ * Sobrepõe os totais vindos do servidor às contagens do conjunto carregado.
+ *
+ * Só as chaves de `SERVER_COUNTED_FILTERS` são aceitas, e só com número
+ * definido — uma contagem ainda carregando (ou que falhou) devolve `undefined`
+ * e a pílula segue com o piso do conjunto carregado, marcado como tal, em vez
+ * de piscar ou mentir um total.
+ */
+export function mergeServerTotals(
+  loaded: QuickFilterCounts,
+  totals: Partial<Record<QuickFilterType, number | undefined>>,
+): QuickFilterCounts {
+  const merged: QuickFilterCounts = { ...loaded };
+
+  for (const id of SERVER_COUNTED_FILTERS) {
+    const total = totals[id];
+    if (typeof total === 'number') {
+      merged[id] = { value: total, exact: true };
+    }
+  }
+
+  return merged;
 }

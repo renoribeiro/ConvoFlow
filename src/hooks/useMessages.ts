@@ -299,9 +299,25 @@ export const useDeleteMessage = () => {
   });
 };
 
-// Função utilitária para obter todas as mensagens de todas as páginas
+/**
+ * Junta todas as páginas em uma única lista em ordem cronológica crescente.
+ *
+ * Cada página nasce da query em ordem DECRESCENTE e é revertida no `queryFn`,
+ * então dentro dela as mensagens já estão da mais antiga para a mais nova. Mas
+ * as páginas em si chegam do mais novo para o mais antigo: a página 0 é o
+ * fim da conversa e cada `fetchNextPage` traz um trecho ANTERIOR a ela.
+ *
+ * Concatenar na ordem de chegada colocava o trecho antigo DEPOIS do recente, e
+ * a conversa aparecia embaralhada exatamente na emenda entre páginas — 14 de
+ * julho surgindo abaixo de ontem. Invertendo a ordem das páginas, cada trecho
+ * carregado entra ACIMA do que já estava na tela, que é como conversa funciona.
+ */
 export const getAllMessages = (messagesQuery: ReturnType<typeof useMessages>) => {
-  return messagesQuery.data?.pages.flatMap(page => page.data) || [];
+  const pages = messagesQuery.data?.pages;
+  if (!pages) return [];
+  // `[...pages]` porque `reverse()` altera o array no lugar — mexer no array do
+  // cache do React Query embaralharia o estado de onde o bug saiu.
+  return [...pages].reverse().flatMap(page => page.data);
 };
 
 // Função utilitária para verificar se há mensagens não lidas

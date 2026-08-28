@@ -11,11 +11,16 @@ import {
 } from '@/components/conversations/ConversationFiltersModal';
 import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
 import {
+  mergeServerTotals,
   resolveQuickFilterScope,
   type QuickFilterCounts,
   type QuickFilterType,
 } from '@/components/conversations/quickFilters';
-import { useConversationByContact, useCreateConversation } from '@/hooks/useConversations';
+import {
+  useConversationByContact,
+  useConversationsCount,
+  useCreateConversation,
+} from '@/hooks/useConversations';
 import { useSlaConfig } from '@/hooks/useSlaConfig';
 import { EtiquetasManagerSheet } from '@/components/etiquetas/EtiquetasManagerSheet';
 import { Search, Filter, Tag } from 'lucide-react';
@@ -200,12 +205,55 @@ export default function Conversations() {
     setQuickFilterCounts((prev) => ({ ...prev, ...counts }));
   }, []);
 
+  // --- Totais de servidor das pílulas de coluna real ---
+  //
+  // Uma contagem por pílula, cada uma com o recorte que ELA aplicaria se fosse
+  // clicada — é isso que faz o selo responder "qual o tamanho dessa fila" em
+  // vez de "quantas cabem na página". O recorte sai do mesmo
+  // `resolveQuickFilterScope` que a lista usa, então selo e lista nunca contam
+  // universos diferentes.
+  //
+  // Só aqui dá para montar isso: a `ConversationsList` recebe o recorte já
+  // resolvido e não tem como recuperar o que veio do modal "Filtros".
+  const filtrosDeServidor = {
+    searchQuery,
+    whatsappInstanceId: activeInstanceId ?? undefined,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+  };
+  const modalScope = { hasUnread: filters.hasUnread, isArchived: filters.isArchived };
+
+  const totalTodas = useConversationsCount({
+    ...filtrosDeServidor,
+    ...resolveQuickFilterScope('todas', modalScope),
+  });
+  const totalNaoLidas = useConversationsCount({
+    ...filtrosDeServidor,
+    ...resolveQuickFilterScope('nao-lidas', modalScope),
+  });
+  const totalArquivadas = useConversationsCount({
+    ...filtrosDeServidor,
+    ...resolveQuickFilterScope('arquivadas', modalScope),
+  });
+
+  // Total do servidor vence a contagem do conjunto carregado; onde ele ainda
+  // não chegou, o piso continua valendo (e aparece marcado como piso).
+  const countsComTotais = useMemo(
+    () =>
+      mergeServerTotals(quickFilterCounts, {
+        todas: totalTodas.data,
+        'nao-lidas': totalNaoLidas.data,
+        arquivadas: totalArquivadas.data,
+      }),
+    [quickFilterCounts, totalTodas.data, totalNaoLidas.data, totalArquivadas.data],
+  );
+
   const list = (
     <div className="flex h-full min-h-0 flex-col">
       <QuickFilterPills
         value={effectiveQuickFilter}
         onChange={setQuickFilter}
-        counts={quickFilterCounts}
+        counts={countsComTotais}
         slaEnabled={slaEnabled}
         className={cn('flex-shrink-0 pb-3', isMobile ? 'px-0' : 'px-4 pt-4')}
       />
