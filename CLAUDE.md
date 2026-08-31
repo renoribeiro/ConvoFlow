@@ -251,39 +251,66 @@ na tela, então o teste é o único lugar onde um typo de chave aparece.
 
 ## Operação: aplicar coisas em produção
 
-### Regra 0 — escrita em produção pede autorização explícita, toda vez
+### Regra 0 — você aplica e roda; só volta ao bater numa parede
 
-**Só o dono do projeto aplica coisa em produção.** Você entrega o script; ele roda.
+> **Regra vigente desde 2026-08-28.** Ela **substituiu** a anterior, que exigia
+> autorização explícita para cada ação de escrita. Se você encontrar em algum
+> lugar do repositório a instrução "entregue o script, ele roda" ou "a
+> autorização não se propaga", é texto velho: vale esta seção.
 
-Sondagem somente-leitura é livre: `SELECT`, ler catálogo, listar edge functions,
-conferir estado. Faça à vontade, não precisa perguntar.
+**Aplique e execute você mesmo.** Migrações, `VACUUM`, mudança de cron, deploy de
+edge function, commit e push. **Não entregue script para o dono colar** e não
+espere autorização por ação.
 
-Qualquer coisa que **escreve, executa ou tem efeito colateral** em produção
-espera um "sim" explícito para **aquela ação específica**:
+**Só volte a ele quando você já TENTOU e bateu numa parede:**
 
-- `INSERT` / `UPDATE` / `DELETE` / DDL, inclusive via MCP do Supabase
-- deploy de edge function, `supabase secrets set`, mexer em cron
-- **chamar uma edge function**, mesmo sem autenticação, mesmo "só para testar" —
-  um POST em `process-report-dispatch` dispara um ciclo de envio de verdade
-- qualquer escrita em serviço externo (Stripe, Meta, Resend)
+- permissão que você não tem (ex.: `ALTER TABLE` numa tabela de extensão)
+- credencial que falta
+- decisão que só ele pode tomar (produto, prioridade, custo para o cliente)
+- algo fora do seu alcance — abrir PR sem `gh` e sem MCP do GitHub, ou um teste
+  que exige mandar mensagem para um telefone real
 
-**A autorização não se propaga.** Ela vale para a ação autorizada e acaba ali.
-Não vale para o próximo passo do mesmo plano, não vale porque "ele já liberou
-escrita nesta conversa", não vale porque o conteúdo já foi revisado, e não vale
-porque você tem certeza de que é seguro. Se a ação é nova, pergunta de novo.
+**Continua absoluto: nunca `supabase db push`** (ver a seção logo abaixo).
 
-Isto já foi quebrado duas vezes — uma policy de RLS aplicada direto e um POST
-não autenticado que executou um ciclo real de disparo. Nos dois casos o estrago
-foi perto de zero e o raciocínio foi "a escrita já tinha sido liberada antes
-neste fluxo". É exatamente esse raciocínio que está proibido: o hábito afrouxa
-em silêncio, e na próxima o custo pode não ser perto de zero.
+#### A prudência não sumiu — ela mudou de lugar
 
-Na dúvida sobre se algo escreve: trate como se escrevesse e pergunte.
+Antes ela era *perguntar antes de agir*. Agora é:
+
+1. **Guarda dentro do script.** Escrita perigosa vai dentro de UM bloco `DO`
+   único, que confere a premissa e aborta com `RAISE EXCEPTION` quando ela não
+   vale — ver a armadilha 4 abaixo. O guarda é o que substitui a pergunta.
+2. **Testar em vez de supor.** Se dá para provar com um teste, prove. Em
+   2026-08-28 isso pagou três vezes no mesmo dia: um probe achou um bug de
+   ambiguidade que existia desde 2025 numa função tida como "correta"; um guarda
+   abortou sozinho por causa de um erro na própria checagem (e nada foi
+   removido); e o `VACUUM FULL` via pg_cron levou 0,064 s contra a estimativa de
+   "1 a 3 s". Nenhuma das três coisas apareceria sem rodar.
+3. **Antes de apagar, exporte e conte.** Continua valendo: o SQL Editor não tem
+   desfazer.
+
+#### Quando precisar dele, o formato é obrigatório
+
+Nada de "vá no painel e procure X". Assuma que ele não sabe onde nada fica. Uma
+mensagem só tem que bastar, sem pergunta de volta:
+
+- o **link exato**
+- a **tela exata** e onde nela (nome do botão, canto da página)
+- o **conteúdo exato** para colar ou digitar
+- os **passos em ordem**
+- **o que ele deve ver quando deu certo** — e, de preferência, como diagnosticar
+  se não deu
+
+E termine com uma seção separada, `O QUE VOCÊ PRECISA FAZER`, contendo **só** o
+que depende dele. Se não há nada, diga isso claramente.
 
 ### As quatro armadilhas do ambiente
 
 O ambiente do dono do projeto tem quatro armadilhas que já quebraram entregas.
-Respeite-as ao escrever qualquer comando para ele rodar.
+
+As três primeiras valem **quando você precisa entregar um comando para ele
+rodar** — hoje a exceção, não a regra (ver Regra 0). A **quarta vale sempre**,
+inclusive para SQL que você mesmo executa: ela é o motivo de guarda e escrita
+morarem no mesmo bloco `DO`.
 
 1. **O terminal dele é PowerShell, não bash.** Nunca use `\` para quebrar linha
    — cada comando vai numa linha só. Com `\`, o `git add` morre com
@@ -326,15 +353,30 @@ Dessas 48, várias mexem em dado real de usuário se rodarem — as piores são
 reescreve `handle_new_user`), `20260513000001_user_hierarchy_schema` (backfill
 de `parent_id`/`tenant_id` em todos os perfis) e
 `20260716000003_hierarchy_v2_mario_camila_encaixarh` (reescreve quatro linhas
-nomeadas). Migração aqui se aplica colando um script no SQL Editor.
+nomeadas). Migração aqui se aplica **uma de cada vez**, nunca por replay.
 
 Conserto do ledger: `docs/RUNBOOK_reconciliacao_ledger.md`.
 
 Por isso toda migração vem em par: o arquivo em `supabase/migrations/` (registro)
-e um script pronto para colar em `docs/`, transacional, idempotente e com o
-`INSERT` no ledger — o padrão está em `docs/aplicar_rls_lojas_do_gerente.sql`.
-Os dois precisam ficar equivalentes, inclusive no `INSERT` do ledger: quem roda
-o arquivo de migração direto no SQL Editor também tem que registrar o histórico.
+e o SQL efetivamente aplicado, transacional, idempotente e com o `INSERT` no
+ledger. Os dois precisam ficar equivalentes, **inclusive no `INSERT` do
+ledger** — o `execute_sql` do MCP não grava o histórico por você, então o
+`INSERT` em `supabase_migrations.schema_migrations` é sua responsabilidade.
+Padrão em `docs/aplicar_rls_lojas_do_gerente.sql`.
+
+Quando a migração for grande, arriscada ou de operação repetível, deixe também o
+script em `docs/` — ele vira registro do que rodou e receita para repetir. É o
+caso de `docs/RUNBOOK_reducao_carga_banco.md` e dos scripts que ele referencia.
+
+Duas coisas úteis, medidas em 2026-08-28:
+
+- **O `execute_sql` do MCP do Supabase roda FORA de bloco de transação**, então
+  `VACUUM FULL` e `CREATE INDEX CONCURRENTLY` funcionam por ele.
+- **Você tem `MAINTAIN`, não posse.** O papel `postgres` consegue `VACUUM FULL` e
+  `DELETE` em tabelas de extensão (`net._http_response`, `cron.job_run_details`),
+  mas **não** `ALTER TABLE` nelas, e não é superuser — `pg_net.ttl` e
+  `cron.log_run` estão fora do seu alcance. Dá para limpar, não para configurar;
+  migração não contorna isso, porque roda com o mesmo papel.
 
 Escreva o script defensivo: se ele apaga ou sobrescreve algo, cheque a premissa
 **dentro do mesmo bloco `DO` que faz a escrita** (ver armadilha 4 acima) e aborte
