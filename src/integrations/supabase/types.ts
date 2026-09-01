@@ -2300,56 +2300,6 @@ export type Database = {
           },
         ]
       }
-      jobs: {
-        Row: {
-          company_id: string
-          completed_at: string | null
-          created_at: string | null
-          current_attempts: number | null
-          error_message: string | null
-          id: number
-          max_attempts: number | null
-          payload: Json | null
-          run_at: string | null
-          status: string | null
-          type: string
-        }
-        Insert: {
-          company_id: string
-          completed_at?: string | null
-          created_at?: string | null
-          current_attempts?: number | null
-          error_message?: string | null
-          id?: never
-          max_attempts?: number | null
-          payload?: Json | null
-          run_at?: string | null
-          status?: string | null
-          type: string
-        }
-        Update: {
-          company_id?: string
-          completed_at?: string | null
-          created_at?: string | null
-          current_attempts?: number | null
-          error_message?: string | null
-          id?: never
-          max_attempts?: number | null
-          payload?: Json | null
-          run_at?: string | null
-          status?: string | null
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "jobs_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_sources: {
         Row: {
           created_at: string
@@ -4891,6 +4841,24 @@ export type Database = {
           },
         ]
       }
+      conversion_funnel_view: {
+        Row: {
+          count: number | null
+          date: string | null
+          stage_name: string | null
+          stage_order: number | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       current_service_health: {
         Row: {
           data_freshness: string | null
@@ -4920,6 +4888,25 @@ export type Database = {
           uptime?: number | null
         }
         Relationships: []
+      }
+      daily_analytics_view: {
+        Row: {
+          conversions: number | null
+          date: string | null
+          leads: number | null
+          revenue: number | null
+          tenant_id: string | null
+          visitors: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tracking_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_performance_daily: {
         Row: {
@@ -4976,6 +4963,26 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "report_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      source_performance_view: {
+        Row: {
+          conversions: number | null
+          cost: number | null
+          date: string | null
+          leads: number | null
+          revenue: number | null
+          source: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tracking_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5063,6 +5070,24 @@ export type Database = {
           total_leads: number | null
           total_revenue: number | null
           unique_sources: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tracking_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_metrics_view: {
+        Row: {
+          conversions: number | null
+          created_at: string | null
+          leads: number | null
+          revenue: number | null
+          tenant_id: string | null
         }
         Relationships: [
           {
@@ -5267,23 +5292,10 @@ export type Database = {
         Args: { days_to_keep?: number }
         Returns: number
       }
-      complete_job:
-        | {
-            Args: {
-              p_error_message?: string
-              p_job_id: number
-              p_success: boolean
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_error_message?: string
-              p_job_id: string
-              p_success: boolean
-            }
-            Returns: boolean
-          }
+      complete_job: {
+        Args: { p_error_message?: string; p_job_id: string; p_success: boolean }
+        Returns: boolean
+      }
       current_capability_role: { Args: never; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       current_user_role: {
@@ -5302,19 +5314,13 @@ export type Database = {
             }[]
           }
         | {
-            Args: { p_job_types: string[] }
+            Args: { p_job_types?: string[] }
             Returns: {
-              company_id: string
-              completed_at: string
-              created_at: string
               current_attempts: number
-              error_message: string
-              id: number
-              max_attempts: number
-              payload: Json
-              run_at: string
-              status: string
-              type: string
+              id: string
+              job_data: Json
+              job_type: string
+              tenant_id: string
             }[]
           }
       descendant_profile_ids: { Args: { root_id: string }; Returns: string[] }
@@ -5488,6 +5494,19 @@ export type Database = {
       mark_notification_as_read: {
         Args: { notification_id: string }
         Returns: undefined
+      }
+      normalize_ad_referral: {
+        Args: { p_referral: Json }
+        Returns: {
+          ctwa_clid: string
+          display_name: string
+          source_id: string
+          source_type: string
+          source_url: string
+          traffic_type: string
+          utm_medium: string
+          utm_source: string
+        }[]
       }
       notify_overdue_followups: { Args: never; Returns: undefined }
       process_chatbot_variables: {

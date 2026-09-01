@@ -1,0 +1,26 @@
+-- Concede leitura da view filtrada de performance de campanhas ao usuário logado.
+--
+-- O BUG
+-- `20260731000001_revoke_public_access_materialized_views.sql` tirou, com razão,
+-- o acesso direto às views materializadas: elas não respeitam RLS, então
+-- qualquer usuário logado leria dado de todas as Contas. O caminho correto
+-- passou a ser a view `_filtered`, que filtra por
+-- `get_current_user_tenant_id()`.
+--
+-- Só que a dupla ficou pela metade:
+--   - `tracking_metrics_daily_filtered`     -> GRANT para `authenticated`  ✅
+--   - `campaign_performance_daily_filtered` -> nenhum GRANT                ❌
+--
+-- Resultado: a view irmã existia e estava correta, mas ninguém conseguia lê-la.
+-- Quem tentasse levava `42501: permission denied for view`. Como as tabelas de
+-- origem estavam vazias, o erro nunca apareceu para o usuário — a tela mostrava
+-- vazio de qualquer jeito e ninguém desconfiou. Com a ponte CTWA
+-- (20260831000001) alimentando `lead_tracking`, o erro passaria a aparecer.
+--
+-- Descoberto em 2026-08-31 simulando um usuário real da Conta EncaixaRH.
+--
+-- NÃO conceder acesso às matviews cruas (`campaign_performance_daily`,
+-- `tracking_metrics_daily`). O revoke de 20260731000001 é proposital e continua
+-- valendo: sem RLS, elas vazam dado entre Contas.
+
+GRANT SELECT ON public.campaign_performance_daily_filtered TO authenticated;

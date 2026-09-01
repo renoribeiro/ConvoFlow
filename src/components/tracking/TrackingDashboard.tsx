@@ -24,7 +24,6 @@ import {
 import {
   useTrackingMetrics,
   useTrafficSources,
-  useLeadTracking,
   useCampaignPerformance
 } from '@/hooks/useTracking';
 import { formatCurrency } from '@/lib/utils';
