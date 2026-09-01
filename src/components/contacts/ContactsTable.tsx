@@ -36,6 +36,9 @@ interface Contact {
     name: string;
     color: string;
   };
+  lead_source?: {
+    name: string;
+  };
   conversations?: {
     last_message_at: string;
   }[];
@@ -71,12 +74,15 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
   }>({ isOpen: false, contactId: null, contactName: '' });
   // Construir query dinâmica baseada nos filtros
   const buildQuery = () => {
-    let query = {
+    const query = {
       select: `
         *,
         stage:funnel_stages!contacts_current_stage_id_fkey (
           name,
           color
+        ),
+        lead_source:lead_sources!contacts_lead_source_id_fkey (
+          name
         ),
         conversations (
           last_message_at
@@ -126,11 +132,16 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
     return { ...query, filter: filters_array };
   };
 
-  const { data: allContacts = [], isLoading, error } = useSupabaseQuery({
+  const { data: allContactsRaw = [], isLoading, error } = useSupabaseQuery({
     table: 'contacts',
     queryKey: ['contacts', filters.stage, filters.source, filters.tags, whatsappInstanceId ?? 'all'],
     ...buildQuery()
   });
+
+  // `useSupabaseQuery` devolve um tipo genérico que não conhece o `select` com
+  // joins acima, então todo acesso a campo caía em `GenericStringError`. A
+  // interface `Contact` deste arquivo é o contrato real da consulta.
+  const allContacts = allContactsRaw as unknown as Contact[];
 
   // Aplicar filtros de busca e tags no lado do cliente
   const filteredContacts = useMemo(() => {
@@ -361,8 +372,10 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                     )}
                   </TableCell>
                   <TableCell>
-                    {contact.lead_source_id ? (
-                      <Badge variant="outline">Fonte {contact.lead_source_id}</Badge>
+                    {contact.lead_source?.name ? (
+                      <Badge variant="outline" className="max-w-[220px] truncate" title={contact.lead_source.name}>
+                        {contact.lead_source.name}
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}

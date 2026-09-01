@@ -219,8 +219,10 @@ export function useCampaignPerformance(dateRange?: DateRange) {
     queryFn: async () => {
       if (!tenant?.id) throw new Error('Tenant não encontrado');
       
+      // View filtrada por Conta no servidor — a matview crua não respeita RLS e,
+      // desde 20260731000001, nem concede leitura a `authenticated`.
       let query = supabase
-        .from('campaign_performance_daily')
+        .from('campaign_performance_daily_filtered')
         .select('*')
         .eq('tenant_id', tenant.id);
       
@@ -300,6 +302,40 @@ export function useCreateTrafficSource() {
       toast({
         title: 'Erro',
         description: 'Falha ao criar fonte de tráfego',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useUpdateTrafficSource() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<TrafficSource> & { id: string }) => {
+      if (!tenant?.id) throw new Error('Conta não encontrada');
+
+      const { data: result, error } = await supabase
+        .from('traffic_sources')
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('tenant_id', tenant.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['traffic-sources'] });
+      queryClient.invalidateQueries({ queryKey: ['tracking-metrics'] });
+    },
+    onError: () => {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao atualizar fonte de tráfego',
         variant: 'destructive',
       });
     },

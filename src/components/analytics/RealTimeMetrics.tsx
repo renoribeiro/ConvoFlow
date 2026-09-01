@@ -80,53 +80,39 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
     }
   };
 
-  // Função para calcular mudança percentual
-  const calculateChange = (current: number, type: string) => {
-    // Em produção, isso viria dos dados históricos
-    const mockChanges: Record<string, number> = {
-      activeVisitors: 12,
-      totalLeads: 8,
-      totalConversions: 25,
-      totalRevenue: -5,
-      avgConversionRate: 3.2
-    };
-    return mockChanges[type] || 0;
-  };
-
-  // Preparar dados das métricas
+  // Preparar dados das métricas.
+  //
+  // Não há `change` aqui. Até 2026-08-31 estes cartões mostravam variações
+  // fixas no código (+8%, +25%, -5%...) que nunca foram calculadas de nada:
+  // apareciam iguais todo dia, para qualquer Conta, com qualquer filtro. Foram
+  // removidas. Comparação com período anterior existe de verdade na aba
+  // Dashboard, via `useTrackingMetrics`, que calcula em cima dos dados reais.
+  //
+  // "Visitantes Online" também saiu: o produto não tem analytics de site, o
+  // lead nasce quando a mensagem chega. O cartão mostrava sempre zero com uma
+  // seta de +12% ao lado.
   const metricsData = metrics ? [
-    {
-      title: 'Visitantes Online',
-      value: formatValue(metrics.activeVisitors, 'number'),
-      change: calculateChange(metrics.activeVisitors, 'activeVisitors'),
-      icon: Users,
-      color: 'text-status-info'
-    },
     {
       title: 'Total de Leads',
       value: formatValue(metrics.totalLeads, 'number'),
-      change: calculateChange(metrics.totalLeads, 'totalLeads'),
       icon: Target,
       color: 'text-status-success'
     },
     {
       title: 'Conversões',
       value: formatValue(metrics.totalConversions, 'number'),
-      change: calculateChange(metrics.totalConversions, 'totalConversions'),
       icon: TrendingUp,
       color: 'text-accent'
     },
     {
       title: 'Receita Total',
       value: formatValue(metrics.totalRevenue, 'currency'),
-      change: calculateChange(metrics.totalRevenue, 'totalRevenue'),
       icon: DollarSign,
       color: 'text-primary'
     },
     {
       title: 'Taxa de Conversão',
       value: formatValue(metrics.avgConversionRate, 'percentage'),
-      change: calculateChange(metrics.avgConversionRate, 'avgConversionRate'),
       icon: Activity,
       color: 'text-status-info'
     }
@@ -191,12 +177,10 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
       </div>
 
       {/* Métricas principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metricsData.map((metric, index) => {
           const Icon = metric.icon;
-          const isPositive = metric.change >= 0;
-          const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-          
+
           return (
             <Card key={index}>
               <CardContent className="p-6">
@@ -214,18 +198,6 @@ export function RealTimeMetrics({ className, filters }: RealTimeMetricsProps) {
                   )}>
                     <Icon className={cn("h-4 w-4", metric.color)} />
                   </div>
-                </div>
-                <div className="flex items-center mt-2">
-                  <TrendIcon className={cn(
-                    "h-3 w-3 mr-1",
-                    isPositive ? "text-status-success" : "text-status-error"
-                  )} />
-                  <span className={cn(
-                    "text-xs",
-                    isPositive ? "text-status-success" : "text-status-error"
-                  )}>
-                    {isPositive ? '+' : ''}{metric.change.toFixed(1)}%
-                  </span>
                 </div>
               </CardContent>
             </Card>

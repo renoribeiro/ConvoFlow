@@ -7,14 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrafficSourceConfig } from '@/components/tracking/TrafficSourceConfig';
 import { TrackingDashboard } from '@/components/tracking/TrackingDashboard';
 import { TrackingFilters } from '@/components/tracking/TrackingFilters';
-import { PredictiveAnalytics } from '@/components/tracking/PredictiveAnalytics';
 import { AdvancedFilters, AnalyticsFilters } from '@/components/analytics/AdvancedFilters';
 import { RealTimeMetrics } from '@/components/analytics/RealTimeMetrics';
 import { AdvancedCharts } from '@/components/analytics/AdvancedCharts';
 import RealTimeStatus from '@/components/analytics/RealTimeStatus';
 import ExportReports from '@/components/analytics/ExportReports';
 import { useRealTimeAnalytics } from '@/hooks/useRealTimeAnalytics';
-import { Settings, Plus, TrendingUp, BarChart3, Target, Zap } from 'lucide-react';
+import { Settings, Plus, TrendingUp, BarChart3, Target } from 'lucide-react';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
 
@@ -92,7 +91,7 @@ export default function Tracking() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             Dashboard
@@ -104,10 +103,6 @@ export default function Tracking() {
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4" />
             Análises
-          </TabsTrigger>
-          <TabsTrigger value="predictions" className="flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            Previsões
           </TabsTrigger>
         </TabsList>
 
@@ -156,10 +151,6 @@ export default function Tracking() {
            </div>
           <RealTimeMetrics filters={analyticsFilters} />
           <AdvancedCharts filters={analyticsFilters} />
-        </TabsContent>
-
-        <TabsContent value="predictions" className="space-y-6">
-          <PredictiveAnalytics />
         </TabsContent>
       </Tabs>
     </div>

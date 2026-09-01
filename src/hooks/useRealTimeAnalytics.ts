@@ -184,26 +184,69 @@ export const useRealTimeAnalytics = ({
       avgTicket: item.conversions > 0 ? item.revenue / item.conversions : 0
     })) || [];
 
-    // Processar dados de fonte
-    const sourceData: SourcePerformance[] = rawData.sources?.map((item: any) => ({
-      source: item.source || 'Desconhecido',
-      leads: item.leads || 0,
-      conversions: item.conversions || 0,
-      revenue: item.revenue || 0,
-      conversionRate: item.leads > 0 ? (item.conversions / item.leads) * 100 : 0,
-      cost: item.cost || 0,
-      roi: item.cost > 0 ? ((item.revenue - item.cost) / item.cost) * 100 : 0,
-      trend: determineTrend(item.trend_data)
-    })) || [];
+    // Processar dados de fonte.
+    // `source_performance_view` tem grão (fonte, dia) — precisa disso para o
+    // filtro por data funcionar. O gráfico, porém, quer UMA entrada por fonte
+    // (usa `source.source` como key do React), então o agrupamento acontece
+    // aqui, depois do filtro.
+    const bySource = new Map<string, { leads: number; conversions: number; revenue: number; cost: number; daily: Array<{ date: string; leads: number }> }>();
 
-    // Processar dados do funil
-    const funnelData: FunnelStage[] = rawData.funnel?.map((item: any, index: number) => ({
-      name: item.stage_name || `Estágio ${index + 1}`,
-      value: item.count || 0,
-      percentage: item.percentage || 0,
-      color: getFunnelColor(index),
-      change: item.change || 0
-    })) || getDefaultFunnelData();
+    for (const item of (rawData.sources ?? [])) {
+      const key = item.source || 'Desconhecido';
+      const acc = bySource.get(key) ?? { leads: 0, conversions: 0, revenue: 0, cost: 0, daily: [] };
+      acc.leads += Number(item.leads) || 0;
+      acc.conversions += Number(item.conversions) || 0;
+      acc.revenue += Number(item.revenue) || 0;
+      acc.cost += Number(item.cost) || 0;
+      acc.daily.push({ date: item.date, leads: Number(item.leads) || 0 });
+      bySource.set(key, acc);
+    }
+
+    const sourceData: SourcePerformance[] = Array.from(bySource.entries())
+      .map(([source, acc]) => ({
+        source,
+        leads: acc.leads,
+        conversions: acc.conversions,
+        revenue: acc.revenue,
+        conversionRate: acc.leads > 0 ? (acc.conversions / acc.leads) * 100 : 0,
+        cost: acc.cost,
+        // Sem ingestão de gasto de anúncio, ROI não existe. Fica 0 e a tela
+        // não mostra a etiqueta — número inventado é pior que nenhum.
+        roi: acc.cost > 0 ? ((acc.revenue - acc.cost) / acc.cost) * 100 : 0,
+        trend: determineTrend(
+          acc.daily.sort((a, b) => a.date.localeCompare(b.date)).map((d) => d.leads)
+        ),
+      }))
+      .sort((a, b) => b.leads - a.leads);
+
+    // Processar dados do funil.
+    // `conversion_funnel_view` tem grão (etapa, dia); a etapa é a unidade do
+    // gráfico. Agrupa aqui e calcula a porcentagem sobre o total do período —
+    // a view não tem como saber qual recorte de data o usuário escolheu.
+    const byStage = new Map<string, { order: number; value: number }>();
+
+    for (const item of (rawData.funnel ?? [])) {
+      const key = item.stage_name;
+      if (!key) continue;
+      const order = Number(item.stage_order);
+      const acc = byStage.get(key) ?? { order: Number.isFinite(order) ? order : 0, value: 0 };
+      acc.value += Number(item.count) || 0;
+      byStage.set(key, acc);
+    }
+
+    const funnelTotal = Array.from(byStage.values()).reduce((sum, s) => sum + s.value, 0);
+
+    const funnelData: FunnelStage[] = Array.from(byStage.entries())
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([name, s], index) => ({
+        name,
+        value: s.value,
+        percentage: funnelTotal > 0 ? (s.value / funnelTotal) * 100 : 0,
+        color: getFunnelColor(index),
+        // Não há histórico de passagem por etapa no produto, então não há
+        // variação para mostrar. A tela não renderiza este campo.
+        change: 0,
+      }));
 
     return {
       metrics,
@@ -230,15 +273,6 @@ export const useRealTimeAnalytics = ({
 
   // Função para obter cor do funil — usa paleta da marca
   const getFunnelColor = (index: number): string => getChartColor(index);
-
-  // Função para obter dados padrão do funil
-  const getDefaultFunnelData = (): FunnelStage[] => [
-    { name: 'Visitantes', value: 0, percentage: 0, color: getChartColor(0), change: 0 },
-    { name: 'Leads', value: 0, percentage: 0, color: getChartColor(1), change: 0 },
-    { name: 'Qualificados', value: 0, percentage: 0, color: getChartColor(2), change: 0 },
-    { name: 'Propostas', value: 0, percentage: 0, color: getChartColor(3), change: 0 },
-    { name: 'Conversões', value: 0, percentage: 0, color: getChartColor(4), change: 0 }
-  ];
 
   // Função para obter data baseada no filtro
   const getDateFromFilter = (quickDate: string): string => {

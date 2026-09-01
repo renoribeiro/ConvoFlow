@@ -448,8 +448,13 @@ export const AdvancedCharts = ({ filters, className }: AdvancedChartsProps) => {
                             />
                             <span className="font-medium">{source.source}</span>
                           </div>
-                          <Badge variant={source.roi > 300 ? 'default' : source.roi > 200 ? 'secondary' : 'outline'}>
-                            ROI: {source.roi > 0 ? `${source.roi}%` : 'Orgânico'}
+                          {/* A etiqueta de ROI saiu em 2026-08-31. Sem ingestão
+                              de gasto do Gerenciador de Anúncios, `cost` é
+                              sempre 0 — e a etiqueta escrevia "Orgânico" em
+                              cima de anúncio pago, que é o contrário da
+                              verdade. Volta quando houver custo real. */}
+                          <Badge variant="outline">
+                            {source.conversionRate.toFixed(1)}% de conversão
                           </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-sm">
