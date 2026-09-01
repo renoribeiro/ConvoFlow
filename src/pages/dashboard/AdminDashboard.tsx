@@ -17,6 +17,7 @@ import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { BugReportSettings } from '@/components/admin/BugReportSettings';
+import { MaintenanceSettings } from '@/components/admin/MaintenanceSettings';
 import { RoleDescriptionCard } from '@/components/admin/RoleDescriptionCard';
 import { SystemSettings } from '@/components/settings/SystemSettings';
 import {
@@ -431,6 +432,10 @@ const AdminDashboard = () => {
         </TabsList>
 
         <TabsContent value="settings" className="space-y-4">
+          {/* Primeiro da aba de proposito: e a unica coisa aqui que fecha o
+              sistema para a base inteira de clientes. Quem entra nesta aba
+              durante uma manutencao ve o estado antes de qualquer outra coisa. */}
+          <MaintenanceSettings />
           <BugReportSettings />
           <SystemSettings />
         </TabsContent>

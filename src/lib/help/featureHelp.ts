@@ -968,6 +968,32 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     category: 'tela',
     area: 'Admin',
   },
+  'page:admin-maintenance': {
+    minRole: 'superadmin',
+    title: 'Modo de manutenção',
+    whatItDoes:
+      'Fecha o ConvoFlow inteiro de uma vez — todas as Contas, todas as Lojas, todos os cargos — e mostra a eles uma tela com o motivo que você escreveu e a hora em que o sistema volta. Superadmins continuam entrando normalmente: é assim que você confere o conserto antes de destrancar a porta para os outros.',
+    howToConfigure: [
+      'Escreva o motivo pensando em quem vai ler: é o cliente que lê esse texto, na tela de bloqueio e também na tela de login.',
+      'Preencha a "Previsão de retorno". Esse horário não é enfeite — é a hora em que o sistema abre sozinho.',
+      'Para parar tudo agora, deixe o "Início" vazio e clique em "Ligar agora". Para marcar de madrugada, preencha o "Início" e clique em "Agendar".',
+      'Confirme lendo o aviso até o fim: ao ligar agora, todo mundo cai na tela de manutenção em até um minuto.',
+      'Enquanto estiver ligada, uma faixa âmbar fica no topo de todas as suas telas. É por ela que você desliga, com um clique em "Desligar".',
+    ],
+    example:
+      'Você vai trocar uma tabela grande às 3h. Marca início 03:00 e previsão de retorno 04:00. Ninguém é bloqueado até as 3h; às 4h o sistema abre sozinho, mesmo que você tenha dormido.',
+    tips: [
+      'Sem previsão de retorno, a manutenção fica ligada até alguém desligar na mão. É a única forma de esquecer clientes trancados durante a noite — preencha o horário.',
+      'Se a manutenção passar do horário marcado, os clientes voltam no meio dela. Estique a janela ANTES de o horário chegar: a faixa no topo mostra quanto falta justamente para isso.',
+      'Agendar não bloqueia ninguém na hora. Até a janela abrir, todo mundo trabalha normalmente.',
+      'O bloqueio é do sistema inteiro. Não existe manutenção de uma Conta só — para isso, use a revogação de acesso em Administração.',
+      'O motivo aparece para quem ainda nem entrou, na tela de login. Não escreva nada ali que você não publicaria.',
+      'A trava falha ABERTA de propósito: se o banco não responder, o sistema abre em vez de trancar. Uma soluçada nunca deixa a base de clientes do lado de fora.',
+      'Se a tela quebrar com a manutenção ligada, dá para desligar por SQL — o comando está em docs/RUNBOOK_modo_manutencao.md.',
+    ],
+    category: 'tela',
+    area: 'Admin',
+  },
   'page:admin-usage-limits': {
     minRole: 'superadmin',
     title: 'Limites de uso por nível',
