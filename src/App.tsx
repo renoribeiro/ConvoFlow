@@ -12,6 +12,7 @@ import { TenantProvider } from "@/contexts/TenantContext";
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { ModuleGuard } from '@/components/auth/ModuleGuard';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { MaintenanceGuard } from '@/components/maintenance/MaintenanceGuard';
 import { DashboardCardSkeleton } from "@/components/shared/Skeleton";
 
 // Landing Page (carregamento imediato)
@@ -95,9 +96,15 @@ const App = () => (
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
                 {/* Protected Dashboard Routes */}
+                {/* MaintenanceGuard fica ENTRE o AuthGuard e o layout: e o
+                    unico no por onde toda rota autenticada passa, e o perfil ja
+                    esta carregado quando ele monta (o AuthGuard garante). Ele
+                    nao encosta no paywall -- sao duas perguntas diferentes. */}
                 <Route path="/dashboard" element={
                   <AuthGuard>
-                    <DashboardLayout />
+                    <MaintenanceGuard>
+                      <DashboardLayout />
+                    </MaintenanceGuard>
                   </AuthGuard>
                 }>
                   <Route index element={

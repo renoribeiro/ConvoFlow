@@ -8,6 +8,7 @@ import { useTenantAccess } from '@/hooks/useTenantAccess';
 import { PaywallScreen } from '@/components/auth/PaywallScreen';
 import { LojaOnlyNotice } from '@/components/auth/LojaOnlyNotice';
 import { useRole } from '@/contexts/TenantContext';
+import { MaintenanceBanner } from '@/components/maintenance/MaintenanceBanner';
 
 // Telas operacionais (dados de cliente) que o superadmin NÃO acessa — ele só
 // vê estatísticas (Dashboard/Rastreamento/Relatórios) e gerencia (Administração).
@@ -80,6 +81,11 @@ export const DashboardLayout = () => {
           sidebarOpen ? 'lg:ml-60' : 'lg:ml-14',
         )}
       >
+        {/* So o superadmin ve. Fica ACIMA do Navbar e e sticky: e o unico
+            aviso de que a manutencao esta ligada para quem esta usando o
+            sistema normalmente durante ela. Ver MaintenanceBanner.tsx. */}
+        <MaintenanceBanner />
+
         <Navbar onMenuClick={() => setMobileNavOpen(true)} />
 
         <main className="flex-1 min-w-0 p-6">

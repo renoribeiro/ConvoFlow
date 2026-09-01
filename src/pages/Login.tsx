@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Lock, ArrowLeft } from 'lucide-react';
+import { MaintenanceLoginNotice } from '@/components/maintenance/MaintenanceLoginNotice';
 import logoVertical from '@/assets/logos/logo-vertical.svg';
 import logoVerticalDark from '@/assets/logos/logo-vertical-dark.svg';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,9 @@ export default function Login() {
             <img src={logoVerticalDark} alt="ConvoFlow" className="h-20 w-auto hidden dark:block" />
           </div>
         </div>
+
+        {/* Avisa, nao bloqueia -- o superadmin precisa passar por aqui. */}
+        <MaintenanceLoginNotice />
 
         <Card className="border-border/50 shadow-lg">
           <CardHeader className="space-y-1">

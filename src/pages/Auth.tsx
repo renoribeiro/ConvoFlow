@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/
 import { Mail, Lock, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { MaintenanceLoginNotice } from '@/components/maintenance/MaintenanceLoginNotice';
 import logoVertical from '@/assets/logos/logo-vertical.svg';
 import logoVerticalDark from '@/assets/logos/logo-vertical-dark.svg';
 
@@ -44,6 +45,9 @@ export const Auth = () => {
             Voltar ao início
           </Link>
         </div>
+
+        {/* Avisa, nao bloqueia -- o superadmin precisa passar por aqui. */}
+        <MaintenanceLoginNotice />
 
         <Card className="border-border/50 shadow-xl backdrop-blur-sm bg-card/95">
           <CardHeader className="text-center space-y-2">
