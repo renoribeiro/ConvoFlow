@@ -101,6 +101,19 @@ interface ChatWindowProps {
 /** Max auto-grow height for the message textarea (~5 rows). */
 const MAX_TEXTAREA_HEIGHT = 120;
 
+/**
+ * Ponteiro grosso = dedo (celular/tablet). Serve para NÃO puxar o foco de volta
+ * ao campo nesses aparelhos: puxar abriria o teclado virtual sem o usuário pedir.
+ */
+function isCoarsePointer(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  try {
+    return window.matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
 /** Parses webhook metadata that some providers store as JSON inside `content`. */
 function parseContentMeta(content: string | null): Record<string, any> {
   if (typeof content === 'string' && content.startsWith('{')) {
@@ -667,6 +680,7 @@ export const ChatWindow = ({
       }
     } finally {
       setIsSending(false);
+      refocusComposer();
     }
   };
 
@@ -700,6 +714,23 @@ export const ChatWindow = ({
 
   const resetTextareaHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  /**
+   * Mantém o cursor no campo de mensagem depois do envio, para o usuário emendar
+   * a próxima mensagem sem pegar o mouse.
+   *
+   * Pelo Enter o campo nunca perde o foco (durante o envio ele fica `readOnly`,
+   * não `disabled`) e este método não faz nada. Pelo botão Enviar o foco está no
+   * botão — que ainda some da tela quando o texto é limpo — então aqui devolvemos
+   * o foco ao campo. No celular não devolvemos: abriria o teclado sem pedido.
+   */
+  const refocusComposer = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    if (document.activeElement === el) return;
+    if (isCoarsePointer()) return;
+    el.focus();
   };
 
   const autoGrow = () => {
@@ -1166,9 +1197,14 @@ export const ChatWindow = ({
                   onKeyDown={handleKeyDown}
                   placeholder={pendingFile ? 'Adicionar legenda (opcional)...' : 'Digite sua mensagem...'}
                   rows={1}
-                  className="flex-1 min-h-[40px] resize-none py-2"
+                  className={`flex-1 min-h-[40px] resize-none py-2 ${isSending ? 'opacity-70' : ''}`}
                   style={{ maxHeight: MAX_TEXTAREA_HEIGHT }}
-                  disabled={isSending}
+                  /* `readOnly`, e não `disabled`: elemento desabilitado perde o foco
+                     e não o recupera sozinho ao ser reabilitado. Bloqueia a digitação
+                     do mesmo jeito, e o envio segue barrado pelo guarda de `isSending`
+                     em handleSendMessage. */
+                  readOnly={isSending}
+                  aria-busy={isSending}
                 />
               </>
             )}

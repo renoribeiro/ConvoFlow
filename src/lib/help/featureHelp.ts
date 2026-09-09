@@ -425,6 +425,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
       'Conversas é privada por Loja: mesmo o Superadmin não enxerga as conversas de uma Conta sem entrar nela pelo seletor do topo.',
       'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar — dá para ajustar antes.',
+      'No campo de mensagem, Enter envia e Shift+Enter quebra a linha. Depois de enviar o cursor continua no campo, então dá para emendar a próxima mensagem sem clicar na caixa de novo.',
     ],
     category: 'tela',
     area: 'Operação',
