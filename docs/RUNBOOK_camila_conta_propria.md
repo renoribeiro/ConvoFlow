@@ -12,8 +12,9 @@ Conta vazia do Mario, no fim deste arquivo).
 | 3 | `20260909000003_mario_vira_superadmin` | Mario: gerente → superadmin sem Conta | ✅ aplicada |
 | 4 | `20260909000004_rls_gerente_writes_child_store_inbox` | Gerente passa a **escrever** na caixa de entrada das Lojas filhas (4 tabelas) | ✅ aplicada |
 | 5 | `20260909000005_storage_gerente_uploads_child_store_media` | Gerente passa a **subir mídia** para a pasta das Lojas filhas (bucket `whatsapp-media`) | ✅ aplicada |
+| 6 | `20260909000006_fix_bug_reports_child_store_clause` | Conserta a cláusula **morta** das 3 policies do bucket `bug-reports` | ✅ aplicada |
 
-As cinco estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
+As seis estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
 delas deve rodar de novo** — as guardas abortam sozinhas se tentarem.
 
 ## Estado final
@@ -42,10 +43,10 @@ Sem a Parte 1, mover a Camila para a Conta deixaria a caixa de entrada dela
 
 ## Verificações que rodaram
 
-- `docs/teste_isolamento_rls.sql`: **232 ok / 0 falhas**.
+- `docs/teste_isolamento_rls.sql`: **237 ok / 0 falhas**.
 - Auto-teste da suíte (sabotagem do helper compartilhado em `contacts`):
-  **224 ok / 8 falhas** — 7 em `contacts` (leitura e escrita) + 1 no bucket
-  `whatsapp-media`. Desfeito pelo ROLLBACK.
+  **228 ok / 9 falhas** — 7 em `contacts` (leitura e escrita) + 1 em cada
+  bucket (`whatsapp-media` e `bug-reports`). Desfeito pelo ROLLBACK.
 - Envio ponta a ponta como a Camila, numa conversa real da EncaixaRH:
   INSERT da mensagem, gatilhos ligando e atualizando a conversa, UPDATE de
   status/wamid, marcar como lida — tudo OK; e recusado ao tentar gravar,
@@ -95,17 +96,36 @@ EncaixaRH `false`, pasta da própria Conta `true`.
 UPDATE não entrou. Leitura já era pública no bucket; DELETE continua restrito à
 Conta do próprio perfil.
 
-### ⚠️ Bug achado de passagem: o bucket `bug-reports`
+## Parte 6 — o bucket `bug-reports` (código morto, consertado)
 
-As três policies de `bug-reports` têm uma cláusula de Loja filha que é **código
-morto**. Elas comparam com `storage.foldername(t.name)` — o *nome do tenant* —
-em vez do `name` do objeto. `storage.foldername('EncaixaRH')` devolve `{}`,
-então `[1]` é NULL e o `EXISTS` nunca casa. Medido em 2026-09-09:
-cláusula como está → `false`; com o `name` do objeto → `true`.
+As três policies de `bug-reports` carregavam uma cláusula de Loja filha que
+**nunca funcionou**: comparavam com `storage.foldername(t.name)` — o *nome do
+tenant* — em vez do `name` do objeto. `storage.foldername('EncaixaRH')` devolve
+`{}`, então `[1]` é NULL e o `EXISTS` jamais casa. Medido em 2026-09-09:
+cláusula como estava → `false`; com o `name` do objeto → `true`.
 
-Efeito prático: um gerente não consegue anexar print de bug report de uma Loja
-filha. **Não corrigi** — outro bucket, outra decisão. Fica registrado aqui e no
-cabeçalho da migração 5.
+Efeito prático: nenhum gerente jamais conseguiu anexar, ver ou remover print de
+bug report de uma Loja filha.
+
+**`20260909000006`** substitui a cláusula nas três policies (`ALTER POLICY`, não
+uma segunda policy ao lado — policy que nunca casa é pior que policy nenhuma,
+porque quem lê o schema depois assume que funciona) pelo mesmo
+`gerente_child_store_ids()`. Os ramos `is_super_admin()` e "própria Conta"
+continuam, agora embrulhados em `(SELECT ...)` — viraram InitPlan.
+
+Os três verbos entram porque `BugReportButton.tsx` usa os três: INSERT sobe o
+anexo, SELECT gera a URL assinada, DELETE desfaz o upload quando a gravação da
+linha falha. É por isso que aqui o DELETE entra, ao contrário das partes 4 e 5:
+lá seria permissão nova, aqui é desfazer o próprio upload.
+
+Verificado como a Camila: anexa e lê na pasta da EncaixaRH e na da própria
+Conta; recusado `42501` na Loja de outra Conta e na Conta de outro gerente.
+
+**Nota sobre o DELETE:** não dá para testá-lo por SQL direto — o gatilho
+`storage.protect_delete()` barra qualquer `DELETE` em `storage.objects` para
+todo mundo ("Use the Storage API instead"). O app apaga pela Storage API, onde
+a policy é quem decide. Conferido avaliando o predicado: `true` para a pasta da
+EncaixaRH, `false` para a de outra Conta.
 
 ## Exposição nova a conferir
 

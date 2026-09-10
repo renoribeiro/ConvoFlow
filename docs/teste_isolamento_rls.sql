@@ -69,8 +69,8 @@
 --   um gerente LENDO, ESCREVENDO e MANDANDO MIDIA na Loja de OUTRA Conta.
 --   Tudo DENTRO da transacao; o ROLLBACK devolve as policies ao texto original.
 --   Esperado: fase 1 verde, fase 2 vermelha em `contacts` e no bucket.
---   Medido em 2026-09-09: 232 ok / 0 falhas  ->  224 ok / 8 falhas.
---   (a suite cobre 6 tabelas + o bucket whatsapp-media, e faz 232 checks)
+--   Medido em 2026-09-09: 237 ok / 0 falhas  ->  228 ok / 9 falhas.
+--   (6 tabelas + os buckets whatsapp-media e bug-reports; 237 checks)
 --
 -- COMO LER O RESULTADO
 --   A coluna `placar` resume cada fase. Em caso de falha, `expected` vs `actual`
@@ -415,11 +415,24 @@ BEGIN
   -- aconteceu entre a 20260909000004 e a 20260909000005.
   -- ---------------------------------------------------------------------------
   FOR c IN SELECT * FROM (VALUES
-      ('A gerente','11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
-      ('A gerente','11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
-      ('A gestor', '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
-      ('A gestor', '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado')
-    ) AS v(scenario, jwt_sub, pasta, esperado) LOOP
+      -- bucket          cenario      jwt_sub                                        pasta                                   esperado
+      ('whatsapp-media','A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('whatsapp-media','A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
+      ('whatsapp-media','A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('whatsapp-media','A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado'),
+      -- bug-reports: mesma regra de Loja filha, consertada pela 20260909000006.
+      -- Antes dela o primeiro caso abaixo dava 'recusado': a clausula usava
+      -- storage.foldername(t.name) - o NOME DO TENANT em vez do caminho do
+      -- objeto - e nunca casava. Era codigo morto, e o gerente jamais anexou
+      -- print de uma Loja filha.
+      ('bug-reports',   'A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('bug-reports',   'A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
+      ('bug-reports',   'A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('bug-reports',   'A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado'),
+      -- `bug-reports` tem um ramo is_super_admin() que `whatsapp-media` nao tem.
+      -- Este check existe para que reescrever a policy nunca o derrube calado.
+      ('bug-reports',   'superadmin','99999999-0000-4000-8000-000000000000'::uuid,'22222222-0000-4000-8000-000000000002','aceito')
+    ) AS v(bucket, scenario, jwt_sub, pasta, esperado) LOOP
 
     PERFORM set_config('request.jwt.claims',
       json_build_object('sub', c.jwt_sub, 'role','authenticated')::text, true);
@@ -427,21 +440,23 @@ BEGIN
     ins_ok := false;
     BEGIN
       INSERT INTO storage.objects (bucket_id, name, owner)
-      -- O nome carrega FASE e IDENTIDADE. Sem a identidade, o gerente e o
+      -- O caminho carrega FASE e IDENTIDADE. Sem a identidade, o gerente e o
       -- gestor gravam o MESMO caminho na mesma pasta e o segundo leva uma
       -- violacao de chave unica - que este bloco leria como "recusado pelo
       -- RLS". Falso negativo medido em 2026-09-09.
-      VALUES ('whatsapp-media',
-              c.pasta || '/FIXSTORAGE-' || p_phase || '-' || c.jwt_sub || '.jpg',
+      -- O formato <pasta>/<user>/<arquivo> e o mesmo que `BugReportButton`
+      -- monta; para o RLS so importa o primeiro segmento.
+      VALUES (c.bucket,
+              c.pasta || '/' || c.jwt_sub || '/FIXSTORAGE-' || p_phase || '.jpg',
               c.jwt_sub);
       ins_ok := true;
     EXCEPTION WHEN others THEN ins_ok := false;
     END;
 
     INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
-    VALUES (p_phase, c.scenario, 'storage:whatsapp-media',
-            CASE WHEN c.esperado='aceito' THEN 'sobe midia na propria pasta'
-                 ELSE 'NAO sobe midia em pasta alheia' END,
+    VALUES (p_phase, c.scenario, 'storage:' || c.bucket,
+            CASE WHEN c.esperado='aceito' THEN 'grava na propria pasta'
+                 ELSE 'NAO grava em pasta alheia' END,
             CASE WHEN c.esperado='aceito' THEN 1 ELSE 0 END,
             CASE WHEN ins_ok THEN 1 ELSE 0 END,
             CASE WHEN (c.esperado='aceito') = ins_ok THEN 'ok' ELSE 'FAIL' END);
@@ -490,8 +505,8 @@ DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 --    da escrita. Bom para a seguranca, traicoeiro para quem testa.
 --
 --    Esperado: falhas SO em `contacts`, na leitura e na escrita alheia.
---    Medido em 2026-09-09: 232 ok / 0 falhas -> 224 ok / 8 falhas.
---    (7 em `contacts` + 1 no bucket `whatsapp-media`)
+--    Medido em 2026-09-09: 237 ok / 0 falhas -> 228 ok / 9 falhas.
+--    (7 em `contacts` + 1 em cada bucket: `whatsapp-media` e `bug-reports`)
 --
 --    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz
 --    continua verde, porque ela tenta gravar na CONTA B (um account) e o
@@ -526,6 +541,18 @@ DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 --   WITH CHECK (bucket_id = 'whatsapp-media'
 --               AND (storage.foldername(name))[1] IN
 --                   (SELECT s::text FROM public.__sabotage_todas_as_lojas() s));
+-- ALTER POLICY bug_reports_tenant_insert ON storage.objects
+--   WITH CHECK (bucket_id = 'bug-reports' AND (
+--     (SELECT public.is_super_admin())
+--     OR (storage.foldername(name))[1] = ((SELECT public.get_current_user_tenant_id()))::text
+--     OR (storage.foldername(name))[1] IN (SELECT s::text FROM public.__sabotage_todas_as_lojas() s)));
+--
+--   ATENCAO: os DOIS primeiros ramos precisam continuar ali. Na primeira
+--   tentativa eu troquei a policy inteira pela clausula vazada e o placar deu
+--   11 falhas em vez de 9: sumiram tambem 'A gestor / grava na propria pasta' e
+--   'superadmin / grava na propria pasta'. Nao era deteccao do vazamento - era
+--   a sabotagem tendo apagado permissao legitima. Sabotagem boa quebra UMA
+--   coisa; se ela quebra demais, as falhas param de apontar para o bug.
 -- SET LOCAL ROLE authenticated;
 -- SELECT pg_temp.chk('2-sabotado');
 -- RESET ROLE;
