@@ -1,23 +1,28 @@
+import { useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertCircle,
   CheckCircle,
   Clock,
+  Info,
   Loader2,
   Webhook,
   XCircle,
 } from 'lucide-react';
 import { env } from '@/lib/env';
-import { useEvolutionApi } from '@/hooks/useEvolutionApi';
+import { useTenant } from '@/contexts/TenantContext';
 
 export interface EvolutionFormValues {
   name: string;
   instance_key: string;
+  serverUrl: string;
+  apiKey: string;
   enableWebhookAutomation: boolean;
   retryAttempts: number;
   retryDelay: number;
@@ -26,6 +31,8 @@ export interface EvolutionFormValues {
 export const initialEvolutionValues = (): EvolutionFormValues => ({
   name: '',
   instance_key: '',
+  serverUrl: '',
+  apiKey: '',
   enableWebhookAutomation: true,
   retryAttempts: 3,
   retryDelay: 2000,
@@ -48,7 +55,24 @@ export const EvolutionApiForm = ({
   webhookStatus = 'idle',
   webhookError = null,
 }: Props) => {
-  const { getDefaultWebhookUrl } = useEvolutionApi();
+  const { tenant } = useTenant();
+  const prefilled = useRef(false);
+
+  // Pre-preenche uma unica vez com o que a Conta ja tem salvo em Configuracoes
+  // > WhatsApp. E conveniencia, nao fonte da verdade: quem manda e o que esta
+  // no formulario na hora de criar, e e isso que vai para a instancia.
+  useEffect(() => {
+    if (prefilled.current) return;
+    const saved = (
+      tenant?.settings as { evolutionApi?: { serverUrl?: string; apiKey?: string } } | null
+    )?.evolutionApi;
+    if (!saved?.serverUrl && !saved?.apiKey) return;
+    prefilled.current = true;
+    onChange({
+      serverUrl: values.serverUrl || saved.serverUrl || '',
+      apiKey: values.apiKey || saved.apiKey || '',
+    });
+  }, [tenant, values.serverUrl, values.apiKey, onChange]);
 
   const generateInstanceKey = () => {
     const timestamp = Date.now();
@@ -56,13 +80,23 @@ export const EvolutionApiForm = ({
     onChange({ instance_key: `instance_${timestamp}_${random}` });
   };
 
-  const webhookUrl =
-    (getDefaultWebhookUrl ? getDefaultWebhookUrl() : null) ||
-    env.get('EVOLUTION_WEBHOOK_URL') ||
-    '';
+  // O webhook que a Evolution vai chamar e sempre a edge function do proprio
+  // Supabase deste ambiente. Antes isto lia env.get('EVOLUTION_WEBHOOK_URL'),
+  // uma chave que nao existe no EnvConfig: devolvia undefined e a URL saia
+  // vazia na tela.
+  const webhookUrl = `${env.get('SUPABASE_URL').replace(/\/+$/, '')}/functions/v1/evolution-webhook`;
 
   return (
     <div className="space-y-4">
+      <Alert className="border-slate-200 bg-slate-50/60">
+        <Info className="h-4 w-4 text-slate-700" />
+        <AlertDescription className="text-xs">
+          Informe o endereço e a chave do seu servidor Evolution. Elas ficam guardadas nesta
+          instância — é com elas que o ConvoFlow cria a instância, abre o QR Code e depois envia as
+          mensagens.
+        </AlertDescription>
+      </Alert>
+
       <div className="space-y-2">
         <Label htmlFor="evo-name">Nome da Instância *</Label>
         <Input
@@ -91,6 +125,35 @@ export const EvolutionApiForm = ({
         <p className="text-xs text-muted-foreground">
           Identificador único para esta instância. Use apenas letras, números, _ e -.
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="evo-server">URL do servidor Evolution *</Label>
+        <Input
+          id="evo-server"
+          placeholder="https://seu-servidor-evolution.com.br"
+          value={values.serverUrl}
+          onChange={(e) => onChange({ serverUrl: e.target.value })}
+          disabled={loading}
+          autoComplete="off"
+        />
+        <p className="text-xs text-muted-foreground">
+          Endereço raiz do servidor, sem <code className="px-1">/manager</code> — esse caminho é só
+          da tela de administração da Evolution.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="evo-apikey">API Key global *</Label>
+        <Input
+          id="evo-apikey"
+          type="password"
+          placeholder="Chave global do servidor (header apikey)"
+          value={values.apiKey}
+          onChange={(e) => onChange({ apiKey: e.target.value })}
+          disabled={loading}
+          autoComplete="off"
+        />
       </div>
 
       <Card className="border-blue-200 bg-blue-50/50">
@@ -144,18 +207,6 @@ export const EvolutionApiForm = ({
               </div>
             </div>
 
-            {webhookError && (
-              <div className="bg-red-50 border border-red-200 rounded p-2">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-red-800">Erro na configuração:</p>
-                    <p className="text-xs text-red-700 mt-1">{webhookError}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <details className="group">
               <summary className="text-xs font-medium cursor-pointer text-blue-600 hover:text-blue-800">
                 Configurações Avançadas
@@ -201,6 +252,16 @@ export const EvolutionApiForm = ({
           </CardContent>
         )}
       </Card>
+
+      {/* O erro fica FORA do cartão de webhook: quando a automação está
+          desligada o cartão não renderiza o corpo, e era ali que a mensagem
+          morava — falha silenciosa garantida. */}
+      {webhookError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs">{webhookError}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };

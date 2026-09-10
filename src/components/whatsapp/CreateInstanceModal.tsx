@@ -57,7 +57,13 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
   const [evolutionWebhookError, setEvolutionWebhookError] = useState<string | null>(null);
 
   const [showQRModal, setShowQRModal] = useState(false);
-  const [createdInstanceName, setCreatedInstanceName] = useState('');
+  // Guardamos as credenciais junto do nome: o QRCodeModal precisa delas para
+  // chamar /instance/connect e não tem como adivinhá-las sozinho.
+  const [createdInstanceEvolution, setCreatedInstanceEvolution] = useState<{
+    instanceName: string;
+    serverUrl: string;
+    apiKey: string;
+  } | null>(null);
 
   const { toast } = useToast();
   const { createInstance: createEvolution } = useEvolutionApi();
@@ -128,26 +134,35 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
       if (parsed.data.provider === 'evolution') {
         setEvolutionWebhookStatus(parsed.data.enableWebhookAutomation ? 'configuring' : 'idle');
         setEvolutionWebhookError(null);
+
+        const evolutionWebhookUrl = `${env
+          .get('SUPABASE_URL')
+          .replace(/\/+$/, '')}/functions/v1/evolution-webhook`;
+
         try {
-          await createEvolution(
-            parsed.data.instance_key,
-            env.get('EVOLUTION_WEBHOOK_URL') || undefined,
-            {
-              enableWebhookAutomation: parsed.data.enableWebhookAutomation,
-              retryAttempts: parsed.data.retryAttempts,
-              retryDelay: parsed.data.retryDelay,
-            },
-          );
+          await createEvolution(parsed.data.instance_key, evolutionWebhookUrl, {
+            enableWebhookAutomation: parsed.data.enableWebhookAutomation,
+            retryAttempts: parsed.data.retryAttempts,
+            retryDelay: parsed.data.retryDelay,
+            serverUrl: parsed.data.serverUrl,
+            apiKey: parsed.data.apiKey,
+            displayName: parsed.data.name,
+          });
           if (parsed.data.enableWebhookAutomation) setEvolutionWebhookStatus('success');
         } catch (err: any) {
-          if (parsed.data.enableWebhookAutomation && err?.message?.includes('webhook')) {
-            setEvolutionWebhookStatus('error');
-            setEvolutionWebhookError(err.message);
-          }
+          // Qualquer falha marca erro, não só a que mencionar "webhook". Filtrar
+          // pela palavra era o que deixava a tela travada em "Configurando"
+          // quando o problema era outro — credencial ausente, por exemplo.
+          setEvolutionWebhookStatus('error');
+          setEvolutionWebhookError(err?.message || 'Não foi possível criar a instância.');
           throw err;
         }
 
-        setCreatedInstanceName(parsed.data.instance_key);
+        setCreatedInstanceEvolution({
+          instanceName: parsed.data.instance_key,
+          serverUrl: parsed.data.serverUrl,
+          apiKey: parsed.data.apiKey,
+        });
         setShowQRModal(true);
       } else if (parsed.data.provider === 'waha') {
         await createWaha(parsed.data);
@@ -264,14 +279,19 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
         </DialogContent>
       </Dialog>
 
-      <QRCodeModal
-        isOpen={showQRModal}
-        onClose={() => {
-          setShowQRModal(false);
-          setCreatedInstanceName('');
-        }}
-        instanceName={createdInstanceName}
-      />
+      {createdInstanceEvolution && (
+        <QRCodeModal
+          open={showQRModal}
+          onOpenChange={(next) => {
+            setShowQRModal(next);
+            if (!next) setCreatedInstanceEvolution(null);
+          }}
+          instanceName={createdInstanceEvolution.instanceName}
+          serverUrl={createdInstanceEvolution.serverUrl}
+          apiKey={createdInstanceEvolution.apiKey}
+          onSuccess={onSuccess}
+        />
+      )}
     </>
   );
 };

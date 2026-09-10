@@ -745,7 +745,7 @@ export default function WhatsAppNumbers() {
           <QRCodeModal
             open={showQRModal}
             onOpenChange={setShowQRModal}
-            instance={selectedInstance}
+            instanceName={selectedInstance.instance_key}
             onSuccess={() => {
               resetModals();
               refetch();
