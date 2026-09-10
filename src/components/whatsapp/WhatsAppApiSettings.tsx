@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, CheckCircle, Info, Settings, Smartphone } from 'lucide-react';
 import { ValidationSchemas, validateInput, UrlSanitizer } from '@/lib/validation';
-import { useTenant } from '@/contexts/TenantContext';
+import { useTenant, useIsSuperAdmin } from '@/contexts/TenantContext';
 
 export const WhatsAppApiSettings = () => {
   // A Conta vem do TenantContext, não de uma consulta própria a profiles. A
@@ -16,6 +16,7 @@ export const WhatsAppApiSettings = () => {
   // superadmin (tenant_id nulo) quebrava no .single(), e dentro de uma Loja
   // impersonada gravava na Conta errada.
   const { tenant, updateTenantSettings } = useTenant();
+  const isSuperAdmin = useIsSuperAdmin();
   const [provider, setProvider] = useState<'evolution' | 'waha'>('evolution');
   const [serverUrl, setServerUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -118,6 +119,34 @@ export const WhatsAppApiSettings = () => {
       setLoading(false);
     }
   };
+
+  // Servidor WhatsApp é infraestrutura da plataforma, não do cliente. A chave
+  // global da Evolution enxerga as instâncias de TODAS as Contas (medido: 14
+  // com a chave global, 1 com a chave da instância), então quem não opera a
+  // plataforma não tem o que fazer aqui. O caminho normal de criar instância
+  // nem passa por esta tela: a edge function `evolution-provision` guarda a
+  // credencial como secret.
+  if (!isSuperAdmin) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5" />
+            Configuração de API WhatsApp
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert className="bg-muted">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              O servidor de WhatsApp é configurado por quem opera a plataforma — você não precisa
+              ajustar nada aqui. Para ligar um número, use Instâncias e APIs.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Sem Conta ativa não há onde gravar — dizer isso é melhor que oferecer um
   // formulário que só vai falhar no Salvar.

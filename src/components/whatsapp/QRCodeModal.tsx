@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,13 +19,6 @@ interface QRCodeModalProps {
   onOpenChange: (open: boolean) => void;
   /** `instance_key` da instância na Evolution. */
   instanceName: string;
-  /**
-   * Credenciais do servidor. Quando o chamador já as tem em mãos (acabou de
-   * criar a instância), passa direto; senão são lidas do `connection_config`
-   * da própria linha em `whatsapp_instances`.
-   */
-  serverUrl?: string;
-  apiKey?: string;
   onSuccess?: () => void;
 }
 
@@ -36,7 +29,9 @@ interface QRCodeModalProps {
  * partir de `tenants.settings.evolutionApi` ou das env vars `VITE_EVOLUTION_*`.
  * Nenhuma Conta tem esse settings e as env vars não existem no build de
  * produção, então o serviço era sempre nulo e o QR nunca abria. As credenciais
- * que valem são as da instância — as mesmas que o `EvolutionAdapter` lê.
+ * que valem são as da instância — gravadas pela edge function
+ * `evolution-provision` e as mesmas que o `EvolutionAdapter` lê para enviar.
+ * A chave global do servidor nunca chega aqui: ela é secret da edge function.
  */
 async function resolveInstanceCredentials(
   instanceName: string,
@@ -67,8 +62,6 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   open,
   onOpenChange,
   instanceName,
-  serverUrl,
-  apiKey,
   onSuccess,
 }) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -80,19 +73,12 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   const serviceRef = useRef<EvolutionApiService | null>(null);
   const queryClient = useQueryClient();
 
-  // Só as credenciais explícitas entram no memo; as do banco são resolvidas
-  // dentro do fetch, que já é assíncrono.
-  const explicitCreds = useMemo(
-    () => (serverUrl && apiKey ? { baseUrl: serverUrl, apiKey } : null),
-    [serverUrl, apiKey],
-  );
-
   const getService = useCallback(async (): Promise<EvolutionApiService> => {
     if (serviceRef.current) return serviceRef.current;
-    const creds = explicitCreds ?? (await resolveInstanceCredentials(instanceName));
+    const creds = await resolveInstanceCredentials(instanceName);
     serviceRef.current = createEvolutionApiService(creds.baseUrl, creds.apiKey);
     return serviceRef.current;
-  }, [explicitCreds, instanceName]);
+  }, [instanceName]);
 
   const fetchConnectionData = useCallback(async () => {
     if (!instanceName) return;

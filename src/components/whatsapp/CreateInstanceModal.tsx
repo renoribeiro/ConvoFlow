@@ -15,7 +15,6 @@ import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { useWahaApi } from '@/hooks/useWahaApi';
 import { useMetaApi } from '@/hooks/useMetaApi';
 import { newInstanceSchema, type ProviderType } from '@/lib/validations/whatsappInstance';
-import { env } from '@/lib/env';
 import { ProviderSelector } from './ProviderSelector';
 import {
   OfficialApiForm,
@@ -57,12 +56,8 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
   const [evolutionWebhookError, setEvolutionWebhookError] = useState<string | null>(null);
 
   const [showQRModal, setShowQRModal] = useState(false);
-  // Guardamos as credenciais junto do nome: o QRCodeModal precisa delas para
-  // chamar /instance/connect e não tem como adivinhá-las sozinho.
   const [createdInstanceEvolution, setCreatedInstanceEvolution] = useState<{
     instanceName: string;
-    serverUrl: string;
-    apiKey: string;
   } | null>(null);
 
   const { toast } = useToast();
@@ -135,17 +130,13 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
         setEvolutionWebhookStatus(parsed.data.enableWebhookAutomation ? 'configuring' : 'idle');
         setEvolutionWebhookError(null);
 
-        const evolutionWebhookUrl = `${env
-          .get('SUPABASE_URL')
-          .replace(/\/+$/, '')}/functions/v1/evolution-webhook`;
-
         try {
-          await createEvolution(parsed.data.instance_key, evolutionWebhookUrl, {
+          // A URL do webhook é montada pela edge function, com o SUPABASE_URL
+          // do próprio servidor — o navegador não precisa (nem deve) opinar.
+          await createEvolution(parsed.data.instance_key, undefined, {
             enableWebhookAutomation: parsed.data.enableWebhookAutomation,
             retryAttempts: parsed.data.retryAttempts,
             retryDelay: parsed.data.retryDelay,
-            serverUrl: parsed.data.serverUrl,
-            apiKey: parsed.data.apiKey,
             displayName: parsed.data.name,
           });
           if (parsed.data.enableWebhookAutomation) setEvolutionWebhookStatus('success');
@@ -158,11 +149,9 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
           throw err;
         }
 
-        setCreatedInstanceEvolution({
-          instanceName: parsed.data.instance_key,
-          serverUrl: parsed.data.serverUrl,
-          apiKey: parsed.data.apiKey,
-        });
+        // Sem credenciais aqui: o QRCodeModal lê a chave DA INSTÂNCIA do
+        // connection_config que a edge function acabou de gravar.
+        setCreatedInstanceEvolution({ instanceName: parsed.data.instance_key });
         setShowQRModal(true);
       } else if (parsed.data.provider === 'waha') {
         await createWaha(parsed.data);
@@ -287,8 +276,6 @@ export const CreateInstanceModal = ({ open, onOpenChange, onSuccess }: CreateIns
             if (!next) setCreatedInstanceEvolution(null);
           }}
           instanceName={createdInstanceEvolution.instanceName}
-          serverUrl={createdInstanceEvolution.serverUrl}
-          apiKey={createdInstanceEvolution.apiKey}
           onSuccess={onSuccess}
         />
       )}

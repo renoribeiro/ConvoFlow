@@ -662,7 +662,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'É a base de tudo: sem um número conectado aqui, não existe conversa, campanha nem chatbot. Cada instância é uma linha de WhatsApp ligada ao sistema.',
     howToConfigure: [
       'Crie a instância e escolha o provedor.',
-      'Na Evolution, informe também a URL do servidor e a API Key global, além do nome e da chave da instância. Elas ficam guardadas nesta instância: é com elas que o QR Code é aberto e que as mensagens são enviadas depois.',
+      'Na Evolution você informa só o nome e a chave da instância: o servidor de WhatsApp é o da plataforma e já vem configurado.',
       'Conecte lendo o QR Code no celular que tem o número, ou use o código de pareamento se preferir não escanear.',
       'Confirme que o status ficou "Conectado" antes de configurar chatbot ou campanha.',
       'Confira o webhook, que é o que faz as mensagens chegarem em tempo real. Na API Oficial ele é configurado uma única vez para a instalação inteira, não a cada número.',
@@ -674,7 +674,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Linha desconectada é atendimento parado: mensagem que chega com a instância fora pode não entrar no sistema. Reconecte assim que ver "Desconectado".',
       'Usar o mesmo número no WhatsApp do celular e aqui ao mesmo tempo pode derrubar a sessão.',
       'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Ao conectar um número, você só informa Phone Number ID, WABA ID e Access Token.',
-      'Se você já salvou a Evolution em Configurações › WhatsApp, o formulário vem preenchido com aquele servidor e aquela chave — dá para trocar antes de criar, quando a linha ficar em outro servidor.',
+      'Você nunca precisa de endereço de servidor nem de chave de API para ligar um número pela Evolution. Se alguma tela pedir isso, é engano — fale com quem opera a plataforma.',
     ],
     category: 'tela',
     area: 'Configuração',

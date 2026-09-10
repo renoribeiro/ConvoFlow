@@ -36,6 +36,14 @@ verify_jwt = false
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
+[functions.evolution-provision]
+# Cria a instância no servidor Evolution da plataforma. Guarda a chave global
+# como secret e devolve ao navegador só a chave da instância criada. Chamada de
+# sessão autenticada, então exige JWT — mesma configuração da whatsapp-meta-setup.
+# (Não confundir com evolution-webhook, que é chamada de FORA pela Evolution e
+# se autentica por apikey: lá verify_jwt tem de ser false.)
+verify_jwt = true
+
 [functions.meta-oauth-exchange]
 # Completes the Embedded Signup OAuth flow (code -> token -> WABA subscribe ->
 # instance creation). Called from an authenticated user session, so JWT

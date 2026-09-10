@@ -1,16 +1,20 @@
 /**
  * Testes de `useEvolutionApi.createInstance`.
  *
- * O bug que originou este arquivo: sem credenciais da Evolution o hook fazia
- * `throw` ANTES do try/catch que emite o toast. Quem chamava (o
- * CreateInstanceModal) confiava no comentário "toast já é exibido pelo hook
- * subjacente" e só logava — resultado: clicar em "Criar e abrir QR Code" não
- * produzia nada na tela, nem QR, nem erro.
+ * Dois bugs originaram este arquivo:
  *
- * Os testes cobrem as três garantias que faltavam:
- *   1. sem credencial, falha COM aviso ao usuário;
- *   2. credencial do formulário é usada e vai parar no connection_config;
- *   3. erro do INSERT não é engolido.
+ * 1. Falha em silêncio. Sem credenciais o hook fazia `throw` ANTES do try/catch
+ *    que emite o toast, e o CreateInstanceModal só logava, confiando no
+ *    comentário "toast já é exibido pelo hook subjacente". Clicar em "Criar e
+ *    abrir QR Code" não produzia nada na tela.
+ *
+ * 2. Chave-mestra no navegador. A correção inicial pedia a URL e a API Key da
+ *    Evolution no formulário — mas o servidor é da plataforma e a chave global
+ *    dele enxerga as instâncias de TODOS os clientes. A criação foi para uma
+ *    edge function, que guarda a chave como secret.
+ *
+ * O que estes testes travam: o hook NUNCA fala direto com a Evolution, o corpo
+ * enviado não carrega credencial nenhuma, e toda falha vira aviso na tela.
  */
 
 import React from 'react';
@@ -18,17 +22,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const { mockFrom, mockGetUser, mockToast, mockCreateService, mockCreateInstanceWithWebhook } =
-  vi.hoisted(() => ({
-    mockFrom: vi.fn(),
-    mockGetUser: vi.fn(),
-    mockToast: vi.fn(),
-    mockCreateService: vi.fn(),
-    mockCreateInstanceWithWebhook: vi.fn(),
-  }));
+const { mockFrom, mockGetUser, mockInvoke, mockToast, mockCreateService } = vi.hoisted(() => ({
+  mockFrom: vi.fn(),
+  mockGetUser: vi.fn(),
+  mockInvoke: vi.fn(),
+  mockToast: vi.fn(),
+  mockCreateService: vi.fn(),
+}));
 
 vi.mock('@/integrations/supabase/client', () => ({
-  supabase: { from: mockFrom, auth: { getUser: mockGetUser } },
+  supabase: {
+    from: mockFrom,
+    auth: { getUser: mockGetUser },
+    functions: { invoke: mockInvoke },
+  },
 }));
 
 vi.mock('@/hooks/use-toast', () => ({
@@ -47,47 +54,24 @@ vi.mock('@/lib/env', () => ({
 
 import { useEvolutionApi } from './useEvolutionApi';
 
-/** Guarda o payload do último .insert() para inspeção. */
-let insertedRows: any[] = [];
-let insertError: { message: string } | null = null;
-
 function stubSupabase() {
-  insertedRows = [];
-  insertError = null;
-
   mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
 
   mockFrom.mockImplementation((table: string) => {
-    if (table === 'profiles') {
-      const chain: any = {};
-      chain.select = vi.fn(() => chain);
+    const chain: any = {};
+    chain.select = vi.fn(() => chain);
+    if (table === 'profiles' || table === 'tenants') {
       chain.eq = vi.fn(() => chain);
-      chain.single = vi.fn(() => Promise.resolve({ data: { tenant_id: 'tenant-1' }, error: null }));
+      chain.single = vi.fn(() =>
+        Promise.resolve({
+          data: table === 'profiles' ? { tenant_id: 'tenant-1' } : { settings: {} },
+          error: null,
+        }),
+      );
       return chain;
     }
-    if (table === 'tenants') {
-      const chain: any = {};
-      chain.select = vi.fn(() => chain);
-      chain.eq = vi.fn(() => chain);
-      // Nenhuma Conta em produção tem settings.evolutionApi — é justamente por
-      // isso que o serviço global nascia nulo.
-      chain.single = vi.fn(() => Promise.resolve({ data: { settings: {} }, error: null }));
-      return chain;
-    }
-    if (table === 'whatsapp_instances') {
-      const chain: any = {};
-      chain.select = vi.fn(() => chain);
-      chain.eq = vi.fn(() => Promise.resolve({ data: [], error: null }));
-      chain.insert = vi.fn((row: any) => {
-        insertedRows.push(row);
-        return Promise.resolve({ error: insertError });
-      });
-      return chain;
-    }
-    const noop: any = {};
-    noop.select = vi.fn(() => noop);
-    noop.eq = vi.fn(() => Promise.resolve({ data: [], error: null }));
-    return noop;
+    chain.eq = vi.fn(() => Promise.resolve({ data: [], error: null }));
+    return chain;
   });
 }
 
@@ -111,83 +95,86 @@ async function mountHook() {
 beforeEach(() => {
   vi.clearAllMocks();
   stubSupabase();
-  mockCreateInstanceWithWebhook.mockResolvedValue({
-    status: 'connecting',
-    webhookConfigured: true,
-    webhookUrl: 'https://projeto.supabase.co/functions/v1/evolution-webhook',
+  mockInvoke.mockResolvedValue({
+    data: { ok: true, instance_key: 'vendas_001', webhook_configured: true },
+    error: null,
   });
-  mockCreateService.mockImplementation((baseUrl: string, apiKey: string) => ({
-    baseUrl,
-    apiKey,
-    createInstanceWithWebhook: mockCreateInstanceWithWebhook,
-    createInstance: vi.fn(),
-  }));
 });
 
 describe('useEvolutionApi.createInstance', () => {
-  it('sem credenciais, avisa o usuário em vez de falhar calado', async () => {
+  it('cria pela edge function e nunca monta um cliente Evolution no navegador', async () => {
     const { result } = await mountHook();
 
     await act(async () => {
-      await expect(result.current.createInstance('vendas_001')).rejects.toThrow(
-        /URL do servidor e a API Key/i,
-      );
+      await result.current.createInstance('vendas_001', undefined, {
+        displayName: 'WhatsApp Vendas',
+        enableWebhookAutomation: true,
+      });
     });
 
-    // A garantia que faltava: o usuário VÊ o erro.
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'destructive' }),
-    );
-    expect(insertedRows).toHaveLength(0);
+    expect(mockInvoke).toHaveBeenCalledWith('evolution-provision', expect.anything());
+    // A garantia central: nenhum EvolutionApiService é construído aqui, então
+    // nenhuma chave de servidor precisa existir no navegador para criar.
+    expect(mockCreateService).not.toHaveBeenCalled();
   });
 
-  it('usa as credenciais do formulário e as grava no connection_config', async () => {
+  it('não manda credencial nenhuma no corpo da chamada', async () => {
     const { result } = await mountHook();
 
     await act(async () => {
-      await result.current.createInstance(
-        'vendas_001',
-        'https://projeto.supabase.co/functions/v1/evolution-webhook',
-        {
-          serverUrl: 'https://evo.exemplo.com.br',
-          apiKey: 'CHAVE1234567890',
-          displayName: 'WhatsApp Vendas',
-        },
-      );
+      await result.current.createInstance('vendas_001', undefined, {
+        displayName: 'WhatsApp Vendas',
+      });
     });
 
-    expect(mockCreateService).toHaveBeenCalledWith(
-      'https://evo.exemplo.com.br',
-      'CHAVE1234567890',
-    );
-    expect(insertedRows).toHaveLength(1);
-    expect(insertedRows[0]).toMatchObject({
+    const options = mockInvoke.mock.calls[0][1];
+    const enviado = JSON.stringify(options.body).toLowerCase();
+    expect(enviado).not.toContain('apikey');
+    expect(enviado).not.toContain('serverurl');
+    expect(options.body).toMatchObject({
       instance_key: 'vendas_001',
-      // O nome legível não pode ser substituído pela chave técnica.
       name: 'WhatsApp Vendas',
-      provider: 'evolution',
-      connection_config: {
-        baseUrl: 'https://evo.exemplo.com.br',
-        apiKey: 'CHAVE1234567890',
-      },
     });
   });
 
-  it('não engole erro do INSERT: a instância existiria só no servidor', async () => {
-    insertError = { message: 'new row violates row-level security policy' };
+  it('erro da função vira aviso na tela, não silêncio', async () => {
+    mockInvoke.mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+        context: {
+          json: async () => ({
+            error: 'O servidor WhatsApp da plataforma ainda não foi configurado.',
+          }),
+        },
+      }),
+    });
+
     const { result } = await mountHook();
 
     await act(async () => {
       await expect(
-        result.current.createInstance('vendas_001', undefined, {
-          serverUrl: 'https://evo.exemplo.com.br',
-          apiKey: 'CHAVE1234567890',
-        }),
-      ).rejects.toThrow(/não pôde ser salva aqui/i);
+        result.current.createInstance('vendas_001', undefined, {}),
+      ).rejects.toThrow(/ainda não foi configurado/i);
     });
 
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'destructive' }),
-    );
+    // Era exatamente isto que faltava: o usuário VÊ o erro.
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+  });
+
+  it('resposta 200 com ok:false também é falha', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { ok: false, error: 'Já existe uma instância com essa chave.' },
+      error: null,
+    });
+
+    const { result } = await mountHook();
+
+    await act(async () => {
+      await expect(
+        result.current.createInstance('vendas_001', undefined, {}),
+      ).rejects.toThrow(/Já existe uma instância/i);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
   });
 });

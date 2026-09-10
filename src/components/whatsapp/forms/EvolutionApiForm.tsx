@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,13 +15,10 @@ import {
   XCircle,
 } from 'lucide-react';
 import { env } from '@/lib/env';
-import { useTenant } from '@/contexts/TenantContext';
 
 export interface EvolutionFormValues {
   name: string;
   instance_key: string;
-  serverUrl: string;
-  apiKey: string;
   enableWebhookAutomation: boolean;
   retryAttempts: number;
   retryDelay: number;
@@ -31,8 +27,6 @@ export interface EvolutionFormValues {
 export const initialEvolutionValues = (): EvolutionFormValues => ({
   name: '',
   instance_key: '',
-  serverUrl: '',
-  apiKey: '',
   enableWebhookAutomation: true,
   retryAttempts: 3,
   retryDelay: 2000,
@@ -55,25 +49,6 @@ export const EvolutionApiForm = ({
   webhookStatus = 'idle',
   webhookError = null,
 }: Props) => {
-  const { tenant } = useTenant();
-  const prefilled = useRef(false);
-
-  // Pre-preenche uma unica vez com o que a Conta ja tem salvo em Configuracoes
-  // > WhatsApp. E conveniencia, nao fonte da verdade: quem manda e o que esta
-  // no formulario na hora de criar, e e isso que vai para a instancia.
-  useEffect(() => {
-    if (prefilled.current) return;
-    const saved = (
-      tenant?.settings as { evolutionApi?: { serverUrl?: string; apiKey?: string } } | null
-    )?.evolutionApi;
-    if (!saved?.serverUrl && !saved?.apiKey) return;
-    prefilled.current = true;
-    onChange({
-      serverUrl: values.serverUrl || saved.serverUrl || '',
-      apiKey: values.apiKey || saved.apiKey || '',
-    });
-  }, [tenant, values.serverUrl, values.apiKey, onChange]);
-
   const generateInstanceKey = () => {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
@@ -91,9 +66,8 @@ export const EvolutionApiForm = ({
       <Alert className="border-slate-200 bg-slate-50/60">
         <Info className="h-4 w-4 text-slate-700" />
         <AlertDescription className="text-xs">
-          Informe o endereço e a chave do seu servidor Evolution. Elas ficam guardadas nesta
-          instância — é com elas que o ConvoFlow cria a instância, abre o QR Code e depois envia as
-          mensagens.
+          O servidor WhatsApp já é o da plataforma — você não precisa configurar nada disso. Dê um
+          nome à linha, escolha uma chave e conecte pelo QR Code.
         </AlertDescription>
       </Alert>
 
@@ -125,35 +99,6 @@ export const EvolutionApiForm = ({
         <p className="text-xs text-muted-foreground">
           Identificador único para esta instância. Use apenas letras, números, _ e -.
         </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="evo-server">URL do servidor Evolution *</Label>
-        <Input
-          id="evo-server"
-          placeholder="https://seu-servidor-evolution.com.br"
-          value={values.serverUrl}
-          onChange={(e) => onChange({ serverUrl: e.target.value })}
-          disabled={loading}
-          autoComplete="off"
-        />
-        <p className="text-xs text-muted-foreground">
-          Endereço raiz do servidor, sem <code className="px-1">/manager</code> — esse caminho é só
-          da tela de administração da Evolution.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="evo-apikey">API Key global *</Label>
-        <Input
-          id="evo-apikey"
-          type="password"
-          placeholder="Chave global do servidor (header apikey)"
-          value={values.apiKey}
-          onChange={(e) => onChange({ apiKey: e.target.value })}
-          disabled={loading}
-          autoComplete="off"
-        />
       </div>
 
       <Card className="border-blue-200 bg-blue-50/50">

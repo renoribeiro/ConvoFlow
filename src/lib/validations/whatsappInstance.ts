@@ -57,17 +57,10 @@ const evolutionSchema = z.object({
     .min(3, 'Chave da instância deve ter pelo menos 3 caracteres')
     .max(100, 'Chave muito longa')
     .regex(/^[A-Za-z0-9_-]+$/, 'Use apenas letras, números, _ e -'),
-  // Credenciais do servidor Evolution. Ficam no formulário — e não só em
-  // tenants.settings — porque sem elas o EvolutionApiService não é construído e
-  // a criação morre antes de sair do navegador. Gravadas em
-  // whatsapp_instances.connection_config, que é de onde o EvolutionAdapter lê.
-  serverUrl: z.string().trim().url('URL do servidor Evolution inválida'),
-  apiKey: z
-    .string()
-    .trim()
-    .min(10, 'API Key deve ter pelo menos 10 caracteres')
-    .max(500, 'API Key muito longa')
-    .regex(/^[A-Za-z0-9_\-.]+$/, 'API Key contém caracteres inválidos'),
+  // Sem serverUrl/apiKey de propósito: o servidor Evolution é da plataforma, e
+  // a chave global dele é chave-mestra de TODAS as instâncias — inclusive as de
+  // outros clientes. Ela vive como secret na edge function `evolution-provision`
+  // e nunca chega ao navegador. O que chega é a chave da instância criada.
   enableWebhookAutomation: z.boolean().default(true),
   retryAttempts: z.number().int().min(1).max(10).default(3),
   retryDelay: z.number().int().min(1000).max(10000).default(2000),
