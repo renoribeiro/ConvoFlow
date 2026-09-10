@@ -62,15 +62,15 @@
 --   `supabase_read_only_user` nao consegue SET ROLE authenticated.
 --
 -- MODO AUTO-TESTE (prova que a suite sabe falhar)
---   Descomente o bloco SABOTAGEM da secao 5. Ele afrouxa as policies de
---   ESCRITA (`gerente_inserts/updates_child_store_data`) em `contacts`,
---   trocando o vinculo de parentesco por "qualquer Loja" - o vazamento que
---   esta entrega poderia ter introduzido: um gerente ESCREVENDO na Loja de
---   OUTRA Conta.
+--   Descomente o bloco SABOTAGEM da secao 5. Ele afrouxa, em `contacts`, as
+--   TRES policies do gerente (leitura, INSERT e UPDATE) e mais a policy de
+--   upload do bucket `whatsapp-media`, trocando o vinculo de parentesco por
+--   "qualquer Loja" - o vazamento que esta entrega poderia ter introduzido:
+--   um gerente LENDO, ESCREVENDO e MANDANDO MIDIA na Loja de OUTRA Conta.
 --   Tudo DENTRO da transacao; o ROLLBACK devolve as policies ao texto original.
---   Esperado: fase 1 verde, fase 2 vermelha com falhas so em `contacts`.
---   Medido em 2026-09-09: 228 ok / 0 falhas  ->  224 ok / 4 falhas.
---   (a suite cobre 6 tabelas e faz 228 checks)
+--   Esperado: fase 1 verde, fase 2 vermelha em `contacts` e no bucket.
+--   Medido em 2026-09-09: 232 ok / 0 falhas  ->  224 ok / 8 falhas.
+--   (a suite cobre 6 tabelas + o bucket whatsapp-media, e faz 232 checks)
 --
 -- COMO LER O RESULTADO
 --   A coluna `placar` resume cada fase. Em caso de falha, `expected` vs `actual`
@@ -406,6 +406,47 @@ BEGIN
             CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
   END LOOP;
 
+  -- ---------------------------------------------------------------------------
+  -- Dimensao de STORAGE (2026-09-09): o bucket `whatsapp-media`.
+  --
+  -- Mandar foto/audio nao passa so pelas tabelas: `uploadWhatsAppMedia` sobe o
+  -- arquivo antes, em `<tenant_id>/<arquivo>`. Se o Storage nao acompanhar a
+  -- liberacao das tabelas, o texto sai e a midia nao - foi exatamente o que
+  -- aconteceu entre a 20260909000004 e a 20260909000005.
+  -- ---------------------------------------------------------------------------
+  FOR c IN SELECT * FROM (VALUES
+      ('A gerente','11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('A gerente','11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
+      ('A gestor', '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('A gestor', '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado')
+    ) AS v(scenario, jwt_sub, pasta, esperado) LOOP
+
+    PERFORM set_config('request.jwt.claims',
+      json_build_object('sub', c.jwt_sub, 'role','authenticated')::text, true);
+
+    ins_ok := false;
+    BEGIN
+      INSERT INTO storage.objects (bucket_id, name, owner)
+      -- O nome carrega FASE e IDENTIDADE. Sem a identidade, o gerente e o
+      -- gestor gravam o MESMO caminho na mesma pasta e o segundo leva uma
+      -- violacao de chave unica - que este bloco leria como "recusado pelo
+      -- RLS". Falso negativo medido em 2026-09-09.
+      VALUES ('whatsapp-media',
+              c.pasta || '/FIXSTORAGE-' || p_phase || '-' || c.jwt_sub || '.jpg',
+              c.jwt_sub);
+      ins_ok := true;
+    EXCEPTION WHEN others THEN ins_ok := false;
+    END;
+
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase, c.scenario, 'storage:whatsapp-media',
+            CASE WHEN c.esperado='aceito' THEN 'sobe midia na propria pasta'
+                 ELSE 'NAO sobe midia em pasta alheia' END,
+            CASE WHEN c.esperado='aceito' THEN 1 ELSE 0 END,
+            CASE WHEN ins_ok THEN 1 ELSE 0 END,
+            CASE WHEN (c.esperado='aceito') = ins_ok THEN 'ok' ELSE 'FAIL' END);
+  END LOOP;
+
   -- Trava anti-lockout: mexer em users_own_profile tranca todo mundo para fora,
   -- inclusive quem aplicou. Cada identidade TEM de continuar lendo o proprio perfil.
   FOR c IN SELECT DISTINCT scenario, jwt_sub FROM _rls_cases LOOP
@@ -426,6 +467,10 @@ SELECT pg_temp.chk('1-intacto');
 RESET ROLE;
 DELETE FROM public.contacts WHERE name = 'FIX invasor';
 DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
+-- Nao ha limpeza de storage.objects: o gatilho storage.protect_delete() proibe
+-- DELETE direto nessas tabelas ("Use the Storage API instead"). Nao e preciso -
+-- o nome do objeto carrega a fase ('FIXSTORAGE-1-intacto' x '...-2-sabotado'),
+-- entao as fases nao colidem, e o ROLLBACK final leva tudo embora.
 
 -- -----------------------------------------------------------------------------
 -- 5. SABOTAGEM (descomente para provar que a suite sabe falhar)
@@ -445,7 +490,8 @@ DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 --    da escrita. Bom para a seguranca, traicoeiro para quem testa.
 --
 --    Esperado: falhas SO em `contacts`, na leitura e na escrita alheia.
---    Medido em 2026-09-09: 228 ok / 0 falhas -> 221 ok / 7 falhas.
+--    Medido em 2026-09-09: 232 ok / 0 falhas -> 224 ok / 8 falhas.
+--    (7 em `contacts` + 1 no bucket `whatsapp-media`)
 --
 --    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz
 --    continua verde, porque ela tenta gravar na CONTA B (um account) e o
@@ -476,6 +522,10 @@ DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 --   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
 -- ALTER POLICY gerente_inserts_child_store_data ON public.contacts
 --   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY whatsapp_media_gerente_child_store_upload ON storage.objects
+--   WITH CHECK (bucket_id = 'whatsapp-media'
+--               AND (storage.foldername(name))[1] IN
+--                   (SELECT s::text FROM public.__sabotage_todas_as_lojas() s));
 -- SET LOCAL ROLE authenticated;
 -- SELECT pg_temp.chk('2-sabotado');
 -- RESET ROLE;

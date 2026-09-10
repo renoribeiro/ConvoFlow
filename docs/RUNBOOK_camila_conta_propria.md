@@ -11,8 +11,9 @@ Conta vazia do Mario, no fim deste arquivo).
 | 2 | `20260909000002_camila_conta_propria_gerente` | Camila: gestor da EncaixaRH → gerente de Conta própria; EncaixaRH reparentada | ✅ aplicada |
 | 3 | `20260909000003_mario_vira_superadmin` | Mario: gerente → superadmin sem Conta | ✅ aplicada |
 | 4 | `20260909000004_rls_gerente_writes_child_store_inbox` | Gerente passa a **escrever** na caixa de entrada das Lojas filhas (4 tabelas) | ✅ aplicada |
+| 5 | `20260909000005_storage_gerente_uploads_child_store_media` | Gerente passa a **subir mídia** para a pasta das Lojas filhas (bucket `whatsapp-media`) | ✅ aplicada |
 
-As quatro estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
+As cinco estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
 delas deve rodar de novo** — as guardas abortam sozinhas se tentarem.
 
 ## Estado final
@@ -41,10 +42,10 @@ Sem a Parte 1, mover a Camila para a Conta deixaria a caixa de entrada dela
 
 ## Verificações que rodaram
 
-- `docs/teste_isolamento_rls.sql`: **228 ok / 0 falhas**.
+- `docs/teste_isolamento_rls.sql`: **232 ok / 0 falhas**.
 - Auto-teste da suíte (sabotagem do helper compartilhado em `contacts`):
-  **221 ok / 7 falhas**, todas em `contacts`, cobrindo leitura e escrita nos
-  dois sentidos. Desfeito pelo ROLLBACK.
+  **224 ok / 8 falhas** — 7 em `contacts` (leitura e escrita) + 1 no bucket
+  `whatsapp-media`. Desfeito pelo ROLLBACK.
 - Envio ponta a ponta como a Camila, numa conversa real da EncaixaRH:
   INSERT da mensagem, gatilhos ligando e atualizando a conversa, UPDATE de
   status/wamid, marcar como lida — tudo OK; e recusado ao tentar gravar,
@@ -79,6 +80,32 @@ próprio INSERT em `messages` falharia dentro do gatilho.
 
 **`DELETE` não foi concedido**, de propósito: responder cliente não exige
 apagar nada. Se um dia precisar, é outra migração e outra decisão.
+
+## Parte 5 — a mídia
+
+Texto passou a sair na Parte 4, mas foto/áudio/documento não: `uploadWhatsAppMedia`
+sobe o arquivo antes, em `<tenant_id>/<arquivo>`, e `whatsapp_media_tenant_upload`
+só aceitava a pasta da Conta do próprio perfil. Medido como a Camila: pasta da
+EncaixaRH `false`, pasta da própria Conta `true`.
+
+**`20260909000005_storage_gerente_uploads_child_store_media`** cria
+`whatsapp_media_gerente_child_store_upload` — só `INSERT`, só no bucket
+`whatsapp-media`, usando o mesmo `gerente_child_store_ids()`.
+`uploadWhatsAppMedia` usa `upsert: false`, então subir arquivo é INSERT puro e
+UPDATE não entrou. Leitura já era pública no bucket; DELETE continua restrito à
+Conta do próprio perfil.
+
+### ⚠️ Bug achado de passagem: o bucket `bug-reports`
+
+As três policies de `bug-reports` têm uma cláusula de Loja filha que é **código
+morto**. Elas comparam com `storage.foldername(t.name)` — o *nome do tenant* —
+em vez do `name` do objeto. `storage.foldername('EncaixaRH')` devolve `{}`,
+então `[1]` é NULL e o `EXISTS` nunca casa. Medido em 2026-09-09:
+cláusula como está → `false`; com o `name` do objeto → `true`.
+
+Efeito prático: um gerente não consegue anexar print de bug report de uma Loja
+filha. **Não corrigi** — outro bucket, outra decisão. Fica registrado aqui e no
+cabeçalho da migração 5.
 
 ## Exposição nova a conferir
 
