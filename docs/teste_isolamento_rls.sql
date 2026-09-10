@@ -24,14 +24,27 @@
 --   ajustada para afirmar o comportamento NOVO, nao para deixar de reclamar:
 --     - gerente LE os dados da propria Loja filha        (era 0, agora 2)
 --     - gerente continua vendo ZERO de Loja de OUTRA Conta
---     - gerente NAO ESCREVE na Loja filha (as policies novas sao SELECT-only)
 --     - gestor e atendente seguem presos a propria Loja, inalterados
 --     - membro de Loja continua SEM ler a Conta pai - agora afirmado tambem
 --       nas tabelas operacionais, nao so em `tenants`
 --
---   As duas ultimas afirmacoes sao as que impedem a mudanca de vazar para
---   baixo: a Conta pai entrou na lista de `foreign_tenants` de gestor e
---   atendente exatamente para isso.
+-- SEGUNDA MUDANCA, no mesmo dia: a ESCRITA (20260909000004)
+--   So a leitura deixava a gerente ABRIR a conversa e nao conseguir responder
+--   - e o `handleSendMessage` grava ANTES de chamar o provedor, entao o
+--   cliente do outro lado nao recebia nada. A escrita foi liberada em QUATRO
+--   tabelas da caixa de entrada: messages, conversations, contacts, tags.
+--   Somente INSERT e UPDATE; DELETE nao foi concedido.
+--
+--   Por isso o check por tabela tem duas caras, e isso e a fronteira:
+--     - nas 4 liberadas      -> 'ESCREVE na Loja filha'      (espera 2)
+--     - nas outras 2 (e nas  -> 'NAO escreve na Loja filha'  (espera 0)
+--       outras 31 do sistema)
+--   E, em TODAS elas, 'NAO escreve na Loja de outra Conta' continua esperando
+--   zero: o que a mudanca abriu foi a Loja filha, nao a vizinhanca.
+--
+--   O que impede as duas mudancas de vazarem PARA BAIXO: a Conta pai entrou
+--   na lista de `foreign_tenants` de gestor e atendente, entao a suite afirma
+--   que um membro de Loja continua sem ler nem escrever na Conta acima dele.
 --
 -- SEGURANCA - por que da para rodar isto contra producao
 --   O script inteiro vive dentro de BEGIN ... ROLLBACK, e o ROLLBACK e
@@ -49,14 +62,15 @@
 --   `supabase_read_only_user` nao consegue SET ROLE authenticated.
 --
 -- MODO AUTO-TESTE (prova que a suite sabe falhar)
---   Descomente o bloco SABOTAGEM da secao 5. Ele afrouxa a policy NOVA
---   (`gerente_reads_child_store_data`) em `contacts`, trocando o vinculo de
---   parentesco por "qualquer Loja" - ou seja, exatamente o vazamento que esta
---   entrega poderia ter introduzido: um gerente lendo a Loja de OUTRA Conta.
---   Tudo DENTRO da transacao; o ROLLBACK devolve a policy ao texto original.
+--   Descomente o bloco SABOTAGEM da secao 5. Ele afrouxa as policies de
+--   ESCRITA (`gerente_inserts/updates_child_store_data`) em `contacts`,
+--   trocando o vinculo de parentesco por "qualquer Loja" - o vazamento que
+--   esta entrega poderia ter introduzido: um gerente ESCREVENDO na Loja de
+--   OUTRA Conta.
+--   Tudo DENTRO da transacao; o ROLLBACK devolve as policies ao texto original.
 --   Esperado: fase 1 verde, fase 2 vermelha com falhas so em `contacts`.
---   Medido em 2026-09-09: 218 ok / 0 falhas  ->  215 ok / 3 falhas.
---   (a suite cobre 6 tabelas e faz 218 checks)
+--   Medido em 2026-09-09: 228 ok / 0 falhas  ->  224 ok / 4 falhas.
+--   (a suite cobre 6 tabelas e faz 228 checks)
 --
 -- COMO LER O RESULTADO
 --   A coluna `placar` resume cada fase. Em caso de falha, `expected` vs `actual`
@@ -110,9 +124,22 @@ FROM (SELECT id FROM public.tenants WHERE slug LIKE 'fixture-%') t, generate_ser
 INSERT INTO public.conversations (tenant_id, contact_id)
 SELECT c.tenant_id, c.id FROM public.contacts c WHERE c.name = 'FIX contato';
 
+-- Uma instancia REAL por tenant. Nao use um id inventado aqui: a semeadura
+-- roda com session_replication_role = replica e nao checa FK, mas qualquer
+-- UPDATE posterior em `messages` revalida `messages_whatsapp_instance_id_fkey`
+-- e estoura 23503. Isso ficou escondido enquanto o RLS filtrava as linhas para
+-- zero (UPDATE sem linha nao checa FK); apareceu em 2026-09-09, quando o
+-- gerente ganhou escrita e o UPDATE passou a alcancar a linha de verdade.
+INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key)
+SELECT ('aaaaaaaa-0000-4000-8000-00000000000' || row_number() over (ORDER BY t.id))::uuid,
+       t.id, 'FIX instancia', 'fix-key-' || t.id
+FROM (SELECT id FROM public.tenants WHERE slug LIKE 'fixture-%') t;
+
 INSERT INTO public.messages (tenant_id, whatsapp_instance_id, contact_id, direction, message_type, content)
-SELECT c.tenant_id, 'aaaaaaaa-0000-4000-8000-0000000000de', c.id, 'inbound', 'text', 'FIX msg'
-FROM public.contacts c WHERE c.name = 'FIX contato';
+SELECT c.tenant_id, i.id, c.id, 'inbound', 'text', 'FIX msg'
+FROM public.contacts c
+JOIN public.whatsapp_instances i ON i.tenant_id = c.tenant_id AND i.name = 'FIX instancia'
+WHERE c.name = 'FIX contato';
 
 INSERT INTO public.quick_replies (tenant_id, name, content)   -- unique (tenant_id, name)
 SELECT t.id, 'FIX qr ' || g, 'x'
@@ -302,16 +329,72 @@ BEGIN
     VALUES (p_phase,'A gerente',c.tbl,'NAO le Loja de outra Conta',0,n_foreign,
             CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
 
-    -- (3) A leitura nova e SOMENTE LEITURA. Se um dia alguem trocar a policy
-    --     por FOR ALL, este check cai.
+    -- (3) ESCRITA na Loja filha. Desde 20260909000004 o gerente escreve em
+    --     QUATRO tabelas da caixa de entrada (messages, conversations,
+    --     contacts, tags) e continua SEM escrever nas outras 31. As duas
+    --     expectativas convivem aqui de proposito: e a fronteira exata.
     BEGIN
       EXECUTE format('WITH u AS (UPDATE public.%I SET tenant_id=tenant_id WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM u', c.tbl)
         INTO n_written USING '11111111-0000-4000-8000-000000000002'::uuid;
     EXCEPTION WHEN others THEN n_written := 999;
     END;
+    IF c.tbl IN ('messages','conversations','contacts','tags') THEN
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'ESCREVE na Loja filha',2,n_written,
+              CASE WHEN n_written = 2 THEN 'ok' ELSE 'FAIL' END);
+    ELSE
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja filha',0,n_written,
+              CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+    END IF;
+
+    -- (3b) ...e a escrita para NA FRONTEIRA DA CONTA. Vale para as 6 tabelas:
+    --      nas 4 liberadas prova que o vinculo de parentesco esta na policy;
+    --      nas outras 2 prova que continuam fechadas dos dois lados.
+    BEGIN
+      EXECUTE format('WITH u AS (UPDATE public.%I SET tenant_id=tenant_id WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM u', c.tbl)
+        INTO n_written USING '22222222-0000-4000-8000-000000000002'::uuid;
+    EXCEPTION WHEN others THEN n_written := 999;
+    END;
     INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
-    VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja filha',0,n_written,
+    VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja de outra Conta',0,n_written,
             CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+
+    -- (3c) O WITH CHECK do INSERT, nas duas tabelas sem FK complicada.
+    --      Aceita na Loja filha, recusa na Loja alheia.
+    IF c.tbl IN ('contacts','tags') THEN
+      ins_ok := false;
+      BEGIN
+        IF c.tbl = 'contacts' THEN
+          INSERT INTO public.contacts (tenant_id,phone,name)
+          VALUES ('11111111-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSE
+          INSERT INTO public.tags (tenant_id,name)
+          VALUES ('11111111-0000-4000-8000-000000000002','FIX invasor '||p_phase);
+        END IF;
+        ins_ok := true;
+      EXCEPTION WHEN others THEN ins_ok := false;
+      END;
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'INSERT na Loja filha aceito',1,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+              CASE WHEN ins_ok THEN 'ok' ELSE 'FAIL' END);
+
+      ins_ok := false;
+      BEGIN
+        IF c.tbl = 'contacts' THEN
+          INSERT INTO public.contacts (tenant_id,phone,name)
+          VALUES ('22222222-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSE
+          INSERT INTO public.tags (tenant_id,name)
+          VALUES ('22222222-0000-4000-8000-000000000002','FIX invasor B '||p_phase);
+        END IF;
+        ins_ok := true;   -- entrou = vazamento
+      EXCEPTION WHEN others THEN ins_ok := false;
+      END;
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'INSERT em Loja de outra Conta recusado',0,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+              CASE WHEN ins_ok THEN 'FAIL' ELSE 'ok' END);
+    END IF;
 
     -- (4) A porta abriu so para baixo: a Loja continua sem ler a Conta pai.
     PERFORM set_config('request.jwt.claims',
@@ -342,20 +425,33 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.chk('1-intacto');
 RESET ROLE;
 DELETE FROM public.contacts WHERE name = 'FIX invasor';
+DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 
 -- -----------------------------------------------------------------------------
 -- 5. SABOTAGEM (descomente para provar que a suite sabe falhar)
 --    Desfeita pelo ROLLBACK junto com todo o resto.
 --
---    O alvo e a policy NOVA, em UMA tabela (`contacts`). A sabotagem troca o
---    helper por um que esqueceu o vinculo de parentesco - "qualquer Loja" em
---    vez de "Loja filha da MINHA Conta". E o erro plausivel de verdade nesta
---    entrega: o gerente passa a ler a Loja do concorrente.
---    Esperado: 3 falhas, todas em `contacts`:
---      A gerente / SELECT alheio              (ve as 2 linhas da Loja B)
---      B gerente / SELECT alheio              (ve as 2 linhas da Loja A)
---      A gerente / NAO le Loja de outra Conta (idem, check nomeado)
---    Medido em 2026-09-09: 218 ok / 0 falhas -> 215 ok / 3 falhas.
+--    O alvo e `contacts`, nas TRES policies (leitura, INSERT e UPDATE). Elas
+--    compartilham o mesmo helper `gerente_child_store_ids()`, entao um bug
+--    nele atinge as tres de uma vez - e por isso a sabotagem fiel troca as
+--    tres, e nao so a escrita. O erro simulado: esquecer o vinculo de
+--    parentesco e aceitar "qualquer Loja".
+--
+--    UM DETALHE QUE MEDIMOS E VALE SABER (2026-09-09): sabotar SO a escrita
+--    quase nao aparece. Um UPDATE com WHERE precisa enxergar a linha, entao a
+--    policy de LEITURA tambem tem de liberar - com a leitura intacta, o
+--    'UPDATE alheio' continua devolvendo 0 e o vazamento so escapa pelo
+--    INSERT, que nao le nada. Ou seja: a leitura funciona como segunda tranca
+--    da escrita. Bom para a seguranca, traicoeiro para quem testa.
+--
+--    Esperado: falhas SO em `contacts`, na leitura e na escrita alheia.
+--    Medido em 2026-09-09: 228 ok / 0 falhas -> 221 ok / 7 falhas.
+--
+--    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz
+--    continua verde, porque ela tenta gravar na CONTA B (um account) e o
+--    helper sabotado so devolve `kind='store'`. E 'DELETE alheio' segue verde
+--    porque DELETE nunca foi concedido. Um unico check nunca cobre um
+--    vazamento inteiro - por isso os nomeados existem.
 --
 --    CUIDADO AO INVENTAR OUTRA SABOTAGEM - falso negativo medido em 2026-09-09.
 --    A primeira tentativa foi trocar o USING por
@@ -375,6 +471,11 @@ DELETE FROM public.contacts WHERE name = 'FIX invasor';
 -- GRANT EXECUTE ON FUNCTION public.__sabotage_todas_as_lojas() TO authenticated;
 -- ALTER POLICY gerente_reads_child_store_data ON public.contacts
 --   USING (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY gerente_updates_child_store_data ON public.contacts
+--   USING (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()))
+--   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY gerente_inserts_child_store_data ON public.contacts
+--   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
 -- SET LOCAL ROLE authenticated;
 -- SELECT pg_temp.chk('2-sabotado');
 -- RESET ROLE;

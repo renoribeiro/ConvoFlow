@@ -10,8 +10,9 @@ Conta vazia do Mario, no fim deste arquivo).
 | 1 | `20260909000001_rls_gerente_reads_child_store_data` | Gerente passa a **ler** os dados operacionais das Lojas filhas (35 tabelas) | ✅ aplicada |
 | 2 | `20260909000002_camila_conta_propria_gerente` | Camila: gestor da EncaixaRH → gerente de Conta própria; EncaixaRH reparentada | ✅ aplicada |
 | 3 | `20260909000003_mario_vira_superadmin` | Mario: gerente → superadmin sem Conta | ✅ aplicada |
+| 4 | `20260909000004_rls_gerente_writes_child_store_inbox` | Gerente passa a **escrever** na caixa de entrada das Lojas filhas (4 tabelas) | ✅ aplicada |
 
-As três estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
+As quatro estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
 delas deve rodar de novo** — as guardas abortam sozinhas se tentarem.
 
 ## Estado final
@@ -40,9 +41,14 @@ Sem a Parte 1, mover a Camila para a Conta deixaria a caixa de entrada dela
 
 ## Verificações que rodaram
 
-- `docs/teste_isolamento_rls.sql`: **218 ok / 0 falhas**.
-- Auto-teste da suíte (sabotagem): **215 ok / 3 falhas**, todas em `contacts`,
-  exatamente as três previstas. Desfeito pelo ROLLBACK.
+- `docs/teste_isolamento_rls.sql`: **228 ok / 0 falhas**.
+- Auto-teste da suíte (sabotagem do helper compartilhado em `contacts`):
+  **221 ok / 7 falhas**, todas em `contacts`, cobrindo leitura e escrita nos
+  dois sentidos. Desfeito pelo ROLLBACK.
+- Envio ponta a ponta como a Camila, numa conversa real da EncaixaRH:
+  INSERT da mensagem, gatilhos ligando e atualizando a conversa, UPDATE de
+  status/wamid, marcar como lida — tudo OK; e recusado ao tentar gravar,
+  mover linha ou apagar em Loja de outra Conta.
 - `EXPLAIN` da policy nova: `hashed SubPlan`, `loops=1` — avaliada **uma vez por
   consulta**, não por linha.
 - Como a Camila, sob RLS de verdade: 144 conversas, 145 contatos, 2.234
@@ -50,25 +56,29 @@ Sem a Parte 1, mover a Camila para a Conta deixaria a caixa de entrada dela
   Conta/Loja alheia.
 - `tenant_access_state` como ela: liberada (`manual`) na Conta e na Loja.
 
-## ⚠️ Limitação conhecida — a Camila NÃO escreve na EncaixaRH
+## Parte 4 — a escrita (resolvida no mesmo dia)
 
-A Parte 1 concedeu **somente leitura** (`FOR SELECT`). Hoje a EncaixaRH tem
-**zero membros**, e a Camila é a única pessoa que a atende.
+A Parte 1 concedeu **somente leitura**, e isso deixou a Camila abrindo as
+conversas sem conseguir responder. Pior: em `ChatWindow.handleSendMessage` a
+gravação acontece **antes** da chamada ao provedor, então o `INSERT` barrado
+caía no `catch` e o `adapter.sendText()` nunca rodava — **o cliente do outro
+lado não recebia nada**. Medido como ela:
+`42501 new row violates row-level security policy for table "messages"`.
 
-Na prática ela vai **abrir as conversas e não conseguir responder**: enviar
-mensagem é `INSERT` em `messages` e `UPDATE` em `conversations`, e nenhuma
-policy de escrita foi criada.
+Corrigido pela migração **`20260909000004_rls_gerente_writes_child_store_inbox`**:
+INSERT + UPDATE em **quatro** tabelas — `messages`, `conversations`,
+`contacts`, `tags` — com `WITH CHECK` nos dois comandos. As outras 31 tabelas
+seguem somente leitura.
 
-Duas saídas, decisão do dono:
+`conversations` entrou porque três gatilhos de `messages` mexem nela e
+**nenhum é `SECURITY DEFINER`** (`handle_message_conversation`,
+`update_conversation_on_message`, `sync_conversation_last_message`). Com
+`INSERT ... ON CONFLICT DO UPDATE`, uma linha invisível ao RLS faz o comando
+**errar**, não passar batido — sem INSERT e UPDATE em `conversations`, o
+próprio INSERT em `messages` falharia dentro do gatilho.
 
-1. **Estender para escrita** — dar ao gerente INSERT/UPDATE nas Lojas filhas
-   (as mesmas 35 tabelas, ou só o subconjunto da caixa de entrada). É a que
-   devolve o dia a dia dela.
-2. **Criar um Gestor na EncaixaRH** — ela mesma com um segundo login, ou uma
-   pessoa da equipe. Mantém o modelo atual intacto (Conta acompanha, Loja
-   opera), mas exige um login novo.
-
-Enquanto nenhuma das duas acontecer, **a Camila só consegue acompanhar**.
+**`DELETE` não foi concedido**, de propósito: responder cliente não exige
+apagar nada. Se um dia precisar, é outra migração e outra decisão.
 
 ## Exposição nova a conferir
 
@@ -121,7 +131,6 @@ Se ainda assim você quiser apagar, peça — eu escrevo o script com guarda de
 
 Texto pronto na resposta do chat (seção "O que a Camila vai ver de diferente").
 
-## 3. Decidir sobre a escrita na EncaixaRH
+## 3. (resolvido) Escrita na EncaixaRH
 
-Ver "Limitação conhecida" acima. É a única coisa que pode atrapalhar o trabalho
-dela amanhã.
+Feito na Parte 4 — ela responde normalmente. Nada a decidir aqui.
