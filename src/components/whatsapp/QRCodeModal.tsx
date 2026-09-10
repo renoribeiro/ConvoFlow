@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,85 +8,145 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, QrCode, Smartphone, Copy, CheckCircle2 } from 'lucide-react';
-import { useEvolutionApi } from '@/hooks/useEvolutionApi';
+import { createEvolutionApiService, EvolutionApiService } from '@/services/evolutionApi';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 
 interface QRCodeModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** `instance_key` da instância na Evolution. */
   instanceName: string;
+  /**
+   * Credenciais do servidor. Quando o chamador já as tem em mãos (acabou de
+   * criar a instância), passa direto; senão são lidas do `connection_config`
+   * da própria linha em `whatsapp_instances`.
+   */
+  serverUrl?: string;
+  apiKey?: string;
+  onSuccess?: () => void;
+}
+
+/**
+ * Resolve as credenciais da instância a partir do banco.
+ *
+ * O caminho antigo usava o `service` global do `useEvolutionApi`, montado só a
+ * partir de `tenants.settings.evolutionApi` ou das env vars `VITE_EVOLUTION_*`.
+ * Nenhuma Conta tem esse settings e as env vars não existem no build de
+ * produção, então o serviço era sempre nulo e o QR nunca abria. As credenciais
+ * que valem são as da instância — as mesmas que o `EvolutionAdapter` lê.
+ */
+async function resolveInstanceCredentials(
+  instanceName: string,
+): Promise<{ baseUrl: string; apiKey: string }> {
+  const { data, error } = await supabase
+    .from('whatsapp_instances')
+    .select('connection_config, evolution_api_url, evolution_api_key')
+    .eq('instance_key', instanceName)
+    .maybeSingle();
+
+  if (error) throw new Error(`Não foi possível ler a instância: ${error.message}`);
+  if (!data) throw new Error('Instância não encontrada nesta Conta.');
+
+  const cfg = (data.connection_config as { baseUrl?: string; apiKey?: string } | null) || {};
+  const baseUrl = cfg.baseUrl || data.evolution_api_url || '';
+  const key = cfg.apiKey || data.evolution_api_key || '';
+
+  if (!baseUrl || !key) {
+    throw new Error(
+      'Esta instância não tem URL do servidor e API Key salvas. Edite a instância e informe as credenciais da Evolution.',
+    );
+  }
+
+  return { baseUrl, apiKey: key };
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({
-  isOpen,
-  onClose,
+  open,
+  onOpenChange,
   instanceName,
+  serverUrl,
+  apiKey,
+  onSuccess,
 }) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
-  const { connectInstance, refreshInstanceStatus, refreshInstances } = useEvolutionApi();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const serviceRef = useRef<EvolutionApiService | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchConnectionData = async () => {
+  // Só as credenciais explícitas entram no memo; as do banco são resolvidas
+  // dentro do fetch, que já é assíncrono.
+  const explicitCreds = useMemo(
+    () => (serverUrl && apiKey ? { baseUrl: serverUrl, apiKey } : null),
+    [serverUrl, apiKey],
+  );
+
+  const getService = useCallback(async (): Promise<EvolutionApiService> => {
+    if (serviceRef.current) return serviceRef.current;
+    const creds = explicitCreds ?? (await resolveInstanceCredentials(instanceName));
+    serviceRef.current = createEvolutionApiService(creds.baseUrl, creds.apiKey);
+    return serviceRef.current;
+  }, [explicitCreds, instanceName]);
+
+  const fetchConnectionData = useCallback(async () => {
     if (!instanceName) return;
 
     try {
       setLoading(true);
       setError(null);
-      
-      console.log(`🔄 [QRCodeModal] Conectando instância: ${instanceName}`);
-      
-      const connectionData = await connectInstance(instanceName);
-      
-      if (connectionData) {
-        console.log(`✅ [QRCodeModal] Dados de conexão obtidos:`, connectionData);
-        setQrCode(connectionData.base64 || connectionData.code);
-        setPairingCode(connectionData.pairingCode);
-      } else {
-        console.log(`❌ [QRCodeModal] Dados de conexão não disponíveis`);
-        setError('Dados de conexão não disponíveis. A instância pode já estar conectada.');
+
+      const service = await getService();
+      const connectionData = await service.connectInstance(instanceName);
+
+      // A Evolution v2 devolve `base64` (data URL pronta para <img>) e `code`
+      // (o payload cru do QR, que NÃO é imagem). Usar `code` como src pintava
+      // um ícone de imagem quebrada; sem base64, o pareamento por código é o
+      // caminho que resta.
+      setQrCode(connectionData?.base64 || null);
+      setPairingCode(connectionData?.pairingCode || null);
+
+      if (!connectionData?.base64 && !connectionData?.pairingCode) {
+        setError('O servidor não devolveu QR Code nem código de pareamento. A instância pode já estar conectada.');
       }
     } catch (err) {
-      console.error('❌ [QRCodeModal] Erro ao conectar instância:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao conectar instância';
+      logger.error('Falha ao obter QR Code da instância', { instanceName, error: errorMessage });
       setError(errorMessage);
-      
-      toast({
-        title: "Erro",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      toast({ title: 'Erro', description: errorMessage, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [getService, instanceName]);
 
-  const handleRefresh = () => {
-    fetchConnectionData();
-  };
-
-  const copyPairingCode = () => {
-    if (pairingCode) {
-      navigator.clipboard.writeText(pairingCode);
-      toast({
-        title: "Copiado!",
-        description: "Código de pareamento copiado para a área de transferência",
-      });
+  const handleClose = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
-  };
+    setQrCode(null);
+    setPairingCode(null);
+    setError(null);
+    setConnected(false);
+    serviceRef.current = null;
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   useEffect(() => {
-    if (isOpen && instanceName) {
+    if (open && instanceName) {
+      serviceRef.current = null;
       fetchConnectionData();
     }
-  }, [isOpen, instanceName]);
+  }, [open, instanceName, fetchConnectionData]);
 
   // Polling do status: quando state vira "open", mostra sucesso e fecha o modal.
   useEffect(() => {
-    if (!isOpen || !instanceName || connected) return;
+    if (!open || !instanceName || connected) return;
 
     const stopPolling = () => {
       if (pollRef.current) {
@@ -97,11 +157,17 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
 
     pollRef.current = setInterval(async () => {
       try {
-        const state = await refreshInstanceStatus(instanceName);
-        if (state === 'open') {
+        const service = await getService();
+        const { instance } = await service.getInstanceStatus(instanceName);
+        if (instance?.state === 'open') {
           stopPolling();
           setConnected(true);
-          await refreshInstances();
+          await supabase
+            .from('whatsapp_instances')
+            .update({ status: 'open', last_connected_at: new Date().toISOString() })
+            .eq('instance_key', instanceName);
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+          onSuccess?.();
           toast({
             title: 'Conectado!',
             description: `Instância ${instanceName} pareada com sucesso.`,
@@ -110,27 +176,28 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         }
       } catch (err) {
         // Erros transientes durante polling não devem encerrar — só logar.
-        console.warn('[QRCodeModal] Falha ao checar status:', err);
+        logger.warn('Falha ao checar status da instância', {
+          instanceName,
+          error: err instanceof Error ? err.message : err,
+        });
       }
     }, 3000);
 
     return stopPolling;
-  }, [isOpen, instanceName, connected, refreshInstanceStatus, refreshInstances]);
+  }, [open, instanceName, connected, getService, handleClose, onSuccess, queryClient]);
 
-  const handleClose = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+  const copyPairingCode = () => {
+    if (pairingCode) {
+      navigator.clipboard.writeText(pairingCode);
+      toast({
+        title: 'Copiado!',
+        description: 'Código de pareamento copiado para a área de transferência',
+      });
     }
-    setQrCode(null);
-    setPairingCode(null);
-    setError(null);
-    setConnected(false);
-    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : handleClose())}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -158,13 +225,13 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
             </div>
           )}
 
-          {error && !connected && (
+          {error && !connected && !loading && (
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
               <div className="text-red-500 text-center">
                 <p className="font-medium">Erro ao conectar instância</p>
                 <p className="text-sm mt-1">{error}</p>
               </div>
-              <Button onClick={handleRefresh} variant="outline" size="sm">
+              <Button onClick={fetchConnectionData} variant="outline" size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Tentar novamente
               </Button>
@@ -178,9 +245,9 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-blue-900">Código de Pareamento</h3>
-                    <Button 
-                      onClick={copyPairingCode} 
-                      variant="outline" 
+                    <Button
+                      onClick={copyPairingCode}
+                      variant="outline"
                       size="sm"
                       className="h-8 px-2"
                     >
@@ -202,13 +269,13 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                 <div className="flex flex-col items-center space-y-4">
                   <h3 className="font-medium text-gray-900">Ou escaneie o QR Code</h3>
                   <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
-                    <img 
-                      src={qrCode} 
-                      alt="QR Code para conexão WhatsApp" 
+                    <img
+                      src={qrCode}
+                      alt="QR Code para conexão WhatsApp"
                       className="w-64 h-64 object-contain"
                     />
                   </div>
-                  
+
                   <div className="text-center space-y-2">
                     <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
                       <Smartphone className="h-4 w-4" />
@@ -225,7 +292,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               )}
 
               <div className="flex justify-center">
-                <Button onClick={handleRefresh} variant="outline" size="sm">
+                <Button onClick={fetchConnectionData} variant="outline" size="sm">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Atualizar conexão
                 </Button>
@@ -243,3 +310,5 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     </Dialog>
   );
 };
+
+export default QRCodeModal;
