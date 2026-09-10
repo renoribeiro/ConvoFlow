@@ -15,6 +15,37 @@
 --     - membro de Loja NAO le a Conta pai
 --     - superadmin le tudo
 --
+-- MUDANCA DE 2026-09-09 - o que "correto" passou a significar
+--   A migracao 20260909000001 deu ao GERENTE leitura dos dados operacionais das
+--   Lojas filhas da Conta dele (policy `gerente_reads_child_store_data`, so
+--   SELECT). Antes disso o seletor de Loja do gerente abria a tela VAZIA.
+--
+--   Isso muda o gabarito de UMA relacao especifica, e so dela. A suite foi
+--   ajustada para afirmar o comportamento NOVO, nao para deixar de reclamar:
+--     - gerente LE os dados da propria Loja filha        (era 0, agora 2)
+--     - gerente continua vendo ZERO de Loja de OUTRA Conta
+--     - gestor e atendente seguem presos a propria Loja, inalterados
+--     - membro de Loja continua SEM ler a Conta pai - agora afirmado tambem
+--       nas tabelas operacionais, nao so em `tenants`
+--
+-- SEGUNDA MUDANCA, no mesmo dia: a ESCRITA (20260909000004)
+--   So a leitura deixava a gerente ABRIR a conversa e nao conseguir responder
+--   - e o `handleSendMessage` grava ANTES de chamar o provedor, entao o
+--   cliente do outro lado nao recebia nada. A escrita foi liberada em QUATRO
+--   tabelas da caixa de entrada: messages, conversations, contacts, tags.
+--   Somente INSERT e UPDATE; DELETE nao foi concedido.
+--
+--   Por isso o check por tabela tem duas caras, e isso e a fronteira:
+--     - nas 4 liberadas      -> 'ESCREVE na Loja filha'      (espera 2)
+--     - nas outras 2 (e nas  -> 'NAO escreve na Loja filha'  (espera 0)
+--       outras 31 do sistema)
+--   E, em TODAS elas, 'NAO escreve na Loja de outra Conta' continua esperando
+--   zero: o que a mudanca abriu foi a Loja filha, nao a vizinhanca.
+--
+--   O que impede as duas mudancas de vazarem PARA BAIXO: a Conta pai entrou
+--   na lista de `foreign_tenants` de gestor e atendente, entao a suite afirma
+--   que um membro de Loja continua sem ler nem escrever na Conta acima dele.
+--
 -- SEGURANCA - por que da para rodar isto contra producao
 --   O script inteiro vive dentro de BEGIN ... ROLLBACK, e o ROLLBACK e
 --   incondicional: passando ou falhando, o banco volta exatamente ao que era.
@@ -31,11 +62,15 @@
 --   `supabase_read_only_user` nao consegue SET ROLE authenticated.
 --
 -- MODO AUTO-TESTE (prova que a suite sabe falhar)
---   Descomente o bloco SABOTAGEM da secao 5. Ele troca a policy de tenant de
---   `contacts` por `USING (true)` DENTRO da transacao e roda a bateria de novo.
---   Esperado: fase 1 verde, fase 2 vermelha com falhas so em `contacts`.
---   Medido em 2026-08-31: 150 ok / 0 falhas  ->  124 ok / 26 falhas.
---   (medido na versao de 5 tabelas; a suite atual cobre 6 e faz 194 checks)
+--   Descomente o bloco SABOTAGEM da secao 5. Ele afrouxa, em `contacts`, as
+--   TRES policies do gerente (leitura, INSERT e UPDATE) e mais a policy de
+--   upload do bucket `whatsapp-media`, trocando o vinculo de parentesco por
+--   "qualquer Loja" - o vazamento que esta entrega poderia ter introduzido:
+--   um gerente LENDO, ESCREVENDO e MANDANDO MIDIA na Loja de OUTRA Conta.
+--   Tudo DENTRO da transacao; o ROLLBACK devolve as policies ao texto original.
+--   Esperado: fase 1 verde, fase 2 vermelha em `contacts` e no bucket.
+--   Medido em 2026-09-09: 237 ok / 0 falhas  ->  228 ok / 9 falhas.
+--   (6 tabelas + os buckets whatsapp-media e bug-reports; 237 checks)
 --
 -- COMO LER O RESULTADO
 --   A coluna `placar` resume cada fase. Em caso de falha, `expected` vs `actual`
@@ -89,9 +124,22 @@ FROM (SELECT id FROM public.tenants WHERE slug LIKE 'fixture-%') t, generate_ser
 INSERT INTO public.conversations (tenant_id, contact_id)
 SELECT c.tenant_id, c.id FROM public.contacts c WHERE c.name = 'FIX contato';
 
+-- Uma instancia REAL por tenant. Nao use um id inventado aqui: a semeadura
+-- roda com session_replication_role = replica e nao checa FK, mas qualquer
+-- UPDATE posterior em `messages` revalida `messages_whatsapp_instance_id_fkey`
+-- e estoura 23503. Isso ficou escondido enquanto o RLS filtrava as linhas para
+-- zero (UPDATE sem linha nao checa FK); apareceu em 2026-09-09, quando o
+-- gerente ganhou escrita e o UPDATE passou a alcancar a linha de verdade.
+INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key)
+SELECT ('aaaaaaaa-0000-4000-8000-00000000000' || row_number() over (ORDER BY t.id))::uuid,
+       t.id, 'FIX instancia', 'fix-key-' || t.id
+FROM (SELECT id FROM public.tenants WHERE slug LIKE 'fixture-%') t;
+
 INSERT INTO public.messages (tenant_id, whatsapp_instance_id, contact_id, direction, message_type, content)
-SELECT c.tenant_id, 'aaaaaaaa-0000-4000-8000-0000000000de', c.id, 'inbound', 'text', 'FIX msg'
-FROM public.contacts c WHERE c.name = 'FIX contato';
+SELECT c.tenant_id, i.id, c.id, 'inbound', 'text', 'FIX msg'
+FROM public.contacts c
+JOIN public.whatsapp_instances i ON i.tenant_id = c.tenant_id AND i.name = 'FIX instancia'
+WHERE c.name = 'FIX contato';
 
 INSERT INTO public.quick_replies (tenant_id, name, content)   -- unique (tenant_id, name)
 SELECT t.id, 'FIX qr ' || g, 'x'
@@ -126,23 +174,33 @@ CREATE TEMP TABLE _rls_results (
 GRANT ALL ON _rls_cases, _rls_results TO authenticated;
 GRANT ALL ON SEQUENCE _rls_results_seq_seq TO authenticated;
 
+-- own_tenants / foreign_tenants agora vem prontos como ARRAY na propria matriz,
+-- porque o GERENTE deixou de ter um unico tenant proprio: desde 20260909000001
+-- ele responde pela Conta E pelas Lojas filhas dela.
+--
+-- Repare no que entrou em `foreign_tenants` de gestor e atendente: a CONTA PAI
+-- da propria organizacao. Nao e detalhe - e a afirmacao de que a leitura nova
+-- so desce do gerente para a Loja, e nunca sobe da Loja para a Conta.
 INSERT INTO _rls_cases
 SELECT i.scenario, i.jwt_sub, t.tbl,
        CASE WHEN i.scenario='superadmin' AND t.tbl IN ('contacts','messages','quick_replies','tags')
             THEN ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002',
                        '22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]
-            ELSE ARRAY[i.own_tenant] END,
+            ELSE i.own_tenants END,
        CASE WHEN i.scenario='superadmin' AND t.tbl IN ('contacts','messages','quick_replies','tags')
-            THEN ARRAY[]::uuid[] ELSE i.other_org END
+            THEN ARRAY[]::uuid[] ELSE i.foreign_tenants END
 FROM (VALUES
-  ('superadmin', '99999999-0000-4000-8000-000000000000'::uuid,'11111111-0000-4000-8000-000000000001'::uuid, ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
-  ('A gerente',  '11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000001'::uuid, ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
-  ('A gestor',   '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002'::uuid, ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
-  ('A atendente','11111111-0000-4000-8000-00000000000c'::uuid,'11111111-0000-4000-8000-000000000002'::uuid, ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
-  ('B gerente',  '22222222-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000001'::uuid, ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[]),
-  ('B gestor',   '22222222-0000-4000-8000-00000000000b'::uuid,'22222222-0000-4000-8000-000000000002'::uuid, ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[]),
-  ('B atendente','22222222-0000-4000-8000-00000000000c'::uuid,'22222222-0000-4000-8000-000000000002'::uuid, ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[])
-) AS i(scenario, jwt_sub, own_tenant, other_org)
+  -- cenario        jwt_sub                                        own_tenants (ve)                                     foreign_tenants (NAO ve)
+  ('superadmin', '99999999-0000-4000-8000-000000000000'::uuid, ARRAY['11111111-0000-4000-8000-000000000001']::uuid[],                                        ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
+  -- Gerente: Conta + Loja filha. A Loja filha e a mudanca de 2026-09-09.
+  ('A gerente',  '11111111-0000-4000-8000-00000000000a'::uuid, ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[], ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
+  -- Gestor/atendente: SO a propria Loja. A Conta pai e alheia.
+  ('A gestor',   '11111111-0000-4000-8000-00000000000b'::uuid, ARRAY['11111111-0000-4000-8000-000000000002']::uuid[],                                        ARRAY['11111111-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
+  ('A atendente','11111111-0000-4000-8000-00000000000c'::uuid, ARRAY['11111111-0000-4000-8000-000000000002']::uuid[],                                        ARRAY['11111111-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[]),
+  ('B gerente',  '22222222-0000-4000-8000-00000000000a'::uuid, ARRAY['22222222-0000-4000-8000-000000000001','22222222-0000-4000-8000-000000000002']::uuid[], ARRAY['11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[]),
+  ('B gestor',   '22222222-0000-4000-8000-00000000000b'::uuid, ARRAY['22222222-0000-4000-8000-000000000002']::uuid[],                                        ARRAY['22222222-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[]),
+  ('B atendente','22222222-0000-4000-8000-00000000000c'::uuid, ARRAY['22222222-0000-4000-8000-000000000002']::uuid[],                                        ARRAY['22222222-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000001','11111111-0000-4000-8000-000000000002']::uuid[])
+) AS i(scenario, jwt_sub, own_tenants, foreign_tenants)
 CROSS JOIN (VALUES ('contacts'),('conversations'),('messages'),('quick_replies'),('lead_tracking'),('tags')) AS t(tbl);
 
 -- -----------------------------------------------------------------------------
@@ -245,6 +303,165 @@ BEGIN
   INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
   VALUES (p_phase,'A gestor','profiles','nao le perfis de B',0,n_foreign, CASE WHEN n_foreign=0 THEN 'ok' ELSE 'FAIL' END);
 
+  -- ---------------------------------------------------------------------------
+  -- Dimensao NOVA (2026-09-09): Gerente x Loja filha, tabela por tabela.
+  --
+  -- A matriz acima ja cobre isto pelos totais, mas totais nao dizem QUAL lado
+  -- quebrou. Estes quatro checks nomeados por tabela existem para que a saida
+  -- de uma falha aponte direto para a afirmacao violada.
+  -- ---------------------------------------------------------------------------
+  FOR c IN SELECT unnest(ARRAY['contacts','conversations','messages',
+                               'quick_replies','lead_tracking','tags']) AS tbl LOOP
+
+    -- (1) O gerente LE a Loja filha. Este e o comportamento novo.
+    PERFORM set_config('request.jwt.claims',
+      '{"sub":"11111111-0000-4000-8000-00000000000a","role":"authenticated"}', true);
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE tenant_id = $1', c.tbl)
+      INTO n_own USING '11111111-0000-4000-8000-000000000002'::uuid;
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase,'A gerente',c.tbl,'LE a Loja filha',2,n_own,
+            CASE WHEN n_own = 2 THEN 'ok' ELSE 'FAIL' END);
+
+    -- (2) ...e SO a dele. Loja de outra Conta continua invisivel.
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE tenant_id = $1', c.tbl)
+      INTO n_foreign USING '22222222-0000-4000-8000-000000000002'::uuid;
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase,'A gerente',c.tbl,'NAO le Loja de outra Conta',0,n_foreign,
+            CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
+
+    -- (3) ESCRITA na Loja filha. Desde 20260909000004 o gerente escreve em
+    --     QUATRO tabelas da caixa de entrada (messages, conversations,
+    --     contacts, tags) e continua SEM escrever nas outras 31. As duas
+    --     expectativas convivem aqui de proposito: e a fronteira exata.
+    BEGIN
+      EXECUTE format('WITH u AS (UPDATE public.%I SET tenant_id=tenant_id WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM u', c.tbl)
+        INTO n_written USING '11111111-0000-4000-8000-000000000002'::uuid;
+    EXCEPTION WHEN others THEN n_written := 999;
+    END;
+    IF c.tbl IN ('messages','conversations','contacts','tags') THEN
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'ESCREVE na Loja filha',2,n_written,
+              CASE WHEN n_written = 2 THEN 'ok' ELSE 'FAIL' END);
+    ELSE
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja filha',0,n_written,
+              CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+    END IF;
+
+    -- (3b) ...e a escrita para NA FRONTEIRA DA CONTA. Vale para as 6 tabelas:
+    --      nas 4 liberadas prova que o vinculo de parentesco esta na policy;
+    --      nas outras 2 prova que continuam fechadas dos dois lados.
+    BEGIN
+      EXECUTE format('WITH u AS (UPDATE public.%I SET tenant_id=tenant_id WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM u', c.tbl)
+        INTO n_written USING '22222222-0000-4000-8000-000000000002'::uuid;
+    EXCEPTION WHEN others THEN n_written := 999;
+    END;
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja de outra Conta',0,n_written,
+            CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+
+    -- (3c) O WITH CHECK do INSERT, nas duas tabelas sem FK complicada.
+    --      Aceita na Loja filha, recusa na Loja alheia.
+    IF c.tbl IN ('contacts','tags') THEN
+      ins_ok := false;
+      BEGIN
+        IF c.tbl = 'contacts' THEN
+          INSERT INTO public.contacts (tenant_id,phone,name)
+          VALUES ('11111111-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSE
+          INSERT INTO public.tags (tenant_id,name)
+          VALUES ('11111111-0000-4000-8000-000000000002','FIX invasor '||p_phase);
+        END IF;
+        ins_ok := true;
+      EXCEPTION WHEN others THEN ins_ok := false;
+      END;
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'INSERT na Loja filha aceito',1,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+              CASE WHEN ins_ok THEN 'ok' ELSE 'FAIL' END);
+
+      ins_ok := false;
+      BEGIN
+        IF c.tbl = 'contacts' THEN
+          INSERT INTO public.contacts (tenant_id,phone,name)
+          VALUES ('22222222-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSE
+          INSERT INTO public.tags (tenant_id,name)
+          VALUES ('22222222-0000-4000-8000-000000000002','FIX invasor B '||p_phase);
+        END IF;
+        ins_ok := true;   -- entrou = vazamento
+      EXCEPTION WHEN others THEN ins_ok := false;
+      END;
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'INSERT em Loja de outra Conta recusado',0,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+              CASE WHEN ins_ok THEN 'FAIL' ELSE 'ok' END);
+    END IF;
+
+    -- (4) A porta abriu so para baixo: a Loja continua sem ler a Conta pai.
+    PERFORM set_config('request.jwt.claims',
+      '{"sub":"11111111-0000-4000-8000-00000000000b","role":"authenticated"}', true);
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE tenant_id = $1', c.tbl)
+      INTO n_foreign USING '11111111-0000-4000-8000-000000000001'::uuid;
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase,'A gestor',c.tbl,'NAO le a Conta pai',0,n_foreign,
+            CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
+  END LOOP;
+
+  -- ---------------------------------------------------------------------------
+  -- Dimensao de STORAGE (2026-09-09): o bucket `whatsapp-media`.
+  --
+  -- Mandar foto/audio nao passa so pelas tabelas: `uploadWhatsAppMedia` sobe o
+  -- arquivo antes, em `<tenant_id>/<arquivo>`. Se o Storage nao acompanhar a
+  -- liberacao das tabelas, o texto sai e a midia nao - foi exatamente o que
+  -- aconteceu entre a 20260909000004 e a 20260909000005.
+  -- ---------------------------------------------------------------------------
+  FOR c IN SELECT * FROM (VALUES
+      -- bucket          cenario      jwt_sub                                        pasta                                   esperado
+      ('whatsapp-media','A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('whatsapp-media','A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
+      ('whatsapp-media','A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('whatsapp-media','A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado'),
+      -- bug-reports: mesma regra de Loja filha, consertada pela 20260909000006.
+      -- Antes dela o primeiro caso abaixo dava 'recusado': a clausula usava
+      -- storage.foldername(t.name) - o NOME DO TENANT em vez do caminho do
+      -- objeto - e nunca casava. Era codigo morto, e o gerente jamais anexou
+      -- print de uma Loja filha.
+      ('bug-reports',   'A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('bug-reports',   'A gerente', '11111111-0000-4000-8000-00000000000a'::uuid,'22222222-0000-4000-8000-000000000002','recusado'),
+      ('bug-reports',   'A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000002','aceito'),
+      ('bug-reports',   'A gestor',  '11111111-0000-4000-8000-00000000000b'::uuid,'11111111-0000-4000-8000-000000000001','recusado'),
+      -- `bug-reports` tem um ramo is_super_admin() que `whatsapp-media` nao tem.
+      -- Este check existe para que reescrever a policy nunca o derrube calado.
+      ('bug-reports',   'superadmin','99999999-0000-4000-8000-000000000000'::uuid,'22222222-0000-4000-8000-000000000002','aceito')
+    ) AS v(bucket, scenario, jwt_sub, pasta, esperado) LOOP
+
+    PERFORM set_config('request.jwt.claims',
+      json_build_object('sub', c.jwt_sub, 'role','authenticated')::text, true);
+
+    ins_ok := false;
+    BEGIN
+      INSERT INTO storage.objects (bucket_id, name, owner)
+      -- O caminho carrega FASE e IDENTIDADE. Sem a identidade, o gerente e o
+      -- gestor gravam o MESMO caminho na mesma pasta e o segundo leva uma
+      -- violacao de chave unica - que este bloco leria como "recusado pelo
+      -- RLS". Falso negativo medido em 2026-09-09.
+      -- O formato <pasta>/<user>/<arquivo> e o mesmo que `BugReportButton`
+      -- monta; para o RLS so importa o primeiro segmento.
+      VALUES (c.bucket,
+              c.pasta || '/' || c.jwt_sub || '/FIXSTORAGE-' || p_phase || '.jpg',
+              c.jwt_sub);
+      ins_ok := true;
+    EXCEPTION WHEN others THEN ins_ok := false;
+    END;
+
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase, c.scenario, 'storage:' || c.bucket,
+            CASE WHEN c.esperado='aceito' THEN 'grava na propria pasta'
+                 ELSE 'NAO grava em pasta alheia' END,
+            CASE WHEN c.esperado='aceito' THEN 1 ELSE 0 END,
+            CASE WHEN ins_ok THEN 1 ELSE 0 END,
+            CASE WHEN (c.esperado='aceito') = ins_ok THEN 'ok' ELSE 'FAIL' END);
+  END LOOP;
+
   -- Trava anti-lockout: mexer em users_own_profile tranca todo mundo para fora,
   -- inclusive quem aplicou. Cada identidade TEM de continuar lendo o proprio perfil.
   FOR c IN SELECT DISTINCT scenario, jwt_sub FROM _rls_cases LOOP
@@ -264,12 +481,78 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.chk('1-intacto');
 RESET ROLE;
 DELETE FROM public.contacts WHERE name = 'FIX invasor';
+DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
+-- Nao ha limpeza de storage.objects: o gatilho storage.protect_delete() proibe
+-- DELETE direto nessas tabelas ("Use the Storage API instead"). Nao e preciso -
+-- o nome do objeto carrega a fase ('FIXSTORAGE-1-intacto' x '...-2-sabotado'),
+-- entao as fases nao colidem, e o ROLLBACK final leva tudo embora.
 
 -- -----------------------------------------------------------------------------
 -- 5. SABOTAGEM (descomente para provar que a suite sabe falhar)
 --    Desfeita pelo ROLLBACK junto com todo o resto.
+--
+--    O alvo e `contacts`, nas TRES policies (leitura, INSERT e UPDATE). Elas
+--    compartilham o mesmo helper `gerente_child_store_ids()`, entao um bug
+--    nele atinge as tres de uma vez - e por isso a sabotagem fiel troca as
+--    tres, e nao so a escrita. O erro simulado: esquecer o vinculo de
+--    parentesco e aceitar "qualquer Loja".
+--
+--    UM DETALHE QUE MEDIMOS E VALE SABER (2026-09-09): sabotar SO a escrita
+--    quase nao aparece. Um UPDATE com WHERE precisa enxergar a linha, entao a
+--    policy de LEITURA tambem tem de liberar - com a leitura intacta, o
+--    'UPDATE alheio' continua devolvendo 0 e o vazamento so escapa pelo
+--    INSERT, que nao le nada. Ou seja: a leitura funciona como segunda tranca
+--    da escrita. Bom para a seguranca, traicoeiro para quem testa.
+--
+--    Esperado: falhas SO em `contacts`, na leitura e na escrita alheia.
+--    Medido em 2026-09-09: 237 ok / 0 falhas -> 228 ok / 9 falhas.
+--    (7 em `contacts` + 1 em cada bucket: `whatsapp-media` e `bug-reports`)
+--
+--    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz
+--    continua verde, porque ela tenta gravar na CONTA B (um account) e o
+--    helper sabotado so devolve `kind='store'`. E 'DELETE alheio' segue verde
+--    porque DELETE nunca foi concedido. Um unico check nunca cobre um
+--    vazamento inteiro - por isso os nomeados existem.
+--
+--    CUIDADO AO INVENTAR OUTRA SABOTAGEM - falso negativo medido em 2026-09-09.
+--    A primeira tentativa foi trocar o USING por
+--        tenant_id IN (SELECT id FROM public.tenants WHERE kind = 'store')
+--    e ela NAO vazou nada: a suite deu 218 ok / 0 falhas. O motivo e que essa
+--    subconsulta roda como o USUARIO, sob o RLS de `tenants`, e o RLS de
+--    `tenants` ja limita o gerente as Lojas filhas dele. A "sabotagem"
+--    reproduzia o comportamento correto.
+--    Licao: para sabotar de verdade e preciso furar o RLS - por isso a
+--    funcao abaixo e SECURITY DEFINER. Uma sabotagem que passa nao prova que a
+--    policy esta certa; pode so estar mal construida.
 -- -----------------------------------------------------------------------------
--- ALTER POLICY "Users can access own tenant contacts" ON public.contacts USING (true);
+-- CREATE FUNCTION public.__sabotage_todas_as_lojas() RETURNS SETOF uuid
+-- LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $sab$
+--   SELECT t.id FROM public.tenants t WHERE t.kind = 'store' AND public.is_gerente_safe();
+-- $sab$;
+-- GRANT EXECUTE ON FUNCTION public.__sabotage_todas_as_lojas() TO authenticated;
+-- ALTER POLICY gerente_reads_child_store_data ON public.contacts
+--   USING (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY gerente_updates_child_store_data ON public.contacts
+--   USING (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()))
+--   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY gerente_inserts_child_store_data ON public.contacts
+--   WITH CHECK (tenant_id IN (SELECT public.__sabotage_todas_as_lojas()));
+-- ALTER POLICY whatsapp_media_gerente_child_store_upload ON storage.objects
+--   WITH CHECK (bucket_id = 'whatsapp-media'
+--               AND (storage.foldername(name))[1] IN
+--                   (SELECT s::text FROM public.__sabotage_todas_as_lojas() s));
+-- ALTER POLICY bug_reports_tenant_insert ON storage.objects
+--   WITH CHECK (bucket_id = 'bug-reports' AND (
+--     (SELECT public.is_super_admin())
+--     OR (storage.foldername(name))[1] = ((SELECT public.get_current_user_tenant_id()))::text
+--     OR (storage.foldername(name))[1] IN (SELECT s::text FROM public.__sabotage_todas_as_lojas() s)));
+--
+--   ATENCAO: os DOIS primeiros ramos precisam continuar ali. Na primeira
+--   tentativa eu troquei a policy inteira pela clausula vazada e o placar deu
+--   11 falhas em vez de 9: sumiram tambem 'A gestor / grava na propria pasta' e
+--   'superadmin / grava na propria pasta'. Nao era deteccao do vazamento - era
+--   a sabotagem tendo apagado permissao legitima. Sabotagem boa quebra UMA
+--   coisa; se ela quebra demais, as falhas param de apontar para o bug.
 -- SET LOCAL ROLE authenticated;
 -- SELECT pg_temp.chk('2-sabotado');
 -- RESET ROLE;
