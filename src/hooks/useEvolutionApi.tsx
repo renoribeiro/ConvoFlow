@@ -5,14 +5,12 @@ import { createEvolutionApiService, EvolutionApiService } from '@/services/evolu
 import { EvolutionInstance, DetailedEvolutionInstance } from '@/types/evolution.types';
 import { useToast } from '@/hooks/use-toast';
 import { env } from '@/lib/env';
+import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
 
 export interface CreateInstanceOptions {
   enableWebhookAutomation?: boolean;
   retryAttempts?: number;
   retryDelay?: number;
-  /** Credenciais informadas no formulário. Têm precedência sobre o serviço da Conta. */
-  serverUrl?: string;
-  apiKey?: string;
   /** Nome legível digitado pelo usuário. Sem ele, a linha nasce com a chave técnica no lugar do nome. */
   displayName?: string;
 }
@@ -182,111 +180,51 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
   };
 
   const createInstance = async (name: string, webhookUrl?: string, options?: CreateInstanceOptions) => {
-    const maxRetries = options?.retryAttempts || 3;
-    const retryDelay = options?.retryDelay || 2000;
-
     try {
       setLoading(true);
 
-      // As credenciais do formulário vêm primeiro; o serviço da Conta (ou das
-      // env vars) é só o caminho de trás. O `throw` mora DENTRO do try de
-      // propósito: fora dele nenhum toast era emitido, e quem chamava confiava
-      // que o hook avisaria — a tela ficava girando sem dizer nada.
-      const activeService =
-        options?.serverUrl && options?.apiKey
-          ? createEvolutionApiService(options.serverUrl, options.apiKey)
-          : service;
-
-      if (!activeService) {
-        throw new Error(
-          'Informe a URL do servidor e a API Key da Evolution para criar a instância.',
-        );
-      }
-
-      let result;
-      const enableAutomation = options?.enableWebhookAutomation ?? true;
-
-      if (enableAutomation && activeService.createInstanceWithWebhook) {
-        result = await activeService.createInstanceWithWebhook({
-          instanceName: name,
-          webhookUrl,
-          retryAttempts: maxRetries,
-          retryDelay
-        });
-      } else {
-        result = await activeService.createInstance({ instanceName: name, webhookUrl });
-      }
-
-      // Save to database
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile?.tenant_id) {
-        throw new Error(
-          'Sem Conta ativa para vincular a instância. Escolha uma Loja no seletor do topo.',
-        );
-      }
-
-      // Persistir provider + connection_config é o que faz o EvolutionAdapter
-      // conseguir instanciar a partir do row (senão joga AUTH_FAILED e o
-      // useWhatsAppApi filtra a instância fora do seletor de Conversas).
-      const outcome = (result || {}) as Record<string, any>;
-
-      const instanceData = {
-        instance_key: name,
-        name: options?.displayName?.trim() || name,
-        tenant_id: profile.tenant_id,
-        provider: 'evolution',
-        connection_config: {
-          baseUrl: activeService.baseUrl,
-          apiKey: activeService.apiKey,
+      // A criação mora no servidor (edge function `evolution-provision`).
+      //
+      // O caminho antigo montava o EvolutionApiService AQUI, no navegador, com a
+      // chave global do servidor Evolution. Isso não fecha num produto
+      // multi-cliente: medido em 2026-09-10, a chave global enxerga as 14
+      // instâncias de todos os clientes, enquanto a chave de uma instância
+      // enxerga 1 e leva 401 em qualquer outra. A global agora é secret da edge
+      // function; o que volta para cá é só a chave da instância criada, já
+      // gravada em connection_config.
+      const { data, error } = await supabase.functions.invoke('evolution-provision', {
+        body: {
+          instance_key: name,
+          name: options?.displayName?.trim() || name,
+          enableWebhookAutomation: options?.enableWebhookAutomation ?? true,
+          retryAttempts: options?.retryAttempts,
+          retryDelay: options?.retryDelay,
         },
-        status: outcome.status || 'disconnected',
-        webhook_url: outcome.webhookUrl || webhookUrl,
-        webhook_configured: outcome.webhookConfigured || false,
-        webhook_events: enableAutomation
-          ? ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE']
-          : null,
-        // @ts-ignore
-        automation_enabled: enableAutomation
-      };
+      });
 
-      // O erro do insert era descartado: a instância nascia na Evolution e
-      // sumia do ConvoFlow, sem nenhum aviso. Se a linha não gravou, a criação
-      // falhou — mesmo com o servidor tendo respondido 200.
-      const { error: insertError } = await supabase
-        .from('whatsapp_instances')
-        .insert(instanceData);
-
-      if (insertError) {
-        console.error('[useEvolutionApi] Falha ao gravar a instância no banco:', insertError);
+      // `functions.invoke` devolve a frase genérica "non-2xx status code" e
+      // esconde o texto real no corpo da resposta. O helper da casa abre esse
+      // corpo — sem ele o usuário volta a ver erro que não explica nada.
+      if (error) {
         throw new Error(
-          `A instância foi criada no servidor Evolution, mas não pôde ser salva aqui: ${insertError.message}`,
+          await mensagemDaEdgeFunction(error, 'Não foi possível criar a instância.'),
         );
+      }
+      if (data && data.ok === false) {
+        throw new Error(data.error || 'Não foi possível criar a instância.');
       }
 
       await refreshInstances();
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
 
-      if (outcome.webhookConfigured) {
-        toast({
-          title: "Sucesso",
-          description: "Instância criada com webhook configurado automaticamente!",
-        });
-      } else {
-        toast({
-          title: "Sucesso",
-          description: "Instância criada com sucesso",
-        });
-      }
+      toast({
+        title: 'Sucesso',
+        description: data?.webhook_configured
+          ? 'Instância criada com webhook configurado automaticamente!'
+          : 'Instância criada. Configure o webhook para receber mensagens em tempo real.',
+      });
 
-      return result;
+      return data;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao criar instância';
       console.error('❌ [useEvolutionApi] Erro ao criar instância:', err);
