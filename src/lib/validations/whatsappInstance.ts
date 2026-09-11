@@ -14,6 +14,14 @@ const nameField = z
   .min(3, 'Nome deve ter pelo menos 3 caracteres')
   .max(50, 'Nome muito longo');
 
+/**
+ * Regra do nome exibido de uma instância — a MESMA da criação, exportada para
+ * o "Renomear" não inventar outra. O nome é só rótulo: a identidade da
+ * instância é `instance_key`, que nunca muda depois de criada (é ela que o
+ * servidor Evolution e os webhooks conhecem).
+ */
+export const instanceNameSchema = nameField;
+
 const officialSchema = z.object({
   provider: z.literal('official'),
   name: nameField,
