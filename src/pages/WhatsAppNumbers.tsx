@@ -13,7 +13,10 @@ import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
-import { useEvolutionApi } from '@/hooks/useEvolutionApi';
+import {
+  evolutionCredentialsFrom,
+  evolutionServiceForRow,
+} from '@/services/whatsapp/evolutionInstanceService';
 import { useMetaApi } from '@/hooks/useMetaApi';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
@@ -74,7 +77,6 @@ export default function WhatsAppNumbers() {
   const { tenant, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { connectInstance, disconnectInstance, getQRCode, refreshInstanceStatus } = useEvolutionApi();
   const { verifyConnection: verifyMetaConnection } = useMetaApi();
 
   // Query para buscar instâncias do WhatsApp
@@ -105,12 +107,20 @@ export default function WhatsAppNumbers() {
   useEffect(() => {
     const checkConnectionStatus = async () => {
       if (instances.length === 0) return;
-      
-      for (const instance of instances) {
+
+      // `useSupabaseQuery` devolve um union mal tipado (GenericStringError), o
+      // que faz cada acesso a campo virar erro de tsc. Um cast só, aqui, em vez
+      // de espalhar `any` por dez linhas.
+      for (const instance of instances as WhatsAppInstance[]) {
         // Polling de status Evolution não se aplica a Meta/WAHA
         if (instance.provider && instance.provider !== 'evolution') continue;
         try {
-          const status = await refreshInstanceStatus(instance.instance_key);
+          // Instância sem credencial salva não tem o que consultar — pular é
+          // melhor que estourar no catch e marcá-la como 'close' por engano.
+          if (!evolutionCredentialsFrom(instance)) continue;
+          const service = evolutionServiceForRow(instance);
+          const { instance: estado } = await service.getInstanceStatus(instance.instance_key);
+          const status = estado?.state;
           if (status && status !== instance.status) {
             await updateInstanceMutation.mutateAsync({
               data: { 
@@ -147,7 +157,7 @@ export default function WhatsAppNumbers() {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [instances, refreshInstanceStatus, updateInstanceMutation]);
+  }, [instances, updateInstanceMutation]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -185,54 +195,39 @@ export default function WhatsAppNumbers() {
     }
   };
 
-  const handleConnect = async (instance: WhatsAppInstance) => {
-    try {
-      await connectInstance(instance.instance_key);
-      toast({
-        title: "Sucesso",
-        description: "Instância conectada com sucesso"
-      });
-      refetch();
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao conectar instância",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleDisconnect = async (instance: WhatsAppInstance) => {
     try {
-      await disconnectInstance(instance.instance_key);
+      // Credencial da própria instância, não o serviço global (que é nulo).
+      const service = evolutionServiceForRow(instance);
+      await service.disconnectInstance(instance.instance_key);
+      await updateInstanceMutation.mutateAsync({
+        data: { status: 'close' },
+        options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
+      });
       toast({
         title: "Sucesso",
         description: "Instância desconectada com sucesso"
       });
       refetch();
     } catch (error) {
+      // A mensagem real, não "Erro ao desconectar instância": era ela que
+      // escondia o motivo verdadeiro.
       toast({
         title: "Erro",
-        description: "Erro ao desconectar instância",
+        description: error instanceof Error ? error.message : 'Erro ao desconectar instância',
         variant: "destructive"
       });
     }
   };
 
-  const handleShowQR = async (instance: WhatsAppInstance) => {
-    try {
-      const qrCode = await getQRCode(instance.instance_key);
-      if (qrCode) {
-        setSelectedInstance({ ...instance, qr_code: qrCode });
-        setShowQRModal(true);
-      }
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao obter QR Code",
-        variant: "destructive"
-      });
-    }
+  // Só abre o modal. Antes, este botão buscava o QR ANTES de abrir e só abria
+  // se viesse alguma coisa — e `getQRCode` devolve null quando o serviço global
+  // não existe, o que em produção é sempre. Clicar não fazia absolutamente
+  // nada, nem erro. O QRCodeModal já busca o QR sozinho, com a credencial da
+  // própria instância, e sabe mostrar o erro quando falha.
+  const handleShowQR = (instance: WhatsAppInstance) => {
+    setSelectedInstance(instance);
+    setShowQRModal(true);
   };
 
   const handleConfigureWebhook = (instance: WhatsAppInstance) => {
@@ -243,21 +238,26 @@ export default function WhatsAppNumbers() {
   const handleRefreshStatus = async (instance: WhatsAppInstance) => {
     setRefreshingInstance(instance.id);
     try {
-      const status = await refreshInstanceStatus(instance.instance_key);
-      if (status) {
-        await updateInstanceMutation.mutateAsync({
-          data: { status },
-          options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
-        });
-        toast({
-          title: "Sucesso",
-          description: "Status atualizado com sucesso"
-        });
-      }
+      // `refreshInstanceStatus` do hook devolvia null sem serviço global, e o
+      // `if (status)` engolia isso: clicar não atualizava nada e não avisava
+      // nada. Agora a consulta usa a credencial da instância e o erro aparece.
+      const service = evolutionServiceForRow(instance);
+      const { instance: estado } = await service.getInstanceStatus(instance.instance_key);
+      const status = estado?.state;
+      if (!status) throw new Error('O servidor não informou o estado da instância.');
+
+      await updateInstanceMutation.mutateAsync({
+        data: { status },
+        options: { filter: { column: 'id', operator: 'eq', value: instance.id } }
+      });
+      toast({
+        title: "Sucesso",
+        description: "Status atualizado com sucesso"
+      });
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Erro ao atualizar status",
+        description: error instanceof Error ? error.message : 'Erro ao atualizar status',
         variant: "destructive"
       });
     } finally {

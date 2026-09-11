@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, QrCode, Smartphone, Copy, CheckCircle2 } from 'lucide-react';
-import { createEvolutionApiService, EvolutionApiService } from '@/services/evolutionApi';
+import type { EvolutionApiService } from '@/services/evolutionApi';
+import { evolutionServiceForInstanceKey } from '@/services/whatsapp/evolutionInstanceService';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -20,42 +21,6 @@ interface QRCodeModalProps {
   /** `instance_key` da instância na Evolution. */
   instanceName: string;
   onSuccess?: () => void;
-}
-
-/**
- * Resolve as credenciais da instância a partir do banco.
- *
- * O caminho antigo usava o `service` global do `useEvolutionApi`, montado só a
- * partir de `tenants.settings.evolutionApi` ou das env vars `VITE_EVOLUTION_*`.
- * Nenhuma Conta tem esse settings e as env vars não existem no build de
- * produção, então o serviço era sempre nulo e o QR nunca abria. As credenciais
- * que valem são as da instância — gravadas pela edge function
- * `evolution-provision` e as mesmas que o `EvolutionAdapter` lê para enviar.
- * A chave global do servidor nunca chega aqui: ela é secret da edge function.
- */
-async function resolveInstanceCredentials(
-  instanceName: string,
-): Promise<{ baseUrl: string; apiKey: string }> {
-  const { data, error } = await supabase
-    .from('whatsapp_instances')
-    .select('connection_config, evolution_api_url, evolution_api_key')
-    .eq('instance_key', instanceName)
-    .maybeSingle();
-
-  if (error) throw new Error(`Não foi possível ler a instância: ${error.message}`);
-  if (!data) throw new Error('Instância não encontrada nesta Conta.');
-
-  const cfg = (data.connection_config as { baseUrl?: string; apiKey?: string } | null) || {};
-  const baseUrl = cfg.baseUrl || data.evolution_api_url || '';
-  const key = cfg.apiKey || data.evolution_api_key || '';
-
-  if (!baseUrl || !key) {
-    throw new Error(
-      'Esta instância não tem URL do servidor e API Key salvas. Edite a instância e informe as credenciais da Evolution.',
-    );
-  }
-
-  return { baseUrl, apiKey: key };
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({
@@ -75,8 +40,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
 
   const getService = useCallback(async (): Promise<EvolutionApiService> => {
     if (serviceRef.current) return serviceRef.current;
-    const creds = await resolveInstanceCredentials(instanceName);
-    serviceRef.current = createEvolutionApiService(creds.baseUrl, creds.apiKey);
+    serviceRef.current = await evolutionServiceForInstanceKey(instanceName);
     return serviceRef.current;
   }, [instanceName]);
 
