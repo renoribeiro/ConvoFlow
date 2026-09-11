@@ -666,6 +666,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Conecte lendo o QR Code no celular que tem o número, ou use o código de pareamento se preferir não escanear.',
       'Confirme que o status ficou "Conectado" antes de configurar chatbot ou campanha.',
       'Confira o webhook, que é o que faz as mensagens chegarem em tempo real. Na API Oficial ele é configurado uma única vez para a instalação inteira, não a cada número.',
+      'Errou o nome? Use o lápis ao lado da instância para renomear. Muda só o rótulo que aparece nas telas — a conexão, as conversas e o número continuam os mesmos. Gerente e Gestor renomeiam; Atendente não vê o botão.',
     ],
     example:
       'A imobiliária liga o número do plantão como uma instância e o do comercial como outra. O chatbot de triagem fica publicado só no número do plantão.',

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2 } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
-import { useTenant } from '@/contexts/TenantContext';
+import { useTenant, useCan } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import {
   evolutionCredentialsFrom,
@@ -21,6 +21,7 @@ import { useMetaApi } from '@/hooks/useMetaApi';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CreateInstanceModal } from '@/components/whatsapp/CreateInstanceModal';
 import { DeleteInstanceModal } from '@/components/whatsapp/DeleteInstanceModal';
+import { RenameInstanceModal } from '@/components/whatsapp/RenameInstanceModal';
 import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
 import { WebhookConfigModal } from '@/components/whatsapp/WebhookConfigModal';
 import { WebhookDashboard } from '@/components/webhook/WebhookDashboard';
@@ -66,6 +67,7 @@ export default function WhatsAppNumbers() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showWebhookModal, setShowWebhookModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [refreshingInstance, setRefreshingInstance] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('instances');
 
@@ -75,6 +77,9 @@ export default function WhatsAppNumbers() {
   const [pinSubmitting, setPinSubmitting] = useState(false);
 
   const { tenant, loading: tenantLoading } = useTenant();
+  // Espelha a policy whatsapp_instances_tenant_update: esconder o botão de quem
+  // vai levar 'sem permissão' é cortesia, o bloqueio real é o RLS.
+  const canConfigure = useCan('whatsapp.configure');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { verifyConnection: verifyMetaConnection } = useMetaApi();
@@ -267,6 +272,11 @@ export default function WhatsAppNumbers() {
 
 
 
+  const handleRename = (instance: WhatsAppInstance) => {
+    setSelectedInstance(instance);
+    setShowRenameModal(true);
+  };
+
   const handleDelete = (instance: WhatsAppInstance) => {
     setSelectedInstance(instance);
     setShowDeleteModal(true);
@@ -338,6 +348,7 @@ export default function WhatsAppNumbers() {
     setShowDeleteModal(false);
     setShowQRModal(false);
     setShowWebhookModal(false);
+    setShowRenameModal(false);
   };
 
   const connectedInstances = instances.filter(i => i.status === 'open').length;
@@ -646,6 +657,17 @@ export default function WhatsAppNumbers() {
                         </>
                       )}
 
+                      {canConfigure && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRename(instance)}
+                          title="Renomear instância"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -736,6 +758,19 @@ export default function WhatsAppNumbers() {
             open={showDeleteModal}
             onOpenChange={setShowDeleteModal}
             instance={selectedInstance}
+            onSuccess={() => {
+              resetModals();
+              refetch();
+            }}
+          />
+
+          <RenameInstanceModal
+            open={showRenameModal}
+            onOpenChange={setShowRenameModal}
+            instance={selectedInstance}
+            siblingNames={(instances as unknown as WhatsAppInstance[])
+              .filter((i) => i.id !== selectedInstance.id)
+              .map((i) => i.name)}
             onSuccess={() => {
               resetModals();
               refetch();
