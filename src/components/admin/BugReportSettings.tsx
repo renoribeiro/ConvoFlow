@@ -112,7 +112,7 @@ export const BugReportSettings = () => {
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 rows={5}
-                placeholder={'suporte@re9.online\ndev@re9.online'}
+                placeholder={'suporte@convoflow.com.br\ndev@convoflow.com.br'}
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">

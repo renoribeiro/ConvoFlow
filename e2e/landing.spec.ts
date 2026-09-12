@@ -98,6 +98,19 @@ test.describe('Landing — navegação', () => {
     await expect(page.getByText('Política de Privacidade', { exact: true }).first()).toBeVisible();
   });
 
+  test('rodapé: Exclusão de Dados abre a página legal', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Exclusão de Dados' }).click();
+    await expect(page).toHaveURL(/\/exclusao-de-dados$/);
+    await expect(page.getByText('Instruções para Exclusão de Dados', { exact: true }).first()).toBeVisible();
+  });
+
+  test('CTA final: "Falar com Especialista" abre o e-mail de contato', async ({ page }) => {
+    await page.goto('/');
+    const link = page.getByRole('link', { name: /Falar com Especialista/ });
+    await expect(link).toHaveAttribute('href', /^mailto:contato@convoflow\.com\.br/);
+  });
+
   test('rodapé: "Entrar" leva para /login', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('contentinfo').getByRole('link', { name: 'Entrar' }).click();
@@ -126,9 +139,11 @@ test.describe('Landing — navegação', () => {
 test.describe('Landing — links externos', () => {
   test('todo link externo abre em nova aba e tem rel seguro', async ({ page }) => {
     await page.goto('/');
+    // Desde 2026-09-12 a landing não tem mais link externo (o "Falar com
+    // Especialista" virou mailto). O teste continua valendo para qualquer link
+    // externo que volte a aparecer — hoje ele passa em vazio.
     const externos = page.locator('a[href^="http"]');
     const n = await externos.count();
-    expect(n).toBeGreaterThan(0);
     for (let i = 0; i < n; i++) {
       const a = externos.nth(i);
       const href = await a.getAttribute('href');
@@ -140,7 +155,7 @@ test.describe('Landing — links externos', () => {
 });
 
 test.describe('Rotas públicas', () => {
-  for (const rota of ['/auth', '/login', '/definir-senha', '/terms-of-service', '/privacy-policy']) {
+  for (const rota of ['/auth', '/login', '/definir-senha', '/terms-of-service', '/privacy-policy', '/exclusao-de-dados']) {
     test(`${rota} renderiza sem erro de runtime`, async ({ page }) => {
       const erros = coletarErros(page);
       await page.goto(rota);

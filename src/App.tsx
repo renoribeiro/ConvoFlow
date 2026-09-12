@@ -22,6 +22,7 @@ import { Auth } from "./pages/Auth";
 import { DefinirSenha } from "./pages/DefinirSenha";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import DataDeletion from "./pages/DataDeletion";
 import NotFound from "./pages/NotFound";
 
 // Dashboard Pages (lazy loading)
@@ -94,6 +95,7 @@ const App = () => (
                 <Route path="/register" element={<Navigate to="/auth" replace />} />
                 <Route path="/terms-of-service" element={<TermsOfService />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/exclusao-de-dados" element={<DataDeletion />} />
 
                 {/* Protected Dashboard Routes */}
                 {/* MaintenanceGuard fica ENTRE o AuthGuard e o layout: e o

@@ -60,11 +60,10 @@ export const PLAN_FEATURES = [
 ] as const;
 
 // --------------------------------------------------------------- Suporte
-// Mesmos contatos publicados na landing (CTASection e LandingFooter). Ficam
-// aqui para que a tela de bloqueio nunca seja um beco sem saída, mesmo quando
-// o checkout está fora do ar.
-export const SUPORTE_WHATSAPP_URL =
-  'https://wa.me/5585991764169?text=Preciso%20liberar%20o%20acesso%20da%20minha%20Conta%20no%20ConvoFlow';
+// O mesmo contato publicado na landing (CTASection e LandingFooter) e nas
+// páginas legais — o único canal de suporte do produto. Fica aqui para que a
+// tela de bloqueio nunca seja um beco sem saída, mesmo quando o checkout está
+// fora do ar.
 export const SUPORTE_EMAIL = 'contato@convoflow.com.br';
 
 export const CHECKOUT_DESLIGADO_MENSAGEM =

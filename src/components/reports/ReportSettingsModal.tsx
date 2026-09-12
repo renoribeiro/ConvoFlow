@@ -52,7 +52,7 @@ export const ReportSettingsModal = ({ isOpen, onClose }: ReportSettingsModalProp
       smtpPort: '587',
       username: '',
       password: '',
-      fromEmail: 'reports@convoflow.com',
+      fromEmail: 'reports@convoflow.com.br',
       fromName: 'ConvoFlow Reports'
     },
     whatsappSettings: {
@@ -205,7 +205,7 @@ export const ReportSettingsModal = ({ isOpen, onClose }: ReportSettingsModalProp
                         id="fromEmail"
                         value={settings.emailSettings.fromEmail}
                         onChange={(e) => handleSettingChange('emailSettings', 'fromEmail', e.target.value)}
-                        placeholder="reports@convoflow.com"
+                        placeholder="reports@convoflow.com.br"
                         disabled={isLoading}
                       />
                     </div>

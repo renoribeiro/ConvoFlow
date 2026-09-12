@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Clock, LogOut, Loader2, Mail, MessageCircle, RefreshCw } from 'lucide-react';
+import { Clock, LogOut, Loader2, Mail, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { SUPORTE_EMAIL, SUPORTE_WHATSAPP_URL } from '@/lib/billing/checkout';
+import { SUPORTE_EMAIL } from '@/lib/billing/checkout';
 import { formatarFaltando, formatarMomento } from '@/lib/maintenance/maintenanceState';
 import { MaintenanceIllustration } from './MaintenanceIllustration';
 
@@ -127,24 +127,14 @@ export const MaintenanceScreen = ({ reason, endsAt, onRecheck }: MaintenanceScre
 
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <p className="text-xs font-medium">Precisa de alguma coisa agora?</p>
-              <div className="flex flex-col gap-1 text-xs">
-                <a
-                  href={SUPORTE_WHATSAPP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-brand-primary hover:underline"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  Falar com o suporte no WhatsApp
-                </a>
-                <a
-                  href={`mailto:${SUPORTE_EMAIL}`}
-                  className="inline-flex items-center gap-2 text-brand-primary hover:underline"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  {SUPORTE_EMAIL}
-                </a>
-              </div>
+              <a
+                href={`mailto:${SUPORTE_EMAIL}`}
+                className="inline-flex items-center gap-2 text-xs text-brand-primary hover:underline"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Falar com o suporte por email
+              </a>
+              <p className="text-xs text-muted-foreground">{SUPORTE_EMAIL}</p>
             </div>
           </CardContent>
 

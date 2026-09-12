@@ -1,7 +1,7 @@
 
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Zap } from 'lucide-react';
+import { ArrowRight, Mail, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const CTASection = () => {
@@ -50,9 +50,7 @@ export const CTASection = () => {
             </Link>
             
             <a 
-              href="https://wa.me/5585991764169?text=Quero%20falar%20do%20ConvoFlow"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="mailto:contato@convoflow.com.br?subject=Quero%20falar%20do%20ConvoFlow"
               className="w-full sm:w-auto"
             >
               <Button 
@@ -60,12 +58,13 @@ export const CTASection = () => {
                 className="bg-business-dark text-white hover:bg-business-dark/90 w-full sm:w-auto"
               >
                 Falar com Especialista
+                <Mail className="ml-2 h-5 w-5" />
               </Button>
             </a>
           </div>
 
           <p className="text-xs sm:text-sm mt-4 sm:mt-6 opacity-75 px-4 sm:px-0">
-            ⚡ Setup em 5 minutos • 🛡️ Seguro e confiável • 📞 Suporte brasileiro
+            ⚡ Setup em 5 minutos • 🛡️ Seguro e confiável • ✉️ Suporte brasileiro
           </p>
         </motion.div>
       </div>
