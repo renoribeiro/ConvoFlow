@@ -24,10 +24,21 @@ import {
  * configured via the META_GLOBAL_VERIFY_TOKEN secret. The same token must be set
  * on the Meta App Webhook configuration in the Developer Console.
  *
- * Dois Meta Apps podem apontar para este endpoint ao mesmo tempo (migração de
- * app). O segundo usa META_APP_SECRET_SECONDARY / META_GLOBAL_VERIFY_TOKEN_SECONDARY,
- * ambos opcionais: ausentes, o comportamento é o de sempre — só o primário vale.
- * A ordem de tentativa é primário, depois secundário; sem match, rejeita.
+ * Dois Meta Apps podem apontar para este endpoint ao mesmo tempo. O segundo usa
+ * META_APP_SECRET_SECONDARY / META_GLOBAL_VERIFY_TOKEN_SECONDARY, ambos
+ * opcionais. A ordem de tentativa é primário, depois secundário; sem match,
+ * rejeita (401 no POST, 403 no GET) — não existe bypass.
+ *
+ * ⚠️ O suporte ao secundário é PERMANENTE, não um remendo de migração. Ele
+ * existe para toda troca de app da Meta, presente ou futura: sem ele não há
+ * como configurar o webhook do app novo sem derrubar o atual. Terminada uma
+ * migração, o procedimento é LIMPAR O VALOR dos dois secrets `_SECONDARY` no
+ * Supabase (ou apagá-los) — nunca remover este código. Com o secundário vazio
+ * ou ausente, a função se comporta exatamente como com um secret só: o slot
+ * vazio nunca casa com nada, nem com token vazio. Isso é coberto por
+ * `src/lib/metaWebhookSignature.test.ts` ("secundário ausente se comporta
+ * exatamente como só o primário"); quem mexer aqui tem que manter esse teste
+ * verde.
  */
 serve(async (req) => {
   const logger = createLogger(req);

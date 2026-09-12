@@ -92,9 +92,11 @@ export async function verifyMetaSignature(
 
 /**
  * Lista de segredos candidatos para um webhook. Ordem importa: o primeiro é o
- * app atual, o segundo é o app novo durante uma migração. `undefined`, `null`
- * e string vazia são ignorados — assim um secret secundário ausente não muda
- * nada em relação a validar só com o primário.
+ * app atual, o segundo é o app novo. `undefined`, `null` e string vazia são
+ * ignorados — assim um secret secundário ausente ou limpo não muda nada em
+ * relação a validar só com o primário. Suporte permanente (ver cabeçalho de
+ * `meta-webhook/index.ts`): fora de migração o segundo slot fica vazio, e é
+ * isso que o torna inerte — não a remoção do código.
  */
 export type SecretCandidates = ReadonlyArray<string | null | undefined>;
 
