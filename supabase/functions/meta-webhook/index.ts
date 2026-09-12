@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createLogger } from '../_shared/logger.ts';
 import { applyReplyCancellations } from '../_shared/followup-reply.ts';
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts';
-import { verifyMetaSignature } from '../_shared/cryptoSignature.ts';
+import { verifyMetaSignatureAny, matchVerifyToken } from '../_shared/cryptoSignature.ts';
 import { ProviderFactory } from '../_shared/provider-factory.ts';
 import { MetaProvider } from '../_shared/whatsapp-providers/meta.ts';
 import {
@@ -23,6 +23,11 @@ import {
  * The verify_token used for the GET handshake is global (per Supabase project) and
  * configured via the META_GLOBAL_VERIFY_TOKEN secret. The same token must be set
  * on the Meta App Webhook configuration in the Developer Console.
+ *
+ * Dois Meta Apps podem apontar para este endpoint ao mesmo tempo (migração de
+ * app). O segundo usa META_APP_SECRET_SECONDARY / META_GLOBAL_VERIFY_TOKEN_SECONDARY,
+ * ambos opcionais: ausentes, o comportamento é o de sempre — só o primário vale.
+ * A ordem de tentativa é primário, depois secundário; sem match, rejeita.
  */
 serve(async (req) => {
   const logger = createLogger(req);
@@ -34,7 +39,11 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const verifyTokenEnv = Deno.env.get('META_GLOBAL_VERIFY_TOKEN');
+  const verifyTokenSecondary = Deno.env.get('META_GLOBAL_VERIFY_TOKEN_SECONDARY');
   const appSecret = Deno.env.get('META_APP_SECRET');
+  const appSecretSecondary = Deno.env.get('META_APP_SECRET_SECONDARY');
+  // Índice 0 = app atual, 1 = app novo. Só o índice entra no log — nunca o valor.
+  const APP_SLOT = ['primary', 'secondary'] as const;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     logger.error('Missing Supabase configuration');
@@ -58,8 +67,9 @@ serve(async (req) => {
       return new Response('Server misconfigured', { status: 500 });
     }
 
-    if (mode === 'subscribe' && token === verifyTokenEnv && challenge) {
-      logger.info('Meta webhook verified');
+    const tokenSlot = matchVerifyToken(token, [verifyTokenEnv, verifyTokenSecondary]);
+    if (mode === 'subscribe' && tokenSlot >= 0 && challenge) {
+      logger.info('Meta webhook verified', { app: APP_SLOT[tokenSlot] });
       return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
     }
 
@@ -99,8 +109,8 @@ serve(async (req) => {
     }
 
     const signatureHeader = req.headers.get('x-hub-signature-256');
-    const signatureValid = await verifyMetaSignature(rawBody, signatureHeader, appSecret);
-    if (!signatureValid) {
+    const signedBy = await verifyMetaSignatureAny(rawBody, signatureHeader, [appSecret, appSecretSecondary]);
+    if (signedBy < 0) {
       // Logging detalhado para diagnóstico — quando aparecem 401s recorrentes,
       // estes campos identificam a fonte:
       // - userAgent: distingue Meta (facebookplatform/...) de bots/scanners
@@ -117,6 +127,7 @@ serve(async (req) => {
       }
       logger.warn('Invalid Meta webhook signature', {
         hasHeader: !!signatureHeader,
+        secondaryConfigured: !!appSecretSecondary,
         userAgent: req.headers.get('user-agent'),
         sourceIp:
           req.headers.get('cf-connecting-ip') ||

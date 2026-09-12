@@ -89,3 +89,52 @@ export async function verifyMetaSignature(
 
   return timingSafeEqual(providedBytes, expectedBytes);
 }
+
+/**
+ * Lista de segredos candidatos para um webhook. Ordem importa: o primeiro é o
+ * app atual, o segundo é o app novo durante uma migração. `undefined`, `null`
+ * e string vazia são ignorados — assim um secret secundário ausente não muda
+ * nada em relação a validar só com o primário.
+ */
+export type SecretCandidates = ReadonlyArray<string | null | undefined>;
+
+/**
+ * Como `verifyMetaSignature`, mas aceita mais de um App Secret — necessário
+ * enquanto dois Meta Apps apontam para o mesmo endpoint. Tenta cada segredo na
+ * ordem recebida e devolve o índice (na lista ORIGINAL) do que bateu, ou -1.
+ *
+ * Retornar o índice em vez de booleano permite ao chamador registrar QUAL app
+ * assinou sem nunca tocar no valor do segredo. Sem segredo presente → -1,
+ * nunca aceita.
+ */
+export async function verifyMetaSignatureAny(
+  rawBody: string,
+  signatureHeader: string | null,
+  candidates: SecretCandidates,
+): Promise<number> {
+  for (let i = 0; i < candidates.length; i++) {
+    const secret = candidates[i];
+    if (typeof secret !== 'string' || secret.length === 0) continue;
+    if (await verifyMetaSignature(rawBody, signatureHeader, secret)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Handshake GET da Meta: `hub.verify_token` precisa bater com um dos tokens
+ * configurados. Comparação em tempo constante; devolve o índice do token que
+ * bateu (na lista original) ou -1. Token vindo ausente ou vazio nunca bate.
+ */
+export function matchVerifyToken(
+  provided: string | null | undefined,
+  candidates: SecretCandidates,
+): number {
+  if (typeof provided !== 'string' || provided.length === 0) return -1;
+  const providedBytes = encoder.encode(provided);
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    if (typeof candidate !== 'string' || candidate.length === 0) continue;
+    if (timingSafeEqual(providedBytes, encoder.encode(candidate))) return i;
+  }
+  return -1;
+}
