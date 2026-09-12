@@ -5,32 +5,32 @@ import { Star, Quote } from 'lucide-react';
 export const TestimonialsSection = () => {
   const testimonials = [
     {
-      name: 'Carlos Silva',
-      role: 'CEO, E-commerce Plus',
-      avatar: '👨‍💼',
-      rating: 5,
-      text: 'O ConvoFlow revolucionou nossa operação no WhatsApp. Aumentamos em 250% nossas conversões e nossa equipe consegue atender 3x mais clientes no mesmo tempo.'
-    },
-    {
-      name: 'Ana Costa',
-      role: 'Diretora de Marketing, TechCorp',
+      name: 'Ana Beatriz Souza',
+      role: 'Diretora de Marketing, Grupo Horizonte Tech',
       avatar: '👩‍💼',
       rating: 5,
-      text: 'Incredible! O sistema de chatbots é intuitivo e os relatórios nos ajudam a tomar decisões baseadas em dados. ROI positivo desde o primeiro mês.'
+      text: 'Os relatórios ajudam bastante a gente a enxergar o que tá funcionando de verdade. O chatbot é intuitivo e a gente conseguiu adaptar rápido. Ainda estamos ajustando algumas automações mais complexas, mas já sentimos diferença no tempo de resposta e nas conversões desde o primeiro mês.'
     },
     {
-      name: 'Roberto Mendes',
-      role: 'Gerente Comercial, Vendas Pro',
+      name: 'Roberto Almeida',
+      role: 'Gerente Comercial, Vendas Ágeis',
       avatar: '🧑‍💼',
-      rating: 5,
-      text: 'A automação do ConvoFlow nos permitiu focar no que realmente importa: fechar vendas. O atendimento 24/7 gerou leads até enquanto dormíamos!'
+      rating: 4,
+      text: 'O que mais gostei foi o atendimento automático de madrugada. Já pegamos lead que chegava 1h, 2h da manhã e a gente só via no outro dia. Não é milagre, mas ajuda pra caramba a não perder oportunidade. A automação liberou a equipe pra focar em fechar venda.'
     },
     {
-      name: 'Juliana Oliveira',
-      role: 'Fundadora, Consultoria Max',
+      name: 'Juliana Ferreira',
+      role: 'Fundadora, Consultoria Horizonte',
       avatar: '👩‍🎓',
       rating: 5,
-      text: 'Interface super amigável e suporte excepcional. Conseguimos implementar em 1 dia e já vimos resultados na primeira semana. Recomendo 100%!'
+      text: 'Interface bem fácil e o suporte respondeu rápido quando precisei. Implementamos em poucos dias e na primeira semana já vimos movimento. Recomendo, especialmente pra quem tá começando a organizar o atendimento no WhatsApp. Ainda tem o que melhorar em alguns relatórios, mas no geral está ótimo.'
+    },
+    {
+      name: 'Carlos Ribeiro',
+      role: 'CEO, Loja Nova Digital',
+      avatar: '👨‍💼',
+      rating: 4,
+      text: 'A gente tava se perdendo no WhatsApp com o volume de mensagens. Depois que colocamos o ConvoFlow, a equipe conseguiu organizar melhor e atender bem mais gente. No começo deu um trabalhinho pra configurar os fluxos, mas depois ficou bem mais leve. Conversões subiram bastante, algo em torno de 80-90%.'
     }
   ];
 
@@ -76,8 +76,15 @@ export const TestimonialsSection = () => {
               </div>
 
               <div className="flex items-center mb-4">
-                {[...Array(testimonial.rating)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 text-yellow-500 fill-current" />
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={
+                      i < testimonial.rating
+                        ? 'w-4 h-4 text-yellow-500 fill-current'
+                        : 'w-4 h-4 text-muted-foreground/40'
+                    }
+                  />
                 ))}
               </div>
 
