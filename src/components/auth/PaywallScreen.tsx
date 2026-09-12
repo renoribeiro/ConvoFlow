@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, Check, LogOut, Loader2, RefreshCw, AlertTriangle, MessageCircle, Mail } from 'lucide-react';
+import { Lock, Check, LogOut, Loader2, RefreshCw, AlertTriangle, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,7 +16,6 @@ import {
   PLAN_NAME,
   PLAN_PRICE_LABEL,
   SUPORTE_EMAIL,
-  SUPORTE_WHATSAPP_URL,
 } from '@/lib/billing/checkout';
 
 /**
@@ -175,7 +174,7 @@ export const PaywallScreen = () => {
                 <AlertDescription className="space-y-2">
                   <p>{falha}</p>
                   <p className="text-xs">
-                    Se continuar assim, fale com o suporte pelos contatos abaixo — ninguém precisa
+                    Se continuar assim, fale com o suporte pelo contato abaixo — ninguém precisa
                     ficar sem acesso esperando o checkout.
                   </p>
                 </AlertDescription>
@@ -249,23 +248,13 @@ export const PaywallScreen = () => {
 const ContatoDeSuporte = ({ titulo }: { titulo: string }) => (
   <div className="rounded-md border bg-muted/40 p-3 space-y-2">
     <p className="text-xs font-medium">{titulo}</p>
-    <div className="flex flex-col gap-1 text-xs">
-      <a
-        href={SUPORTE_WHATSAPP_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center gap-2 text-brand-primary hover:underline"
-      >
-        <MessageCircle className="h-3.5 w-3.5" />
-        Falar com o suporte no WhatsApp
-      </a>
-      <a
-        href={`mailto:${SUPORTE_EMAIL}`}
-        className="inline-flex items-center gap-2 text-brand-primary hover:underline"
-      >
-        <Mail className="h-3.5 w-3.5" />
-        {SUPORTE_EMAIL}
-      </a>
-    </div>
+    <a
+      href={`mailto:${SUPORTE_EMAIL}`}
+      className="inline-flex items-center gap-2 text-xs text-brand-primary hover:underline"
+    >
+      <Mail className="h-3.5 w-3.5" />
+      Falar com o suporte por email
+    </a>
+    <p className="text-xs text-muted-foreground">{SUPORTE_EMAIL}</p>
   </div>
 );

@@ -59,6 +59,9 @@ export const LandingFooter = () => {
             <Link to="/privacy-policy" className="text-xs sm:text-sm hover:text-brand-primary transition-colors">
               Política de Privacidade
             </Link>
+            <Link to="/exclusao-de-dados" className="text-xs sm:text-sm hover:text-brand-primary transition-colors">
+              Exclusão de Dados
+            </Link>
           </nav>
         </div>
       </div>

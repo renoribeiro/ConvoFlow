@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
             <CardHeader>
               <CardTitle className="text-3xl text-center">Política de Privacidade</CardTitle>
               <p className="text-center text-muted-foreground">
-                Última atualização: 13 de agosto de 2026 • Conforme LGPD
+                Última atualização: 12 de setembro de 2026 • Conforme LGPD
               </p>
             </CardHeader>
             <CardContent className="prose prose-slate dark:prose-invert max-w-none">
@@ -44,9 +44,9 @@ export default function PrivacyPolicy() {
                   </p>
                   <p className="text-muted-foreground leading-relaxed mt-3">
                     O ConvoFlow é uma plataforma de automação para WhatsApp operada por
-                    <strong> RE9 ONLINE BRANDING LTDA</strong>, inscrita no CNPJ sob nº 27.286.273/0001-09,
-                    com sede na Rua Barbosa de Freitas, nº 1741, Sala 04, Aldeota, Fortaleza/CE,
-                    CEP 60.170-021 (doravante denominada simplesmente "ConvoFlow").
+                    <strong> CONVOFLOW TECNOLOGIA LTDA</strong>, inscrita no CNPJ sob nº 68.930.380/0001-05,
+                    com sede na Rua Pereira Valente, nº 578, Sala 207, Meireles, Fortaleza/CE,
+                    CEP 60.160-250 (doravante denominada simplesmente "ConvoFlow").
                   </p>
                   <p className="text-muted-foreground leading-relaxed mt-3">
                     O ConvoFlow atua ora como <strong>controlador</strong>, ora como <strong>operador</strong> de
@@ -55,10 +55,9 @@ export default function PrivacyPolicy() {
                   </p>
                   <div className="mt-4 p-4 bg-background rounded border-l-4 border-primary">
                     <p className="text-sm text-muted-foreground mb-0">
-                      <strong>Empresa responsável pela plataforma:</strong> RE9 ONLINE BRANDING LTDA (CNPJ 27.286.273/0001-09)<br />
-                      <strong>Encarregado de Dados (DPO):</strong> privacidade@convoflow.com.br<br />
-                      <strong>Endereço:</strong> Rua Barbosa de Freitas, 1741, Sala 04, Aldeota, Fortaleza/CE, CEP 60.170-021<br />
-                      <strong>Telefone:</strong> (85) 99176-4169
+                      <strong>Empresa responsável pela plataforma:</strong> CONVOFLOW TECNOLOGIA LTDA (CNPJ 68.930.380/0001-05)<br />
+                      <strong>Encarregado de Dados (DPO):</strong> contato@convoflow.com.br<br />
+                      <strong>Endereço:</strong> Rua Pereira Valente, 578, Sala 207, Meireles, Fortaleza/CE, CEP 60.160-250
                     </p>
                   </div>
                 </section>
@@ -296,9 +295,13 @@ export default function PrivacyPolicy() {
                         <li>O conteúdo das mensagens e as mídias correspondentes são armazenados em nossa infraestrutura enquanto a Conta da loja cliente permanecer ativa, por serem parte do histórico de atendimento que constitui o próprio objeto do serviço contratado.</li>
                         <li>Encerrada a Conta, os dados são mantidos pelos prazos legais aplicáveis e eliminados mediante solicitação da loja cliente, ressalvadas as hipóteses de guarda obrigatória previstas em lei.</li>
                         <li>O wamid e os metadados de status seguem o mesmo tratamento, para fins de auditoria e suporte.</li>
-                        <li>A loja cliente, na condição de controladora, pode solicitar a qualquer momento a exclusão de contatos, de conversas específicas ou da totalidade do histórico, pelo e-mail privacidade@convoflow.com.br.</li>
+                        <li>A loja cliente, na condição de controladora, pode solicitar a qualquer momento a exclusão de contatos, de conversas específicas ou da totalidade do histórico, pelo e-mail contato@convoflow.com.br.</li>
                         <li>A Meta mantém os dados conforme seus próprios prazos, descritos na política de privacidade da Meta; a exclusão junto à Meta deve ser solicitada diretamente a ela.</li>
                       </ul>
+                      <p className="text-muted-foreground mt-3">
+                        O passo a passo para pedir a exclusão está em{' '}
+                        <Link to="/exclusao-de-dados" className="text-primary underline">Instruções para Exclusão de Dados</Link>.
+                      </p>
                     </div>
 
                     <div>
@@ -398,7 +401,7 @@ export default function PrivacyPolicy() {
                   <div className="mt-4 p-4 bg-background rounded border space-y-3">
                     <p className="text-sm text-muted-foreground mb-0">
                       <strong>Como exercer seus direitos:</strong> Entre em contato através do e-mail
-                      privacidade@convoflow.com.br. Responderemos em até 15 dias úteis. O atendimento às
+                      contato@convoflow.com.br. Responderemos em até 15 dias úteis. O atendimento às
                       solicitações é feito por esse canal; a plataforma não dispõe de área de autoatendimento
                       para exportação ou exclusão de dados.
                     </p>
@@ -507,11 +510,10 @@ export default function PrivacyPolicy() {
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p><strong>Encarregado de Dados (DPO):</strong></p>
-                      <p>privacidade@convoflow.com.br</p>
-                      <p>Tel: (85) 99176-4169</p>
-                      <p>RE9 ONLINE BRANDING LTDA</p>
-                      <p>Rua Barbosa de Freitas, 1741, Sala 04</p>
-                      <p>Aldeota, Fortaleza/CE — CEP 60.170-021</p>
+                      <p>contato@convoflow.com.br</p>
+                      <p>CONVOFLOW TECNOLOGIA LTDA</p>
+                      <p>Rua Pereira Valente, 578, Sala 207</p>
+                      <p>Meireles, Fortaleza/CE — CEP 60.160-250</p>
                     </div>
                     <div>
                       <p><strong>Autoridade Nacional (ANPD):</strong></p>

@@ -28,7 +28,7 @@ export default function TermsOfService() {
             <CardHeader>
               <CardTitle className="text-3xl text-center">Termos de Uso</CardTitle>
               <p className="text-center text-muted-foreground">
-                Última atualização: 13 de agosto de 2026
+                Última atualização: 12 de setembro de 2026
               </p>
             </CardHeader>
             <CardContent className="prose prose-slate dark:prose-invert max-w-none">
@@ -39,14 +39,13 @@ export default function TermsOfService() {
                     O ConvoFlow é uma plataforma de automação para WhatsApp operada por:
                   </p>
                   <div className="p-4 bg-background rounded border-l-4 border-primary text-sm text-muted-foreground space-y-1">
-                    <p><strong>RE9 ONLINE BRANDING LTDA</strong></p>
-                    <p>CNPJ: 27.286.273/0001-09</p>
-                    <p>Endereço: Rua Barbosa de Freitas, 1741, Sala 04, Aldeota, Fortaleza/CE, CEP 60.170-021</p>
-                    <p>Email: administrativo@re9.online</p>
-                    <p>Telefone: (85) 99176-4169</p>
+                    <p><strong>CONVOFLOW TECNOLOGIA LTDA</strong></p>
+                    <p>CNPJ: 68.930.380/0001-05</p>
+                    <p>Endereço: Rua Pereira Valente, 578, Sala 207, Meireles, Fortaleza/CE, CEP 60.160-250</p>
+                    <p>Email: contato@convoflow.com.br</p>
                   </div>
                   <p className="text-muted-foreground leading-relaxed mt-3">
-                    Para os fins destes Termos, "ConvoFlow", "nós" ou "nossa" referem-se à RE9 ONLINE BRANDING LTDA,
+                    Para os fins destes Termos, "ConvoFlow", "nós" ou "nossa" referem-se à CONVOFLOW TECNOLOGIA LTDA,
                     e "você", "usuário" ou "cliente" referem-se à pessoa física ou jurídica que utiliza a plataforma.
                   </p>
                 </section>
@@ -156,7 +155,7 @@ export default function TermsOfService() {
                       <h3 className="font-medium mb-2">4.4. Cancelamento</h3>
                       <p className="text-muted-foreground mb-2">
                         O cancelamento pode ser solicitado a qualquer momento, sem multa ou fidelidade, pelo e-mail
-                        <strong> administrativo@re9.online</strong>, a partir do endereço de e-mail cadastrado na
+                        <strong> contato@convoflow.com.br</strong>, a partir do endereço de e-mail cadastrado na
                         Conta. O pedido é processado em até 2 (dois) dias úteis, e a confirmação é enviada por
                         e-mail.
                       </p>
@@ -353,13 +352,10 @@ export default function TermsOfService() {
                 <section className="bg-muted/50 p-6 rounded-lg">
                   <h2 className="text-xl font-semibold mb-4">Contato</h2>
                   <p className="text-muted-foreground mb-2">
-                    Para questões relacionadas a estes Termos, entre em contato com a RE9 ONLINE BRANDING LTDA:
+                    Para questões relacionadas a estes Termos, entre em contato com a CONVOFLOW TECNOLOGIA LTDA:
                   </p>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Email jurídico: <span className="font-medium">juridico@convoflow.com.br</span></li>
-                    <li>• Email de privacidade/LGPD: <span className="font-medium">privacidade@convoflow.com.br</span></li>
-                    <li>• Email administrativo: <span className="font-medium">administrativo@re9.online</span></li>
-                    <li>• Telefone: (85) 99176-4169</li>
+                    <li>• Email (questões jurídicas, de privacidade/LGPD e administrativas): <span className="font-medium">contato@convoflow.com.br</span></li>
                   </ul>
                 </section>
               </div>
