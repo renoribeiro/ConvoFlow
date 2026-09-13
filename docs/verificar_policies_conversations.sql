@@ -21,11 +21,16 @@
 --     gerente_reads_child_store_data                      SELECT
 --     gerente_inserts_child_store_data                    INSERT
 --     gerente_updates_child_store_data                    UPDATE
---   messages — 4 policies
+--   messages — 5 policies
 --     "Super admins can access all messages"              ALL
 --     "Users can access own tenant messages"              ALL
 --     gerente_reads_child_store_data                      SELECT
---     gerente_inserts_child_store_data / _updates_        INSERT / UPDATE
+--     gerente_inserts_child_store_data                    INSERT
+--     gerente_updates_child_store_data                    UPDATE
+--   CONJUNTO — 12
+--
+-- Medido em 2026-09-13, ANTES da migração: conversations 7, messages 5,
+-- CONJUNTO 12, assinatura do conjunto 89dec63b7d096a5dd735b8f55bcdb3cd.
 --
 -- A migração 20260913000001 NÃO cria, apaga nem altera policy. Se a assinatura
 -- mudar entre as duas rodadas, alguma outra coisa mexeu — pare e investigue.
