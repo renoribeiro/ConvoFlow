@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
+import { LojaWideHint } from '@/components/shared/LojaWideHint';
 
 export const WhatsAppStatus = () => {
   const navigate = useNavigate();
@@ -133,8 +134,9 @@ export const WhatsAppStatus = () => {
                 <div className="text-sm font-medium text-foreground">
                   {instance.messagesCount}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
                   mensagens hoje
+                  <LojaWideHint />
                 </div>
               </div>
             </div>

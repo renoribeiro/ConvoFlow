@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { BRAND_CHART } from '@/lib/chartColors';
+import { LojaWideHint } from '@/components/shared/LojaWideHint';
 import type { KpiMetric } from '@/hooks/useDashboardKpis';
 
 interface EnhancedMetricCardProps {
@@ -21,6 +22,12 @@ interface EnhancedMetricCardProps {
   sparkColor?: string;
   /** Oculta o indicador de variação (métricas onde não faz sentido). */
   hideDelta?: boolean;
+  /**
+   * O número é da Loja inteira (conversas/mensagens via loja_* RPCs). Para um
+   * atendente com visibilidade restringida aparece a etiqueta "Toda a Loja";
+   * para todo mundo mais, nada muda.
+   */
+  lojaWide?: boolean;
 }
 
 export const EnhancedMetricCard = ({
@@ -32,6 +39,7 @@ export const EnhancedMetricCard = ({
   index = 0,
   sparkColor = BRAND_CHART.primary,
   hideDelta = false,
+  lojaWide = false,
 }: EnhancedMetricCardProps) => {
   const navigate = useNavigate();
   const gradientId = useId().replace(/:/g, '');
@@ -59,7 +67,10 @@ export const EnhancedMetricCard = ({
         onClick={clickable ? () => navigate(href!) : undefined}
       >
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            {title}
+            {lojaWide && <LojaWideHint />}
+          </p>
           <span className="text-muted-foreground [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
         </div>
 

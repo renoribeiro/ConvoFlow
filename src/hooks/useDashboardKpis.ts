@@ -2,19 +2,31 @@ import { useSupabaseQuery, useSupabaseCount } from './useSupabaseQuery';
 import { useTenant } from '@/contexts/TenantContext';
 import { startOfDay, subDays, format } from 'date-fns';
 import type { UsePeriodFilterResult } from './usePeriodFilter';
+import {
+  sumCounts,
+  useLojaConversationCounts,
+  useLojaMessageCounts,
+  useLojaResponseTime,
+  type LojaResponseTimeRow,
+} from './useLojaStats';
 
 /**
  * KPIs do Dashboard — versão "CRM" com valor principal, variação vs. período
  * anterior e sparkline de 7 dias por métrica.
  *
- * Reaproveita o padrão de queries leves (useSupabaseCount / useSupabasequery
- * com `silent`) já usado em useDashboardMetrics, mas parametrizado pelo período
- * selecionado (usePeriodFilter). Valores "instantâneos" (conversas ativas, taxa
- * de conversão) usam snapshot; os demais agregam dentro do período.
+ * Os números de CONTATOS continuam vindo das queries leves de sempre
+ * (useSupabaseCount / useSupabaseQuery com `silent`). Os de CONVERSAS e
+ * MENSAGENS passaram a vir das funções `loja_*` (useLojaStats) desde a
+ * migração 20260914000001: quando uma Loja restringe o que um atendente vê,
+ * o RLS de `messages`/`conversations` devolve só o que é dele — e o Dashboard,
+ * por decisão de produto, continua mostrando a Loja inteira. As funções
+ * devolvem só contagens e médias por balde; a matemática aqui é a mesma de
+ * antes (tempo de resposta = 1º inbound → 1º outbound seguinte, por conversa),
+ * só que feita no banco em vez de sobre linhas baixadas.
  *
  * As sparklines são SEMPRE dos últimos 7 dias (mini-tendência), independente do
- * período — por isso suas queries usam queryKeys próprias e janelas normalizadas
- * por dia (estáveis dentro do mesmo dia, sem refetch em loop).
+ * período — por isso suas queries usam janelas normalizadas por dia (estáveis
+ * dentro do mesmo dia, sem refetch em loop).
  */
 
 export interface KpiMetric {
@@ -42,7 +54,6 @@ export interface DashboardKpis {
 }
 
 type FunnelStageRow = { id: string; order: number; is_final: boolean | null };
-type MessageRow = { conversation_id: string; direction: string; created_at: string };
 
 const SPARK_DAYS = 7;
 
@@ -51,12 +62,20 @@ const deltaPct = (current: number, previous: number): number => {
   return ((current - previous) / previous) * 100;
 };
 
+/** Os 7 dias da sparkline, em ordem, com a chave yyyy-MM-dd de cada um. */
+function sparkDays(): Array<{ key: string; label: string }> {
+  const days: Array<{ key: string; label: string }> = [];
+  for (let i = SPARK_DAYS - 1; i >= 0; i--) {
+    const d = subDays(new Date(), i);
+    days.push({ key: format(d, 'yyyy-MM-dd'), label: format(d, 'dd/MM') });
+  }
+  return days;
+}
+
 /** Buckets diários (últimos `days` dias) por contagem de linhas. */
 function dailyCountSpark(rows: Array<Record<string, any>>, dateField: string): SparkPoint[] {
   const buckets = new Map<string, number>();
-  for (let i = SPARK_DAYS - 1; i >= 0; i--) {
-    buckets.set(format(subDays(new Date(), i), 'yyyy-MM-dd'), 0);
-  }
+  for (const d of sparkDays()) buckets.set(d.key, 0);
   for (const r of rows) {
     const raw = r[dateField];
     if (!raw) continue;
@@ -69,45 +88,41 @@ function dailyCountSpark(rows: Array<Record<string, any>>, dateField: string): S
   }));
 }
 
-/** Tempo médio (min) entre o 1º inbound e o 1º outbound posterior, por conversa. */
-function avgResponseMinutes(msgs: MessageRow[]): number {
-  const byConv = new Map<string, MessageRow[]>();
-  for (const m of msgs) {
-    const list = byConv.get(m.conversation_id);
-    if (list) list.push(m);
-    else byConv.set(m.conversation_id, [m]);
+/**
+ * Mesma sparkline, mas a partir de linhas JÁ agregadas por dia pelo banco
+ * (`bucket` = meia-noite local do dia, `n` = contagem). Dias sem linha valem 0.
+ */
+function dailyBucketSpark(rows: Array<{ bucket: string | null; n: number }>): SparkPoint[] {
+  const buckets = new Map<string, number>();
+  for (const d of sparkDays()) buckets.set(d.key, 0);
+  for (const r of rows) {
+    if (!r.bucket) continue;
+    const key = format(new Date(r.bucket), 'yyyy-MM-dd');
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + r.n);
   }
-  const diffs: number[] = [];
-  for (const list of byConv.values()) {
-    let firstInbound: MessageRow | null = null;
-    for (const msg of list) {
-      if (!firstInbound && msg.direction === 'inbound') firstInbound = msg;
-      else if (firstInbound && msg.direction === 'outbound') {
-        const ms = new Date(msg.created_at).getTime() - new Date(firstInbound.created_at).getTime();
-        if (ms >= 0) diffs.push(ms / 1000 / 60);
-        break;
-      }
-    }
-  }
-  if (diffs.length === 0) return 0;
-  return diffs.reduce((a, b) => a + b, 0) / diffs.length;
-}
-
-/** Sparkline de tempo médio de resposta: avg por dia (últimos 7 dias). */
-function responseTimeSpark(msgs: MessageRow[]): SparkPoint[] {
-  const byDay = new Map<string, MessageRow[]>();
-  for (let i = SPARK_DAYS - 1; i >= 0; i--) {
-    byDay.set(format(subDays(new Date(), i), 'yyyy-MM-dd'), []);
-  }
-  for (const m of msgs) {
-    const key = format(new Date(m.created_at), 'yyyy-MM-dd');
-    byDay.get(key)?.push(m);
-  }
-  return Array.from(byDay.entries()).map(([date, list]) => ({
+  return Array.from(buckets.entries()).map(([date, value]) => ({
     date: format(new Date(date), 'dd/MM'),
-    value: Number(avgResponseMinutes(list).toFixed(1)),
+    value,
   }));
 }
+
+/** Sparkline de tempo médio de resposta: a média do dia que o banco já calculou. */
+function responseTimeSpark(rows: LojaResponseTimeRow[]): SparkPoint[] {
+  const byDay = new Map<string, number>();
+  for (const d of sparkDays()) byDay.set(d.key, 0);
+  for (const r of rows) {
+    if (!r.bucket) continue;
+    const key = format(new Date(r.bucket), 'yyyy-MM-dd');
+    if (byDay.has(key)) byDay.set(key, Number(r.avg_minutes.toFixed(1)));
+  }
+  return Array.from(byDay.entries()).map(([date, value]) => ({
+    date: format(new Date(date), 'dd/MM'),
+    value,
+  }));
+}
+
+/** A média do período inteiro vem numa linha só (bucket = null). */
+const avgMinutesOf = (rows: LojaResponseTimeRow[] | undefined): number => rows?.[0]?.avg_minutes ?? 0;
 
 export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
   const { tenant } = useTenant();
@@ -117,35 +132,30 @@ export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
   const spark7dISO = startOfDay(subDays(new Date(), SPARK_DAYS - 1)).toISOString();
 
   // ===== Conversas Ativas (snapshot) + variação por conversas criadas =====
-  const { data: activeConversations = 0, isLoading: activeLoading } = useSupabaseCount(
-    'conversations',
-    [{ column: 'is_archived', operator: 'eq', value: false }],
-    { silent: true, enabled },
-  );
-  const { data: convCreatedPeriod = 0 } = useSupabaseCount(
-    'conversations',
-    [
-      { column: 'created_at', operator: 'gte', value: startISO },
-      { column: 'created_at', operator: 'lte', value: endISO },
-    ],
-    { silent: true, enabled },
-  );
-  const { data: convCreatedPrev = 0 } = useSupabaseCount(
-    'conversations',
-    [
-      { column: 'created_at', operator: 'gte', value: prevStartISO },
-      { column: 'created_at', operator: 'lte', value: prevEndISO },
-    ],
-    { silent: true, enabled },
-  );
-  const { data: convSparkRows = [] } = useSupabaseQuery({
-    table: 'conversations',
-    queryKey: ['dashboard-charts', 'conv-spark'],
-    select: 'created_at',
-    filters: [{ column: 'created_at', operator: 'gte', value: spark7dISO }],
-    limit: 5000,
+  const { data: convAll = [], isLoading: activeLoading } = useLojaConversationCounts({
     enabled,
-    silent: true,
+    keySuffix: ['snapshot'],
+  });
+  const activeConversations = sumCounts(convAll, (r) => !r.is_archived);
+  const { data: convPeriodRows = [] } = useLojaConversationCounts({
+    from: startISO,
+    to: endISO,
+    enabled,
+    keySuffix: ['period'],
+  });
+  const { data: convPrevRows = [] } = useLojaConversationCounts({
+    from: prevStartISO,
+    to: prevEndISO,
+    enabled,
+    keySuffix: ['prev'],
+  });
+  const convCreatedPeriod = sumCounts(convPeriodRows);
+  const convCreatedPrev = sumCounts(convPrevRows);
+  const { data: convSparkRows = [] } = useLojaConversationCounts({
+    from: spark7dISO,
+    bucket: 'day',
+    enabled,
+    keySuffix: ['spark'],
   });
 
   // ===== Novos Contatos (período) =====
@@ -235,76 +245,58 @@ export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
   });
 
   // ===== Mensagens Enviadas (outbound no período) =====
-  const { data: sentPeriod = 0, isLoading: sentLoading } = useSupabaseCount(
-    'messages',
-    [
-      { column: 'direction', operator: 'eq', value: 'outbound' },
-      { column: 'created_at', operator: 'gte', value: startISO },
-      { column: 'created_at', operator: 'lte', value: endISO },
-    ],
-    { silent: true, enabled },
-  );
-  const { data: sentPrev = 0 } = useSupabaseCount(
-    'messages',
-    [
-      { column: 'direction', operator: 'eq', value: 'outbound' },
-      { column: 'created_at', operator: 'gte', value: prevStartISO },
-      { column: 'created_at', operator: 'lte', value: prevEndISO },
-    ],
-    { silent: true, enabled },
-  );
-  // Linhas dos últimos 7 dias: sparkline de enviadas + tempo de resposta.
-  const { data: messages7d = [], isLoading: msgs7dLoading } = useSupabaseQuery({
-    table: 'messages',
-    queryKey: ['dashboard-charts', 'messages-spark'],
-    select: 'conversation_id, direction, created_at',
-    filters: [{ column: 'created_at', operator: 'gte', value: spark7dISO }],
-    orderBy: [{ column: 'created_at', ascending: true }],
-    limit: 8000,
+  const { data: msgsPeriodRows = [], isLoading: sentLoading } = useLojaMessageCounts({
+    from: startISO,
+    to: endISO,
     enabled,
-    silent: true,
+    keySuffix: ['period'],
   });
+  const { data: msgsPrevRows = [] } = useLojaMessageCounts({
+    from: prevStartISO,
+    to: prevEndISO,
+    enabled,
+    keySuffix: ['prev'],
+  });
+  const sentPeriod = sumCounts(msgsPeriodRows, (r) => r.direction === 'outbound');
+  const sentPrev = sumCounts(msgsPrevRows, (r) => r.direction === 'outbound');
+  // Últimos 7 dias, por dia: sparkline de enviadas.
+  const { data: msgs7dRows = [], isLoading: msgs7dLoading } = useLojaMessageCounts({
+    from: spark7dISO,
+    bucket: 'day',
+    enabled,
+    keySuffix: ['spark'],
+  });
+  const sentSparkRows = msgs7dRows.filter((r) => r.direction === 'outbound');
 
   // ===== Tempo Médio de Resposta (período) =====
-  const { data: msgsPeriod = [], isLoading: respLoading } = useSupabaseQuery({
-    table: 'messages',
-    queryKey: ['dashboard-metrics', 'resp-period', startISO, endISO],
-    select: 'conversation_id, direction, created_at',
-    filters: [
-      { column: 'created_at', operator: 'gte', value: startISO },
-      { column: 'created_at', operator: 'lte', value: endISO },
-    ],
-    orderBy: [{ column: 'created_at', ascending: true }],
-    limit: 4000,
+  const { data: respPeriodRows, isLoading: respLoading } = useLojaResponseTime({
+    from: startISO,
+    to: endISO,
     enabled,
-    silent: true,
+    keySuffix: ['period'],
   });
-  const { data: msgsPrev = [] } = useSupabaseQuery({
-    table: 'messages',
-    queryKey: ['dashboard-metrics', 'resp-prev', prevStartISO, prevEndISO],
-    select: 'conversation_id, direction, created_at',
-    filters: [
-      { column: 'created_at', operator: 'gte', value: prevStartISO },
-      { column: 'created_at', operator: 'lte', value: prevEndISO },
-    ],
-    orderBy: [{ column: 'created_at', ascending: true }],
-    limit: 4000,
+  const { data: respPrevRows } = useLojaResponseTime({
+    from: prevStartISO,
+    to: prevEndISO,
     enabled,
-    silent: true,
+    keySuffix: ['prev'],
+  });
+  const { data: resp7dRows = [] } = useLojaResponseTime({
+    from: spark7dISO,
+    bucket: 'day',
+    enabled,
+    keySuffix: ['spark'],
   });
 
-  const sentOutbound7d = (messages7d as unknown as MessageRow[]).filter(
-    (m) => m.direction === 'outbound',
-  );
-  const respValue = avgResponseMinutes(msgsPeriod as unknown as MessageRow[]);
-  const respPrevValue = avgResponseMinutes(msgsPrev as unknown as MessageRow[]);
+  const respValue = avgMinutesOf(respPeriodRows);
+  const respPrevValue = avgMinutesOf(respPrevRows);
 
   return {
     activeConversations: {
       value: activeConversations,
       previousValue: convCreatedPrev,
       deltaPct: deltaPct(convCreatedPeriod, convCreatedPrev),
-      sparkline: dailyCountSpark(convSparkRows as any[], 'created_at'),
+      sparkline: dailyBucketSpark(convSparkRows),
       loading: activeLoading,
     },
     newContacts: {
@@ -326,14 +318,15 @@ export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
       previousValue: respPrevValue,
       // Menor é melhor: variação positiva = ficou mais rápido (prev - atual).
       deltaPct: deltaPct(respPrevValue, respValue),
-      sparkline: responseTimeSpark(sentOutbound7d.length ? (messages7d as unknown as MessageRow[]) : []),
+      // Sem nenhuma enviada nos 7 dias não há resposta a medir: fica tudo zero.
+      sparkline: responseTimeSpark(sentSparkRows.length ? resp7dRows : []),
       loading: respLoading || msgs7dLoading,
     },
     messagesSent: {
       value: sentPeriod,
       previousValue: sentPrev,
       deltaPct: deltaPct(sentPeriod, sentPrev),
-      sparkline: dailyCountSpark(sentOutbound7d, 'created_at'),
+      sparkline: dailyBucketSpark(sentSparkRows),
       loading: sentLoading,
     },
   };

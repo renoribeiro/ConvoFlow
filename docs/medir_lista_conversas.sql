@@ -27,20 +27,32 @@
 -- =============================================================================
 
 -- 1) Blocos por chamada, por versão da query
+--    CORRIGIDO em 2026-09-13: (a) a extensão vive no schema `extensions` — sem
+--    o prefixo a consulta dá 42P01 pelo MCP; (b) o filtro `NOT ILIKE '%count(%'`
+--    excluía TUDO, porque toda consulta do PostgREST termina em
+--    `pg_catalog.count(_postgrest_t) AS page_total`. A contagem das pílulas se
+--    distingue pelo SELECT que pede só "id" (sem contact_id): é o que o filtro
+--    novo faz.
 SELECT CASE WHEN query ILIKE '%assigned_profile_id%' THEN 'nova' ELSE 'antiga' END AS versao,
        calls,
        round(mean_exec_time::numeric, 2)                                    AS ms_medio,
        round((shared_blks_hit + shared_blks_read)::numeric / GREATEST(calls, 1), 1) AS blocos_por_chamada,
        rows / GREATEST(calls, 1)                                             AS linhas_por_chamada,
        left(regexp_replace(query, '\s+', ' ', 'g'), 160)                     AS inicio_da_query
-  FROM pg_stat_statements
+  FROM extensions.pg_stat_statements
  WHERE query ILIKE '%from "public"."conversations"%'
    AND query ILIKE '%"is_archived"%'
    AND query ILIKE '%order by%last_message_at%'
    AND query ILIKE '%limit%'
-   -- A contagem das pílulas (head:true) não traz linhas — fica de fora.
-   AND query NOT ILIKE '%count(%'
+   -- A contagem das pílulas (head:true) pede só "id" — a lista pede contact_id.
+   AND query ILIKE '%"conversations"."contact_id"%'
  ORDER BY versao, calls DESC;
+
+-- Medido em 2026-09-13 (EXPLAIN sob RLS da gerente, EncaixaRH, 3 execuções):
+--   antes da 20260914000001: lista 29 blocos, mensagens de um contato 13,
+--   contagem "todas" 14;  depois: lista 28, mensagens 12. Os ramos novos da
+--   policy aparecem como InitPlan / hashed SubPlan "(never executed)" para quem
+--   não é atendente restrito.
 
 -- 2) Plano da versão nova, sob RLS de um usuário real da Loja.
 --    Preencha os dois valores e rode DENTRO de uma transação que termina em

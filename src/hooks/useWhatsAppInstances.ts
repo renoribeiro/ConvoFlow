@@ -36,24 +36,28 @@ export const useWhatsAppInstances = () => {
 
       if (!rawInstances || rawInstances.length === 0) return [];
 
-      // Fetch message counts separately with a simple count query per instance
-      const instanceIds = rawInstances.map((i: any) => i.id);
+      // "Mensagens hoje" por instância: contagem da Loja inteira via
+      // loja_message_counts (migração 20260914000001) — só números, e o mesmo
+      // número para todo mundo, inclusive para um atendente cuja visibilidade
+      // de conversas foi restringida.
+      const instanceIds = new Set(rawInstances.map((i: any) => i.id));
       const today = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
 
-      let messageCounts: Record<string, number> = {};
+      const messageCounts: Record<string, number> = {};
       try {
-        const { data: msgs } = await supabase
-          .from('messages')
-          .select('whatsapp_instance_id')
-          .eq('tenant_id', tenant.id)
-          .gte('created_at', today)
-          .in('whatsapp_instance_id', instanceIds);
+        const { data: rows, error: countsError } = await (supabase as any).rpc('loja_message_counts', {
+          p_tenant_id: tenant.id,
+          p_from: today,
+          p_to: null,
+          p_bucket: 'all',
+          p_tz: 'UTC',
+        });
+        if (countsError) throw countsError;
 
-        if (msgs) {
-          for (const msg of msgs) {
-            const id = (msg as any).whatsapp_instance_id;
-            messageCounts[id] = (messageCounts[id] || 0) + 1;
-          }
+        for (const row of (rows ?? []) as Array<{ whatsapp_instance_id: string | null; n: number | string }>) {
+          const id = row.whatsapp_instance_id;
+          if (!id || !instanceIds.has(id)) continue;
+          messageCounts[id] = (messageCounts[id] || 0) + Number(row.n);
         }
       } catch (e) {
         // Non-critical, just means we can't show message counts

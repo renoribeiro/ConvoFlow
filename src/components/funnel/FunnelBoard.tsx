@@ -8,6 +8,7 @@ import { EditStageModal } from './EditStageModal';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
+import { useLojaContactLastMessage } from '@/hooks/useLojaStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Lead {
@@ -59,13 +60,13 @@ export const FunnelBoard = () => {
     select: 'id, name'
   });
 
-  // Buscar últimas mensagens para determinar último contato
-  const { data: messagesData = [] } = useSupabaseQuery({
-    table: 'messages',
-    select: 'contact_id, created_at',
-    orderBy: [{ column: 'created_at', ascending: false }],
-    limit: 100
-  });
+  // Último contato por lead: só o INSTANTE da última mensagem, por contato, da
+  // Loja inteira (loja_contact_last_message, migração 20260914000001). Antes
+  // vinha das 100 mensagens mais recentes de `messages`, o que (a) deixava
+  // "Nunca" em quem estava fora dessa janela e (b) passaria a esconder o
+  // último contato de conversas que um atendente restrito não vê.
+  const { data: lastMessages = [] } = useLojaContactLastMessage();
+  const lastMessageByContact = new Map(lastMessages.map((r) => [r.contact_id, r.last_at]));
 
   // Processar dados para criar estrutura do funil
   const stages: FunnelStage[] = stagesData.map(stage => ({
@@ -81,7 +82,7 @@ export const FunnelBoard = () => {
       const leadSource = leadSourcesData.find(ls => ls.id === contact.lead_source_id);
       
       // Encontrar última mensagem
-      const lastMessage = messagesData.find(msg => msg.contact_id === contact.id);
+      const lastMessageAt = lastMessageByContact.get(contact.id);
       
       return {
         id: contact.id,
@@ -90,8 +91,8 @@ export const FunnelBoard = () => {
         phone: contact.phone || '',
         source: leadSource?.name || 'Desconhecido',
         value: 0,
-        lastContact: lastMessage?.created_at 
-          ? new Date(lastMessage.created_at).toLocaleDateString('pt-BR')
+        lastContact: lastMessageAt
+          ? new Date(lastMessageAt).toLocaleDateString('pt-BR')
           : 'Nunca',
         assignedTo: 'Não atribuído'
       };

@@ -5,8 +5,15 @@
  *
  * O que existe no banco (migração 20260913000001): três colunas em
  * `conversations` — `assigned_profile_id`, `assigned_at`, `assigned_by`. NULL
- * nas três = ninguém assumiu. Não há status, fila nem restrição de leitura:
- * todo mundo da Loja continua vendo todas as conversas.
+ * nas três = ninguém assumiu. Não há status nem fila.
+ *
+ * LEITURA (migração 20260914000001): por padrão todo mundo da Loja continua
+ * vendo todas as conversas; a Loja pode restringir o que um ATENDENTE vê
+ * (Configurações › Escala/Transferência). Quem faz valer é o RLS, não este
+ * arquivo. Duas consequências aparecem aqui: (1) o re-read de `assumeConversation`
+ * pode voltar vazio porque a conversa SAIU do alcance de quem tentou, não só
+ * porque sumiu; (2) o servidor pode RECUSAR uma transferência (trigger
+ * tg_guard_conversation_transfer, 42501) — `describeAssignmentError` traduz.
  *
  * CONCORRÊNCIA — a lista se atualiza a cada 30 s, então duas pessoas podem
  * clicar "Assumir" na mesma conversa dentro dessa janela. `assumeConversation`
@@ -65,6 +72,30 @@ export interface DbError {
   code?: string | null;
   message?: string | null;
 }
+
+/** O texto que o trigger tg_guard_conversation_transfer levanta (42501). */
+export const TRANSFER_DISABLED_MESSAGE =
+  'Transferência de conversas está desativada para atendentes nesta Loja.';
+
+/**
+ * Traduz um erro de escrita em `conversations` para a frase que a tela mostra.
+ * Devolve `null` quando não é um erro que a tela saiba explicar (aí o hook usa
+ * o texto genérico de sempre).
+ *
+ *   - 42501 vindo do trigger de transferência → a frase do servidor, como está.
+ *   - 42501 de RLS ("new row violates row-level security policy") → a conversa
+ *     deixaria de ser visível para quem escreveu; a frase diz isso sem jargão.
+ */
+export const describeAssignmentError = (error: unknown): string | null => {
+  const err = (error && typeof error === 'object' ? error : {}) as DbError;
+  if (err.code !== '42501') return null;
+  const message = err.message ?? '';
+  if (message.includes(TRANSFER_DISABLED_MESSAGE)) return TRANSFER_DISABLED_MESSAGE;
+  if (/row-level security/i.test(message)) {
+    return 'Essa mudança tiraria a conversa do seu alcance, então ela não foi feita. Peça ao Gestor.';
+  }
+  return null;
+};
 
 interface UpdateResult {
   data: Array<{ id: string }> | null;

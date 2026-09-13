@@ -34,6 +34,19 @@
 --
 -- A migração 20260913000001 NÃO cria, apaga nem altera policy. Se a assinatura
 -- mudar entre as duas rodadas, alguma outra coisa mexeu — pare e investigue.
+-- Conferido em 2026-09-13, DEPOIS dela: 89dec63b7d096a5dd735b8f55bcdb3cd, igual.
+--
+-- ESTADO APÓS 20260914000001 (passo 2 — visibilidade por atendente), medido
+-- em 2026-09-13:
+--   conversations — 7 policies (mesmos nomes; a de SELECT "Users can view
+--                   conversations from their tenant" ganhou o recorte por nível)
+--   messages      — 8 policies: a ALL "Users can access own tenant messages"
+--                   virou QUATRO ("Users can view/insert/update/delete own
+--                   tenant messages"; a de SELECT passa pela conversa)
+--   CONJUNTO — 15, assinatura edc391889d6353d8c4fc60e9f2aa7ed1
+--   (conversations fcb3dfea3752aeb277a6fda814493b48, messages 920c9f23f30df1cebab79462b91983cf)
+-- É esta a assinatura que tem de aparecer daqui em diante. A rede de segurança
+-- do passo 2 é docs/teste_visibilidade_conversas.sql.
 -- =============================================================================
 
 -- 1) Assinatura (uma linha por tabela + uma do conjunto)

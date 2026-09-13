@@ -44,6 +44,7 @@ const Index = () => {
       icon: <MessageCircle />,
       metric: kpis.activeConversations,
       href: '/dashboard/conversations',
+      lojaWide: true,
     },
     {
       title: 'Novos Contatos',
@@ -64,12 +65,14 @@ const Index = () => {
       value: `${kpis.avgResponseTime.value.toFixed(1)} min`,
       icon: <Timer />,
       metric: kpis.avgResponseTime,
+      lojaWide: true,
     },
     {
       title: 'Mensagens Enviadas',
       value: numberFmt.format(kpis.messagesSent.value),
       icon: <Send />,
       metric: kpis.messagesSent,
+      lojaWide: true,
     },
   ];
 
@@ -92,6 +95,7 @@ const Index = () => {
             icon={card.icon}
             metric={card.metric}
             href={card.href}
+            lojaWide={card.lojaWide}
           />
         ))}
       </div>

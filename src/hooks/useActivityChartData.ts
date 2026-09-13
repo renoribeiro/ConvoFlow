@@ -1,8 +1,8 @@
-import { useSupabaseQuery } from './useSupabaseQuery';
 import { useTenant } from '@/contexts/TenantContext';
 import { eachDayOfInterval, format, getHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { UsePeriodFilterResult } from './usePeriodFilter';
+import { useLojaMessageCounts } from './useLojaStats';
 
 /**
  * Série diária (ou horária, quando o período é "Hoje") de mensagens enviadas vs.
@@ -10,17 +10,17 @@ import type { UsePeriodFilterResult } from './usePeriodFilter';
  *
  * Granularidade: períodos de 1 dia viram 24 buckets horários; demais, 1 bucket
  * por dia entre start e end (inclusive).
+ *
+ * Desde a migração 20260914000001 as contagens vêm de `loja_message_counts`
+ * (já agrupadas por hora/dia no fuso do navegador), não de linhas de
+ * `messages`: o gráfico é da Loja inteira mesmo para um atendente cuja
+ * visibilidade de conversas foi restringida — ver `LojaWideHint`.
  */
 
 export interface ActivityPoint {
   label: string;
   enviadas: number;
   recebidas: number;
-}
-
-interface MessageRow {
-  created_at: string;
-  direction: string;
 }
 
 export interface UseActivityChartResult {
@@ -33,20 +33,13 @@ export function useActivityChartData(period: UsePeriodFilterResult): UseActivity
   const { startISO, endISO, days } = period;
   const hourly = days <= 1;
 
-  const { data: rows = [], isLoading } = useSupabaseQuery({
-    table: 'messages',
-    queryKey: ['dashboard-charts', 'activity', startISO, endISO],
-    select: 'created_at, direction',
-    filters: [
-      { column: 'created_at', operator: 'gte', value: startISO },
-      { column: 'created_at', operator: 'lte', value: endISO },
-    ],
-    limit: 20000,
+  const { data: rows = [], isLoading } = useLojaMessageCounts({
+    from: startISO,
+    to: endISO,
+    bucket: hourly ? 'hour' : 'day',
     enabled: !!tenant,
-    silent: true,
+    keySuffix: ['activity'],
   });
-
-  const messages = rows as unknown as MessageRow[];
 
   let data: ActivityPoint[];
 
@@ -56,11 +49,12 @@ export function useActivityChartData(period: UsePeriodFilterResult): UseActivity
       enviadas: 0,
       recebidas: 0,
     }));
-    for (const m of messages) {
-      const bucket = buckets[getHours(new Date(m.created_at))];
+    for (const r of rows) {
+      if (!r.bucket) continue;
+      const bucket = buckets[getHours(new Date(r.bucket))];
       if (!bucket) continue;
-      if (m.direction === 'outbound') bucket.enviadas++;
-      else bucket.recebidas++;
+      if (r.direction === 'outbound') bucket.enviadas += r.n;
+      else bucket.recebidas += r.n;
     }
     data = buckets;
   } else {
@@ -78,12 +72,13 @@ export function useActivityChartData(period: UsePeriodFilterResult): UseActivity
       index.set(format(d, 'yyyy-MM-dd'), point);
       return point;
     });
-    for (const m of messages) {
-      const key = format(new Date(m.created_at), 'yyyy-MM-dd');
+    for (const r of rows) {
+      if (!r.bucket) continue;
+      const key = format(new Date(r.bucket), 'yyyy-MM-dd');
       const point = index.get(key);
       if (!point) continue;
-      if (m.direction === 'outbound') point.enviadas++;
-      else point.recebidas++;
+      if (r.direction === 'outbound') point.enviadas += r.n;
+      else point.recebidas += r.n;
     }
     data = ordered;
   }
