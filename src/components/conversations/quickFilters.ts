@@ -11,6 +11,11 @@
  *     (as regras vivem em `conversationGroups.ts` e `slaLevels.ts` e não são
  *     duplicadas aqui), então só podem ser aplicados no cliente, sobre o que já
  *     foi carregado.
+ *   - "Minhas" e "Sem responsável" olham `assigned_profile_id` (migração
+ *     20260913000001). A coluna é real, mas neste passo elas recortam SÓ o que
+ *     já foi carregado, como as derivadas — de propósito: não mexer na query
+ *     nem nas contagens de servidor enquanto a visibilidade por pessoa não é
+ *     decidida. O número delas é um piso, igual ao de "Aguardando".
  *
  * "Não respondidas" ainda depende da Loja ter ligado a sinalização de SLA — com
  * ela desligada a pílula não existe (ver `visibleQuickFilters`).
@@ -25,6 +30,8 @@ import { resolveSlaLevel, type SlaInput, type SlaThresholds } from './slaLevels'
 
 export type QuickFilterType =
   | 'todas'
+  | 'minhas'
+  | 'sem-responsavel'
   | 'nao-lidas'
   | 'aguardando'
   | 'nao-respondidas'
@@ -33,6 +40,8 @@ export type QuickFilterType =
 
 export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; hint: string }> = [
   { id: 'todas', label: 'Todas', hint: 'Todas as conversas ativas.' },
+  { id: 'minhas', label: 'Minhas', hint: 'Conversas que estão com você como responsável.' },
+  { id: 'sem-responsavel', label: 'Sem responsável', hint: 'Conversas que ninguém assumiu ainda.' },
   { id: 'nao-lidas', label: 'Não lidas', hint: 'Conversas com mensagens ainda não lidas.' },
   { id: 'aguardando', label: 'Aguardando', hint: 'O cliente falou por último e ainda não foi respondido.' },
   { id: 'nao-respondidas', label: 'Não respondidas', hint: 'Conversas pendentes há mais tempo que o limite configurado pela Loja.' },
@@ -45,6 +54,21 @@ export interface SlaFilterConfig {
   enabled: boolean;
   thresholds: SlaThresholds;
 }
+
+/** O que as pílulas de responsável precisam saber de cada conversa. */
+export interface OwnershipInput {
+  /** profiles.id do responsável; null/ausente = sem responsável. */
+  assigned_profile_id?: string | null;
+}
+
+/** Quem está olhando a lista — é o "eu" de "Minhas". */
+export interface OwnershipFilterContext {
+  /** profiles.id de quem está logado; null enquanto o perfil não carrega. */
+  viewerProfileId: string | null;
+}
+
+/** Entrada completa de uma conversa para as pílulas. */
+export type QuickFilterInput = SlaInput & OwnershipInput;
 
 /**
  * Pílulas visíveis para esta Loja. Com a sinalização de SLA desligada,
@@ -127,18 +151,37 @@ export function resolveQuickFilterScope(
   };
 }
 
+/** Pílulas de responsável: recorte no cliente, sobre o que já foi carregado. */
+function isOwnershipFilter(quickFilter: QuickFilterType): boolean {
+  return quickFilter === 'minhas' || quickFilter === 'sem-responsavel';
+}
+
 /** True para as pílulas que só existem como regra no cliente. */
 function isDerivedFilter(quickFilter: QuickFilterType): boolean {
-  return quickFilter === 'nao-respondidas' || !!ATTENDANCE_BY_FILTER[quickFilter];
+  return (
+    quickFilter === 'nao-respondidas' ||
+    isOwnershipFilter(quickFilter) ||
+    !!ATTENDANCE_BY_FILTER[quickFilter]
+  );
 }
 
 /** Predicado do lado do cliente. Só as pílulas derivadas descartam algo aqui. */
 export function matchesQuickFilter(
-  conversation: SlaInput,
+  conversation: QuickFilterInput,
   quickFilter: QuickFilterType,
   now: Date = new Date(),
   sla?: SlaFilterConfig,
+  ownership?: OwnershipFilterContext,
 ): boolean {
+  if (quickFilter === 'minhas') {
+    // Sem perfil carregado nada é "meu" — a lista fica vazia em vez de mentir.
+    const viewer = ownership?.viewerProfileId ?? null;
+    return !!viewer && conversation.assigned_profile_id === viewer;
+  }
+  if (quickFilter === 'sem-responsavel') {
+    return !conversation.assigned_profile_id;
+  }
+
   if (quickFilter === 'nao-respondidas') {
     // Sem SLA ligado a pílula nem aparece; se chegar aqui (estado antigo na
     // tela), não recorta nada em vez de esvaziar a lista.
@@ -152,16 +195,17 @@ export function matchesQuickFilter(
 }
 
 /** Aplica o recorte derivado preservando a ordem que veio da query. */
-export function applyQuickFilter<T extends SlaInput>(
+export function applyQuickFilter<T extends QuickFilterInput>(
   conversations: T[],
   quickFilter: QuickFilterType,
   now: Date = new Date(),
   sla?: SlaFilterConfig,
+  ownership?: OwnershipFilterContext,
 ): T[] {
   if (!isDerivedFilter(quickFilter)) return conversations;
   if (quickFilter === 'nao-respondidas' && !sla?.enabled) return conversations;
   return conversations.filter((conversation) =>
-    matchesQuickFilter(conversation, quickFilter, now, sla),
+    matchesQuickFilter(conversation, quickFilter, now, sla, ownership),
   );
 }
 
@@ -183,11 +227,12 @@ export function applyQuickFilter<T extends SlaInput>(
  * sobrescritas por `mergeServerTotals` assim que chega.
  */
 export function buildQuickFilterCounts(
-  conversations: SlaInput[],
+  conversations: QuickFilterInput[],
   scope: QuickFilterScope,
   now: Date = new Date(),
   sla?: SlaFilterConfig,
   allLoaded: boolean = false,
+  ownership?: OwnershipFilterContext,
 ): QuickFilterCounts {
   const conta = (value: number): QuickFilterCount => ({ value, exact: allLoaded });
 
@@ -196,10 +241,14 @@ export function buildQuickFilterCounts(
   // Universo já recortado por não lidas: idem.
   if (scope.hasUnread) return { 'nao-lidas': conta(conversations.length) };
 
+  const viewer = ownership?.viewerProfileId ?? null;
+
   let naoLidas = 0;
   let aguardando = 0;
   let emAtendimento = 0;
   let naoRespondidas = 0;
+  let minhas = 0;
+  let semResponsavel = 0;
 
   for (const conversation of conversations) {
     if ((conversation.unread_count ?? 0) > 0) naoLidas += 1;
@@ -209,10 +258,14 @@ export function buildQuickFilterCounts(
     if (sla?.enabled && resolveSlaLevel(conversation, sla.thresholds, now) !== 'ok') {
       naoRespondidas += 1;
     }
+    if (!conversation.assigned_profile_id) semResponsavel += 1;
+    else if (viewer && conversation.assigned_profile_id === viewer) minhas += 1;
   }
 
   const counts: QuickFilterCounts = {
     todas: conta(conversations.length),
+    minhas: conta(minhas),
+    'sem-responsavel': conta(semResponsavel),
     'nao-lidas': conta(naoLidas),
     aguardando: conta(aguardando),
     'em-atendimento': conta(emAtendimento),

@@ -45,6 +45,12 @@ export const QUERY_KEYS = {
     USERS: 'users',
     USER_DETAILS: 'user-details',
     TEAM: 'team',
+    /**
+     * Diretório do time (RPC tenant_team_directory): id, nome e avatar de quem
+     * pode ser responsável por conversa. semiStatic (5 min) — muda quando entra
+     * ou sai gente da Loja, não a cada mensagem.
+     */
+    TEAM_DIRECTORY: 'team-directory',
     USAGE_LIMITS: 'usage-limits',
 } as const;
 

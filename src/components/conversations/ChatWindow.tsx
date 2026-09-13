@@ -85,6 +85,7 @@ import { SaveQuickReplyDialog } from './SaveQuickReplyDialog';
 import { shouldOpenQuickReplies } from './quickReplyContext';
 import { AudioRecorder } from './AudioRecorder';
 import { SendTemplateDialog } from './SendTemplateDialog';
+import { ConversationOwnerControl } from './ConversationOwnerControl';
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -880,6 +881,13 @@ export const ChatWindow = ({
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Responsável pela conversa: assumir / transferir. Some enquanto a
+                migração 20260913000001 não roda (a query volta sem a coluna). */}
+            <ConversationOwnerControl
+              conversationId={conversationId}
+              assignedProfileId={(conversation as any)?.assigned_profile_id}
+            />
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
