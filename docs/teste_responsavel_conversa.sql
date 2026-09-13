@@ -1,8 +1,8 @@
 -- =============================================================================
 -- Teste do responsável por conversa (migração 20260913000001)
 -- =============================================================================
--- Prova, contra o banco de verdade e SEM deixar rastro (BEGIN ... ROLLBACK
--- incondicional), as cinco afirmações do passo 1:
+-- Prova, contra o banco de verdade e SEM deixar rastro, as cinco afirmações
+-- do passo 1:
 --
 --   1. REGRESSÃO QUE MAIS DOERIA: um atendente continua ENVIANDO mensagem numa
 --      conversa que está com OUTRA pessoa. O INSERT em `messages` passa, os
@@ -19,22 +19,37 @@
 --   5. Visibilidade INALTERADA: o atendente continua lendo TODAS as conversas
 --      da Loja, inclusive as que estão com outra pessoa.
 --
--- Mesmo esqueleto de docs/teste_isolamento_rls.sql: semeadura com
--- session_replication_role = replica (sem disparar webhook/automação), e as
--- afirmações com = origin, sob SET LOCAL ROLE authenticated + claims JWT.
+-- COMO FUNCIONA — e por que TERMINA EM ERRO DE PROPÓSITO
+--   Tudo vive dentro de UM bloco DO. No SQL Editor do Supabase, BEGIN/ROLLBACK
+--   não garante nada e tabela temporária não sobrevive entre comandos
+--   (CLAUDE.md, armadilha 4). Um bloco DO é um comando só: quando ele termina
+--   com RAISE EXCEPTION, o PostgreSQL desfaz TUDO que o bloco fez — fixtures,
+--   mensagem, notificação. O placar vem no texto da exceção.
 --
--- COMO RODAR: conexão com papel `postgres` (o MCP read-only não consegue
--- SET ROLE authenticated). Rode DEPOIS da migração 20260913000001. O resultado
--- é o placar do fim: "SUITE VERDE" com 0 falhas.
+--   Ou seja: o resultado esperado é um ERRO (em vermelho) cujo texto começa
+--   com "SUITE VERDE". Se começar com "SUITE VERMELHA", leia as linhas FAIL.
+--   Em qualquer dos dois casos nada ficou gravado.
+--
+-- COMO RODAR: SQL Editor do Supabase (papel postgres), DEPOIS da migração
+-- 20260913000001. Cole o arquivo inteiro e rode.
 --
 -- UUIDs de fixture usam o prefixo 33333333- para não colidir com os do
 -- teste_isolamento_rls.sql (11111111-/22222222-) nem com dado real (há guarda).
 -- =============================================================================
 
-BEGIN;
-
-DO $guard$
+DO $suite$
+DECLARE
+  n         int;
+  v_holder  uuid;
+  v_txt     text;
+  v_placar  text;
+  v_linhas  text;
+  n_ok      int;
+  n_fail    int;
 BEGIN
+  -- ---------------------------------------------------------------------------
+  -- 0. Guardas
+  -- ---------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM public.tenants
               WHERE id IN ('33333333-0000-4000-8000-000000000001',
                            '33333333-0000-4000-8000-000000000002',
@@ -44,76 +59,66 @@ BEGIN
   IF to_regprocedure('public.tenant_team_directory(uuid)') IS NULL THEN
     RAISE EXCEPTION 'ABORTADO: a migração 20260913000001 ainda não foi aplicada.';
   END IF;
-END
-$guard$;
 
--- -----------------------------------------------------------------------------
--- 1. Semeadura (triggers e FK suspensos)
--- -----------------------------------------------------------------------------
-SET LOCAL session_replication_role = replica;
+  -- Placar e ajudantes (temporários; somem com o rollback do fim).
+  CREATE TEMP TABLE _resp_results (
+    n serial, afirmacao text, esperado text, obtido text, status text
+  );
+  GRANT ALL ON _resp_results TO authenticated;
+  GRANT ALL ON SEQUENCE _resp_results_n_seq TO authenticated;
 
-INSERT INTO public.tenants (id, name, slug, kind, parent_tenant_id, status, subscription_status) VALUES
-  ('33333333-0000-4000-8000-000000000001','FIXTURE Conta R','fixture-conta-r','account', NULL,'active','active'),
-  ('33333333-0000-4000-8000-000000000002','FIXTURE Loja R', 'fixture-loja-r', 'store','33333333-0000-4000-8000-000000000001','active',NULL),
-  ('33333333-0000-4000-8000-000000000003','FIXTURE Loja S', 'fixture-loja-s', 'store','33333333-0000-4000-8000-000000000001','active',NULL);
+  CREATE FUNCTION pg_temp.afirma(p_afirmacao text, p_esperado text, p_obtido text) RETURNS void
+  LANGUAGE sql AS $f$
+    INSERT INTO _resp_results(afirmacao, esperado, obtido, status)
+    VALUES (p_afirmacao, p_esperado, p_obtido, CASE WHEN p_esperado = p_obtido THEN 'ok' ELSE 'FAIL' END);
+  $f$;
 
--- Perfis: superadmin, gerente da Conta, gestor + 2 atendentes da Loja R, 1 atendente da Loja S.
---   profiles.id termina em f?, auth user_id termina em 0?.
-INSERT INTO public.profiles (id, user_id, tenant_id, role, parent_id, status, first_name, last_name) VALUES
-  ('33333333-0000-4000-8000-0000000000f0','33333333-0000-4000-8000-000000000000','33333333-0000-4000-8000-000000000001','superadmin', NULL,'active','FIX','Super'),
-  ('33333333-0000-4000-8000-0000000000fa','33333333-0000-4000-8000-00000000000a','33333333-0000-4000-8000-000000000001','gerente',    NULL,'active','FIX','Gerente'),
-  ('33333333-0000-4000-8000-0000000000fb','33333333-0000-4000-8000-00000000000b','33333333-0000-4000-8000-000000000002','gestor',   '33333333-0000-4000-8000-0000000000fa','active','FIX','Gestor'),
-  ('33333333-0000-4000-8000-0000000000fc','33333333-0000-4000-8000-00000000000c','33333333-0000-4000-8000-000000000002','atendente','33333333-0000-4000-8000-0000000000fb','active','FIX','Ana'),
-  ('33333333-0000-4000-8000-0000000000fd','33333333-0000-4000-8000-00000000000d','33333333-0000-4000-8000-000000000002','atendente','33333333-0000-4000-8000-0000000000fb','active','FIX','Bruno'),
-  ('33333333-0000-4000-8000-0000000000fe','33333333-0000-4000-8000-00000000000e','33333333-0000-4000-8000-000000000003','atendente','33333333-0000-4000-8000-0000000000fa','active','FIX','Vizinho');
+  -- Troca de identidade (auth.users.id) — vale até o fim da transação.
+  CREATE FUNCTION pg_temp.como(p_sub uuid) RETURNS void LANGUAGE sql AS $f$
+    SELECT set_config('request.jwt.claims',
+                      json_build_object('sub', p_sub, 'role', 'authenticated')::text, true);
+  $f$;
 
-INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key) VALUES
-  ('33333333-aaaa-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','FIX instancia R','fix-key-r');
+  -- ---------------------------------------------------------------------------
+  -- 1. Semeadura (triggers e FK suspensos)
+  -- ---------------------------------------------------------------------------
+  SET LOCAL session_replication_role = replica;
 
-INSERT INTO public.contacts (id, tenant_id, phone, name) VALUES
-  ('33333333-cccc-4000-8000-000000000001','33333333-0000-4000-8000-000000000002','5511900000001','FIX Cliente Um'),
-  ('33333333-cccc-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','5511900000002','FIX Cliente Dois');
+  INSERT INTO public.tenants (id, name, slug, kind, parent_tenant_id, status, subscription_status) VALUES
+    ('33333333-0000-4000-8000-000000000001','FIXTURE Conta R','fixture-conta-r','account', NULL,'active','active'),
+    ('33333333-0000-4000-8000-000000000002','FIXTURE Loja R', 'fixture-loja-r', 'store','33333333-0000-4000-8000-000000000001','active',NULL),
+    ('33333333-0000-4000-8000-000000000003','FIXTURE Loja S', 'fixture-loja-s', 'store','33333333-0000-4000-8000-000000000001','active',NULL);
 
--- conv1 já está com o Bruno (fd). conv2 está sem responsável.
-INSERT INTO public.conversations (id, tenant_id, contact_id, whatsapp_instance_id, assigned_profile_id, assigned_at, assigned_by) VALUES
-  ('33333333-dddd-4000-8000-000000000001','33333333-0000-4000-8000-000000000002','33333333-cccc-4000-8000-000000000001','33333333-aaaa-4000-8000-000000000002','33333333-0000-4000-8000-0000000000fd', now(), '33333333-0000-4000-8000-0000000000fd'),
-  ('33333333-dddd-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','33333333-cccc-4000-8000-000000000002','33333333-aaaa-4000-8000-000000000002', NULL, NULL, NULL);
+  -- Perfis: superadmin, gerente da Conta, gestor + 2 atendentes da Loja R, 1 atendente da Loja S.
+  --   profiles.id termina em f?, auth user_id termina em 0?.
+  INSERT INTO public.profiles (id, user_id, tenant_id, role, parent_id, status, first_name, last_name) VALUES
+    ('33333333-0000-4000-8000-0000000000f0','33333333-0000-4000-8000-000000000000','33333333-0000-4000-8000-000000000001','superadmin', NULL,'active','FIX','Super'),
+    ('33333333-0000-4000-8000-0000000000fa','33333333-0000-4000-8000-00000000000a','33333333-0000-4000-8000-000000000001','gerente',    NULL,'active','FIX','Gerente'),
+    ('33333333-0000-4000-8000-0000000000fb','33333333-0000-4000-8000-00000000000b','33333333-0000-4000-8000-000000000002','gestor',   '33333333-0000-4000-8000-0000000000fa','active','FIX','Gestor'),
+    ('33333333-0000-4000-8000-0000000000fc','33333333-0000-4000-8000-00000000000c','33333333-0000-4000-8000-000000000002','atendente','33333333-0000-4000-8000-0000000000fb','active','FIX','Ana'),
+    ('33333333-0000-4000-8000-0000000000fd','33333333-0000-4000-8000-00000000000d','33333333-0000-4000-8000-000000000002','atendente','33333333-0000-4000-8000-0000000000fb','active','FIX','Bruno'),
+    ('33333333-0000-4000-8000-0000000000fe','33333333-0000-4000-8000-00000000000e','33333333-0000-4000-8000-000000000003','atendente','33333333-0000-4000-8000-0000000000fa','active','FIX','Vizinho');
 
-SET LOCAL session_replication_role = origin;
+  INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key) VALUES
+    ('33333333-aaaa-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','FIX instancia R','fix-key-r');
 
-CREATE TEMP TABLE _resp_results (
-  n serial,
-  afirmacao text, esperado text, obtido text, status text
-) ON COMMIT DROP;
+  INSERT INTO public.contacts (id, tenant_id, phone, name) VALUES
+    ('33333333-cccc-4000-8000-000000000001','33333333-0000-4000-8000-000000000002','5511900000001','FIX Cliente Um'),
+    ('33333333-cccc-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','5511900000002','FIX Cliente Dois');
 
--- As afirmações rodam como `authenticated`; sem isto o INSERT no placar falha.
-GRANT ALL ON _resp_results TO authenticated;
-GRANT ALL ON SEQUENCE _resp_results_n_seq TO authenticated;
+  -- conv1 já está com o Bruno (fd). conv2 está sem responsável.
+  INSERT INTO public.conversations (id, tenant_id, contact_id, whatsapp_instance_id, assigned_profile_id, assigned_at, assigned_by) VALUES
+    ('33333333-dddd-4000-8000-000000000001','33333333-0000-4000-8000-000000000002','33333333-cccc-4000-8000-000000000001','33333333-aaaa-4000-8000-000000000002','33333333-0000-4000-8000-0000000000fd', now(), '33333333-0000-4000-8000-0000000000fd'),
+    ('33333333-dddd-4000-8000-000000000002','33333333-0000-4000-8000-000000000002','33333333-cccc-4000-8000-000000000002','33333333-aaaa-4000-8000-000000000002', NULL, NULL, NULL);
 
-CREATE FUNCTION pg_temp.afirma(p_afirmacao text, p_esperado text, p_obtido text) RETURNS void
-LANGUAGE sql AS $$
-  INSERT INTO _resp_results(afirmacao, esperado, obtido, status)
-  VALUES (p_afirmacao, p_esperado, p_obtido, CASE WHEN p_esperado = p_obtido THEN 'ok' ELSE 'FAIL' END);
-$$;
+  SET LOCAL session_replication_role = origin;
 
--- Identidades (auth.users.id)
---   Ana    (atendente, Loja R) : 33333333-0000-4000-8000-00000000000c
---   Bruno  (atendente, Loja R) : 33333333-0000-4000-8000-00000000000d
-CREATE FUNCTION pg_temp.como(p_sub uuid) RETURNS void LANGUAGE sql AS $$
-  SELECT set_config('request.jwt.claims',
-                    json_build_object('sub', p_sub, 'role', 'authenticated')::text, true);
-$$;
+  -- ---------------------------------------------------------------------------
+  -- 2. As afirmações, sob RLS (papel authenticated + claims JWT)
+  -- ---------------------------------------------------------------------------
+  SET LOCAL ROLE authenticated;
 
--- -----------------------------------------------------------------------------
--- 2. As afirmações. Numa função temporária (SECURITY INVOKER) chamada como
---    `authenticated`, para rodar sob RLS — igual ao teste_isolamento_rls.sql.
--- -----------------------------------------------------------------------------
-CREATE FUNCTION pg_temp.suite() RETURNS void LANGUAGE plpgsql AS $t$
-DECLARE
-  n int;
-  v_holder uuid;
-  v_txt text;
-BEGIN
+  -- Ana (atendente, Loja R), que NÃO é a responsável pela conv1.
   PERFORM pg_temp.como('33333333-0000-4000-8000-00000000000c');
 
   -- 5. Visibilidade inalterada: Ana lê as duas conversas, inclusive a do Bruno.
@@ -216,22 +221,29 @@ BEGIN
   PERFORM pg_temp.como('33333333-0000-4000-8000-00000000000c');
   SELECT count(*) INTO n FROM public.profiles WHERE tenant_id = '33333333-0000-4000-8000-000000000002';
   PERFORM pg_temp.afirma('4e. RLS de profiles inalterado: atendente lê só o próprio perfil', '1', n::text);
+
+  RESET ROLE;
+
+  -- ---------------------------------------------------------------------------
+  -- 3. Placar — e o rollback de propósito
+  -- ---------------------------------------------------------------------------
+  SELECT count(*) FILTER (WHERE status = 'ok'),
+         count(*) FILTER (WHERE status = 'FAIL')
+    INTO n_ok, n_fail
+    FROM _resp_results;
+
+  SELECT string_agg(
+           format('%s %s  %s%s', lpad(n::text, 2, ' '), rpad(status, 4, ' '), afirmacao,
+                  CASE WHEN status = 'FAIL' THEN format('  [esperado: %s | obtido: %s]', esperado, obtido) ELSE '' END),
+           E'\n' ORDER BY n)
+    INTO v_linhas
+    FROM _resp_results;
+
+  v_placar := CASE WHEN n_fail = 0 THEN 'SUITE VERDE' ELSE 'SUITE VERMELHA' END
+              || format(' — %s ok / %s falhas', n_ok, n_fail);
+
+  -- A exceção é o que DESFAZ tudo. Não é erro: é o resultado.
+  RAISE EXCEPTION E'%\n%\n\n(Tudo desfeito: nenhuma fixture, mensagem ou notificação ficou gravada.)',
+    v_placar, v_linhas;
 END
-$t$;
-
-SET LOCAL ROLE authenticated;
-SELECT pg_temp.suite();
-RESET ROLE;
-
--- -----------------------------------------------------------------------------
--- 3. Placar
--- -----------------------------------------------------------------------------
-SELECT n, status, afirmacao, esperado, obtido FROM _resp_results ORDER BY n;
-
-SELECT count(*) FILTER (WHERE status = 'ok')   AS passou,
-       count(*) FILTER (WHERE status = 'FAIL') AS falhou,
-       CASE WHEN count(*) FILTER (WHERE status = 'FAIL') = 0
-            THEN 'SUITE VERDE' ELSE 'SUITE VERMELHA' END AS placar
-  FROM _resp_results;
-
-ROLLBACK;
+$suite$;
