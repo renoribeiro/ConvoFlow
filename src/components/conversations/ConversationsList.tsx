@@ -37,6 +37,9 @@ import { SlaIndicator } from './SlaIndicator';
 import { SlaMuteButton } from './SlaMuteButton';
 import { useSlaConfig } from '@/hooks/useSlaConfig';
 import { useSlaMutedConversations } from '@/hooks/useSlaMute';
+import { useTenant } from '@/contexts/TenantContext';
+import { useTeamMemberLookup } from '@/hooks/useTeamDirectory';
+import { OwnerChip } from './OwnerChip';
 
 interface ConversationsListProps {
   searchQuery: string;
@@ -124,6 +127,15 @@ export const ConversationsList = ({
 }: ConversationsListProps) => {
   const { instances } = useWhatsAppInstancesWithAdapter();
 
+  // Responsável por conversa: "Minhas" precisa saber quem sou eu, e o chip
+  // precisa do diretório para trocar profiles.id por nome e avatar.
+  const { profile } = useTenant();
+  const ownership = useMemo(
+    () => ({ viewerProfileId: profile?.id ?? null }),
+    [profile?.id],
+  );
+  const lookupMember = useTeamMemberLookup();
+
   // Sinalização de conversas não respondidas: opt-in por Loja. Desligada, nada
   // abaixo roda — nem a query do mapa de silenciadas.
   const { enabled: slaEnabled, thresholds: slaThresholds } = useSlaConfig();
@@ -199,6 +211,9 @@ export const ConversationsList = ({
           last_message_status: lastStatus,
           // Vem de uma query própria, não do select da lista (ver useSlaMute).
           sla_muted_at: slaMutedMap?.[conv.id] ?? null,
+          // Responsável (migração 20260913000001). `undefined` = coluna ainda
+          // não existe no banco; o chip mostra "Sem responsável" mesmo assim.
+          assigned_profile_id: (conv.assigned_profile_id as string | null | undefined) ?? null,
           unread_count: conv.unread_count,
           is_group: isGroup,
           contact_source: conv.contacts?.lead_sources?.name || null,
@@ -227,8 +242,9 @@ export const ConversationsList = ({
         undefined,
         slaConfig,
         allLoaded,
+        ownership,
       ),
-    [filteredConversations, hasUnread, isArchived, slaConfig, allLoaded],
+    [filteredConversations, hasUnread, isArchived, slaConfig, allLoaded, ownership],
   );
 
   const lastCountsSignature = useRef<string>('');
@@ -246,8 +262,8 @@ export const ConversationsList = ({
   // "Aguardando"/"Em atendimento" não existem como coluna — recorte no cliente,
   // reaproveitando a regra de `conversationGroups.ts`.
   const visibleConversations = useMemo(
-    () => applyQuickFilter(filteredConversations, quickFilter, undefined, slaConfig),
-    [filteredConversations, quickFilter, slaConfig],
+    () => applyQuickFilter(filteredConversations, quickFilter, undefined, slaConfig, ownership),
+    [filteredConversations, quickFilter, slaConfig, ownership],
   );
 
   // --- Agrupamento por nível de atendimento (opt-in, persistido no navegador) ---
@@ -399,6 +415,11 @@ export const ConversationsList = ({
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex gap-1 min-w-0 flex-wrap items-center">
+                <OwnerChip
+                  member={lookupMember(conversation.assigned_profile_id)}
+                  assignedProfileId={conversation.assigned_profile_id}
+                  size="sm"
+                />
                 <SlaIndicator level={slaLevel} lastMessageAt={conversation.last_message_at} />
                 {isNewLead && (
                   <Badge variant="outline" className="border-0 bg-accent/15 text-accent text-[10px] font-medium px-1.5">

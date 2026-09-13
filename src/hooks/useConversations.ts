@@ -53,6 +53,14 @@ interface Conversation {
     message_type: string;
     status?: string | null;
   };
+  /**
+   * Responsável pela conversa (profiles.id). `null` = ninguém assumiu ainda.
+   * `undefined` só acontece enquanto a migração 20260913000001 não rodou —
+   * a lista segue funcionando, sem o chip de responsável.
+   */
+  assigned_profile_id?: string | null;
+  assigned_at?: string | null;
+  assigned_by?: string | null;
 }
 
 interface ConversationsPage {
@@ -83,6 +91,16 @@ interface LastMessageColumns {
   last_message_status?: string | null;
   last_message_type?: string | null;
 }
+
+/**
+ * Responsável pela conversa (migração 20260913000001). Mesmo tratamento das
+ * colunas de prévia: pedidas junto com a linha, e a query repete sem elas se o
+ * banco ainda não as tiver.
+ */
+export const ASSIGNMENT_COLUMNS = `assigned_profile_id,
+          assigned_at,
+          assigned_by,
+          `;
 
 type ConversationRow = Omit<Conversation, 'last_message'> & LastMessageColumns;
 
@@ -150,8 +168,27 @@ export const isMissingLastMessageColumnsError = (
   return /last_message_(content|direction|status|type)/.test(error.message ?? '');
 };
 
+/**
+ * Colunas de responsável ausentes (migração 20260913000001 ainda não rodou).
+ *
+ * Testada ANTES de `isMissingLastMessageColumnsError`, que aceita qualquer
+ * 42703: se a ordem fosse a inversa, um 42703 causado por `assigned_*` faria a
+ * lista desistir da prévia — que existe — e continuar quebrada por causa das
+ * colunas de responsável. Aqui a mensagem do PostgREST nomeia a coluna
+ * ("column conversations.assigned_profile_id does not exist"), então dá para
+ * ser específico.
+ */
+export const isMissingAssignmentColumnsError = (
+  error: SupabaseQueryError | undefined,
+): boolean => {
+  if (!error) return false;
+  return /assigned_(profile_id|at|by)/.test(error.message ?? '');
+};
+
 /** Vira false na primeira resposta 42703 e não tenta de novo nesta sessão. */
 let lastMessageColumnsAvailable = true;
+/** Idem para as colunas de responsável. */
+let assignmentColumnsAvailable = true;
 
 interface UseConversationsOptions {
   pageSize?: number;
@@ -210,6 +247,7 @@ export const useConversations = ({
       // `isMissingLastMessageColumnsError`).
       const executarQuery = async (
         comPrevia: boolean,
+        comResponsavel: boolean,
       ): Promise<{ data: ConversationRow[] | null; error: SupabaseQueryError }> => {
         let query = supabase
           .from('conversations')
@@ -222,7 +260,7 @@ export const useConversations = ({
             created_at,
             updated_at,
             tenant_id,
-            ${comPrevia ? LAST_MESSAGE_COLUMNS : ''}${contactsEmbed} (
+            ${comPrevia ? LAST_MESSAGE_COLUMNS : ''}${comResponsavel ? ASSIGNMENT_COLUMNS : ''}${contactsEmbed} (
               id,
               name,
               phone,
@@ -293,17 +331,35 @@ export const useConversations = ({
         };
       };
 
-      let { data, error } = await executarQuery(lastMessageColumnsAvailable);
+      let { data, error } = await executarQuery(
+        lastMessageColumnsAvailable,
+        assignmentColumnsAvailable,
+      );
 
       // Migração ainda não aplicada: repete sem as colunas novas para a lista
-      // aparecer sem prévia, em vez de sumir inteira da tela.
-      if (error && lastMessageColumnsAvailable && isMissingLastMessageColumnsError(error)) {
-        lastMessageColumnsAvailable = false;
-        logger.warn(
-          'Colunas de prévia da última mensagem ausentes em conversations. A lista segue sem prévia até a migração ser aplicada.',
-          { code: error.code },
-        );
-        ({ data, error } = await executarQuery(false));
+      // aparecer sem prévia (ou sem responsável), em vez de sumir inteira da
+      // tela. Dois grupos de colunas opcionais, no máximo duas repetições — o
+      // de responsável é testado primeiro (ver isMissingAssignmentColumnsError).
+      for (let tentativa = 0; error && tentativa < 2; tentativa += 1) {
+        if (assignmentColumnsAvailable && isMissingAssignmentColumnsError(error)) {
+          assignmentColumnsAvailable = false;
+          logger.warn(
+            'Colunas de responsável ausentes em conversations. A lista segue sem responsável até a migração 20260913000001 ser aplicada.',
+            { code: error.code },
+          );
+        } else if (lastMessageColumnsAvailable && isMissingLastMessageColumnsError(error)) {
+          lastMessageColumnsAvailable = false;
+          logger.warn(
+            'Colunas de prévia da última mensagem ausentes em conversations. A lista segue sem prévia até a migração ser aplicada.',
+            { code: error.code },
+          );
+        } else {
+          break;
+        }
+        ({ data, error } = await executarQuery(
+          lastMessageColumnsAvailable,
+          assignmentColumnsAvailable,
+        ));
       }
 
       if (error) {
@@ -491,6 +547,49 @@ export const useConversationsCount = ({
   });
 };
 
+/**
+ * Linha que `useConversation` devolve. Declarada à mão porque o select tem
+ * interpolação (colunas opcionais de responsável) e o parser de tipos do
+ * PostgREST não lê template com `${}` — sem isto o tipo vira ParserError e o
+ * ChatWindow perde `contacts`, `unread_count` etc.
+ */
+export interface ConversationDetail {
+  id: string;
+  contact_id: string;
+  whatsapp_instance_id: string | null;
+  last_message_at: string | null;
+  unread_count: number | null;
+  is_archived: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  tenant_id: string;
+  /** Ausentes enquanto a migração 20260913000001 não roda. */
+  assigned_profile_id?: string | null;
+  assigned_at?: string | null;
+  assigned_by?: string | null;
+  contacts: {
+    id: string;
+    name: string | null;
+    phone: string;
+    email: string | null;
+    avatar_url: string | null;
+    notes: string | null;
+    custom_fields: unknown;
+    lead_source_id: string | null;
+    current_stage_id: string | null;
+    last_interaction_at: string | null;
+    created_at: string;
+    updated_at: string;
+    tenant_id: string;
+    stage: { name: string; color: string | null } | null;
+    lead_sources: { name: string } | null;
+    contact_tags: Array<{
+      tag_id: string;
+      tags: { id: string; name: string; color: string | null } | null;
+    }>;
+  } | null;
+}
+
 // Hook para buscar uma conversa específica
 export const useConversation = (conversationId: string) => {
   const { tenant } = useTenant();
@@ -502,9 +601,12 @@ export const useConversation = (conversationId: string) => {
         throw new Error('Tenant ID and Conversation ID are required');
       }
 
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
+      // Mesmo cuidado da lista: as colunas de responsável são opcionais até a
+      // migração 20260913000001 rodar. Sem isto, abrir a conversa quebraria.
+      const buscar = (comResponsavel: boolean) =>
+        supabase
+          .from('conversations')
+          .select(`
           id,
           contact_id,
           whatsapp_instance_id,
@@ -514,7 +616,7 @@ export const useConversation = (conversationId: string) => {
           created_at,
           updated_at,
           tenant_id,
-          contacts (
+          ${comResponsavel ? ASSIGNMENT_COLUMNS : ''}contacts (
             id,
             name,
             phone,
@@ -545,16 +647,31 @@ export const useConversation = (conversationId: string) => {
             )
           )
         `)
-        .eq('id', conversationId)
-        .eq('tenant_id', tenant.id)
-        .limit(1)
-        .maybeSingle();
+          .eq('id', conversationId)
+          .eq('tenant_id', tenant.id)
+          .limit(1)
+          .maybeSingle();
+
+      let { data, error } = await buscar(assignmentColumnsAvailable);
+
+      if (
+        error &&
+        assignmentColumnsAvailable &&
+        isMissingAssignmentColumnsError(error as SupabaseQueryError)
+      ) {
+        assignmentColumnsAvailable = false;
+        logger.warn(
+          'Colunas de responsável ausentes em conversations. A conversa abre sem responsável até a migração 20260913000001 ser aplicada.',
+          { code: (error as SupabaseQueryError)?.code },
+        );
+        ({ data, error } = await buscar(false));
+      }
 
       if (error) {
         throw error;
       }
 
-      return data;
+      return data as unknown as ConversationDetail | null;
     },
     enabled: !!tenant?.id && !!conversationId,
     staleTime: 1000 * 60 * 5, // 5 minutos

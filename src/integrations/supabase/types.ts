@@ -1480,6 +1480,9 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assigned_profile_id: string | null
           contact_id: string
           created_at: string | null
           id: string
@@ -1497,6 +1500,9 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_profile_id?: string | null
           contact_id: string
           created_at?: string | null
           id?: string
@@ -1514,6 +1520,9 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_profile_id?: string | null
           contact_id?: string
           created_at?: string | null
           id?: string
@@ -1531,6 +1540,20 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_assigned_profile_id_fkey"
+            columns: ["assigned_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_contact_id_fkey"
             columns: ["contact_id"]
@@ -5592,6 +5615,15 @@ export type Database = {
         Returns: {
           source: string
           unlocked: boolean
+        }[]
+      }
+      tenant_team_directory: {
+        Args: { p_tenant_id?: string }
+        Returns: {
+          avatar_url: string
+          first_name: string
+          id: string
+          last_name: string
         }[]
       }
       update_affiliate_totals: {

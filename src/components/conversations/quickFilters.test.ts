@@ -113,9 +113,13 @@ describe('applyQuickFilter', () => {
 describe('buildQuickFilterCounts', () => {
   const lista = [naoLida, emAtendimento, semPendencia];
 
-  it('conta as quatro pílulas do universo ativo', () => {
+  // As pílulas de responsável (2026-09-13) entram aqui também: sem
+  // `assigned_profile_id` nas fixtures, tudo é "sem responsável" e nada é "meu".
+  it('conta as seis pílulas do universo ativo', () => {
     expect(buildQuickFilterCounts(lista, { hasUnread: false, isArchived: false }, NOW)).toEqual({
       todas: piso(3),
+      minhas: piso(0),
+      'sem-responsavel': piso(3),
       'nao-lidas': piso(1),
       aguardando: piso(1),
       'em-atendimento': piso(1),
@@ -143,6 +147,8 @@ describe('buildQuickFilterCounts', () => {
   it('lida com lista vazia', () => {
     expect(buildQuickFilterCounts([], { hasUnread: false, isArchived: false }, NOW)).toEqual({
       todas: piso(0),
+      minhas: piso(0),
+      'sem-responsavel': piso(0),
       'nao-lidas': piso(0),
       aguardando: piso(0),
       'em-atendimento': piso(0),
