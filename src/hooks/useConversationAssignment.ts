@@ -5,6 +5,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { logger } from '@/lib/logger';
 import {
   assumeConversation,
+  describeAssignmentError,
   transferConversation,
   type AssumeResult,
   type ConversationsClient,
@@ -15,10 +16,11 @@ import { memberFirstName, useTeamMemberLookup } from '@/hooks/useTeamDirectory';
  * Assumir e transferir conversa — a camada React em cima de
  * `src/lib/conversations/assignment.ts`.
  *
- * Neste passo QUALQUER cargo assume e transfere; quem pode o quê é
- * configuração de um passo posterior. O RLS de `conversations` já dá UPDATE a
- * todo mundo da Loja (e ao gerente nas Lojas filhas), então não há política
- * nova aqui.
+ * Qualquer cargo assume; transferir pode ser desligado para atendentes pela
+ * Loja (Configurações › Escala/Transferência, migração 20260914000001). Quem
+ * recusa é o SERVIDOR (trigger tg_guard_conversation_transfer, 42501); o
+ * `ConversationOwnerControl` só esconde o botão, e aqui a recusa vira a frase
+ * do servidor no toast em vez do texto genérico.
  *
  * As invalidações são as mesmas de `useMarkConversationAsRead`: a lista, a
  * conversa aberta e as recentes. A lista também se refaz sozinha a cada 30 s.
@@ -65,10 +67,14 @@ export const useAssumeConversation = () => {
       }
 
       const holder = lookup(result.holderProfileId);
+      // `holderProfileId` nulo tem dois motivos possíveis: alguém assumiu e, com a
+      // visibilidade restringida, a conversa SAIU do seu alcance; ou ela sumiu.
+      // Nos dois casos ela não está mais disponível para você — é isso que a
+      // frase diz, sem inventar um nome.
       toast.warning(
         holder
           ? `${memberFirstName(holder)} assumiu esta conversa antes de você.`
-          : 'Alguém assumiu esta conversa antes de você. A tela foi atualizada.',
+          : 'Esta conversa não está mais disponível para você: outra pessoa assumiu antes, ou ela saiu do seu alcance. A tela foi atualizada.',
       );
     },
 
@@ -110,7 +116,7 @@ export const useTransferConversation = () => {
 
     onError: (error) => {
       logger.error('Erro ao transferir conversa', undefined, error);
-      toast.error('Não foi possível transferir a conversa. Tente novamente.');
+      toast.error(describeAssignmentError(error) ?? 'Não foi possível transferir a conversa. Tente novamente.');
     },
   });
 };

@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useFollowups } from '@/hooks/useFollowups';
 import { useFollowupSequences } from '@/hooks/useFollowupSequences';
 import { useContacts } from '@/hooks/useContacts';
+import { useTenantId } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { FollowupMode } from '@/lib/followups/types';
 import { toast } from 'sonner';
@@ -53,6 +54,7 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
   const { createFollowup } = useFollowups();
   const { sequences, loading: sequencesLoading, enrollContact } = useFollowupSequences();
   const { contacts, loading: contactsLoading } = useContacts();
+  const tenantId = useTenantId();
 
   const [mode, setMode] = useState<FollowupMode>('manual');
   const [formData, setFormData] = useState({
@@ -80,31 +82,33 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
   useEffect(() => {
     let cancelled = false;
     const check = async () => {
-      if (!formData.contactId || mode === 'manual') {
+      if (!formData.contactId || mode === 'manual' || !tenantId) {
         setWindowOpen(null);
         return;
       }
-      const { data } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('contact_id', formData.contactId)
-        .eq('direction', 'inbound')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Só o instante do último inbound do contato, da Loja inteira
+      // (loja_contact_last_message, migração 20260914000001). A janela de 24h
+      // é um fato do WhatsApp, não da visibilidade de quem agenda: um atendente
+      // restrito também precisa saber se pode mandar texto livre.
+      const { data } = await (supabase as any).rpc('loja_contact_last_message', {
+        p_tenant_id: tenantId,
+        p_direction: 'inbound',
+        p_contact_id: formData.contactId,
+      });
       if (cancelled) return;
-      if (!data?.created_at) {
+      const lastAt = (data as Array<{ last_at: string }> | null)?.[0]?.last_at;
+      if (!lastAt) {
         setWindowOpen(false);
         return;
       }
-      const last = new Date(data.created_at).getTime();
+      const last = new Date(lastAt).getTime();
       setWindowOpen(Date.now() - last < 24 * 60 * 60 * 1000);
     };
     check();
     return () => {
       cancelled = true;
     };
-  }, [formData.contactId, mode]);
+  }, [formData.contactId, mode, tenantId]);
 
   const selectedContact = contacts.find((c) => c.id === formData.contactId);
   const selectedType = followupTypes.find((t) => t.id === formData.type);

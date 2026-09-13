@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BRAND_CHART } from '@/lib/chartColors';
 import { useActivityChartData } from '@/hooks/useActivityChartData';
+import { LojaWideHint } from '@/components/shared/LojaWideHint';
 import type { UsePeriodFilterResult } from '@/hooks/usePeriodFilter';
 
 interface ActivityChartProps {
@@ -57,6 +58,7 @@ export const ActivityChart = ({ period }: ActivityChartProps) => {
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <Activity className="h-5 w-5 text-muted-foreground" />
           Atividade de Mensagens
+          <LojaWideHint />
         </CardTitle>
       </CardHeader>
       <CardContent>

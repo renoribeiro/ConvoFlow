@@ -427,7 +427,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'No número da pílula, "12" é o total da fila e "12+" quer dizer "pelo menos 12": as pílulas "Todas", "Não lidas" e "Arquivadas" sabem o total; "Aguardando", "Não respondidas" e "Em atendimento" contam só o que já foi carregado, e o "+" some quando você rola até o fim.',
       'A lista se atualiza sozinha a cada poucos segundos, então numa fila filtrada entram conversas que estavam fora da tela conforme você trabalha. Acompanhe o número da pílula: é ele que mostra a fila diminuindo.',
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
-      'Responsável não é cadeado: quem assume uma conversa fica marcado nela, mas todo mundo da Loja continua vendo e podendo responder todas as conversas, como sempre. Nesta versão qualquer cargo pode assumir e transferir.',
+      'Responsável não é cadeado por padrão: quem assume uma conversa fica marcado nela, e todo mundo da Loja continua vendo e podendo responder todas as conversas — a menos que a Loja tenha mudado isso em Configurações › Escala/Transferência. Gestor e Gerente sempre veem tudo.',
+      'Se a sua Loja restringiu a visibilidade (você é atendente), a lista mostra só o que a regra permite: as conversas que estão com você, as em que você já respondeu, as que você mesmo passou adiante e, na opção intermediária, as que ninguém assumiu. Uma conversa que não aparece não está apagada: está com outra pessoa.',
+      'Mesmo com a lista restrita, responder numa conversa nunca é bloqueado — e quem responde passa a vê-la. Os números do Dashboard continuam da Loja inteira e aparecem com a etiqueta "Toda a Loja".',
+      'A Loja pode desligar a transferência para atendentes. Aí o botão "Transferir…" some para o atendente e o servidor recusa a tentativa; "Assumir" continua funcionando.',
       'Se duas pessoas clicarem em "Assumir" na mesma conversa quase ao mesmo tempo, só a primeira fica com ela — a segunda vê um aviso dizendo quem pegou, e a tela se atualiza.',
       'As pílulas "Minhas" e "Sem responsável" contam só o que já foi carregado na lista (aparecem com "+"); role até o fim para o número virar exato.',
       'Conversas é privada por Loja: mesmo o Superadmin não enxerga as conversas de uma Conta sem entrar nela pelo seletor do topo.',
@@ -689,7 +692,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings': {
     title: 'Configurações',
     whatItDoes:
-      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento, Follow-ups e Integrações mudam o comportamento para todo o time.',
+      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento, Escala/Transferência, Follow-ups e Integrações mudam o comportamento para todo o time.',
     howToConfigure: [
       'Escolha a aba. Cada aba tem o próprio botão de ajuda com o passo-a-passo dela.',
       'Antes de salvar algo em Atendimento, Follow-ups ou Integrações, lembre que a mudança atinge o time todo.',
@@ -760,6 +763,28 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Dois trechos não podem ter o mesmo nome na mesma Loja: numa lista onde se escolhe pelo nome, o repetido só atrapalha.',
       'As automações também usam esta lista: a ação "Enviar Mensagem" escolhe uma resposta rápida daqui.',
       'Não confunda com a tela Templates, que mostra os modelos aprovados na Meta. Aquilo é exigência da Meta para falar fora da janela de 24 horas; isto aqui é só atalho de digitação e vale para qualquer conversa aberta.',
+    ],
+    category: 'tela',
+    area: 'Configuração',
+  },
+  'page:settings-visibility': {
+    title: 'Configurações › Escala/Transferência',
+    whatItDoes:
+      'Decide o que cada atendente enxerga na caixa de entrada e se ele pode passar uma conversa para um colega. Vale só para o cargo atendente: Gestor e Gerente sempre veem e transferem tudo. Vem em "Todas as conversas da Loja", que é exatamente o comportamento de sempre.',
+    howToConfigure: [
+      'Escolha o que o atendente vê: "Todas as conversas da Loja" (como hoje), "Sem responsável + as dele" (vê a fila sem dono e o que está com ele, não vê o que está com um colega) ou "Só as dele" (só o que está com ele).',
+      'Em qualquer opção, quem já respondeu numa conversa continua vendo-a depois de transferida, e quem passou uma conversa adiante continua vendo-a até outra pessoa reatribuí-la.',
+      'Decida se o atendente pode transferir. Desligado, ele ainda assume conversas sem responsável; passar para outra pessoa fica só com Gestor e Gerente — e o servidor recusa a tentativa, não é só o botão que some.',
+      'Salve. A mudança vale na hora: a lista de Conversas do atendente se refaz no próximo carregamento.',
+      'Confira como atendente: a lista encolhe, mas os números do Dashboard continuam da Loja inteira, com a etiqueta "Toda a Loja".',
+    ],
+    example:
+      'Loja com três corretores em "Só as dele": cada um vê apenas os próprios leads. O gestor distribui os novos contatos transferindo, e cada corretor recebe o aviso no sino. Quando um cliente volta a escrever, a conversa continua com quem já atendia.',
+    tips: [
+      'Responder nunca é bloqueado: se um atendente restrito responde numa conversa que não via (por exemplo, começando uma conversa com um telefone que já tinha histórico), ela passa a aparecer para ele.',
+      'A restrição vale só para a lista e o histórico. Contatos, funil, campanhas e os números do Dashboard continuam da Loja inteira.',
+      'O que aconteceu antes desta configuração não conta como "já respondi": a participação começa a ser registrada a partir do dia em que a Loja passou a usar o recurso.',
+      'Ative "Sem responsável + as dele" quando o time tira da fila por conta própria; "Só as dele" quando o gestor distribui.',
     ],
     category: 'tela',
     area: 'Configuração',

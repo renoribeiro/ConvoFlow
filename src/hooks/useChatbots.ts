@@ -310,22 +310,31 @@ export const useChatbotAnalytics = (chatbotId: string) => {
         throw new Error('Tenant ID and Chatbot ID are required');
       }
 
-      // Query interactions from messages table
-      const { data: interactions, error } = await supabase
-        .from('messages')
-        .select('id, created_at, is_from_bot')
-        .eq('tenant_id', tenant.id)
-        .eq('is_from_bot', true)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Contagem e último instante das mensagens de bot da Loja inteira
+      // (loja_message_counts, migração 20260914000001): só números, e os mesmos
+      // para todo mundo — inclusive atendente com visibilidade restringida.
+      // Antes vinha das 100 mensagens de bot mais recentes de `messages`, que
+      // (a) travava o total em 100 e (b) passaria a variar por pessoa.
+      const { data: rows, error } = await (supabase as any).rpc('loja_message_counts', {
+        p_tenant_id: tenant.id,
+        p_from: null,
+        p_to: null,
+        p_bucket: 'all',
+        p_tz: 'UTC',
+      });
 
       if (error) {
         logger.error('Error fetching chatbot analytics:', error);
         throw error;
       }
 
-      const totalInteractions = interactions.length;
-      const lastInteraction = interactions[0] ? new Date(interactions[0].created_at) : null;
+      const botRows = ((rows ?? []) as Array<{ is_from_bot: boolean; n: number | string; last_at: string | null }>)
+        .filter((r) => r.is_from_bot);
+      const totalInteractions = botRows.reduce((acc, r) => acc + Number(r.n), 0);
+      const lastAt = botRows
+        .map((r) => (r.last_at ? new Date(r.last_at).getTime() : 0))
+        .reduce((a, b) => Math.max(a, b), 0);
+      const lastInteraction = lastAt > 0 ? new Date(lastAt) : null;
 
       return {
         totalInteractions,

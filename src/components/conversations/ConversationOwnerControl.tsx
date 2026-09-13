@@ -29,6 +29,7 @@ import {
   useAssumeConversation,
   useTransferConversation,
 } from '@/hooks/useConversationAssignment';
+import { useConversationVisibilityConfig } from '@/hooks/useConversationVisibilityConfig';
 import { OwnerInline } from './OwnerChip';
 
 interface ConversationOwnerControlProps {
@@ -49,8 +50,11 @@ interface ConversationOwnerControlProps {
  *   - "Transferir…": abre o seletor com o time da Loja (diretório), inclusive
  *     você — é assim que se toma uma conversa que está com outra pessoa.
  *
- * Todo cargo pode as duas coisas neste passo. Quem pode o quê é configuração
- * de um passo posterior.
+ * Todo cargo assume. Transferir pode ser desligado para ATENDENTES pela Loja
+ * (Configurações › Escala/Transferência): aí o item "Transferir…" some daqui
+ * E o servidor recusa a escrita (trigger 42501) — esconder o botão sozinho não
+ * seria proteção nenhuma. Quando não sobra ação (conversa com alguém + sem
+ * transferir), o controle vira só o chip do responsável, sem menu.
  */
 export const ConversationOwnerControl = ({
   conversationId,
@@ -60,6 +64,7 @@ export const ConversationOwnerControl = ({
   const lookup = useTeamMemberLookup();
   const assume = useAssumeConversation();
   const transfer = useTransferConversation();
+  const { transferBlocked } = useConversationVisibilityConfig();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   if (assignedProfileId === undefined) return null;
@@ -68,6 +73,38 @@ export const ConversationOwnerControl = ({
   const isUnassigned = !assignedProfileId;
   const isMine = !!profile?.id && assignedProfileId === profile.id;
   const busy = assume.isPending || transfer.isPending;
+  const canTransfer = !transferBlocked;
+  const hasActions = isUnassigned || canTransfer;
+
+  const holderLabel = isUnassigned
+    ? 'Ninguém assumiu esta conversa'
+    : isMine
+      ? 'Esta conversa está com você'
+      : `Responsável: ${holder ? memberDisplayName(holder) : 'pessoa fora do diretório'}`;
+
+  if (!hasActions) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex h-9 items-center gap-1 px-2"
+            aria-label={holderLabel}
+            data-testid="owner-readonly"
+          >
+            <OwnerInline
+              member={holder}
+              assignedProfileId={assignedProfileId}
+              size="md"
+              className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline"
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">
+          {holderLabel}. A transferência de conversas está desativada para atendentes nesta Loja.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   const handleAssume = () => {
     if (!isUnassigned || busy) return;
@@ -129,10 +166,12 @@ export const ConversationOwnerControl = ({
               Assumir
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => setPickerOpen(true)}>
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
-            Transferir…
-          </DropdownMenuItem>
+          {canTransfer && (
+            <DropdownMenuItem onClick={() => setPickerOpen(true)}>
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              Transferir…
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

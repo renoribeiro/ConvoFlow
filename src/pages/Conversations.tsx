@@ -34,8 +34,14 @@ import { useConversationShortcuts } from '@/hooks/useConversationShortcuts';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useContactHasConversation } from '@/hooks/useContactHasConversation';
+import { toast } from 'sonner';
 
 const CONTACT_PANEL_STORAGE_KEY = 'convoflow:contact-panel-open';
+
+/** Uma frase só para o deep link que aponta para conversa fora do alcance. */
+export const CONVERSATION_UNAVAILABLE_MESSAGE =
+  'Esta conversa não está disponível para você: ela está com outra pessoa da Loja.';
 
 export default function Conversations() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
@@ -74,6 +80,14 @@ export default function Conversations() {
   const contactId = searchParams.get('contact');
   const { data: conversationByContact, isLoading: isLoadingConversation } = useConversationByContact(contactId || '');
   const createConversationMutation = useCreateConversation();
+  // Só consultado quando a conversa NÃO veio: distingue "não existe" de
+  // "existe mas o RLS esconde de mim" (visibilidade por atendente, migração
+  // 20260914000001). Sem isto a tela criava outra e levava chave duplicada.
+  const {
+    data: hiddenConversationExists,
+    isLoading: isCheckingHidden,
+  } = useContactHasConversation(contactId, !!contactId && !isLoadingConversation && !conversationByContact);
+  const unavailableWarnedFor = useRef<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(CONTACT_PANEL_STORAGE_KEY, String(isContactPanelOpen));
@@ -132,14 +146,25 @@ export default function Conversations() {
       return;
     }
 
-    if (!isLoadingConversation && !createConversationMutation.isPending) {
+    if (isLoadingConversation || isCheckingHidden) return;
+
+    // Existe, mas não é minha: avisa uma vez e NÃO tenta criar nada.
+    if (hiddenConversationExists) {
+      if (unavailableWarnedFor.current !== contactId) {
+        unavailableWarnedFor.current = contactId;
+        toast.warning(CONVERSATION_UNAVAILABLE_MESSAGE);
+      }
+      return;
+    }
+
+    if (hiddenConversationExists === false && !createConversationMutation.isPending) {
       createConversationMutation.mutate(contactId, {
         onSuccess: (conversationId) => {
           setSelectedConversation((prev) => prev ?? conversationId);
         },
       });
     }
-  }, [contactId, conversationByContact, isLoadingConversation, createConversationMutation.isPending, selectedConversation]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [contactId, conversationByContact, isLoadingConversation, isCheckingHidden, hiddenConversationExists, createConversationMutation.isPending, selectedConversation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateList = useCallback(
     (direction: 'up' | 'down') => {

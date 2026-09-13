@@ -10,8 +10,10 @@ import {
   Headset,
   CalendarClock,
   Zap,
+  Users,
 } from 'lucide-react';
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
+import { VisibilitySettings } from '@/components/settings/VisibilitySettings';
 import { FollowupSettings } from '@/components/settings/FollowupSettings';
 import { QuickRepliesSettings } from '@/components/settings/QuickRepliesSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
@@ -31,6 +33,7 @@ import { useSearchParams } from 'react-router-dom';
  */
 const TAB_HELP_KEYS: Record<string, string> = {
   attendance: 'page:settings-attendance',
+  visibility: 'page:settings-visibility',
   'quick-replies': 'page:settings-quick-replies',
   followups: 'page:settings-followups',
   subscription: 'page:settings-subscription',
@@ -71,6 +74,16 @@ interface AbaConfig {
 const ABAS: AbaConfig[] = [
   { value: 'profile', label: 'Perfil', icon: User, render: () => <ProfileSettings /> },
   { value: 'attendance', label: 'Atendimento', icon: Headset, render: () => <AttendanceSettings /> },
+  // Sem `requer`, como ATENDIMENTO: o painel mostra os valores em modo leitura
+  // para quem não tem `store.admin`. Saber o que a própria Loja esconde dele é
+  // o que explica ao atendente por que a lista dele é menor que o número do
+  // Dashboard.
+  {
+    value: 'visibility',
+    label: 'Escala/Transferência',
+    icon: Users,
+    render: () => <VisibilitySettings />,
+  },
   // Sem `requer` — e aqui não é só leitura para o atendente, é edição mesmo.
   // Quem atende o dia inteiro é quem sabe qual trecho está faltando, e o RLS
   // de `quick_replies` reflete isso: compara a Conta e nada mais.
