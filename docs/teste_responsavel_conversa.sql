@@ -59,6 +59,11 @@ BEGIN
   IF to_regprocedure('public.tenant_team_directory(uuid)') IS NULL THEN
     RAISE EXCEPTION 'ABORTADO: a migração 20260913000001 ainda não foi aplicada.';
   END IF;
+  IF EXISTS (SELECT 1 FROM auth.users
+              WHERE id IN ('33333333-0000-4000-8000-00000000000c',
+                           '33333333-0000-4000-8000-00000000000d')) THEN
+    RAISE EXCEPTION 'ABORTADO: UUID de fixture colide com usuário real do Auth. Nada foi feito.';
+  END IF;
 
   -- Placar e ajudantes (temporários; somem com o rollback do fim).
   -- A coluna chama-se `seq`, não `n`: `n` é variável deste bloco e o plpgsql
@@ -85,6 +90,16 @@ BEGIN
   -- 1. Semeadura (triggers e FK suspensos)
   -- ---------------------------------------------------------------------------
   SET LOCAL session_replication_role = replica;
+
+  -- Ana e Bruno precisam existir no Auth: `notifications.user_id` tem FK para
+  -- auth.users e o trigger do sino roda com as FKs LIGADAS (replica só vale
+  -- para a semeadura). Medido em 2026-09-13: sem estas duas linhas a afirmação
+  -- 3a-ii falhava com "obtido: 0" — o trigger recusava a FK, avisava e seguia.
+  -- Em replica o trigger on_auth_user_created não dispara, então não nasce
+  -- perfil duplicado. Some tudo no rollback do fim.
+  INSERT INTO auth.users (id, aud, role, email, created_at, updated_at) VALUES
+    ('33333333-0000-4000-8000-00000000000c','authenticated','authenticated','fix-ana@fixture.invalid',   now(), now()),
+    ('33333333-0000-4000-8000-00000000000d','authenticated','authenticated','fix-bruno@fixture.invalid', now(), now());
 
   INSERT INTO public.tenants (id, name, slug, kind, parent_tenant_id, status, subscription_status) VALUES
     ('33333333-0000-4000-8000-000000000001','FIXTURE Conta R','fixture-conta-r','account', NULL,'active','active'),
@@ -207,12 +222,11 @@ BEGIN
   PERFORM pg_temp.afirma('4b. atendente pedindo a Loja vizinha recebe vazio', '0', n::text);
 
   -- 4c. Diretório expõe SÓ as quatro colunas (id, first_name, last_name, avatar_url).
-  SELECT string_agg(a.attname, ',' ORDER BY a.attnum) INTO v_txt
-    FROM pg_proc p
-    JOIN pg_type t ON t.oid = p.prorettype
-    JOIN pg_attribute a ON a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped
-   WHERE p.oid = 'public.tenant_team_directory(uuid)'::regprocedure;
-  PERFORM pg_temp.afirma('4c. diretório devolve só id, first_name, last_name, avatar_url', 'id,first_name,last_name,avatar_url', coalesce(v_txt, '<?>'));
+  --     RETURNS TABLE não vira tipo composto no catálogo; a forma certa de
+  --     perguntar é pg_get_function_result (corrigido em 2026-09-13).
+  SELECT pg_get_function_result('public.tenant_team_directory(uuid)'::regprocedure) INTO v_txt;
+  PERFORM pg_temp.afirma('4c. diretório devolve só id, first_name, last_name, avatar_url',
+                         'TABLE(id uuid, first_name text, last_name text, avatar_url text)', coalesce(v_txt, '<?>'));
 
   -- 4d. Gerente pedindo a Loja filha recebe o time da Loja (+ ele mesmo, que é gerente da Conta acima).
   PERFORM pg_temp.como('33333333-0000-4000-8000-00000000000a');
