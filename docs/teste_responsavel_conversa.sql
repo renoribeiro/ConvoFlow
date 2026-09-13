@@ -61,11 +61,13 @@ BEGIN
   END IF;
 
   -- Placar e ajudantes (temporários; somem com o rollback do fim).
+  -- A coluna chama-se `seq`, não `n`: `n` é variável deste bloco e o plpgsql
+  -- recusaria a ambiguidade no SELECT do placar.
   CREATE TEMP TABLE _resp_results (
-    n serial, afirmacao text, esperado text, obtido text, status text
+    seq serial, afirmacao text, esperado text, obtido text, status text
   );
   GRANT ALL ON _resp_results TO authenticated;
-  GRANT ALL ON SEQUENCE _resp_results_n_seq TO authenticated;
+  GRANT ALL ON SEQUENCE _resp_results_seq_seq TO authenticated;
 
   CREATE FUNCTION pg_temp.afirma(p_afirmacao text, p_esperado text, p_obtido text) RETURNS void
   LANGUAGE sql AS $f$
@@ -233,9 +235,9 @@ BEGIN
     FROM _resp_results;
 
   SELECT string_agg(
-           format('%s %s  %s%s', lpad(n::text, 2, ' '), rpad(status, 4, ' '), afirmacao,
+           format('%s %s  %s%s', lpad(seq::text, 2, ' '), rpad(status, 4, ' '), afirmacao,
                   CASE WHEN status = 'FAIL' THEN format('  [esperado: %s | obtido: %s]', esperado, obtido) ELSE '' END),
-           E'\n' ORDER BY n)
+           E'\n' ORDER BY seq)
     INTO v_linhas
     FROM _resp_results;
 
