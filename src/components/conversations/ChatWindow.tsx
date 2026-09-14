@@ -66,7 +66,8 @@ import {
   useMarkConversationAsRead,
   useArchiveConversation,
 } from '@/hooks/useConversations';
-import { useEndChatbotSession } from '@/hooks/useEndChatbotSession';
+import { useEndChatbotSession, SESSION_END_FORBIDDEN_MESSAGE } from '@/hooks/useEndChatbotSession';
+import { useConversationBotSession } from '@/hooks/useChatbotSessions';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter, pickActiveInstance } from '@/hooks/useWhatsAppApi';
@@ -86,6 +87,7 @@ import { shouldOpenQuickReplies } from './quickReplyContext';
 import { AudioRecorder } from './AudioRecorder';
 import { SendTemplateDialog } from './SendTemplateDialog';
 import { ConversationOwnerControl } from './ConversationOwnerControl';
+import { BotSessionBadge } from './BotSessionBadge';
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -291,6 +293,9 @@ export const ChatWindow = ({
   const markConversationAsReadMutation = useMarkConversationAsRead();
   const archiveConversationMutation = useArchiveConversation();
   const endChatbotSessionMutation = useEndChatbotSession();
+  // Sessão ativa de chatbot neste contato (lida do mapa da Loja, o mesmo cache
+  // da lista). null = nenhum bot conduzindo; o selo e o item do menu seguem isso.
+  const { session: botSession, botName } = useConversationBotSession(contactId, conversationInstanceId);
 
   const updateContactMutation = useSupabaseMutation({
     table: 'contacts',
@@ -539,17 +544,25 @@ export const ChatWindow = ({
   const handleEndChatbotSession = async () => {
     if (!contactId) return;
     try {
+      // Mira a sessão que o selo mostrou; a instância dela pode não ser a da
+      // conversa (contato antigo), por isso vai a da sessão quando existe.
       const { ended } = await endChatbotSessionMutation.mutateAsync({
         contactId,
-        whatsappInstanceId: conversationInstanceId,
+        whatsappInstanceId: botSession?.whatsapp_instance_id ?? conversationInstanceId,
+        sessionId: botSession?.id ?? null,
       });
       if (ended) {
-        toast.success('Sessão do bot encerrada. Ele não vai mais reenviar o menu.');
+        toast.success('Sessão do bot encerrada. A partir daqui é você quem responde.');
       } else {
         toast.info('Nenhuma sessão do bot ativa neste contato.');
       }
-    } catch {
-      toast.error('Falha ao encerrar a sessão do bot. Tente novamente.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      toast.error(
+        msg === SESSION_END_FORBIDDEN_MESSAGE
+          ? msg
+          : 'Falha ao encerrar a sessão do bot. Tente novamente.',
+      );
     } finally {
       setIsEndSessionOpen(false);
     }
@@ -872,6 +885,9 @@ export const ChatWindow = ({
                       {providerLabel(active.adapter.type)}
                     </Badge>
                   )}
+                  {/* Só existe enquanto há sessão ativa de bot neste contato:
+                      sem sessão, nada é montado (nem selo cinza). */}
+                  {botSession && <BotSessionBadge botName={botName} size="md" />}
                 </div>
               )}
               {!isContactTyping && seenLabel && (
@@ -978,13 +994,19 @@ export const ChatWindow = ({
                   <Tag className="w-4 h-4 mr-2" />
                   Etiquetar
                 </DropdownMenuItem>
+                {/* Desabilitado (não escondido) sem sessão ativa: é o padrão dos
+                    itens que dependem do estado da conversa (`disabled={!contactId}`
+                    em "Etiquetar"), e quem atende aprende que a ação existe.
+                    Esconder é para capacidade que o provider não tem. */}
                 <DropdownMenuItem
                   onClick={() => setIsEndSessionOpen(true)}
-                  disabled={!contactId}
+                  disabled={!contactId || !botSession}
                   className="text-destructive focus:text-destructive"
                 >
                   <SquareX className="w-4 h-4 mr-2" />
-                  Encerrar sessão do bot
+                  {botSession && botName
+                    ? `Encerrar sessão do bot "${botName}"`
+                    : 'Encerrar sessão do bot'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1330,9 +1352,11 @@ export const ChatWindow = ({
           <DialogHeader>
             <DialogTitle>Encerrar sessão do bot</DialogTitle>
             <DialogDescription>
-              Isso encerra a conversa automática do chatbot com este contato. O bot para
-              de reenviar o menu e só volta a agir se uma nova mensagem disparar um gatilho.
-              Você continua podendo responder manualmente.
+              {botName
+                ? `O chatbot "${botName}" está conduzindo esta conversa. `
+                : 'Um chatbot está conduzindo esta conversa. '}
+              Encerrar a sessão faz o bot parar de responder este contato — a partir daqui é
+              você quem atende. Ele só volta a agir se uma nova mensagem disparar um gatilho.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

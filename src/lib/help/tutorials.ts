@@ -312,7 +312,9 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Mande uma mensagem para o número e confirme a resposta',
         body:
-          'Use outro celular, escreva para o número e acompanhe em Conversas. Erro de texto e pergunta confusa só aparecem na conversa real.',
+          'Use outro celular, escreva para o número e acompanhe em Conversas: enquanto o bot conduz, a conversa mostra o selo "Bot em atendimento", que some quando o fluxo chega em "Transferir para Atendente". Erro de texto e pergunta confusa só aparecem na conversa real.',
+        note:
+          'Para intervir antes do fim do fluxo, abra o menu ⋮ da conversa e clique em "Encerrar sessão do bot" — o item só fica ativo enquanto há bot na conversa.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
       },

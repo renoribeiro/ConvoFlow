@@ -165,7 +165,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   },
   transfer_agent: {
     title: 'Transferir para Atendente',
-    whatItDoes: 'Encerra a automação do bot e passa a conversa para um atendente humano.',
+    whatItDoes: 'Encerra a automação do bot e passa a conversa para um atendente humano. Em Conversas, o selo "Bot em atendimento" some dessa conversa.',
     howToConfigure: [
       'Opcional: escreva uma mensagem de transição ("Aguarde, vou te transferir...").',
       'Escolha atribuir a qualquer atendente ou a um usuário específico.',
@@ -419,7 +419,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Use as pílulas "Minhas" e "Sem responsável" para ver só o que está com você ou o que ninguém pegou ainda.',
       'Como Gestor ou Gerente, use a pílula "Responsável indisponível" para achar conversas presas com alguém suspenso, excluído, fora da Loja ou em 0 % no rodízio — e transfira-as à mão pelo cabeçalho.',
       'Ative a sinalização de conversas não respondidas em Configurações › Atendimento para que os atrasos apareçam marcados aqui.',
-      'Se um chatbot estiver conduzindo a conversa, encerre a sessão dele antes de responder — assim vocês não falam com o cliente ao mesmo tempo.',
+      'Quando um chatbot está conduzindo a conversa, aparece o selo "Bot em atendimento" — na linha da lista e, com o nome do bot, no cabeçalho do chat. Antes de responder, abra o menu ⋮ e clique em "Encerrar sessão do bot": o bot para na hora e a partir daí é você quem atende. Sem esse passo, vocês dois falam com o cliente ao mesmo tempo.',
+      'Sem selo, não há bot na conversa e "Encerrar sessão do bot" fica desabilitado — não precisa clicar "por garantia".',
     ],
     example:
       'Chega "ainda está disponível o apartamento do anúncio?". Você responde em minutos e o contato já entra na base com nome e telefone, pronto para acompanhar no Funil.',
@@ -428,6 +429,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'No número da pílula, "12" é o total da fila e "12+" quer dizer "pelo menos 12": as pílulas "Todas", "Não lidas" e "Arquivadas" sabem o total; "Aguardando", "Não respondidas" e "Em atendimento" contam só o que já foi carregado, e o "+" some quando você rola até o fim.',
       'A lista se atualiza sozinha a cada poucos segundos, então numa fila filtrada entram conversas que estavam fora da tela conforme você trabalha. Acompanhe o número da pílula: é ele que mostra a fila diminuindo.',
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
+      'O selo "Bot em atendimento" some sozinho quando o fluxo termina (bloco "Encerrar Fluxo" ou "Transferir para Atendente") e na hora quando você encerra a sessão pelo menu. Ele é visto por todo mundo que abre a conversa, não só pelo responsável. Encerrar a sessão não muda o responsável nem entra no rodízio: é ação sua, não distribuição automática.',
+      'O selo pode levar até meio minuto para aparecer depois que o bot começa — é o mesmo ritmo com que a lista se atualiza.',
       'Responsável não é cadeado por padrão: quem assume uma conversa fica marcado nela, e todo mundo da Loja continua vendo e podendo responder todas as conversas — a menos que a Loja tenha mudado isso em Configurações › Escala/Transferência. Gestor e Gerente sempre veem tudo.',
       'Se a Loja ligou o rodízio (Configurações › Escala/Transferência), a conversa nova já chega com responsável, na proporção que o Gestor definiu, e sem aviso no sino — o sino só toca em transferência feita por pessoa. Uma conversa que já tem responsável nunca é trocada pelo rodízio: o cliente que volta cai com quem já o atendia, mesmo que essa pessoa esteja suspensa ou em 0 %.',
       'Se a sua Loja restringiu a visibilidade (você é atendente), a lista mostra só o que a regra permite: as conversas que estão com você, as em que você já respondeu, as que você mesmo passou adiante e, na opção intermediária, as que ninguém assumiu. Uma conversa que não aparece não está apagada: está com outra pessoa.',
