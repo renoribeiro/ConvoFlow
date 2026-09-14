@@ -59,6 +59,13 @@ export const QUERY_KEYS = {
      */
     CONVERSATION_ROTATION: 'conversation-rotation',
     INELIGIBLE_OWNERS: 'ineligible-owners',
+    /**
+     * Sessões ATIVAS de chatbot da Loja (tabela `chatbot_sessions`), como mapa
+     * contact_id → sessões. Uma query só alimenta o selo "Bot em atendimento"
+     * da lista e do cabeçalho do chat. O prefixo `conversations-` é de
+     * propósito: cai na faixa realtime (30 s), a mesma cadência da lista.
+     */
+    CONVERSATIONS_BOT_SESSIONS: 'conversations-bot-sessions',
     USAGE_LIMITS: 'usage-limits',
 } as const;
 

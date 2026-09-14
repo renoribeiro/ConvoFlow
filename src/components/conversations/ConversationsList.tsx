@@ -41,6 +41,8 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useIneligibleOwners } from '@/hooks/useConversationRotation';
 import { useTeamMemberLookup } from '@/hooks/useTeamDirectory';
 import { OwnerChip } from './OwnerChip';
+import { useActiveBotSessions } from '@/hooks/useChatbotSessions';
+import { BotSessionBadge } from './BotSessionBadge';
 
 interface ConversationsListProps {
   searchQuery: string;
@@ -148,6 +150,9 @@ export const ConversationsList = ({
   // abaixo roda — nem a query do mapa de silenciadas.
   const { enabled: slaEnabled, thresholds: slaThresholds } = useSlaConfig();
   const { data: slaMutedMap } = useSlaMutedConversations(slaEnabled);
+  // Sessões ativas de chatbot da Loja: UMA query (mapa contact_id → sessões),
+  // compartilhada com o cabeçalho do chat. Não entra no select da lista.
+  const { data: botSessionsMap } = useActiveBotSessions();
   const slaConfig = useMemo(
     () => ({ enabled: slaEnabled, thresholds: slaThresholds }),
     [slaEnabled, slaThresholds],
@@ -219,6 +224,8 @@ export const ConversationsList = ({
           last_message_status: lastStatus,
           // Vem de uma query própria, não do select da lista (ver useSlaMute).
           sla_muted_at: slaMutedMap?.[conv.id] ?? null,
+          // Idem: mapa de sessões ativas de bot (ver useChatbotSessions).
+          has_bot_session: (botSessionsMap?.[conv.contact_id]?.length ?? 0) > 0,
           // Responsável (migração 20260913000001). `undefined` = coluna ainda
           // não existe no banco; o chip mostra "Sem responsável" mesmo assim.
           assigned_profile_id: (conv.assigned_profile_id as string | null | undefined) ?? null,
@@ -231,7 +238,7 @@ export const ConversationsList = ({
             .filter(Boolean) as Array<{ id: string; name: string; color: string }>,
         };
       }),
-    [conversations, slaMutedMap],
+    [conversations, slaMutedMap, botSessionsMap],
   );
 
   // --- Filtros rápidos (pílulas) ---
@@ -429,6 +436,7 @@ export const ConversationsList = ({
                   size="sm"
                 />
                 <SlaIndicator level={slaLevel} lastMessageAt={conversation.last_message_at} />
+                {conversation.has_bot_session && <BotSessionBadge botName={null} size="sm" />}
                 {isNewLead && (
                   <Badge variant="outline" className="border-0 bg-accent/15 text-accent text-[10px] font-medium px-1.5">
                     Novo Lead
