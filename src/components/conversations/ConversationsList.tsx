@@ -38,6 +38,7 @@ import { SlaMuteButton } from './SlaMuteButton';
 import { useSlaConfig } from '@/hooks/useSlaConfig';
 import { useSlaMutedConversations } from '@/hooks/useSlaMute';
 import { useTenant } from '@/contexts/TenantContext';
+import { useIneligibleOwners } from '@/hooks/useConversationRotation';
 import { useTeamMemberLookup } from '@/hooks/useTeamDirectory';
 import { OwnerChip } from './OwnerChip';
 
@@ -129,10 +130,17 @@ export const ConversationsList = ({
 
   // Responsável por conversa: "Minhas" precisa saber quem sou eu, e o chip
   // precisa do diretório para trocar profiles.id por nome e avatar.
+  // "Responsável indisponível" (só gestor/gerente) precisa da lista de quem
+  // está suspenso/excluído/fora da Loja/em 0 % — a RPC devolve vazio para
+  // quem não administra, e aí a chave nem entra no contexto.
   const { profile } = useTenant();
+  const ineligible = useIneligibleOwners();
   const ownership = useMemo(
-    () => ({ viewerProfileId: profile?.id ?? null }),
-    [profile?.id],
+    () => ({
+      viewerProfileId: profile?.id ?? null,
+      ineligibleOwnerIds: ineligible.canManage ? ineligible.ownerIds : undefined,
+    }),
+    [profile?.id, ineligible.canManage, ineligible.ownerIds],
   );
   const lookupMember = useTeamMemberLookup();
 

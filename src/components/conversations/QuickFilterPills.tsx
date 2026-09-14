@@ -17,6 +17,8 @@ interface QuickFilterPillsProps {
   counts?: QuickFilterCounts;
   /** Sinalização de SLA da Loja. Desligada, a pílula "Não respondidas" não existe. */
   slaEnabled?: boolean;
+  /** Gestor/gerente: liga a pílula "Responsável indisponível". */
+  canSeeIneligible?: boolean;
   className?: string;
 }
 
@@ -54,10 +56,11 @@ export const QuickFilterPills = ({
   onChange,
   counts = {},
   slaEnabled = false,
+  canSeeIneligible = false,
   className,
 }: QuickFilterPillsProps) => {
   const reduceMotion = useReducedMotion();
-  const filters = visibleQuickFilters(slaEnabled);
+  const filters = visibleQuickFilters(slaEnabled, { canSeeIneligible });
 
   return (
     <div

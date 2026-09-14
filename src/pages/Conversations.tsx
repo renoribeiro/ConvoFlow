@@ -11,11 +11,14 @@ import {
 } from '@/components/conversations/ConversationFiltersModal';
 import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
 import {
+  isAdminOnlyFilter,
   mergeServerTotals,
+  QUICK_FILTERS,
   resolveQuickFilterScope,
   type QuickFilterCounts,
   type QuickFilterType,
 } from '@/components/conversations/quickFilters';
+import { useIneligibleOwners } from '@/hooks/useConversationRotation';
 import {
   useConversationByContact,
   useConversationsCount,
@@ -43,6 +46,10 @@ const CONTACT_PANEL_STORAGE_KEY = 'convoflow:contact-panel-open';
 export const CONVERSATION_UNAVAILABLE_MESSAGE =
   'Esta conversa não está disponível para você: ela está com outra pessoa da Loja.';
 
+/** `?quick=` só aceita uma pílula que existe; qualquer outra coisa vira "Todas". */
+const readQuickFilterParam = (value: string | null): QuickFilterType =>
+  value && QUICK_FILTERS.some((f) => f.id === value) ? (value as QuickFilterType) : 'todas';
+
 export default function Conversations() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,19 +59,28 @@ export default function Conversations() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
   // Pílulas de filtro rápido (seleção única) + contagens vindas da lista.
-  const [quickFilter, setQuickFilter] = useState<QuickFilterType>('todas');
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>(() =>
+    // Deep link da aba Escala: /dashboard/conversations?quick=responsavel-indisponivel
+    readQuickFilterParam(new URLSearchParams(window.location.search).get('quick')),
+  );
   const [quickFilterCounts, setQuickFilterCounts] = useState<QuickFilterCounts>({});
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const { notifyNewMessage } = useNotifications();
   const isMobile = useIsMobile();
   const { enabled: slaEnabled } = useSlaConfig();
+  // "Responsável indisponível" só existe para quem administra a Loja.
+  const { canManage: canSeeIneligible } = useIneligibleOwners();
 
   // A pílula "Não respondidas" só existe com a sinalização de SLA ligada. Se a
   // Loja desligar com ela ativa, volta para "Todas" em vez de deixar um filtro
-  // invisível recortando a lista.
+  // invisível recortando a lista. Idem para a pílula do gestor num cargo que
+  // não a tem.
   const effectiveQuickFilter: QuickFilterType =
-    quickFilter === 'nao-respondidas' && !slaEnabled ? 'todas' : quickFilter;
+    (quickFilter === 'nao-respondidas' && !slaEnabled) ||
+    (isAdminOnlyFilter(quickFilter) && !canSeeIneligible)
+      ? 'todas'
+      : quickFilter;
 
   // In-conversation search + contact panel are lifted here so the keyboard
   // shortcut hook can drive the ESC priority chain.
@@ -280,6 +296,7 @@ export default function Conversations() {
         onChange={setQuickFilter}
         counts={countsComTotais}
         slaEnabled={slaEnabled}
+        canSeeIneligible={canSeeIneligible}
         className={cn('flex-shrink-0 pb-3', isMobile ? 'px-0' : 'px-4 pt-4')}
       />
       <div className="min-h-0 flex-1">

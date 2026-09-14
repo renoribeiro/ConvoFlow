@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
 import { VisibilitySettings } from '@/components/settings/VisibilitySettings';
+import { RotationSettings } from '@/components/settings/RotationSettings';
 import { FollowupSettings } from '@/components/settings/FollowupSettings';
 import { QuickRepliesSettings } from '@/components/settings/QuickRepliesSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
@@ -78,11 +79,23 @@ const ABAS: AbaConfig[] = [
   // para quem não tem `store.admin`. Saber o que a própria Loja esconde dele é
   // o que explica ao atendente por que a lista dele é menor que o número do
   // Dashboard.
+  // Dois cartões, três assuntos, nesta ordem de leitura: quem vê o quê e quem
+  // pode transferir (VisibilitySettings) e como as conversas novas são
+  // distribuídas (RotationSettings, migração 20260915000001).
   {
     value: 'visibility',
     label: 'Escala/Transferência',
     icon: Users,
-    render: () => <VisibilitySettings />,
+    render: () => (
+      <div className="space-y-6">
+        <section aria-label="Quem vê o quê e quem pode transferir">
+          <VisibilitySettings />
+        </section>
+        <section aria-label="Como as conversas novas são distribuídas">
+          <RotationSettings />
+        </section>
+      </div>
+    ),
   },
   // Sem `requer` — e aqui não é só leitura para o atendente, é edição mesmo.
   // Quem atende o dia inteiro é quem sabe qual trecho está faltando, e o RLS
