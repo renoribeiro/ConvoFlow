@@ -51,6 +51,14 @@ export const QUERY_KEYS = {
      * ou sai gente da Loja, não a cada mensagem.
      */
     TEAM_DIRECTORY: 'team-directory',
+    /**
+     * Rodízio de conversas novas (RPC conversation_rotation_get) e os
+     * responsáveis indisponíveis (RPC loja_ineligible_owners). semiStatic
+     * (5 min): mudam quando o gestor salva ou quando entra/sai gente, e os
+     * hooks invalidam na hora nesses dois casos.
+     */
+    CONVERSATION_ROTATION: 'conversation-rotation',
+    INELIGIBLE_OWNERS: 'ineligible-owners',
     USAGE_LIMITS: 'usage-limits',
 } as const;
 

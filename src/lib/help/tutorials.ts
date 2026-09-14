@@ -155,14 +155,9 @@ export const TUTORIALS: Tutorial[] = [
         helpKey: 'page:team',
       },
       {
-        title: 'Preencha nome, sobrenome e e-mail',
+        title: 'Preencha nome, sobrenome, e-mail e a Função',
         body:
-          'O e-mail é o login da pessoa. O telefone é opcional. Preencha o nome de verdade: é ele que o time vê quando uma conversa é transferida e é por ele que os relatórios separam quem atendeu o quê.',
-      },
-      {
-        title: 'Escolha a Função e confira o cartão que aparece embaixo',
-        body:
-          'Ao trocar a Função, o cartão logo abaixo lista o que aquele cargo pode e o que não pode fazer. Leia antes de enviar — é mais rápido que descobrir depois pelo suporte.',
+          'O e-mail é o login da pessoa. O telefone é opcional. Preencha o nome de verdade: é ele que o time vê quando uma conversa é transferida e é por ele que os relatórios separam quem atendeu o quê. Ao trocar a Função, o cartão logo abaixo lista o que aquele cargo pode e o que não pode fazer — leia antes de enviar.',
         note:
           'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
       },
@@ -179,12 +174,21 @@ export const TUTORIALS: Tutorial[] = [
           'Ela recebe um e-mail de convite, clica no link e cai numa tela para criar a própria senha. Depois disso já entra no sistema. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
         screen: '/dashboard/team',
         note:
-          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "link expirado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta.',
+          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "link expirado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta. Se a Loja já usa o rodízio de conversas, quem acabou de entrar já recebe a própria fatia: as fatias se refazem em divisão igual no momento em que a pessoa aceita o convite.',
+      },
+      {
+        title: 'Divida as conversas novas entre a equipe',
+        body:
+          'Com pelo menos 2 atendentes ativos na Loja, abra Configurações › Escala/Transferência e, no cartão "Distribuição de conversas novas", ligue "Distribuir conversas novas automaticamente". Decida se o Gestor também recebe e se a conversa ganha responsável na primeira mensagem ou só quando o chatbot terminar. Ajuste a fatia de cada pessoa até a soma dar 100 (0 tira alguém do rodízio sem tirar da Loja) e clique em "Salvar distribuição".',
+        screen: '/dashboard/settings',
+        helpKey: 'page:settings-visibility',
+        note:
+          'Com um atendente só, o cartão mostra uma linha explicando que o rodízio aparece a partir do segundo — não há com quem dividir. O rodízio nunca troca uma conversa que já tem responsável, e não toca o sino.',
       },
       {
         title: 'Remova o acesso de quem sair do time no mesmo dia',
         body:
-          'Ainda em Equipe, retire o acesso de quem saiu. Enquanto o acesso existe, a pessoa continua vendo as conversas e os contatos da Loja.',
+          'Ainda em Equipe, retire o acesso de quem saiu. Enquanto o acesso existe, a pessoa continua vendo as conversas e os contatos da Loja. Quem sai é removido do rodízio sozinho, mas FICA com as conversas que já tinha: abra Conversas, pílula "Responsável indisponível", e transfira cada uma para quem vai continuar o atendimento.',
         screen: '/dashboard/team',
       },
     ],

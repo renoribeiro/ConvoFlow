@@ -36,6 +36,7 @@ export type QuickFilterType =
   | 'aguardando'
   | 'nao-respondidas'
   | 'em-atendimento'
+  | 'responsavel-indisponivel'
   | 'arquivadas';
 
 export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; hint: string }> = [
@@ -46,8 +47,17 @@ export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; 
   { id: 'aguardando', label: 'Aguardando', hint: 'O cliente falou por último e ainda não foi respondido.' },
   { id: 'nao-respondidas', label: 'Não respondidas', hint: 'Conversas pendentes há mais tempo que o limite configurado pela Loja.' },
   { id: 'em-atendimento', label: 'Em atendimento', hint: 'Você respondeu por último e a conversa se mexeu nas últimas 24h.' },
+  // Só Gestor e Gerente veem esta: conversas presas com alguém suspenso,
+  // excluído, movido de Loja ou em 0 % no rodízio. Quem alimenta é a RPC
+  // loja_ineligible_owners (migração 20260915000001).
+  { id: 'responsavel-indisponivel', label: 'Responsável indisponível', hint: 'Conversas cujo responsável está suspenso, excluído, fora da Loja ou em 0 % no rodízio — só o Gestor move.' },
   { id: 'arquivadas', label: 'Arquivadas', hint: 'Conversas arquivadas.' },
 ] as const;
+
+/** True para a pílula reservada a quem administra a Loja. */
+export function isAdminOnlyFilter(quickFilter: QuickFilterType): boolean {
+  return quickFilter === 'responsavel-indisponivel';
+}
 
 /** Configuração de SLA da Loja, quando a sinalização está ligada. */
 export interface SlaFilterConfig {
@@ -65,6 +75,12 @@ export interface OwnershipInput {
 export interface OwnershipFilterContext {
   /** profiles.id de quem está logado; null enquanto o perfil não carrega. */
   viewerProfileId: string | null;
+  /**
+   * profiles.id dos responsáveis INDISPONÍVEIS (suspenso, excluído, fora da
+   * Loja, 0 %), vindos da RPC loja_ineligible_owners. Ausente = a pílula
+   * "Responsável indisponível" não existe para quem está olhando.
+   */
+  ineligibleOwnerIds?: ReadonlySet<string>;
 }
 
 /** Entrada completa de uma conversa para as pílulas. */
@@ -74,9 +90,15 @@ export type QuickFilterInput = SlaInput & OwnershipInput;
  * Pílulas visíveis para esta Loja. Com a sinalização de SLA desligada,
  * "Não respondidas" não aparece — não fica desabilitada, some.
  */
-export function visibleQuickFilters(slaEnabled: boolean): typeof QUICK_FILTERS {
-  if (slaEnabled) return QUICK_FILTERS;
-  return QUICK_FILTERS.filter((filter) => filter.id !== 'nao-respondidas');
+export function visibleQuickFilters(
+  slaEnabled: boolean,
+  options: { canSeeIneligible?: boolean } = {},
+): typeof QUICK_FILTERS {
+  return QUICK_FILTERS.filter((filter) => {
+    if (filter.id === 'nao-respondidas' && !slaEnabled) return false;
+    if (isAdminOnlyFilter(filter.id) && !options.canSeeIneligible) return false;
+    return true;
+  });
 }
 
 /**
@@ -153,7 +175,7 @@ export function resolveQuickFilterScope(
 
 /** Pílulas de responsável: recorte no cliente, sobre o que já foi carregado. */
 function isOwnershipFilter(quickFilter: QuickFilterType): boolean {
-  return quickFilter === 'minhas' || quickFilter === 'sem-responsavel';
+  return quickFilter === 'minhas' || quickFilter === 'sem-responsavel' || isAdminOnlyFilter(quickFilter);
 }
 
 /** True para as pílulas que só existem como regra no cliente. */
@@ -180,6 +202,11 @@ export function matchesQuickFilter(
   }
   if (quickFilter === 'sem-responsavel') {
     return !conversation.assigned_profile_id;
+  }
+  if (quickFilter === 'responsavel-indisponivel') {
+    // Sem a lista (ainda carregando, ou quem olha não é gestor) nada é "indisponível".
+    const ids = ownership?.ineligibleOwnerIds;
+    return !!ids && !!conversation.assigned_profile_id && ids.has(conversation.assigned_profile_id);
   }
 
   if (quickFilter === 'nao-respondidas') {
@@ -242,6 +269,7 @@ export function buildQuickFilterCounts(
   if (scope.hasUnread) return { 'nao-lidas': conta(conversations.length) };
 
   const viewer = ownership?.viewerProfileId ?? null;
+  const ineligible = ownership?.ineligibleOwnerIds;
 
   let naoLidas = 0;
   let aguardando = 0;
@@ -249,6 +277,7 @@ export function buildQuickFilterCounts(
   let naoRespondidas = 0;
   let minhas = 0;
   let semResponsavel = 0;
+  let indisponivel = 0;
 
   for (const conversation of conversations) {
     if ((conversation.unread_count ?? 0) > 0) naoLidas += 1;
@@ -260,6 +289,9 @@ export function buildQuickFilterCounts(
     }
     if (!conversation.assigned_profile_id) semResponsavel += 1;
     else if (viewer && conversation.assigned_profile_id === viewer) minhas += 1;
+    if (ineligible && conversation.assigned_profile_id && ineligible.has(conversation.assigned_profile_id)) {
+      indisponivel += 1;
+    }
   }
 
   const counts: QuickFilterCounts = {
@@ -273,6 +305,8 @@ export function buildQuickFilterCounts(
 
   // Com o SLA desligado a chave nem é publicada — a pílula não existe.
   if (sla?.enabled) counts['nao-respondidas'] = conta(naoRespondidas);
+  // Idem para quem não administra a Loja: sem a lista, sem a chave.
+  if (ineligible) counts['responsavel-indisponivel'] = conta(indisponivel);
 
   return counts;
 }
