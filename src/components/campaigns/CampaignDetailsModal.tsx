@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -148,7 +149,10 @@ export const CampaignDetailsModal = ({ campaignId, onClose }: CampaignDetailsMod
     <Dialog open={!!campaignId} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detalhes da Campanha</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Detalhes da Campanha
+            <FeatureHelp helpKey="page:campaigns-details" />
+          </DialogTitle>
         </DialogHeader>
 
         {campaignLoading ? (

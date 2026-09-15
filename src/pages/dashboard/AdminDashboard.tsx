@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -432,6 +433,10 @@ const AdminDashboard = () => {
         </TabsList>
 
         <TabsContent value="settings" className="space-y-4">
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <span>Como funciona esta aba</span>
+            <FeatureHelp helpKey="page:admin-settings" />
+          </div>
           {/* Primeiro da aba de proposito: e a unica coisa aqui que fecha o
               sistema para a base inteira de clientes. Quem entra nesta aba
               durante uma manutencao ve o estado antes de qualquer outra coisa. */}
@@ -458,6 +463,10 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <span>Como funciona esta aba</span>
+            <FeatureHelp helpKey="page:admin-users-tab" />
+          </div>
           <div className="flex items-center justify-between">
             {/* Sem botão de lupa: a busca filtra enquanto se digita, então o
                 botão não tinha o que fazer e não tinha handler. */}
@@ -743,10 +752,18 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <span>Como funciona esta aba</span>
+            <FeatureHelp helpKey="page:admin-billing" />
+          </div>
           <BillingDashboard />
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-4">
+          <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+            <span>Como funciona esta aba</span>
+            <FeatureHelp helpKey="page:admin-reports" />
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

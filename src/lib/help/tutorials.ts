@@ -391,6 +391,79 @@ export const TUTORIALS: Tutorial[] = [
       },
     ],
   },
+
+  // ------------------------------------------------------------------ 6
+  // O único tutorial de OPERAÇÃO: os cinco acima montam a Loja; este é o dia
+  // a dia de quem atende nela. Vem por último porque pressupõe tudo o que os
+  // outros deixam pronto — e é o único que o atendente consegue seguir inteiro.
+  {
+    id: 'atender-conversas',
+    title: 'Atender conversas no dia a dia',
+    goal:
+      'No fim, você vai saber de quem é cada conversa, como assumir e passar adiante, o que o bot está fazendo, e por que uma conversa pode aparecer ou sumir da sua lista sem você tocar nela.',
+    forWhom:
+      'Atendente, principalmente — e o Gestor que quer saber o que a equipe vê quando liga cada chave. A Loja já está conectada e com equipe.',
+    moduleName: 'conversations',
+    steps: [
+      {
+        title: 'Abra Conversas e leia o cabeçalho: de quem é esta conversa?',
+        body:
+          'Ao abrir uma conversa, o cabeçalho mostra o responsável por ela. "Sem responsável" quer dizer que ninguém pegou; um nome quer dizer que a conversa é daquela pessoa. A lista tem as pílulas "Minhas" (o que está com você) e "Sem responsável" (a fila) para você separar uma coisa da outra.',
+        screen: '/dashboard/conversations',
+        helpKey: 'page:conversations',
+      },
+      {
+        title: 'Pegue uma conversa da fila: "Sem responsável" → "Assumir"',
+        body:
+          'Clique em "Sem responsável" no cabeçalho e depois em "Assumir". O seu nome aparece para todo mundo da Loja e a conversa entra em "Minhas". Se duas pessoas clicarem quase ao mesmo tempo, só a primeira fica com ela — a outra vê um aviso dizendo quem pegou.',
+        note:
+          'Responder numa conversa não a torna sua. Se você respondeu e não assumiu, ela continua "Sem responsável" para os colegas.',
+      },
+      {
+        title: 'Passe uma conversa a um colega: "Transferir…"',
+        body:
+          'Clique no responsável no cabeçalho, escolha "Transferir…" e a pessoa na lista. Ela recebe "Conversa transferida" no sino. Também dá para transferir para você mesmo uma conversa que está com outra pessoa.',
+        note:
+          'Se o botão "Transferir…" não aparece para você, a Loja desligou a transferência para atendentes em Configurações › Escala/Transferência: só o Gestor e o Gerente passam conversas. "Assumir" continua funcionando.',
+        helpKey: 'page:settings-visibility',
+      },
+      {
+        title: 'Reconheça o selo "Bot em atendimento" — e encerre a sessão antes de responder',
+        body:
+          'O selo na linha da lista e no cabeçalho quer dizer que um chatbot está conduzindo a conversa agora. Antes de escrever, abra o menu ⋮ e clique em "Encerrar sessão do bot": o bot para na hora e a conversa passa a ser sua para responder. Sem isso, você e o bot falam com o cliente ao mesmo tempo.',
+        note:
+          'Sem selo, não há bot e o item fica desabilitado. Encerrar a sessão não muda o responsável nem chama o rodízio — é uma ação sua, e só.',
+        helpKey: 'page:conversations',
+      },
+      {
+        title: 'Entenda o que muda se o Gestor restringir a visibilidade',
+        body:
+          'Por padrão você vê todas as conversas da Loja. Se o Gestor escolher "Sem responsável + as dele" ou "Só as dele" em Escala/Transferência, a sua lista encolhe: só o que está com você, o que você já respondeu, o que você passou adiante e, na opção intermediária, a fila sem dono. Uma conversa que sumiu não foi apagada — está com um colega. Os números do Dashboard continuam da Loja inteira, com a etiqueta "Toda a Loja".',
+        helpKey: 'page:settings-visibility',
+      },
+      {
+        title: 'Saiba como o rodízio entrega conversas novas',
+        body:
+          'Com o rodízio ligado, a conversa nova já chega com responsável, na fatia que o Gestor definiu para cada pessoa — na primeira mensagem do cliente ou só quando o chatbot terminar. Ela entra em "Minhas" sem aviso no sino; o sino toca só quando alguém entrega de propósito. Cliente que volta cai com quem já o atendia: o rodízio nunca troca um responsável que existe.',
+        helpKey: 'concept:conversation-routing',
+      },
+      {
+        title: 'Entenda por que uma conversa pode sair de "Minhas" sozinha',
+        body:
+          'Se a Loja ligou a transferência por tempo sem resposta, uma conversa sua em que o cliente esperou resposta de pessoa por mais minutos de funcionamento do que o limite passa para o próximo do rodízio — e quem recebe ganha "Conversa transferida para você" no sino. Resposta do bot não segura a conversa; só a sua. Quando ela chega a você por esse caminho, o relógio começa do zero.',
+        note:
+          'Não é punição: é a Loja garantindo que o cliente não fique sem resposta. Para não perder conversas, responda dentro do limite ou peça ao Gestor para transferir antes.',
+        helpKey: 'page:conversations',
+      },
+      {
+        title: 'Use as cores e a pílula "Não respondidas" para priorizar',
+        body:
+          'Com a sinalização ligada em Configurações › Atendimento, a conversa em que o cliente espera fica amarela, laranja e vermelha conforme as horas passam, e a pílula "Não respondidas" filtra só elas. Responda as vermelhas primeiro: perto de 24 horas sem resposta, um número da API Oficial só reabre com template.',
+        screen: '/dashboard/conversations',
+        helpKey: 'page:settings-attendance',
+      },
+    ],
+  },
 ];
 
 /** Tutorial por id, ou null. */
