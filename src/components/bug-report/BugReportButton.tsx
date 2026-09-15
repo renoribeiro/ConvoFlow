@@ -271,9 +271,12 @@ export const BugReportButton: React.FC = () => {
         onClick={() => setOpen(true)}
         className="h-8 gap-1.5 px-2.5 text-xs font-bold shadow-sm"
         title="Reportar bug"
+        aria-label="Reportar bug"
       >
         <Bug className="h-4 w-4" />
-        Reportar bug
+        {/* Abaixo de lg só o ícone: o vermelho continua chamando atenção e a
+            Navbar não tem largura para o texto no tablet e no celular. */}
+        <span className="hidden lg:inline">Reportar bug</span>
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
