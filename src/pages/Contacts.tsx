@@ -1,11 +1,11 @@
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ContactsTable } from '@/components/contacts/ContactsTable';
 import { ContactModal } from '@/components/contacts/ContactModal';
 import { ContactFilters } from '@/components/contacts/ContactFilters';
 import { InstanceSelector } from '@/components/conversations/InstanceSelector';
-import { Plus, Download, Upload } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,7 +13,6 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
 
 export default function Contacts() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -26,29 +25,6 @@ export default function Contacts() {
   });
   const { tenant } = useTenant();
   const { instances } = useWhatsAppInstancesWithAdapter();
-
-  const handleImport = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Validar tipo do arquivo
-      if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-        toast.error('Por favor, selecione um arquivo CSV ou Excel.');
-        return;
-      }
-
-      // Simular importação
-      toast.success(`Importando contatos de ${file.name}...`);
-      
-      // Aqui você faria o upload e processamento do arquivo
-      setTimeout(() => {
-        toast.success('Contatos importados com sucesso!');
-      }, 2000);
-    }
-  };
 
   const escapeCsv = (value: unknown): string => {
     if (value === null || value === undefined) return '';
@@ -145,17 +121,6 @@ export default function Contacts() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <Button variant="outline" size="sm" onClick={handleImport}>
-              <Upload className="w-4 h-4 mr-2" />
-              Importar
-            </Button>
             <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
               {isExporting ? 'Exportando...' : 'Exportar'}
