@@ -61,6 +61,8 @@ import { useInView } from 'react-intersection-observer';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { Link } from 'react-router-dom';
+import { tutorialKey } from '@/lib/help/tutorials';
 import {
   useConversation,
   useMarkConversationAsRead,
@@ -470,12 +472,20 @@ export const ChatWindow = ({
   // Early returns APÓS todos os hooks
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center h-full bg-card">
+      <div className="flex-1 flex flex-col items-center justify-center h-full bg-card">
         <EmptyState
           icon={<MessageCircle className="w-full h-full" />}
           title="Nenhuma conversa selecionada"
           description="Selecione uma conversa da lista para começar a conversar"
         />
+        {/* Único ponto de entrada do tutorial do dia a dia fora da Ajuda: o
+            cartão do Dashboard só existe enquanto a Loja não tem instância. */}
+        <Link
+          to={`/dashboard/help#${tutorialKey('atender-conversas')}`}
+          className="-mt-8 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+        >
+          Primeira vez por aqui? Veja como atender conversas no dia a dia.
+        </Link>
       </div>
     );
   }
