@@ -454,7 +454,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     howToConfigure: [
       'Não precisa cadastrar nada para começar: o contato é criado sozinho na primeira mensagem recebida.',
       'Complete nome e e-mail e aplique tags — tag é o que você vai usar depois para segmentar campanha.',
-      'Se você já tem uma base antiga, traga esses contatos antes de montar campanhas, para a segmentação nascer completa.',
+      'Não existe importação de planilha: base antiga entra sozinha, à medida que essas pessoas escrevem, ou à mão em "Novo Contato". Cadastre antes só quem precisa estar numa campanha segmentada — e já aplique a tag no cadastro.',
     ],
     example:
       'Você marca com a tag "interesse-cobertura" quem pediu alto padrão. Quando entra um lançamento nesse perfil, a campanha vai só para essa tag em vez de ir para a base toda.',
