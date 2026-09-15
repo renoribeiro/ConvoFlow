@@ -62,8 +62,9 @@ export const TUTORIALS: Tutorial[] = [
     title: 'Conectar seu WhatsApp',
     goal:
       'No fim, seu número estará conectado pela API Oficial da Meta, recebendo e enviando mensagens dentro do ConvoFlow.',
-    forWhom: 'Gerente ou Gestor — quem cuida da configuração da Loja.',
+    forWhom: 'Gerente ou Gestor — quem cuida da configuração da Loja. Atendente não conecta número.',
     moduleName: 'whatsapp-numbers',
+    minRole: 'gestor',
     steps: [
       {
         title: 'Separe os dados do seu app na Meta',
@@ -82,7 +83,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Escolha "API Oficial do WhatsApp" e clique em "Continuar"',
         body:
-          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp / Meta Cloud API" — é a que a produção usa e a única que permite disparo em massa dentro das regras da Meta.',
+          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp" (Meta Cloud API) — é a que a produção usa e a única que permite disparo em massa dentro das regras da Meta.',
         note:
           'Se o botão "Conectar com a Meta" aparecer ativo no topo do formulário, ele faz a conexão automática e você pode pular o preenchimento manual. Quando ele está cinza, a integração automática ainda não foi configurada nesta instalação — siga pelos campos.',
       },
@@ -122,28 +123,28 @@ export const TUTORIALS: Tutorial[] = [
     goal:
       'No fim, cada pessoa da operação terá o próprio acesso, com o cargo certo e vinculada à Loja onde trabalha.',
     forWhom:
-      'Gerente, que administra as Lojas da Conta. O Superadmin faz o mesmo pela Administração.',
-    minRole: 'gerente',
+      'Gerente, que administra as Lojas da Conta, e Gestor, que monta a equipe da própria Loja (para o Gestor, os passos 2 e 3 não existem: a Loja já é a dele). O Superadmin faz o mesmo pela Administração.',
+    minRole: 'gestor',
     steps: [
       {
         title: 'Decida o cargo de cada pessoa antes de convidar',
         body:
-          'São quatro níveis: Atendente atende conversas dentro de uma Loja; Gestor administra uma Loja inteira; Gerente administra várias Lojas; Superadmin opera a plataforma. Como Gerente, você convida Gestor e Atendente.',
+          'São quatro níveis: Atendente atende conversas dentro de uma Loja; Gestor administra uma Loja inteira; Gerente administra várias Lojas; Superadmin opera a plataforma. Como Gerente, você convida Gestor e Atendente; como Gestor, você convida Atendentes para a sua Loja.',
         helpKey: 'page:team',
       },
       {
-        title: 'Crie a Loja em "Nova Loja", se ela ainda não existe',
+        title: 'Só o Gerente: crie a Loja em "Nova Loja", se ela ainda não existe',
         body:
-          'Gestor e Atendente sempre pertencem a uma Loja, então ela vem primeiro. Em Equipe, clique em "Nova Loja", dê o nome pelo qual o time reconhece a operação e confirme em "Criar Loja". A Loja nasce vazia, dentro da sua Conta.',
+          'Gestor e Atendente sempre pertencem a uma Loja, então ela vem primeiro. Em Equipe, clique em "Nova Loja", dê o nome pelo qual o time reconhece a operação e confirme em "Criar Loja". A Loja nasce vazia, dentro da sua Conta. Como Gestor, pule este passo: a sua Loja já existe e você não cria outra.',
         screen: '/dashboard/team',
         helpKey: 'page:team',
         note:
           'Seu plano inclui 5 Lojas, e o contador ao lado do botão mostra quantas já foram usadas. Quando acabam, "Nova Loja" fica cinza — aí é contratar Lojas adicionais em Configurações › Assinatura.',
       },
       {
-        title: 'Coloque em foco a Loja onde a pessoa vai trabalhar',
+        title: 'Só o Gerente: coloque em foco a Loja onde a pessoa vai trabalhar',
         body:
-          'Use o seletor de Conta no topo da tela, ou "Abrir" na lista de Lojas, para entrar na Loja de destino. O convite usa a Loja que está em foco, então trocar antes evita convidar para o lugar errado.',
+          'Use o seletor de Conta no topo da tela, ou "Abrir" na lista de Lojas, para entrar na Loja de destino. O convite usa a Loja que está em foco, então trocar antes evita convidar para o lugar errado. Como Gestor você não tem seletor: está sempre na sua Loja.',
         note:
           'Acabou de criar a Loja? O aviso de sucesso traz o atalho "Abrir a loja", que já coloca ela em foco.',
       },
@@ -174,7 +175,7 @@ export const TUTORIALS: Tutorial[] = [
           'Ela recebe um e-mail de convite, clica no link e cai numa tela para criar a própria senha. Depois disso já entra no sistema. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
         screen: '/dashboard/team',
         note:
-          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "link expirado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta. Se a Loja já usa o rodízio de conversas, quem acabou de entrar já recebe a própria fatia: as fatias se refazem em divisão igual no momento em que a pessoa aceita o convite.',
+          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "Este link expirou ou já foi usado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta. Se a Loja já usa o rodízio de conversas, quem acabou de entrar já recebe a própria fatia: as fatias se refazem em divisão igual no momento em que a pessoa aceita o convite.',
       },
       {
         title: 'Divida as conversas novas entre a equipe',
@@ -332,6 +333,7 @@ export const TUTORIALS: Tutorial[] = [
     forWhom:
       'Gestor e Gerente. O Atendente participa das conversas geradas, mas não dispara campanha.',
     moduleName: 'campaigns',
+    minRole: 'gestor',
     steps: [
       {
         title: 'Aprove um template no Gerenciador do WhatsApp Business',

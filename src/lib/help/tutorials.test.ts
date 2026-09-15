@@ -220,8 +220,18 @@ describe('cobertura dos cinco tutoriais de onboarding', () => {
     ]);
   });
 
-  it('o tutorial de equipe é restrito a gerente', () => {
-    expect(getTutorial('configurar-equipe')?.minRole).toBe('gerente');
+  it('o tutorial de equipe abre para o gestor (a tela Equipe abre para ele desde 2026-08-18)', () => {
+    // Era 'gerente' até 2026-09-15; os passos de criar Loja são marcados
+    // "Só o Gerente" dentro do texto, e o resto (convidar, remover) é do gestor.
+    expect(getTutorial('configurar-equipe')?.minRole).toBe('gestor');
+  });
+
+  it('os tutoriais que exigem cargo de configuração não são oferecidos ao atendente', () => {
+    // conectar-whatsapp: atendente não tem whatsapp.configure; primeira-campanha:
+    // atendente não tem campaigns.dispatch. Sem minRole, a página de Ajuda os
+    // ofereceria a quem não consegue segui-los.
+    expect(getTutorial('conectar-whatsapp')?.minRole).toBe('gestor');
+    expect(getTutorial('primeira-campanha')?.minRole).toBe('gestor');
   });
 
   it('a campanha fala de template e da janela de 24 horas', () => {
