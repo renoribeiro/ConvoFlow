@@ -34,7 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNotifications } from '@/hooks/useNotifications';
 import { useGlobalMessageListener } from '@/hooks/useRealtimeMessages';
 import { useConversationShortcuts } from '@/hooks/useConversationShortcuts';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { LG_BREAKPOINT, useIsBelowLg, useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useContactHasConversation } from '@/hooks/useContactHasConversation';
@@ -85,8 +85,15 @@ export default function Conversations() {
   // In-conversation search + contact panel are lifted here so the keyboard
   // shortcut hook can drive the ESC priority chain.
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
+  // Abaixo de lg o painel é um drawer por cima do chat (ver ContactPanel), e
+  // a preferência salva vale só para o layout de colunas: numa tela estreita
+  // ele nasce fechado, senão quem deixou aberto no computador abria o celular
+  // com o chat coberto. A checagem é na largura da janela no mount, e não no
+  // hook, porque o hook só responde depois do primeiro render.
+  const isBelowLg = useIsBelowLg();
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
+    if (window.innerWidth < LG_BREAKPOINT) return false;
     return localStorage.getItem(CONTACT_PANEL_STORAGE_KEY) === 'true';
   });
 
@@ -105,9 +112,20 @@ export default function Conversations() {
   } = useContactHasConversation(contactId, !!contactId && !isLoadingConversation && !conversationByContact);
   const unavailableWarnedFor = useRef<string | null>(null);
 
+  // Só o layout de colunas grava a preferência; abrir o drawer no celular não
+  // muda o que a pessoa vai encontrar ao voltar ao computador. Olha a janela,
+  // não o hook: no primeiro render o hook ainda diz `false` e o efeito
+  // gravaria "false" por cima do "true" salvo no computador.
   useEffect(() => {
+    if (window.innerWidth < LG_BREAKPOINT) return;
     localStorage.setItem(CONTACT_PANEL_STORAGE_KEY, String(isContactPanelOpen));
   }, [isContactPanelOpen]);
+
+  // Estreitou a janela com o painel aberto ao lado? Fecha, para ele não
+  // reaparecer como drawer cobrindo o chat.
+  useEffect(() => {
+    if (isBelowLg) setIsContactPanelOpen(false);
+  }, [isBelowLg]);
 
   // Reset transient chat state whenever the active conversation changes.
   useEffect(() => {
