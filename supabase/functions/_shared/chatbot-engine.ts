@@ -1153,8 +1153,30 @@ async function executeNode(
         await sendBotMessage(text, input, ctx);
       }
 
-      // Notify available agents by creating a notification row.
-      await createTransferNotification(supabase, input, session, d, logger);
+      // 'specific_user': dá a conversa à pessoa nomeada, se puder (regra e
+      // motivos em assignConversationToTransferTarget). Só quem recebeu é
+      // avisado. 'any' não faz nada aqui de propósito: a sessão termina logo
+      // abaixo (status 'transferred') e trg_rotation_assign_on_session_end
+      // entrega ao rodízio quando ele está ligado — ou deixa sem responsável.
+      if (d.assign_to === 'specific_user' && d.user_id) {
+        const result = await assignConversationToTransferTarget(supabase, input, d.user_id, logger);
+        logger.info('transfer_agent: assignment outcome', {
+          outcome: result.outcome,
+          reason: result.reason ?? null,
+          conversation_id: result.conversationId ?? null,
+          node_id: node.id,
+        });
+        if (result.outcome === 'assigned') {
+          await createTransferNotification(
+            supabase,
+            input,
+            session,
+            d.user_id,
+            result.conversationId,
+            logger,
+          );
+        }
+      }
 
       return { status: 'transferred' };
     }
@@ -1383,37 +1405,199 @@ async function upsertContactTag(
   }
 }
 
+// ---------------------------------------------------------------------------
+// transfer_agent — quem recebe a conversa
+//
+// O nó guarda `user_id` (auth.users.id, o que o painel lê de profiles.user_id);
+// `conversations.assigned_profile_id` é FK para profiles.id. A tradução é feita
+// aqui, em tempo de execução — nenhum nó publicado precisa ser reescrito.
+//
+// Regra (decidida em 2026-09-15, não reabrir aqui):
+//   - só atribui conversa SEM responsável — a mesma regra de
+//     rotation_assign_conversation. Dono existente fica; só se registra o motivo.
+//   - pessoa inelegível (sem perfil, suspensa/excluída/pendente, fora da Loja do
+//     bot, cargo que não atende) NÃO recebe: a conversa fica sem responsável e o
+//     trigger trg_rotation_assign_on_session_end, que dispara quando a sessão
+//     termina logo abaixo, entrega ao rodízio se ele estiver ligado.
+//   - 0 % no rodízio NÃO é inelegibilidade: 0 % quer dizer "não recebe conversa
+//     nova por sorteio", não "o fluxo não pode nomeá-la".
+//   - assigned_by = NULL: ninguém passou a conversa (a policy de visibilidade lê
+//     assigned_by como "passei adiante"), o sino tg_notify_conversation_assigned
+//     fica mudo (o aviso é gravado aqui, uma vez só) e é o que rodízio e regra
+//     de tempo já gravam.
+// ---------------------------------------------------------------------------
+
+/** Perfil como o resolvedor precisa vê-lo (subconjunto de public.profiles). */
+export interface TransferCandidateProfile {
+  id: string;
+  user_id: string;
+  tenant_id: string | null;
+  status: string | null;
+  role: string | null;
+}
+
+/** Cargos que atendem conversa numa Loja. Gerente vive na Conta, nunca casa o tenant. */
+export const TRANSFER_ELIGIBLE_ROLES: ReadonlyArray<string> = ['atendente', 'gestor'];
+
+export type TransferTargetReason = 'not_found' | 'other_tenant' | 'inactive' | 'role';
+
+export type TransferTargetResolution =
+  | { ok: true; profileId: string }
+  | { ok: false; reason: TransferTargetReason };
+
+/**
+ * Traduz o `user_id` guardado no nó para o profiles.id que vai em
+ * assigned_profile_id, e diz se a pessoa pode receber a conversa.
+ *
+ * `profiles` são TODAS as linhas de profiles com aquele user_id (a UNIQUE é
+ * (user_id, tenant_id), então pode haver mais de uma). A que conta é a da Loja
+ * do bot; as outras só servem para distinguir "fora da Loja" de "não existe".
+ *
+ * Pura de propósito: é o que o Vitest cobre.
+ */
+export function resolveTransferTarget(
+  profiles: ReadonlyArray<TransferCandidateProfile> | null | undefined,
+  tenantId: string,
+): TransferTargetResolution {
+  const rows = profiles ?? [];
+  if (rows.length === 0) return { ok: false, reason: 'not_found' };
+
+  const inTenant = rows.find((p) => p.tenant_id === tenantId);
+  if (!inTenant) return { ok: false, reason: 'other_tenant' };
+  if (inTenant.status !== 'active') return { ok: false, reason: 'inactive' };
+  if (!inTenant.role || !TRANSFER_ELIGIBLE_ROLES.includes(inTenant.role)) {
+    return { ok: false, reason: 'role' };
+  }
+  return { ok: true, profileId: inTenant.id };
+}
+
+export type TransferAssignOutcome =
+  | 'assigned'
+  | 'already_owned'
+  | 'ineligible'
+  | 'no_conversation'
+  | 'lost_race'
+  | 'error';
+
+export interface TransferAssignResult {
+  outcome: TransferAssignOutcome;
+  /** profiles.id de quem recebeu (só em 'assigned'). */
+  profileId?: string;
+  /** Motivo (só em 'ineligible'). */
+  reason?: TransferTargetReason;
+  conversationId?: string | null;
+}
+
+/**
+ * Dá a conversa do contato à pessoa nomeada no nó — se ela puder receber e se
+ * a conversa ainda não tiver responsável. Nunca lança: qualquer falha vira
+ * 'error' com aviso no log, porque o fluxo tem de terminar e o cliente tem de
+ * receber a mensagem de qualquer jeito. Conversa sem responsável é estado
+ * inócuo.
+ *
+ * A conversa é encontrada por (tenant_id, contact_id), a UNIQUE da tabela —
+ * a mesma chave que handle_message_conversation e
+ * tg_rotation_assign_on_session_end usam.
+ *
+ * O UPDATE leva `assigned_profile_id IS NULL` no WHERE, não só na checagem
+ * anterior: a próxima mensagem do cliente pode ter atribuído no meio do
+ * caminho (zz_rotation_assign_on_inbound). Zero linhas = 'lost_race'.
+ */
+export async function assignConversationToTransferTarget(
+  supabase: SupabaseClientLike,
+  input: EngineInput,
+  userId: string,
+  logger: LoggerLike,
+): Promise<TransferAssignResult> {
+  try {
+    const { data: profileRows, error: profileErr } = await (supabase
+      .from('profiles')
+      .select('id, user_id, tenant_id, status, role')
+      .eq('user_id', userId) as unknown as Promise<{
+        data: TransferCandidateProfile[] | null;
+        error: unknown;
+      }>);
+    if (profileErr) throw profileErr;
+
+    const target = resolveTransferTarget(profileRows, input.tenant_id);
+    if (!target.ok) {
+      return { outcome: 'ineligible', reason: target.reason };
+    }
+
+    const { data: conversation, error: convErr } = await (supabase
+      .from('conversations')
+      .select('id, assigned_profile_id')
+      .eq('tenant_id', input.tenant_id)
+      .eq('contact_id', input.contact_id)
+      .maybeSingle() as Promise<{
+        data: { id: string; assigned_profile_id: string | null } | null;
+        error: unknown;
+      }>);
+    if (convErr) throw convErr;
+    if (!conversation) return { outcome: 'no_conversation', conversationId: null };
+    if (conversation.assigned_profile_id) {
+      return { outcome: 'already_owned', conversationId: conversation.id };
+    }
+
+    const { data: updated, error: updErr } = await (supabase
+      .from('conversations')
+      .update({
+        assigned_profile_id: target.profileId,
+        assigned_at: new Date().toISOString(),
+        assigned_by: null,
+      })
+      .eq('id', conversation.id)
+      .is('assigned_profile_id', null)
+      .select('id') as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>);
+    if (updErr) throw updErr;
+    if (!updated || updated.length === 0) {
+      return { outcome: 'lost_race', conversationId: conversation.id };
+    }
+
+    return { outcome: 'assigned', profileId: target.profileId, conversationId: conversation.id };
+  } catch (err) {
+    logger.warn('transfer_agent: failed to assign conversation (flow continues)', {
+      error: String(err),
+      contact_id: input.contact_id,
+    });
+    return { outcome: 'error' };
+  }
+}
+
+/**
+ * O aviso no sino de quem RECEBEU a conversa pelo nó. Só é chamado depois de
+ * 'assigned': quem não recebeu não pode ler "transferida para você". É o único
+ * aviso da entrega — tg_notify_conversation_assigned fica mudo com
+ * assigned_by = NULL, de propósito (ver o bloco acima). Mesma forma que o
+ * sino grava: tenant_id preenchido e conversation_id no metadata.
+ */
 async function createTransferNotification(
   supabase: SupabaseClientLike,
   input: EngineInput,
   session: ChatbotSession,
-  transferData: { assign_to?: string; user_id?: string | null },
+  userId: string,
+  conversationId: string | null | undefined,
   logger: LoggerLike,
 ): Promise<void> {
   try {
-    // The notifications table is keyed by user_id (auth.users).
-    // When assign_to = 'specific_user' and user_id is set, notify that user.
-    // When assign_to = 'any', we cannot determine auth.uid() server-side without
-    // knowing which agents are online; insert one notification targeting the
-    // specific user if provided, otherwise skip — agents see new conversations
-    // via the conversations feed.
-    if (transferData.assign_to === 'specific_user' && transferData.user_id) {
-      await (supabase
-        .from('notifications')
-        .insert({
-          user_id: transferData.user_id,
-          title: 'Conversa transferida',
-          message: `Uma conversa foi transferida para você (contato: ${input.phone}).`,
-          type: 'info',
-          action_url: `/dashboard/conversations?contact=${input.contact_id}`,
-          action_label: 'Ver conversa',
-          metadata: {
-            session_id: session.id,
-            contact_id: input.contact_id,
-            chatbot_id: session.chatbot_id,
-          },
-        }) as unknown as Promise<void>);
-    }
+    await (supabase
+      .from('notifications')
+      .insert({
+        tenant_id: input.tenant_id,
+        user_id: userId,
+        title: 'Conversa transferida',
+        message: `Uma conversa foi transferida para você (contato: ${input.phone}).`,
+        type: 'info',
+        action_url: `/dashboard/conversations?contact=${input.contact_id}`,
+        action_label: 'Ver conversa',
+        metadata: {
+          conversation_id: conversationId ?? null,
+          session_id: session.id,
+          contact_id: input.contact_id,
+          chatbot_id: session.chatbot_id,
+          assigned_by: null,
+        },
+      }) as unknown as Promise<void>);
   } catch (err) {
     logger.warn('Failed to create transfer notification', { error: String(err) });
   }
