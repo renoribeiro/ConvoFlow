@@ -15,6 +15,7 @@ import {
 import { AttendanceSettings } from '@/components/settings/AttendanceSettings';
 import { VisibilitySettings } from '@/components/settings/VisibilitySettings';
 import { RotationSettings } from '@/components/settings/RotationSettings';
+import { ResponseRuleSettings } from '@/components/settings/ResponseRuleSettings';
 import { FollowupSettings } from '@/components/settings/FollowupSettings';
 import { QuickRepliesSettings } from '@/components/settings/QuickRepliesSettings';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
@@ -79,20 +80,35 @@ const ABAS: AbaConfig[] = [
   // para quem não tem `store.admin`. Saber o que a própria Loja esconde dele é
   // o que explica ao atendente por que a lista dele é menor que o número do
   // Dashboard.
-  // Dois cartões, três assuntos, nesta ordem de leitura: quem vê o quê e quem
-  // pode transferir (VisibilitySettings) e como as conversas novas são
-  // distribuídas (RotationSettings, migração 20260915000001).
+  // Três cartões, quatro assuntos, na ordem em que uma conversa passa por
+  // eles: quem vê o quê e quem pode transferir (VisibilitySettings), como as
+  // conversas novas são distribuídas (RotationSettings, 20260915000001) e o
+  // que acontece quando ninguém responde (ResponseRuleSettings, 20260916000001).
+  // Os títulos numerados são o que segura a leitura com três cartões; um
+  // quarto assunto aqui pede aba própria, não um quarto cartão.
   {
     value: 'visibility',
     label: 'Escala/Transferência',
     icon: Users,
     render: () => (
       <div className="space-y-6">
-        <section aria-label="Quem vê o quê e quem pode transferir">
+        <section aria-labelledby="escala-sec-1" className="space-y-2">
+          <h2 id="escala-sec-1" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            1. Quem vê e quem transfere
+          </h2>
           <VisibilitySettings />
         </section>
-        <section aria-label="Como as conversas novas são distribuídas">
+        <section aria-labelledby="escala-sec-2" className="space-y-2">
+          <h2 id="escala-sec-2" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            2. Como a conversa nova chega
+          </h2>
           <RotationSettings />
+        </section>
+        <section aria-labelledby="escala-sec-3" className="space-y-2">
+          <h2 id="escala-sec-3" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            3. Se ninguém responde
+          </h2>
+          <ResponseRuleSettings />
         </section>
       </div>
     ),
