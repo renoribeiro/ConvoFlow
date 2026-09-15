@@ -183,7 +183,7 @@ export const TUTORIALS: Tutorial[] = [
         screen: '/dashboard/settings',
         helpKey: 'page:settings-visibility',
         note:
-          'Com um atendente só, o cartão mostra uma linha explicando que o rodízio aparece a partir do segundo — não há com quem dividir. O rodízio nunca troca uma conversa que já tem responsável, e não toca o sino.',
+          'Com um atendente só, o cartão mostra uma linha explicando que o rodízio aparece a partir do segundo — não há com quem dividir. O rodízio nunca troca uma conversa que já tem responsável, e não toca o sino. Na mesma aba, o cartão "Transferência por tempo sem resposta" faz o oposto para quem já tem a conversa e não responde: em X minutos de funcionamento ela passa para o próximo do rodízio, com aviso no sino. Vem desligado; ligue quando o time já souber que isso vai acontecer.',
       },
       {
         title: 'Remova o acesso de quem sair do time no mesmo dia',

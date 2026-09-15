@@ -60,6 +60,14 @@ export const QUERY_KEYS = {
     CONVERSATION_ROTATION: 'conversation-rotation',
     INELIGIBLE_OWNERS: 'ineligible-owners',
     /**
+     * Prévia da regra de tempo de resposta (RPC loja_response_rule_preview):
+     * "com X minutos, quantas esperas dos últimos 30 dias teriam sido
+     * transferidas". semiStatic (5 min): é histórico, e a chave carrega os
+     * minutos e o horário rascunhados — cada valor digitado é uma entrada nova
+     * de cache, nunca um refetch do mesmo.
+     */
+    RESPONSE_RULE_PREVIEW: 'response-rule-preview',
+    /**
      * Sessões ATIVAS de chatbot da Loja (tabela `chatbot_sessions`), como mapa
      * contact_id → sessões. Uma query só alimenta o selo "Bot em atendimento"
      * da lista e do cabeçalho do chat. O prefixo `conversations-` é de

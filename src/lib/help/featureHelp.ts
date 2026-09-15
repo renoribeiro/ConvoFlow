@@ -745,6 +745,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A configuração vale para a Loja inteira, não só para você.',
       'Vem desligada por escolha: ligue quando o time já souber que o aviso vai aparecer, para não parecer cobrança de surpresa.',
       'Dá para silenciar o aviso de uma conversa específica quando a demora é justificada.',
+      'Isto só marca a lista — não move a conversa. Para transferir automaticamente quem não responde, use "Transferência por tempo sem resposta" em Escala/Transferência: lá a conta é em minutos de funcionamento da Loja, desde o início da espera do cliente. As duas convivem sem se atrapalhar.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -775,7 +776,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings-visibility': {
     title: 'Configurações › Escala/Transferência',
     whatItDoes:
-      'Três assuntos, dois cartões: o que cada atendente enxerga na caixa de entrada, se ele pode passar uma conversa para um colega, e como as conversas NOVAS são divididas entre a equipe (o rodízio). As duas primeiras valem só para o cargo atendente — Gestor e Gerente sempre veem e transferem tudo. O rodízio vem desligado: sem mexer nele, nada muda.',
+      'Quatro assuntos, três cartões, na ordem em que uma conversa passa por eles: o que cada atendente enxerga na caixa de entrada e se ele pode passar uma conversa para um colega (cartão 1), como as conversas NOVAS são divididas entre a equipe — o rodízio (cartão 2) — e o que acontece quando o responsável não responde a tempo: a transferência automática por tempo sem resposta (cartão 3). As duas primeiras valem só para o cargo atendente — Gestor e Gerente sempre veem e transferem tudo. O rodízio e a transferência automática vêm desligados: sem mexer neles, nada muda.',
     howToConfigure: [
       'Escolha o que o atendente vê: "Todas as conversas da Loja" (como hoje), "Sem responsável + as dele" (vê a fila sem dono e o que está com ele, não vê o que está com um colega) ou "Só as dele" (só o que está com ele).',
       'Em qualquer opção, quem já respondeu numa conversa continua vendo-a depois de transferida, e quem passou uma conversa adiante continua vendo-a até outra pessoa reatribuí-la.',
@@ -785,6 +786,9 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Decida se o Gestor também recebe conversas e quando a conversa ganha responsável: "Na primeira mensagem" (na hora, mesmo com chatbot) ou "Quando o chatbot terminar" (só depois que a sessão do bot acaba; sem bot publicado para o número, é na hora; se o bot não engatar, o sistema atribui sozinho em até 2 minutos).',
       'Ajuste a fatia de cada pessoa. A soma precisa dar exatamente 100 — a tela diz quanto falta ou sobra e não corrige o que você digitou. Coloque 0 para tirar alguém do rodízio sem tirar da Loja; "Dividir igualmente" refaz as fatias por igual.',
       'Salve a distribuição. Se você mudou a chave do Gestor, salve antes de mexer nas fatias: quem participa muda, o sistema divide igual e aí você ajusta.',
+      'No cartão "Transferência por tempo sem resposta", ligue a regra e defina o tempo em MINUTOS DE FUNCIONAMENTO (mínimo 5; o padrão é 60) e o máximo de transferências por espera (padrão 3). A tela mostra, com o histórico real da Loja, quantas esperas dos últimos 30 dias teriam passado do limite com o valor que você digitou — use isso para calibrar antes de salvar.',
+      'Confira o horário de funcionamento da Loja (fuso, dias e horas). Só os minutos dentro dele contam: cliente que escreve às 22:00 não gera transferência de madrugada; o relógio retoma quando a Loja abre. É o mesmo horário que o chatbot usa para "fora do horário" — mudar aqui muda lá.',
+      'Salve a regra. A partir daí, a cada 2 minutos o sistema confere as conversas com responsável em que o cliente espera resposta humana há mais tempo que o limite e passa cada uma para o próximo do rodízio, nunca para quem já a tinha. Quem recebe é avisado no sino.',
     ],
     example:
       'Loja com Ana e Bruno em 70/30: a cada 10 conversas novas, 7 chegam já com a Ana e 3 com o Bruno, sem ninguém precisar transferir e sem aviso no sino. Quando um cliente antigo volta a escrever, a conversa continua com quem já atendia — o rodízio nunca troca um responsável que já existe.',
@@ -796,7 +800,11 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Quando alguém entra ou sai da Loja (convite aceito, suspensão, exclusão), as fatias se refazem sozinhas em divisão igual — quem estava em 0 continua em 0. Você ajusta depois, se quiser. Enquanto você digita, nada é corrigido automaticamente.',
       'Quem é suspenso ou vai para 0 % FICA com as conversas que já tem; só o Gestor move, à mão. Um aviso no topo do cartão conta quantas conversas estão assim e leva para a pílula "Responsável indisponível" em Conversas.',
       'A distribuição é proporcional, não alternada: em 100 conversas com 70/30 saem exatamente 70 e 30; em 7, saem 5 e 2 — o mais perto possível. Duas mensagens chegando no mesmo instante nunca caem na mesma pessoa por acidente.',
-      'Atribuição automática não toca o sino: só transferência feita por uma pessoa avisa quem recebeu.',
+      'Atribuição automática do rodízio não toca o sino: só transferência feita por uma pessoa — ou pela regra de tempo sem resposta — avisa quem recebeu.',
+      'A regra de tempo conta desde o INÍCIO da espera do cliente, não desde a última mensagem dele: o cliente mandar "oi?" três vezes não zera o relógio. Resposta do chatbot também não zera — só resposta de pessoa. Quem recebe a conversa por transferência ganha o prazo inteiro de novo.',
+      'A regra nunca transfere uma conversa em que o chatbot está no meio de uma sessão, nem uma conversa sem responsável (essa é do rodízio). Chegando ao máximo de transferências, ou não havendo outro atendente disponível, a conversa para de circular e o Gestor (e o Gerente da Conta) recebem um aviso no sino — uma vez só, até alguém responder.',
+      'Não confunda com a sinalização de SLA da aba Atendimento: aquela só colore a lista, em horas corridas desde a última mensagem do cliente, e não move nada. As duas podem ficar ligadas.',
+      'Para desligar a transferência automática de emergência, basta desligar a chave do cartão 3 e salvar: nada mais precisa mudar.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -919,6 +927,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Os avisos são seus: marcar como lido não muda nada para o resto do time.',
       'Aviso lido não resolve o atendimento — a conversa sem resposta continua na tela de Conversas.',
+      '"Conversa transferida para você" com a frase "não respondeu em X min de funcionamento" é a regra de tempo sem resposta da Loja agindo: o cliente já está esperando. "Conversa sem resposta precisa de você" chega só ao Gestor e ao Gerente, quando a regra não tem mais para quem transferir.',
     ],
     category: 'tela',
     area: 'Configuração',

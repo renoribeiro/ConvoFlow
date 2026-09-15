@@ -198,6 +198,18 @@ export const AttendanceSettings = () => {
           />
         </div>
 
+        {/* A regra de transferência automática (aba Escala/Transferência) mede
+            outra coisa; a frase existe para as duas não parecerem a mesma. */}
+        <div className="flex items-start gap-2">
+          <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            Isto só colore a lista: conta horas corridas desde a última mensagem do cliente e não
+            move a conversa. Para transferir automaticamente quem não responde, use
+            &quot;Transferência por tempo sem resposta&quot; na aba Escala/Transferência — lá a conta
+            é em minutos de funcionamento, desde o início da espera.
+          </p>
+        </div>
+
         {/* Desligada, os limites não existem na tela — não ficam esmaecidos. */}
         {enabled && (
           <>
