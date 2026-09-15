@@ -301,7 +301,9 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Feche o fluxo com "Transferir para Atendente"',
         body:
-          'Ligue um bloco "Transferir para Atendente" no fim. Ele encerra a parte automática e entrega a conversa para uma pessoa, já com o bairro coletado. Fluxo que só fala e não entrega deixa o lead sem resposta.',
+          'Ligue um bloco "Transferir para Atendente" no fim. Ele encerra a parte automática, já com o bairro coletado. Em "Transferir para", deixe "Qualquer atendente disponível" para a conversa seguir o rodízio da Loja — ou ficar na fila, sem responsável, se o rodízio estiver desligado. Escolha "Atendente específico" só se uma pessoa certa deve ficar com ela: aí a conversa passa a ser dessa pessoa, que recebe um aviso no sino. Fluxo que só fala e não entrega deixa o lead sem resposta.',
+        note:
+          '"Atendente específico" só vale para conversa que ainda não tem responsável. Se a Loja usa o rodízio em "Na primeira mensagem", a conversa já chegou com dono antes de o bot rodar e o bloco não troca — use "Quando o chatbot terminar" em Configurações › Escala/Transferência.',
         helpKey: 'transfer_agent',
       },
       {
