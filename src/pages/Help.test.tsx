@@ -437,18 +437,23 @@ describe('Help — visibilidade por cargo', () => {
 
   // ── tutoriais seguem a mesma declaração de acesso ────────────────────────
 
-  it('esconde o tutorial de equipe (minRole gerente) do atendente', () => {
+  it('atendente vê só os tutoriais que consegue seguir (funil e chatbot)', () => {
+    // Desde 2026-09-15: conectar-whatsapp, configurar-equipe e primeira-campanha
+    // exigem gestor (whatsapp.configure / store.admin / campaigns.dispatch).
     currentRole = 'atendente';
     renderHelp();
     expect(topic('Configurar sua equipe')).toBeNull();
-    // Os outros tutoriais continuam disponíveis.
-    expect(topic('Conectar seu WhatsApp')).not.toBeNull();
+    expect(topic('Conectar seu WhatsApp')).toBeNull();
+    expect(topic('Disparar sua primeira campanha')).toBeNull();
+    expect(topic('Montar seu funil de vendas')).not.toBeNull();
+    expect(topic('Criar seu primeiro chatbot')).not.toBeNull();
   });
 
-  it('esconde o tutorial de equipe do gestor também', () => {
+  it('gestor vê o tutorial de equipe (a tela Equipe abre para ele desde 2026-08-18)', () => {
     currentRole = 'gestor';
     renderHelp();
-    expect(topic('Configurar sua equipe')).toBeNull();
+    expect(topic('Configurar sua equipe')).not.toBeNull();
+    expect(topic('Conectar seu WhatsApp')).not.toBeNull();
   });
 
   it('mostra o tutorial de equipe para gerente e superadmin', () => {

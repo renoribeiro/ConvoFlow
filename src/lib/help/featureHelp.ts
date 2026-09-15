@@ -88,7 +88,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'Variáveis guardam dados do contato durante a conversa (ex.: o nome que o lead digitou). Você as referencia escrevendo {nome} em qualquer texto.',
     howToConfigure: [
-      'No chatbot, use o nó "Fazer Pergunta" e defina "Salvar na variável" (ex.: nome).',
+      'No chatbot, use o nó "Fazer Pergunta" e defina "Salvar resposta como variável" (ex.: nome).',
       'O valor digitado pelo lead é salvo na variável e também gravado no contato (campo personalizado), ficando disponível depois.',
       'Em mensagens, use {nome}, {first_name}, {phone}, {email} e suas variáveis personalizadas.',
       'Nas Automações, use o gatilho "Variável Capturada", a ação "Atualizar Contato" e a condição "Variável".',
@@ -98,6 +98,32 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Variáveis de sistema sempre existem: {name}, {first_name}, {phone}, {email}, {date}, {time}, {datetime}.',
       'Tokens desconhecidos ficam como estão — se escrever {xyz} sem essa variável, o texto sai literal.',
+    ],
+    category: 'conceito',
+  },
+  // Montado em Configurações › Escala/Transferência (src/pages/Settings.tsx),
+  // acima dos três cartões — é onde o gestor decide cada etapa; na página de
+  // Ajuda ("Conceitos") aparece para todo cargo.
+  'concept:conversation-routing': {
+    title: 'Como uma conversa chega ao atendente',
+    whatItDoes:
+      'É o caminho inteiro de uma mensagem nova até alguém responder: quem a vê, quem fica com ela e o que o sistema faz quando ninguém responde. Cada pedaço tem a própria tela; aqui está a ordem em que eles acontecem.',
+    howToConfigure: [
+      'A mensagem chega e a conversa aparece em Conversas, sem responsável. Se há um chatbot publicado para o número e o gatilho casa, o bot responde primeiro e a conversa ganha o selo "Bot em atendimento".',
+      'Se a Loja ligou o rodízio (Configurações › Escala/Transferência, cartão 2), a conversa ganha responsável sozinha — na primeira mensagem, ou só quando o bot terminar, conforme a escolha — na proporção definida e sem aviso no sino. Sem rodízio, ela fica na fila até alguém clicar em "Assumir".',
+      'Um fluxo que termina em "Transferir para Atendente" nomeando alguém dá a conversa a essa pessoa, se ela ainda não tiver responsável, e avisa no sino. Em "Qualquer atendente", entrega ao rodízio.',
+      'Quem vê a conversa depende do cartão 1: por padrão todo mundo da Loja; em "Sem responsável + as dele" ou "Só as dele", o atendente vê o que está com ele, o que ele já respondeu e o que passou adiante. Gestor e Gerente sempre veem tudo.',
+      'Com a sinalização ligada (Configurações › Atendimento), a conversa vai ficando amarela, laranja e vermelha conforme as horas sem resposta. Cor não move nada.',
+      'Com a transferência por tempo sem resposta ligada (cartão 3), a conversa que tem responsável e passou do limite em minutos de funcionamento muda para o próximo do rodízio, com aviso no sino de quem recebeu. Isso pode se repetir até o máximo definido.',
+      'Chegando ao máximo, ou sem mais ninguém para receber, a conversa para de circular e o Gestor (e o Gerente da Conta) recebem "Conversa sem resposta precisa de você" — uma vez só, até alguém responder.',
+      'Qualquer resposta de pessoa encerra a espera: zera o relógio e o contador. Resposta do bot não conta para nada disso.',
+    ],
+    example:
+      'Cliente escreve às 9h. O bot faz a triagem e termina às 9h05 em "Qualquer atendente"; o rodízio dá a conversa à Ana. Ana não responde; às 10h05, 60 minutos de funcionamento depois, a regra passa a conversa ao Bruno, que é avisado no sino. Bruno responde às 10h20: espera encerrada, relógio zerado.',
+    tips: [
+      'Ordem para configurar: rodízio primeiro (quem recebe), visibilidade depois (quem vê), regra de tempo por último (quando passa adiante). Os três vêm desligados.',
+      'Uma conversa que já tem responsável nunca muda de mão sozinha pelo rodízio nem pelo chatbot. Só uma pessoa, ou a regra de tempo, transfere.',
+      'Tudo isso vale por Loja: cada Loja tem o próprio rodízio, a própria regra, o próprio horário de funcionamento.',
     ],
     category: 'conceito',
   },
@@ -131,7 +157,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes: 'Faz uma pergunta e aguarda a resposta do lead, salvando-a em uma variável.',
     howToConfigure: [
       'Escreva a pergunta.',
-      'Defina "Salvar na variável" (ex.: nome, email) — comece por letra, use só letras/números/_.',
+      'Defina "Salvar resposta como variável" (ex.: nome, email) — comece por letra, use só letras/números/_.',
       'Opcional: escolha uma validação (e-mail, telefone, número) para rejeitar respostas inválidas.',
     ],
     example: 'Pergunta "Qual seu e-mail?" com validação "e-mail" e salva em {email}.',
@@ -227,7 +253,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes: 'Inicia a automação quando o contato envia uma mensagem (opcionalmente filtrando por palavras-chave).',
     howToConfigure: [
       'Opcional: informe palavras-chave (separadas por vírgula).',
-      'Opcional: marque "correspondência exata" para casar a mensagem inteira.',
+      'Opcional: marque "Correspondência exata" para casar a mensagem inteira.',
     ],
     example: 'Palavra-chave "preço" → dispara uma resposta automática com a tabela de preços.',
     category: 'automacao',
@@ -364,7 +390,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'condition:message_contains': {
     title: 'Condição: Mensagem Contém',
     whatItDoes: 'Continua o fluxo apenas se a mensagem contiver as palavras indicadas.',
-    howToConfigure: ['Informe as palavras-chave.', 'Opcional: marque "sensível a maiúsculas".'],
+    howToConfigure: ['Informe as palavras-chave.', 'Opcional: marque "Sensível a maiúsculas".'],
     example: 'Só responde se a mensagem contiver "orçamento".',
     category: 'automacao',
     area: 'Condições',
@@ -426,27 +452,28 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Para passar a conversa a um colega, clique no responsável no cabeçalho e em "Transferir…", escolha a pessoa na lista e pronto — ela recebe um aviso no sino. Dá para transferir para você mesmo uma conversa que está com outra pessoa.',
       'Use as pílulas "Minhas" e "Sem responsável" para ver só o que está com você ou o que ninguém pegou ainda.',
       'Como Gestor ou Gerente, use a pílula "Responsável indisponível" para achar conversas presas com alguém suspenso, excluído, fora da Loja ou em 0 % no rodízio — e transfira-as à mão pelo cabeçalho.',
-      'Ative a sinalização de conversas não respondidas em Configurações › Atendimento para que os atrasos apareçam marcados aqui.',
+      'Ative a sinalização de conversas não respondidas em Configurações › Atendimento para que os atrasos apareçam coloridos aqui — e para a pílula "Não respondidas" existir; sem a sinalização ela não aparece.',
       'Quando um chatbot está conduzindo a conversa, aparece o selo "Bot em atendimento" — na linha da lista e, com o nome do bot, no cabeçalho do chat. Antes de responder, abra o menu ⋮ e clique em "Encerrar sessão do bot": o bot para na hora e a partir daí é você quem atende. Sem esse passo, vocês dois falam com o cliente ao mesmo tempo.',
-      'Sem selo, não há bot na conversa e "Encerrar sessão do bot" fica desabilitado — não precisa clicar "por garantia".',
+      'Sem selo, não há bot na conversa e "Encerrar sessão do bot" fica desabilitado — não precisa clicar por garantia.',
     ],
     example:
       'Chega "ainda está disponível o apartamento do anúncio?". Você responde em minutos e o contato já entra na base com nome e telefone, pronto para acompanhar no Funil.',
     tips: [
-      'O agrupamento por nível de atendimento é opcional e só classifica as conversas já carregadas na tela — role a lista para incluir as mais antigas.',
+      'A visão "Por pendência" (o botão ao lado de "Lista") é opcional e só classifica as conversas já carregadas na tela — role a lista para incluir as mais antigas.',
       'No número da pílula, "12" é o total da fila e "12+" quer dizer "pelo menos 12": as pílulas "Todas", "Não lidas" e "Arquivadas" sabem o total; "Aguardando", "Não respondidas" e "Em atendimento" contam só o que já foi carregado, e o "+" some quando você rola até o fim.',
       'A lista se atualiza sozinha a cada poucos segundos, então numa fila filtrada entram conversas que estavam fora da tela conforme você trabalha. Acompanhe o número da pílula: é ele que mostra a fila diminuindo.',
       'Dá para silenciar o aviso de atraso de uma conversa específica quando a demora é justificada, sem tirá-la da lista.',
       'O selo "Bot em atendimento" some sozinho quando o fluxo termina (bloco "Encerrar Fluxo" ou "Transferir para Atendente") e na hora quando você encerra a sessão pelo menu. Ele é visto por todo mundo que abre a conversa, não só pelo responsável. Encerrar a sessão não muda o responsável nem entra no rodízio: é ação sua, não distribuição automática.',
       'O selo pode levar até meio minuto para aparecer depois que o bot começa — é o mesmo ritmo com que a lista se atualiza.',
       'Responsável não é cadeado por padrão: quem assume uma conversa fica marcado nela, e todo mundo da Loja continua vendo e podendo responder todas as conversas — a menos que a Loja tenha mudado isso em Configurações › Escala/Transferência. Gestor e Gerente sempre veem tudo.',
-      'Se a Loja ligou o rodízio (Configurações › Escala/Transferência), a conversa nova já chega com responsável, na proporção que o Gestor definiu, e sem aviso no sino — o sino só toca em transferência feita por pessoa. Uma conversa que já tem responsável nunca é trocada pelo rodízio nem pelo chatbot: o cliente que volta cai com quem já o atendia, mesmo que essa pessoa esteja suspensa ou em 0 % — e o bloco "Transferir para Atendente" de um fluxo, mesmo nomeando outra pessoa, não muda isso.',
+      'Se a Loja ligou o rodízio (Configurações › Escala/Transferência), a conversa nova já chega com responsável, na proporção que o Gestor definiu, e sem aviso no sino — o sino só toca quando alguém entrega a conversa de propósito: uma pessoa, a regra de tempo sem resposta ou o bloco "Transferir para Atendente" nomeando alguém. Uma conversa que já tem responsável nunca é trocada pelo rodízio nem pelo chatbot: o cliente que volta cai com quem já o atendia, mesmo que essa pessoa esteja suspensa ou em 0 % — e o bloco "Transferir para Atendente" de um fluxo, mesmo nomeando outra pessoa, não muda isso.',
       'Se a sua Loja restringiu a visibilidade (você é atendente), a lista mostra só o que a regra permite: as conversas que estão com você, as em que você já respondeu, as que você mesmo passou adiante e, na opção intermediária, as que ninguém assumiu. Uma conversa que não aparece não está apagada: está com outra pessoa.',
       'Mesmo com a lista restrita, responder numa conversa nunca é bloqueado — e quem responde passa a vê-la. Os números do Dashboard continuam da Loja inteira e aparecem com a etiqueta "Toda a Loja".',
       'A Loja pode desligar a transferência para atendentes. Aí o botão "Transferir…" some para o atendente e o servidor recusa a tentativa; "Assumir" continua funcionando.',
+      'Uma conversa sua pode mudar de responsável sozinha: se a Loja ligou a transferência por tempo sem resposta (Configurações › Escala/Transferência) e o cliente ficou esperando resposta de pessoa por mais minutos de funcionamento do que o limite, ela passa para o próximo do rodízio. Você percebe assim: ela sai de "Minhas" (e some da sua lista, se a Loja restringiu a visibilidade), e quem recebeu ganha o aviso "Conversa transferida para você" no sino. Não é erro nem punição — é a Loja garantindo que o cliente não fique sem resposta. Para segurar as suas, responda dentro do limite: resposta do bot não conta, só a sua. Se uma conversa chegar a você por esse caminho, o relógio recomeça do zero.',
       'Se duas pessoas clicarem em "Assumir" na mesma conversa quase ao mesmo tempo, só a primeira fica com ela — a segunda vê um aviso dizendo quem pegou, e a tela se atualiza.',
       'As pílulas "Minhas" e "Sem responsável" contam só o que já foi carregado na lista (aparecem com "+"); role até o fim para o número virar exato.',
-      'Conversas é privada por Loja: mesmo o Superadmin não enxerga as conversas de uma Conta sem entrar nela pelo seletor do topo.',
+      'Conversas é privada por Loja: o Superadmin não abre esta tela de nenhuma Conta — nem entrando nela pelo seletor do topo, que aqui mostra "Exclusivo para lojas". Quem lê as conversas é o Atendente, o Gestor e o Gerente da Conta.',
       'Gerente atende as Lojas da própria Conta escolhendo a Loja no seletor do topo: abre o histórico, responde e marca como lida, igual ao Gestor. O que o Gerente não faz é apagar conversa ou contato de uma Loja.',
       'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar — dá para ajustar antes.',
       'No campo de mensagem, Enter envia e Shift+Enter quebra a linha. Depois de enviar o cursor continua no campo, então dá para emendar a próxima mensagem sem clicar na caixa de novo.',
@@ -489,7 +516,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Menos etapas funciona melhor: etapa que nunca recebe card só atrapalha a leitura.',
       'Mudar de etapa pode disparar automação — use o gatilho "Mudança de Estágio" para agendar o follow-up no instante em que o lead avança.',
-      'Funil faz parte dos módulos pagos: se a assinatura da Conta vencer, esta tela deixa de abrir.',
+      'Se a assinatura da Conta vencer, não é só o Funil que fecha: o sistema inteiro dá lugar à tela "Acesso bloqueado", para todo o time. O que resolve é o pagamento da Conta, em Configurações › Assinatura.',
     ],
     category: 'tela',
     area: 'Operação',
@@ -528,7 +555,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Escolha o período e o recorte: o relatório sai exatamente do que estiver selecionado.',
       'Gere uma vez e confira os números na tela.',
       'Para repassar sozinho toda semana, abra a aba Agendamentos e crie um agendamento: nome, frequência, horário e os e-mails que recebem.',
-      'Acompanhe a aba Histórico depois do primeiro disparo — é lá que aparece se o envio saiu ou falhou.',
+      'Acompanhe a aba Entregas depois do primeiro disparo — é lá que aparece se o envio saiu ou falhou.',
     ],
     example:
       'Relatório de segunda-feira com leads novos, conversas atendidas e negócios fechados por corretor, para o dono acompanhar a semana sem pedir print para ninguém.',
@@ -550,7 +577,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Aqui você administra os bots: quais existem, qual está no ar e em qual número. O desenho do fluxo é feito no construtor — esta lista é quem coloca o bot em produção.',
     howToConfigure: [
       'Crie o chatbot e escolha a instância de WhatsApp em que ele vai responder.',
-      'Defina o gatilho — o que faz o bot entrar na conversa.',
+      'Defina o gatilho — o que faz o bot entrar na conversa: "Primeiro contato" (a primeira mensagem de quem nunca falou com você), "Palavra-chave" (uma das palavras que você cadastrar), "Fora do horário" (qualquer mensagem fora do horário de funcionamento da Loja) ou "Etapa do funil" (contato que está numa etapa escolhida).',
       'Abra o construtor, monte o fluxo e publique. Bot salvo não é bot publicado.',
       'Se houver mais de um bot no mesmo número, ajuste a prioridade para decidir quem responde primeiro.',
     ],
@@ -560,6 +587,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Publicar valida o fluxo: se faltar ligação entre blocos ou campo obrigatório, o sistema recusa e mostra o que corrigir.',
       'Para parar de atender por um período, desative o bot em vez de apagar — apagar leva o fluxo junto.',
       'Bot sem instância vinculada não responde ninguém, mesmo publicado.',
+      'O gatilho "Fora do horário" usa o horário de funcionamento da Loja, que não fica nesta tela: edita-se em Configurações › Escala/Transferência, dentro do cartão "Transferência por tempo sem resposta". O horário só aparece com a chave do cartão ligada — ligue-a só para ele aparecer, ajuste fuso, dias e horas, desligue a chave de volta e salve: o horário fica gravado e a transferência automática continua desligada. Sem nada gravado, vale segunda a sexta, 9h às 18h, horário de Brasília.',
     ],
     category: 'tela',
     area: 'Marketing',
@@ -604,6 +632,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Mensagem idêntica para milhares de números é o caminho mais rápido para o WhatsApp bloquear a linha. Personalize e envie em lotes.',
       'Quem nunca falou com você tende a denunciar como spam — priorize contatos que já conversaram.',
       'Lista grande num número recém-conectado é pedido de bloqueio. Deixe a linha amadurecer antes do primeiro disparo grande.',
+      'Como Atendente você acompanha as campanhas e as respostas que elas geram, mas não cria nem dispara: o botão "Nova Campanha" aparece, mas o servidor recusa na hora de salvar. Quem dispara é o Gestor ou o Gerente — os passos acima são deles.',
     ],
     category: 'tela',
     area: 'Marketing',
@@ -683,8 +712,9 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'É a base de tudo: sem um número conectado aqui, não existe conversa, campanha nem chatbot. Cada instância é uma linha de WhatsApp ligada ao sistema.',
     howToConfigure: [
-      'Crie a instância e escolha o provedor.',
+      'Crie a instância e escolha o provedor: "API Oficial do WhatsApp" (Meta, o caminho de produção e o único que dispara campanha dentro das regras), "Evolution API" (número comum, por QR Code, no servidor da plataforma) ou "WAHA API" (número comum, por QR Code, num servidor auto-hospedado).',
       'Na Evolution você informa só o nome e a chave da instância: o servidor de WhatsApp é o da plataforma e já vem configurado.',
+      'Na WAHA você informa o nome, a URL base do servidor WAHA, a API Key se o servidor exigir e o nome da sessão. Aqui o servidor é seu (ou de quem o hospeda para você): endereço e chave são pedidos porque a plataforma não o conhece.',
       'Conecte lendo o QR Code no celular que tem o número, ou use o código de pareamento se preferir não escanear.',
       'Confirme que o status ficou "Conectado" antes de configurar chatbot ou campanha.',
       'Confira o webhook, que é o que faz as mensagens chegarem em tempo real. Na API Oficial ele é configurado uma única vez para a instalação inteira, não a cada número.',
@@ -693,11 +723,11 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     example:
       'A imobiliária liga o número do plantão como uma instância e o do comercial como outra. O chatbot de triagem fica publicado só no número do plantão.',
     tips: [
-      'Instâncias pertencem à Conta. Como Superadmin você não tem instâncias próprias — gerencie pela Administração, entrando na Conta desejada.',
+      'Instâncias pertencem à Conta e quem as conecta é o Gerente ou o Gestor. Como Superadmin você não abre esta tela de nenhuma Conta — ela mostra "Exclusivo para lojas" mesmo com a Conta escolhida no seletor. Para apoiar um cliente que não consegue conectar: confira na Administração se a Conta tem acesso e se a pessoa tem o cargo certo, e passe a ela o tutorial "Conectar seu WhatsApp" da Ajuda.',
       'Linha desconectada é atendimento parado: mensagem que chega com a instância fora pode não entrar no sistema. Reconecte assim que ver "Desconectado".',
       'Usar o mesmo número no WhatsApp do celular e aqui ao mesmo tempo pode derrubar a sessão.',
       'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Ao conectar um número, você só informa Phone Number ID, WABA ID e Access Token.',
-      'Você nunca precisa de endereço de servidor nem de chave de API para ligar um número pela Evolution. Se alguma tela pedir isso, é engano — fale com quem opera a plataforma.',
+      'Você nunca precisa de endereço de servidor nem de chave de API para ligar um número pela Evolution. Se alguma tela pedir isso na Evolution, é engano — fale com quem opera a plataforma. Na WAHA é o contrário: o servidor é seu, então URL e chave são pedidos mesmo.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -705,10 +735,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings': {
     title: 'Configurações',
     whatItDoes:
-      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento, Escala/Transferência, Follow-ups e Integrações mudam o comportamento para todo o time.',
+      'Reúne o que vale só para você e o que vale para a Loja inteira. A diferença importa: Perfil, Notificações e Segurança são seus; Atendimento, Escala/Transferência, Respostas rápidas, Follow-ups e Integrações mudam o comportamento para todo o time; Assinatura é da Conta e só o Gerente a vê.',
     howToConfigure: [
       'Escolha a aba. Cada aba tem o próprio botão de ajuda com o passo-a-passo dela.',
-      'Antes de salvar algo em Atendimento, Follow-ups ou Integrações, lembre que a mudança atinge o time todo.',
+      'Antes de salvar algo em Atendimento, Escala/Transferência, Respostas rápidas, Follow-ups ou Integrações, lembre que a mudança atinge o time todo.',
       'Depois de salvar, confira na tela afetada: preferência de atendimento aparece nas Conversas, webhook aparece no sistema de destino.',
     ],
     example:
@@ -741,19 +771,20 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings-attendance': {
     title: 'Configurações › Atendimento',
     whatItDoes:
-      'Define a partir de quanto tempo uma conversa passa a contar como atrasada. É a régua de atendimento da Loja: com ela ligada, a tela de Conversas começa a marcar o que ficou sem resposta.',
+      'Define a partir de quantas HORAS sem resposta uma conversa passa a aparecer marcada na lista de Conversas, em três níveis: Atenção (amarelo), Atrasada (laranja) e Crítica (vermelho). É a régua de atendimento da Loja — ela só colore a lista, não move conversa nenhuma.',
     howToConfigure: [
       'Ative a sinalização — ela vem desligada de propósito.',
-      'Defina o prazo aceitável para a primeira resposta.',
-      'Abra as Conversas e confira: o que passou do prazo aparece marcado.',
+      'Preencha as três faixas em horas inteiras e crescentes: Atenção, Atrasada e Crítica. O padrão é 1, 4 e 20 horas. A Crítica vem em 20 porque, passadas 24 horas da última mensagem do cliente, o WhatsApp só deixa reabrir a conversa com template — o vermelho é o aviso de que ainda dá tempo.',
+      'Salve e abra as Conversas: cada conversa em que o cliente espera resposta ganha a cor da faixa em que está, e a pílula "Não respondidas" passa a existir para filtrar só elas.',
     ],
     example:
-      'Prazo de 15 minutos. O corretor que deixou um lead de portal esperando 40 minutos aparece marcado na lista antes de o cliente procurar outro anúncio.',
+      'Faixas 1, 4 e 20 horas. O lead de portal que escreveu às 9h e ninguém respondeu fica amarelo a partir das 10h, laranja às 13h e vermelho às 5h da manhã seguinte — quatro horas antes de a janela de 24 horas fechar.',
     tips: [
       'A configuração vale para a Loja inteira, não só para você.',
       'Vem desligada por escolha: ligue quando o time já souber que o aviso vai aparecer, para não parecer cobrança de surpresa.',
-      'Dá para silenciar o aviso de uma conversa específica quando a demora é justificada.',
-      'Isto só marca a lista — não move a conversa. Para transferir automaticamente quem não responde, use "Transferência por tempo sem resposta" em Escala/Transferência: lá a conta é em minutos de funcionamento da Loja, desde o início da espera do cliente. As duas convivem sem se atrapalhar.',
+      'Não dá para marcar em minutos: a menor faixa é 1 hora. Para reagir em minutos, o caminho é a regra de tempo sem resposta, abaixo.',
+      'Dá para silenciar o aviso de uma conversa específica quando a demora é justificada; a cor também some quando alguém da equipe responde.',
+      'Isto só marca a lista — não move a conversa. Conta horas corridas, também de madrugada e no fim de semana. Para transferir automaticamente quem não responde, use "Transferência por tempo sem resposta" em Escala/Transferência: lá a conta é em minutos DE FUNCIONAMENTO da Loja, desde o início da espera do cliente, e só resposta de pessoa zera o relógio. As duas convivem sem se atrapalhar.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -784,7 +815,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   'page:settings-visibility': {
     title: 'Configurações › Escala/Transferência',
     whatItDoes:
-      'Quatro assuntos, três cartões, na ordem em que uma conversa passa por eles: o que cada atendente enxerga na caixa de entrada e se ele pode passar uma conversa para um colega (cartão 1), como as conversas NOVAS são divididas entre a equipe — o rodízio (cartão 2) — e o que acontece quando o responsável não responde a tempo: a transferência automática por tempo sem resposta (cartão 3). As duas primeiras valem só para o cargo atendente — Gestor e Gerente sempre veem e transferem tudo. O rodízio e a transferência automática vêm desligados: sem mexer neles, nada muda.',
+      'Quatro assuntos, três cartões, na ordem em que uma conversa passa por eles: o que cada atendente enxerga na caixa de entrada e se ele pode passar uma conversa para um colega (cartão 1), como as conversas NOVAS são divididas entre a equipe — o rodízio (cartão 2) — e o que acontece quando o responsável não responde a tempo: a transferência automática por tempo sem resposta (cartão 3). As duas primeiras valem só para o cargo atendente — Gestor e Gerente sempre veem e transferem tudo. O rodízio e a transferência automática vêm desligados: sem mexer neles, nada muda. Só Gestor e Gerente alteram os três cartões; como Atendente você vê os valores da Loja em modo leitura, e os passos abaixo são deles.',
     howToConfigure: [
       'Escolha o que o atendente vê: "Todas as conversas da Loja" (como hoje), "Sem responsável + as dele" (vê a fila sem dono e o que está com ele, não vê o que está com um colega) ou "Só as dele" (só o que está com ele).',
       'Em qualquer opção, quem já respondeu numa conversa continua vendo-a depois de transferida, e quem passou uma conversa adiante continua vendo-a até outra pessoa reatribuí-la.',
@@ -936,7 +967,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Os avisos são seus: marcar como lido não muda nada para o resto do time.',
       'Aviso lido não resolve o atendimento — a conversa sem resposta continua na tela de Conversas.',
-      '"Conversa transferida para você" com a frase "não respondeu em X min de funcionamento" é a regra de tempo sem resposta da Loja agindo: o cliente já está esperando. "Conversa sem resposta precisa de você" chega só ao Gestor e ao Gerente, quando a regra não tem mais para quem transferir.',
+      '"Conversa transferida para você" com a frase "não respondeu em X min de funcionamento" é a regra de tempo sem resposta da Loja agindo: o cliente já está esperando. "Conversa sem resposta precisa de você" chega só ao Gestor e ao Gerente, quando a regra bateu no máximo de transferências ou não tem mais para quem transferir — uma vez só, até alguém responder.',
     ],
     category: 'tela',
     area: 'Configuração',
@@ -952,7 +983,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'É onde a Conta ganha Lojas e as Lojas ganham gente. Como Gerente, você cria a Loja aqui e convida quem vai trabalhar nela; como Gestor, você convida os Atendentes da sua Loja. Convidar por aqui é o único jeito de alguém entrar no ConvoFlow — não existe cadastro público.',
     howToConfigure: [
       'Como Gerente, crie a Loja em "Nova Loja" antes de convidar: Gestor e Atendente sempre pertencem a uma.',
-      'Confira o contador ao lado do botão ("2 de 5 lojas") — é quanto do seu plano já foi usado.',
+      'Confira o contador ao lado do botão — por exemplo, 2 de 5 lojas — é quanto do seu plano já foi usado.',
       'Use "Abrir" na lista de Lojas para colocar uma delas em foco e trabalhar dentro dela.',
       'Convide a pessoa pelo e-mail dela.',
       'Escolha o cargo: ele define o que a pessoa vê e o que pode fazer.',
@@ -1009,7 +1040,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'O cliente fecha contrato na sexta e o pagamento só cai na terça. Você libera manualmente para ele começar a usar e revoga se o pagamento não vier.',
     tips: [
       'Liberação manual é auditada: fica gravado quem liberou e quando.',
-      'Superadmin não tem Loja própria. Para ver Conversas ou Funil de um cliente, troque a Conta em foco no seletor do topo.',
+      'Superadmin não abre Conversas, Contatos, Funil, Chatbots, Campanhas, Follow-ups, Automação nem Instâncias de NENHUMA Conta — nem escolhendo a Conta no seletor do topo: essas telas mostram "Exclusivo para lojas". É privacidade do dado do cliente, de propósito.',
+      'Quando um cliente pedir ajuda numa dessas telas, você apoia por três lugares: a Ajuda (você lê toda a documentação, inclusive das telas que não abre), o Dashboard da Conta escolhida no seletor (só números, sem conversa) e a Administração — acesso liberado, cargo certo, usuário ativo. O que é dado operacional, só quem é da Loja vê; peça a ela um print.',
       'Revogar acesso fecha o sistema na hora para todo o time daquela Conta — o Gerente incluído. Ele não fica de fora do bloqueio: vê a tela de "Acesso bloqueado" com o botão de assinar, e resolve sozinho pelo cartão se quiser.',
       'O bloqueio não alcança o superadmin. Você continua entrando em qualquer Conta, inclusive nas que acabou de revogar.',
     ],

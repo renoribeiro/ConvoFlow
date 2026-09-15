@@ -92,6 +92,13 @@ const ABAS: AbaConfig[] = [
     icon: Users,
     render: () => (
       <div className="space-y-6">
+        {/* O caminho inteiro (bot → rodízio → visibilidade → SLA → regra de
+            tempo) explicado numa entrada só — os três cartões abaixo são as
+            etapas dele. Ponto de montagem de concept:conversation-routing. */}
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>Como uma conversa chega ao atendente, do início ao fim</span>
+          <FeatureHelp helpKey="concept:conversation-routing" />
+        </p>
         <section aria-labelledby="escala-sec-1" className="space-y-2">
           <h2 id="escala-sec-1" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             1. Quem vê e quem transfere
