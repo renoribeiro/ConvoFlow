@@ -668,11 +668,11 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     moduleName: 'chatbots',
     title: 'Construtor de Fluxo',
     whatItDoes:
-      'É a tela onde o fluxo é desenhado. Você arrasta blocos da esquerda e liga a saída de um na entrada do outro: o caminho que as setas formam é exatamente o que o cliente vai viver na conversa.',
+      'É a tela onde o fluxo é desenhado. Você arrasta blocos da esquerda e liga a saída de um na entrada do outro: o caminho que as setas formam é exatamente o que o cliente vai viver na conversa. No tablet e no celular a lista de blocos fica no botão "Blocos" da barra do topo, e tocar num bloco o coloca no meio da tela.',
     howToConfigure: [
       'Arraste "Início do Fluxo" primeiro — só pode existir um por chatbot.',
       'Arraste os blocos seguintes e ligue as bolinhas, saída de um na entrada do próximo. Bloco solto não executa.',
-      'Clique num bloco para configurar o conteúdo dele no painel da direita.',
+      'Clique num bloco para configurar o conteúdo dele no painel da direita (no tablet e no celular o painel abre por cima do desenho e fecha ao tocar fora).',
       'Salvar guarda o rascunho; Publicar valida o fluxo inteiro e coloca no ar.',
     ],
     example:

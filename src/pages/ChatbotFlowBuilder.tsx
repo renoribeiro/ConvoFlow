@@ -29,6 +29,7 @@ import {
   Loader2,
   Check,
   Settings2,
+  Blocks,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,8 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useIsBelowLg } from '@/hooks/use-mobile';
 import { useChatbotFlowFull, useSaveFlow, useUpdateChatbotMeta } from '@/hooks/useChatbotFlow';
 import { validateFlowForPublish, type FlowValidationResult } from '@/lib/chatbot/flowEngine';
 import {
@@ -116,6 +119,9 @@ const ChatbotFlowBuilder: React.FC = () => {
   const [botName, setBotName] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  // Abaixo de lg (tablet e celular) paleta e configuração viram gavetas.
+  const compact = useIsBelowLg();
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
   // Undo/redo history
@@ -341,10 +347,13 @@ const ChatbotFlowBuilder: React.FC = () => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const nodeType = e.dataTransfer.getData('application/reactflow') as ChatbotNodeType;
+  /**
+   * Cria um nó do tipo pedido no ponto de tela (clientX/Y) dentro do canvas.
+   * É o que o arrastar-e-soltar da paleta faz; abaixo de lg a paleta vira
+   * gaveta e o toque no bloco chama isto com o centro do canvas.
+   */
+  const addNodeAt = useCallback(
+    (nodeType: ChatbotNodeType, clientX: number, clientY: number) => {
       if (!nodeType || !reactFlowWrapper.current) return;
 
       // Check singleton constraint for 'start'
@@ -357,8 +366,8 @@ const ChatbotFlowBuilder: React.FC = () => {
       const bounds = reactFlowWrapper.current.getBoundingClientRect();
       // Convert screen coords to flow coords via the transform stored in DOM
       const flowEl = reactFlowWrapper.current.querySelector('.react-flow__viewport');
-      let x = e.clientX - bounds.left - 100;
-      let y = e.clientY - bounds.top - 40;
+      let x = clientX - bounds.left - 100;
+      let y = clientY - bounds.top - 40;
       if (flowEl) {
         const transform = (flowEl as HTMLElement).style.transform;
         const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)\s*scale\(([^)]+)\)/);
@@ -366,8 +375,8 @@ const ChatbotFlowBuilder: React.FC = () => {
           const tx = parseFloat(match[1]);
           const ty = parseFloat(match[2]);
           const scale = parseFloat(match[3]);
-          x = (e.clientX - bounds.left - tx) / scale - 100;
-          y = (e.clientY - bounds.top - ty) / scale - 40;
+          x = (clientX - bounds.left - tx) / scale - 100;
+          y = (clientY - bounds.top - ty) / scale - 40;
         }
       }
 
@@ -392,6 +401,24 @@ const ChatbotFlowBuilder: React.FC = () => {
       });
     },
     [nodes, edges, pushHistory]
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      addNodeAt(e.dataTransfer.getData('application/reactflow') as ChatbotNodeType, e.clientX, e.clientY);
+    },
+    [addNodeAt]
+  );
+
+  /** Gaveta de blocos (abaixo de lg): o toque cria o nó no centro do canvas. */
+  const addNodeAtCenter = useCallback(
+    (nodeType: ChatbotNodeType) => {
+      const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+      if (!bounds) return;
+      addNodeAt(nodeType, bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    },
+    [addNodeAt]
   );
 
   // ---------------------------------------------------------------------------
@@ -539,6 +566,70 @@ const ChatbotFlowBuilder: React.FC = () => {
   const startExists = nodes.some((n) => n.type === 'start');
   const isSaving = saveFlow.isPending || updateMeta.isPending;
 
+  /**
+   * Lista de blocos da paleta. Em lg+ ela é a coluna fixa da esquerda e os
+   * blocos são arrastados para o canvas; abaixo de lg vive numa gaveta
+   * (Sheet) e o toque cria o bloco no centro do canvas — arrastar por cima
+   * de uma gaveta não funciona, e no tablet nem existe arrastar.
+   */
+  const renderPalette = (mode: 'drag' | 'tap') => (
+    <div className="p-2 space-y-3">
+      {NODE_CATEGORIES.map((cat) => {
+        const blocks = BLOCK_DEFINITIONS.filter((b) => b.category === cat.key);
+        if (blocks.length === 0) return null;
+        return (
+          <div key={cat.key}>
+            <p className={`text-[10px] font-bold px-1 py-0.5 mb-1 rounded text-white ${CATEGORY_HEADER_CLASS[cat.key]}`}>
+              {cat.label}
+            </p>
+            {blocks.map((block) => {
+              const disabled = block.singleton && startExists && block.type === 'start';
+              const className = `flex w-full items-center gap-2 px-2 py-1.5 mb-0.5 rounded text-xs border transition-colors text-left
+                ${disabled
+                  ? 'opacity-40 cursor-not-allowed bg-muted border-transparent'
+                  : 'hover:bg-primary/10 hover:border-primary/30 border-transparent bg-transparent'
+                } ${mode === 'drag' ? 'cursor-grab' : 'cursor-pointer'}`;
+              const inner = (
+                <>
+                  <span>{block.emoji}</span>
+                  <span className="leading-tight">{block.label}</span>
+                </>
+              );
+              if (mode === 'tap') {
+                return (
+                  <button
+                    key={block.type}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      addNodeAtCenter(block.type);
+                      setPaletteOpen(false);
+                    }}
+                    className={className}
+                    title={block.description}
+                  >
+                    {inner}
+                  </button>
+                );
+              }
+              return (
+                <div
+                  key={block.type}
+                  draggable={!disabled}
+                  onDragStart={(e) => !disabled && onSidebarDragStart(e, block.type)}
+                  className={className}
+                  title={block.description}
+                >
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top bar */}
@@ -559,6 +650,14 @@ const ChatbotFlowBuilder: React.FC = () => {
 
         {/* O construtor não tem PageHeader: a ajuda da tela fica na barra do topo. */}
         <FeatureHelp helpKey="page:chatbot-builder" />
+
+        {/* Abaixo de lg a paleta é uma gaveta; este é o botão que a abre. */}
+        {compact && (
+          <Button variant="outline" size="sm" onClick={() => setPaletteOpen(true)} aria-label="Abrir blocos">
+            <Blocks className="h-4 w-4" />
+            <span className="ml-1.5">Blocos</span>
+          </Button>
+        )}
 
         {isDirty && (
           <Badge variant="outline" className="text-orange-500 border-orange-500 text-xs">
@@ -598,46 +697,15 @@ const ChatbotFlowBuilder: React.FC = () => {
 
       {/* Main area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — block palette */}
-        <div className="w-56 border-r bg-card flex flex-col shrink-0">
-          <div className="px-3 py-2 border-b">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Blocos</p>
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-3">
-              {NODE_CATEGORIES.map((cat) => {
-                const blocks = BLOCK_DEFINITIONS.filter((b) => b.category === cat.key);
-                if (blocks.length === 0) return null;
-                return (
-                  <div key={cat.key}>
-                    <p className={`text-[10px] font-bold px-1 py-0.5 mb-1 rounded text-white ${CATEGORY_HEADER_CLASS[cat.key]}`}>
-                      {cat.label}
-                    </p>
-                    {blocks.map((block) => {
-                      const disabled = block.singleton && startExists && block.type === 'start';
-                      return (
-                        <div
-                          key={block.type}
-                          draggable={!disabled}
-                          onDragStart={(e) => !disabled && onSidebarDragStart(e, block.type)}
-                          className={`flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded cursor-grab text-xs border transition-colors
-                            ${disabled
-                              ? 'opacity-40 cursor-not-allowed bg-muted border-transparent'
-                              : 'hover:bg-primary/10 hover:border-primary/30 border-transparent bg-transparent'
-                            }`}
-                          title={block.description}
-                        >
-                          <span>{block.emoji}</span>
-                          <span className="leading-tight">{block.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+        {/* Left sidebar — block palette (lg+). Abaixo disso, gaveta. */}
+        {!compact && (
+          <div className="w-56 border-r bg-card flex flex-col shrink-0">
+            <div className="px-3 py-2 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Blocos</p>
             </div>
-          </ScrollArea>
-        </div>
+            <ScrollArea className="flex-1">{renderPalette('drag')}</ScrollArea>
+          </div>
+        )}
 
         {/* Canvas */}
         <div ref={reactFlowWrapper} className="flex-1 relative" onDrop={onDrop} onDragOver={onDragOver}>
@@ -679,8 +747,8 @@ const ChatbotFlowBuilder: React.FC = () => {
           </FlowEdgeContext.Provider>
         </div>
 
-        {/* Right sidebar — node config */}
-        {selectedNode && (
+        {/* Right sidebar — node config (lg+). Abaixo disso, gaveta. */}
+        {selectedNode && !compact && (
           <div className="w-72 border-l bg-card shrink-0 flex flex-col">
             <NodeConfigPanel
               node={selectedNode}
@@ -693,6 +761,37 @@ const ChatbotFlowBuilder: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Abaixo de lg: paleta e configuração do nó viram gavetas (Sheet). */}
+      {compact && (
+        <>
+          <Sheet open={paletteOpen} onOpenChange={setPaletteOpen}>
+            <SheetContent side="left" className="w-full p-0 sm:max-w-xs">
+              <SheetHeader className="px-3 py-2 border-b text-left">
+                <SheetTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Blocos</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100%-2.75rem)]">{renderPalette('tap')}</ScrollArea>
+            </SheetContent>
+          </Sheet>
+          <Sheet open={!!selectedNode} onOpenChange={(o) => !o && setSelectedNode(null)}>
+            <SheetContent side="right" className="w-full p-0 sm:max-w-sm [&>button]:hidden">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Configurar bloco</SheetTitle>
+              </SheetHeader>
+              {selectedNode && (
+                <NodeConfigPanel
+                  node={selectedNode}
+                  variables={variables}
+                  onDataChange={handleNodeDataChange}
+                  onSave={handleSave}
+                  onClose={() => setSelectedNode(null)}
+                  saving={isSaving}
+                />
+              )}
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
 
       {/* Publish error modal */}
       <Dialog open={publishModal.open} onOpenChange={(o) => !o && setPublishModal({ open: false })}>
