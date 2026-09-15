@@ -28,7 +28,7 @@ export default function Reports() {
           { label: 'Relatórios' }
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
               <Settings className="w-4 h-4 mr-2" />
               Configurações
@@ -42,7 +42,7 @@ export default function Reports() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start md:grid md:grid-cols-4">
           <TabsTrigger value="templates" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Templates

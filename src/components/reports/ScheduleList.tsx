@@ -178,7 +178,7 @@ export const ScheduleList = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Agendamentos</h2>
           <p className="text-muted-foreground">
@@ -301,9 +301,9 @@ export const ScheduleList = () => {
           {schedules.map((schedule) => (
             <Card key={schedule.id}>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
                       <h3 className="font-semibold text-lg">
                         {schedule.report_templates?.name || schedule.name}
                       </h3>

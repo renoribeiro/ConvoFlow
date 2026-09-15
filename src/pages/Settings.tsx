@@ -190,10 +190,12 @@ export default function Settings() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList
-          className="grid w-full"
-          style={{ gridTemplateColumns: `repeat(${abasVisiveis.length}, minmax(0, 1fr))` }}
-        >
+        {/* Quebra de linha em vez de grade de N colunas iguais: com nove abas
+            os rótulos ("Escala/Transferência", "Respostas rápidas") passavam
+            por cima dos vizinhos até 1440px. Quebrar mantém todas visíveis;
+            rolar esconderia aba, que é o que se quer evitar numa tela de
+            configuração. */}
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           {abasVisiveis.map((aba) => {
             const Icon = aba.icon;
             return (

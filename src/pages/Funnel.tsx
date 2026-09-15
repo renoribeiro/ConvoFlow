@@ -25,7 +25,7 @@ export default function Funnel() {
           { label: 'Funil de Vendas' }
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button 
               variant="outline" 
               size="sm"
@@ -51,7 +51,7 @@ export default function Funnel() {
       />
 
       <Tabs defaultValue="board" className="space-y-6">
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap">
           <TabsTrigger value="board">Kanban Board</TabsTrigger>
           <TabsTrigger value="metrics">Métricas & Relatórios</TabsTrigger>
         </TabsList>

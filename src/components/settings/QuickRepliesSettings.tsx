@@ -229,7 +229,7 @@ export const QuickRepliesSettings = () => {
 
       {/* Criar / editar */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{emEdicao ? 'Editar resposta rápida' : 'Nova resposta rápida'}</DialogTitle>
             <DialogDescription>

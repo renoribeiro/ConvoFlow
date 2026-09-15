@@ -278,7 +278,7 @@ export const IntegrationSettings = () => {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start md:grid md:grid-cols-2">
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           </TabsList>
@@ -352,7 +352,7 @@ export const IntegrationSettings = () => {
               <p className="text-sm text-muted-foreground mb-3">
                 Entre em contato conosco para solicitar novas integrações ou use nossa API para criar integrações personalizadas.
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button 
                   size="sm" 
                   variant="outline" 

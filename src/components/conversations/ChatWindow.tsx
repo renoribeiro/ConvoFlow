@@ -868,7 +868,7 @@ export const ChatWindow = ({
             <Avatar className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0">
               {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
               <AvatarFallback>
-                {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase() : 'C'}
+                {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2) : 'C'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
@@ -1282,24 +1282,24 @@ export const ChatWindow = ({
       />
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Contato</DialogTitle>
             <DialogDescription>Atualize as informações do contato abaixo.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Nome</Label>
-              <Input id="name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="col-span-3" />
+            <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
+              <Label htmlFor="name" className="md:text-right">Nome</Label>
+              <Input id="name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="md:col-span-3" />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">Telefone</Label>
-              <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="col-span-3" />
+            <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
+              <Label htmlFor="phone" className="md:text-right">Telefone</Label>
+              <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="md:col-span-3" />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="lead_source" className="text-right">Fonte</Label>
+            <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
+              <Label htmlFor="lead_source" className="md:text-right">Fonte</Label>
               <Select value={editForm.lead_source_id} onValueChange={(value) => setEditForm({ ...editForm, lead_source_id: value })}>
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger className="md:col-span-3">
                   <SelectValue placeholder="Selecione uma fonte" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1309,10 +1309,10 @@ export const ChatWindow = ({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="stage" className="text-right">Etapa</Label>
+            <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
+              <Label htmlFor="stage" className="md:text-right">Etapa</Label>
               <Select value={editForm.current_stage_id} onValueChange={(value) => setEditForm({ ...editForm, current_stage_id: value })}>
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger className="md:col-span-3">
                   <SelectValue placeholder="Selecione uma etapa" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1358,7 +1358,7 @@ export const ChatWindow = ({
       />
 
       <Dialog open={isEndSessionOpen} onOpenChange={setIsEndSessionOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Encerrar sessão do bot</DialogTitle>
             <DialogDescription>

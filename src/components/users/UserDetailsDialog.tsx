@@ -47,7 +47,7 @@ export function UserDetailsDialog({ row, tenantName, onClose }: Props) {
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{nome}</DialogTitle>
           <DialogDescription>

@@ -497,7 +497,7 @@ export function MessageBubble({
 
       {type === 'image' && url && (
         <Dialog open={imageOpen} onOpenChange={setImageOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="sr-only">Imagem ampliada</DialogTitle>
             </DialogHeader>

@@ -542,15 +542,19 @@ const ChatbotFlowBuilder: React.FC = () => {
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b bg-card z-10 shrink-0">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard/chatbots')}>
+      {/* flex-wrap: abaixo de 1024px a barra não cabia (945px a 768) e o
+          "Publicar" saía da tela. Os rótulos dos botões da direita só aparecem
+          em lg+; abaixo disso ficam os ícones com title/aria-label. */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-2 border-b bg-card z-10 shrink-0">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard/chatbots')} aria-label="Voltar para Chatbots">
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
         <Input
           value={botName}
           onChange={(e) => { setBotName(e.target.value); setIsDirty(true); }}
-          className="h-8 w-52 text-sm font-medium"
+          className="h-8 w-40 sm:w-52 text-sm font-medium"
+          aria-label="Nome do chatbot"
         />
 
         {/* O construtor não tem PageHeader: a ajuda da tela fica na barra do topo. */}
@@ -568,10 +572,10 @@ const ChatbotFlowBuilder: React.FC = () => {
           </Badge>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} title="Editar configurações do bot">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} title="Editar configurações do bot" aria-label="Editar Bot">
             <Settings2 className="h-4 w-4" />
-            <span className="ml-1.5">Editar Bot</span>
+            <span className="ml-1.5 hidden lg:inline">Editar Bot</span>
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <Button variant="ghost" size="icon" onClick={undo} title="Desfazer (Ctrl+Z)">
@@ -581,13 +585,13 @@ const ChatbotFlowBuilder: React.FC = () => {
             <Redo2 className="h-4 w-4" />
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
+          <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving} title="Salvar" aria-label="Salvar">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            <span className="ml-1.5">Salvar</span>
+            <span className="ml-1.5 hidden lg:inline">Salvar</span>
           </Button>
-          <Button size="sm" onClick={handlePublish} disabled={isSaving}>
+          <Button size="sm" onClick={handlePublish} disabled={isSaving} title="Publicar" aria-label="Publicar">
             <Upload className="h-4 w-4" />
-            <span className="ml-1.5">Publicar</span>
+            <span className="ml-1.5 hidden lg:inline">Publicar</span>
           </Button>
         </div>
       </div>
@@ -692,7 +696,7 @@ const ChatbotFlowBuilder: React.FC = () => {
 
       {/* Publish error modal */}
       <Dialog open={publishModal.open} onOpenChange={(o) => !o && setPublishModal({ open: false })}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />

@@ -120,7 +120,7 @@ export default function Contacts() {
           { label: 'Contatos' }
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
               {isExporting ? 'Exportando...' : 'Exportar'}

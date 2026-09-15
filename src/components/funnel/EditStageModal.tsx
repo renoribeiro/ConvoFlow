@@ -103,7 +103,7 @@ export const EditStageModal = ({ isOpen, onClose, stage, onStageUpdated }: EditS
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Estágio</DialogTitle>
         </DialogHeader>

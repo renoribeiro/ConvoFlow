@@ -382,7 +382,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   if (hasError) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -396,7 +396,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {contactId ? 'Editar Contato' : 'Novo Contato'}

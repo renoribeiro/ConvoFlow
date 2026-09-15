@@ -341,7 +341,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                       <Avatar className="w-8 h-8">
                         <AvatarFallback>
                           {(contact.name?.trim()
-                            ? contact.name.trim().split(' ').map(n => n[0]).join('')
+                            ? contact.name.trim().split(' ').map(n => n[0]).join('').slice(0, 2)
                             : '?'
                           ).slice(0, 2).toUpperCase()}
                         </AvatarFallback>

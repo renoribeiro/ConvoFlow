@@ -439,7 +439,7 @@ export default function WhatsAppNumbers() {
           { label: 'Instâncias e APIs' }
         ]}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button 
               variant="outline" 
               onClick={() => {
@@ -462,7 +462,7 @@ export default function WhatsAppNumbers() {
       />
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start md:grid md:grid-cols-3">
           <TabsTrigger value="instances" className="flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
             Instâncias
@@ -543,16 +543,19 @@ export default function WhatsAppNumbers() {
               </Button>
             </div>
           ) : (
+            // flex-wrap + min-w-0 em cada linha: no celular o grupo de ações
+            // (status, QR, webhook, desconectar) desce para a linha de baixo em
+            // vez de empurrar a página para o lado.
             <div className="space-y-4">
               {instances.map((instance) => (
-                <div key={instance.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center gap-4">
+                <div key={instance.id} className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center gap-4 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(instance.status)}`} />
                       {getStatusIcon(instance.status)}
                     </div>
                     
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-semibold">{instance.name}</h4>
                         <Badge
@@ -580,12 +583,12 @@ export default function WhatsAppNumbers() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
                       {getStatusText(instance.status)}
                     </Badge>
                     
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {(!instance.provider || instance.provider === 'evolution') && (
                         <Button
                           variant="ghost"
@@ -711,7 +714,7 @@ export default function WhatsAppNumbers() {
 
       {/* Diálogo de PIN para registro Meta */}
       <Dialog open={!!pinDialogInstance} onOpenChange={(open) => { if (!open) { setPinDialogInstance(null); setPinValue(''); } }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>PIN necessário</DialogTitle>
           </DialogHeader>

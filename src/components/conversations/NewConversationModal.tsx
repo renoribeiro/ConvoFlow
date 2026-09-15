@@ -219,7 +219,7 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
           Nova Conversa
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquarePlus className="w-5 h-5" />

@@ -76,7 +76,7 @@ const Chatbots: React.FC = () => {
     return (
       <div className="space-y-6">
         <div className="h-8 bg-muted rounded w-1/4 animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-24 bg-muted rounded-md animate-pulse" />
           ))}
@@ -102,7 +102,7 @@ const Chatbots: React.FC = () => {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -161,7 +161,9 @@ const Chatbots: React.FC = () => {
           chatbots.map((chatbot) => (
             <Card key={chatbot.id}>
               <CardHeader>
-                <div className="flex items-start justify-between gap-4">
+                {/* No celular a linha de ações (toggle + Editar + excluir) não
+                    cabe ao lado do título: quebra para baixo. */}
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className="text-base">{chatbot.name}</CardTitle>
@@ -190,7 +192,7 @@ const Chatbots: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-3">
                     {/* Inline active toggle */}
                     <div className="flex items-center gap-1.5">
                       <Switch
@@ -226,7 +228,7 @@ const Chatbots: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>{chatbot.node_count} nó{chatbot.node_count !== 1 ? 's' : ''}</span>
                   <span>{chatbot.trigger_count} gatilho{chatbot.trigger_count !== 1 ? 's' : ''}</span>
                   <span>

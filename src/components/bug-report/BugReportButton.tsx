@@ -277,7 +277,7 @@ export const BugReportButton: React.FC = () => {
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <AnimatePresence mode="wait" initial={false}>
           {submitted ? (
           <motion.div

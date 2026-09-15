@@ -383,7 +383,7 @@ function CampaignCard({
         </div>
 
         {/* Metrics row */}
-        <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <Metric value={total} label="Total" icon={<Users className="h-3 w-3" />} />
           <Metric value={sent} label="Enviadas" />
           <Metric value={delivered} label="Entregues" />

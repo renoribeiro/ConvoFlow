@@ -77,7 +77,7 @@ export default function Tracking() {
           { label: 'Rastreamento' }
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleOpenSettings}>
               <Settings className="w-4 h-4 mr-2" />
               Configurações
@@ -91,7 +91,7 @@ export default function Tracking() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start md:grid md:grid-cols-3">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             Dashboard
