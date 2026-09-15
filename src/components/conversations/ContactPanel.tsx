@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -194,7 +195,10 @@ function ContactPanelBody({
       <div className="flex items-start justify-between border-b border-border px-4 py-4">
         <div className="flex flex-col items-center gap-2 w-full">
           <div className="flex w-full items-center justify-between">
-            <span className="text-sm font-semibold text-foreground">Detalhes do contato</span>
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              Detalhes do contato
+              <FeatureHelp helpKey="page:conversations-contact" />
+            </span>
             <Button
               variant="ghost"
               size="icon"

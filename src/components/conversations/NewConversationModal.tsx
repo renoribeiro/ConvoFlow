@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -223,6 +224,7 @@ export const NewConversationModal = ({ onConversationCreated }: NewConversationM
           <DialogTitle className="flex items-center gap-2">
             <MessageSquarePlus className="w-5 h-5" />
             Iniciar Nova Conversa
+            <FeatureHelp helpKey="page:conversations-new" />
           </DialogTitle>
         </DialogHeader>
         

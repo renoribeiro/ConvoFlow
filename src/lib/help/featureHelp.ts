@@ -448,6 +448,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Para reaproveitar um trecho pronto, clique no raio ao lado do campo de mensagem — ou digite "/" com o campo vazio, que abre a mesma lista.',
       'Para guardar um trecho que você acabou de escrever, passe o mouse sobre a mensagem enviada e clique no raio que aparece nela.',
       'Use as pílulas acima da lista ("Não lidas", "Aguardando"...) para trabalhar uma fila de cada vez; o número em cada uma diz o tamanho dela.',
+      'O botão "Filtros" abre três recortes que se somam às pílulas: "Apenas conversas com mensagens não lidas", "Mostrar arquivadas" e um período pela data da última mensagem. Eles valem na hora, sem botão de aplicar — "Aplicar" só fecha a janela.',
       'Para ficar responsável por uma conversa, abra-a e clique em "Sem responsável", no cabeçalho, e depois em "Assumir". O seu nome passa a aparecer na conversa, para todo mundo da Loja.',
       'Para passar a conversa a um colega, clique no responsável no cabeçalho e em "Transferir…", escolha a pessoa na lista e pronto — ela recebe um aviso no sino. Dá para transferir para você mesmo uma conversa que está com outra pessoa.',
       'Use as pílulas "Minhas" e "Sem responsável" para ver só o que está com você ou o que ninguém pegou ainda.',
@@ -477,6 +478,76 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Gerente atende as Lojas da própria Conta escolhendo a Loja no seletor do topo: abre o histórico, responde e marca como lida, igual ao Gestor. O que o Gerente não faz é apagar conversa ou contato de uma Loja.',
       'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar — dá para ajustar antes.',
       'No campo de mensagem, Enter envia e Shift+Enter quebra a linha. Depois de enviar o cursor continua no campo, então dá para emendar a próxima mensagem sem clicar na caixa de novo.',
+    ],
+    category: 'tela',
+    area: 'Operação',
+  },
+  // Os três a seguir são superfícies DENTRO de Conversas (diálogo, diálogo,
+  // painel). Ganharam entrada própria porque cada um tem regra que não cabe num
+  // passo: a janela de 24 h, o atalho que só serve à Evolution, e um painel
+  // com seis seções. O modal "Filtros" ficou como um passo em page:conversations
+  // — são três caixas, não há o que explicar em separado.
+  'page:conversations-template': {
+    moduleName: 'conversations',
+    title: 'Conversas › Enviar template',
+    whatItDoes:
+      'É o único jeito de voltar a falar com um cliente pela API Oficial da Meta depois de 24 horas sem mensagem dele. Passado esse prazo, o texto livre não é entregue — a Meta só aceita um modelo que ela já aprovou, e é ele que reabre a conversa.',
+    howToConfigure: [
+      'Abra a conversa. Se o cliente não escreve há mais de 24 horas, aparece um aviso acima do campo de mensagem com o botão "Enviar template"; ele também fica no menu ⋮ do cabeçalho, em qualquer momento.',
+      'Escolha o modelo na lista "Template" — só os marcados como aprovados são entregues. Se a lista não carregar, digite o nome exato em "Nome do template" e escolha o idioma.',
+      'Preencha os "Parâmetros do corpo" na ordem: cada campo é um {{1}}, {{2}} do modelo. O que você digita vai substituir a marcação — confira antes, porque o envio não tem prévia.',
+      'Clique em "Enviar template". O modelo sai pela instância da conversa e fica gravado no histórico como uma mensagem sua; se o cliente responder, a janela de 24 horas reabre e o texto livre volta a funcionar.',
+    ],
+    example:
+      'O cliente pediu orçamento na segunda e sumiu. Na quinta você abre a conversa, vê o aviso das 24 horas, escolhe o modelo "retorno_orcamento" com o nome dele no {{1}} e envia. Ele responde à tarde — e a partir daí você escreve normalmente.',
+    tips: [
+      'Isto só existe em número da API Oficial. Número conectado por QR Code (Evolution ou WAHA) não tem janela de 24 horas nem template: nele o texto livre sai sempre.',
+      'Modelo com variável errada é recusado pela Meta na hora, com o motivo no aviso vermelho. O erro mais comum é deixar um parâmetro vazio.',
+      'Os modelos são criados e aprovados no Gerenciador do WhatsApp Business, não aqui. Para ver a lista completa da sua conta com o selo de cada um, use a tela Templates.',
+      'Use template para reabrir a conversa, não como mensagem do dia a dia: dentro da janela de 24 horas o texto livre é mais rápido, sem parâmetros e sem depender de aprovação.',
+    ],
+    category: 'tela',
+    area: 'Operação',
+  },
+  'page:conversations-new': {
+    moduleName: 'conversations',
+    title: 'Conversas › Nova Conversa',
+    whatItDoes:
+      'Começa uma conversa com um telefone que nunca escreveu para você: você escolhe o número da Loja, digita o telefone do cliente e a primeira mensagem, e o sistema cria o contato e manda tudo de uma vez.',
+    howToConfigure: [
+      'Clique em "Nova Conversa", acima da lista.',
+      'Escolha em "Instância do WhatsApp" o número da Loja que vai enviar — precisa estar conectado.',
+      'Digite o "Número do WhatsApp" com DDD e a "Mensagem inicial" (até 1000 caracteres).',
+      'Clique em "Iniciar Conversa". Se o telefone ainda não era contato, ele é cadastrado agora e a conversa abre na lista, já com a sua mensagem enviada.',
+    ],
+    example:
+      'O corretor recebeu um cartão na visita. Ele abre "Nova Conversa", escolhe o número do plantão, digita o telefone e "Oi, aqui é o Paulo da imobiliária — segue o material que prometi" e a conversa já nasce no ConvoFlow.',
+    tips: [
+      'Este atalho envia pelo servidor da Evolution: serve para número conectado por QR Code. Para número da API Oficial, o caminho é outro — cadastre o telefone em Contatos, clique em "Conversar" na linha dele e, na conversa, use "Enviar template", porque a Meta não aceita texto livre para quem nunca falou com você.',
+      'Se o telefone já era contato, nada é duplicado: a conversa dele é reaproveitada e a mensagem entra no histórico que já existia.',
+      'A conversa nova nasce sem responsável. Se a Loja ligou o rodízio, o próximo cliente que responder faz ela ganhar dono; até lá, quem quiser cuidar clica em "Assumir".',
+    ],
+    category: 'tela',
+    area: 'Operação',
+  },
+  'page:conversations-contact': {
+    moduleName: 'conversations',
+    title: 'Conversas › Painel do contato',
+    whatItDoes:
+      'É a ficha do cliente ao lado do chat, para você mexer no cadastro sem sair da conversa: etapa do funil, etiquetas, anotações, follow-ups pendentes e a origem do lead. O que você muda aqui vale em Contatos e no Funil na mesma hora.',
+    howToConfigure: [
+      'Abra o painel pelo ícone no canto direito do cabeçalho da conversa ("Abrir painel do contato"); o mesmo ícone fecha. A escolha fica salva: nas próximas conversas ele volta como você deixou.',
+      'Em "Funil", troque a etapa em "Mover para etapa..." — é o mesmo que arrastar o card no Funil de Vendas, e dispara as mesmas automações.',
+      'Em "Etiquetas", o botão de mais abre o mesmo diálogo de etiquetar do menu ⋮; a etiqueta vale para campanhas segmentadas.',
+      'Em "Notas", escreva o que o resto do time precisa saber antes de responder. Não há botão de salvar: o texto grava sozinho, e "Salvo automaticamente" confirma.',
+      'Em "Follow-ups pendentes", veja o que já está marcado para este cliente antes de marcar outro. Para editar o cadastro inteiro (nome, e-mail, telefone), use o link para Contatos no topo do painel.',
+    ],
+    example:
+      'Cliente confirma a visita pelo chat. Sem sair da conversa você move para "Visita agendada", anota "quer ver o de 2 quartos também" e confere que o follow-up de amanhã já existe.',
+    tips: [
+      'As seções "Fonte do lead", "Campos personalizados" e "Informações" vêm recolhidas: origem do anúncio, o que o chatbot coletou nas variáveis e os dados de cadastro. Clique no título para abrir.',
+      'A nota é do contato, não da conversa: quem abrir esse cliente em qualquer instância vê a mesma anotação.',
+      'Mover de etapa aqui pode disparar automação (gatilho "Mudança de Estágio") e follow-up — igual ao Funil.',
     ],
     category: 'tela',
     area: 'Operação',
@@ -637,6 +708,28 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     category: 'tela',
     area: 'Marketing',
   },
+  'page:campaigns-details': {
+    moduleName: 'campaigns',
+    title: 'Campanhas › Detalhes da Campanha',
+    whatItDoes:
+      'É o raio-X de uma campanha depois do disparo: o que foi configurado, a mensagem como saiu, os números de entrega e, pessoa por pessoa, se a mensagem foi enviada, entregue, lida, respondida — ou falhou, e por quê.',
+    howToConfigure: [
+      'Na lista de Campanhas, abra o menu ⋮ da campanha e clique em "Ver detalhes".',
+      'Leia primeiro os contadores: Total, Enviadas, Entregues, Lidas, Respondidas, Falhas e a "Taxa de entrega". Entregue e não lida é normal nas primeiras horas; enviada e não entregue por muito tempo é número inválido ou bloqueado.',
+      'Se houve falhas, o bloco vermelho lista os erros mais comuns com a quantidade de cada um — é ele que diz se o problema foi número inválido, template recusado ou limite da Meta.',
+      'Em "Destinatários", ache a pessoa pelo nome e veja o status dela com data de envio, entrega e leitura. Para responder a quem respondeu, vá em Conversas: a resposta chegou lá.',
+      'Em "Configuração" e "Prévia da mensagem", confira o que realmente saiu — instância, público, horário comercial, limite diário e o texto com as variáveis trocadas.',
+    ],
+    example:
+      '500 disparos, 60 falhas. O bloco de erros mostra 58 vezes "número inválido": a lista importada tinha DDD faltando. Você corrige os contatos e duplica a campanha só para eles.',
+    tips: [
+      'Uma campanha em andamento pode ser pausada e retomada pelo mesmo menu ("Pausar", "Retomar"); "Duplicar" cria uma cópia em rascunho para ajustar e disparar de novo.',
+      'Para comparar várias campanhas de uma vez — funil de conversão e desempenho por campanha num período — use o botão "Relatórios" no topo da tela, que abre "Relatórios de Campanhas". Esta janela é de UMA campanha; aquela é do conjunto.',
+      'Os status de entrega e leitura vêm do WhatsApp. Cliente com confirmação de leitura desligada aparece como entregue, nunca como lida — não é falha sua.',
+    ],
+    category: 'tela',
+    area: 'Marketing',
+  },
   // Sem moduleName e sem minRole de propósito: a rota /dashboard/templates não
   // tem ModuleGuard nem RoleGuard. Quem tem sessão alcança a tela, então a
   // página de Ajuda também tem de oferecer a leitura para todo cargo.
@@ -679,6 +772,29 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Tarefa manual é a exceção: por padrão ela sobrevive à resposta, porque foi você quem planejou aquele passo.',
       'Follow-up sem mensagem definida é só um lembrete para o corretor; com mensagem, vira envio.',
       'Cadência curta demais irrita e cadência longa demais perde a venda. Uma semana é o intervalo em que a maioria dos leads ainda lembra de você.',
+    ],
+    category: 'tela',
+    area: 'Marketing',
+  },
+  'page:followups-sequences': {
+    moduleName: 'followups',
+    title: 'Follow-ups › Sequências',
+    whatItDoes:
+      'Aqui você monta a cadência uma vez — mensagem em 1 dia, tarefa em 3, mensagem em 7 — e depois inscreve os leads nela. Cada inscrição segue os passos sozinha, e para de seguir quando o cliente responde, se a sequência for feita para isso.',
+    howToConfigure: [
+      'Clique em "Nova sequência" e dê um nome que diga o objetivo ("Reativação de leads frios", por exemplo).',
+      'Decida "Parar ao receber resposta": ligado, a primeira mensagem do cliente encerra a cadência dele — os passos que faltavam não saem. Desligado, a sequência vai até o fim mesmo com o cliente respondendo.',
+      'Monte os passos com "Adicionar passo". Cada passo é uma mensagem de WhatsApp (com variáveis como {{primeiro_nome}}) ou uma tarefa para o operador, com prioridade. O tempo de cada um conta "Após a inscrição" ou "Após o passo anterior", em minutos, horas ou dias.',
+      'Deixe "Ativa" ligada e salve. Sequência inativa continua rodando para quem já está nela, mas não aceita inscrição nova.',
+      'Para inscrever um lead, vá em "Novo Follow-up", escolha o modo "Sequência" e a sequência. É por lá que a cadência começa — a aba só desenha.',
+    ],
+    example:
+      'Sequência "Pós-visita": mensagem em 1 dia ("o que você achou?"), tarefa "Ligar para o cliente" em 3 dias, mensagem em 7 dias com um imóvel parecido. O lead que responde no segundo dia sai da cadência; o que não responde recebe as três etapas.',
+    tips: [
+      'Não dá para editar uma sequência depois de criada. Para mudar um passo, crie outra, inscreva os próximos leads nela e desative a antiga — quem já estava inscrito termina a versão antiga.',
+      '"Excluir" apaga a sequência, os passos e TODAS as inscrições em andamento de uma vez, sem desfazer. As tarefas e mensagens que já tinham sido criadas ficam na lista de Follow-ups, mas soltas, sem a cadência a que pertenciam. Prefira desativar.',
+      'A opção "Parar ao receber resposta" é da sequência, não da Loja: a aba Configurações › Follow-ups decide o que a resposta cancela nos follow-ups avulsos, e não manda nesta trava.',
+      'As mensagens saem pelo número da Loja em que o lead foi inscrito, nos horários dos passos — também de madrugada, se a conta cair de madrugada. Pense nos intervalos em dias inteiros.',
     ],
     category: 'tela',
     area: 'Marketing',
@@ -1109,6 +1225,92 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Vazio é ilimitado — apagar o campo libera em vez de bloquear. É o erro mais comum nesta tela.',
       'Para o usuário, limite atingido aparece como erro na hora de criar. Avise o time antes de reduzir um limite.',
+    ],
+    category: 'tela',
+    area: 'Admin',
+  },
+  // As quatro abas de /dashboard/admin. 'page:admin-users' já é a rota
+  // /dashboard/admin/users (Gestão de Usuários), por isso a aba Usuários leva
+  // o sufixo -tab; as outras seguem 'page:admin-<aba>'.
+  'page:admin-users-tab': {
+    minRole: 'superadmin',
+    title: 'Administração › Usuários',
+    whatItDoes:
+      'É a lista plana de todas as pessoas com login no ConvoFlow — uma por linha, com cargo, Conta e o selo de acesso da Conta dela: "Pago", "Manual (Liberado)" ou "Bloqueado". É onde você libera ou revoga acesso na mão, cria um usuário sem passar por convite e exclui quem não deve mais entrar.',
+    howToConfigure: [
+      'Busque pelo nome ou e-mail; a lista filtra enquanto você digita.',
+      'Leia a coluna Plano / Acesso antes de qualquer ação. "Pago" é assinatura ativa; "Manual (Liberado)" é liberação sua, com a data ao passar o mouse; "Bloqueado" é sem acesso. Numa Loja o selo é o da Conta acima, e a lista diz de onde ele vem — a Loja não decide nada sozinha.',
+      'Para abrir o sistema sem pagamento, clique em "Liberar Manualmente" na linha da pessoa: a Conta inteira abre, para todo o time, e fica registrado quem liberou e quando. "Revogar Acesso" fecha na hora para todos, inclusive o Gerente.',
+      'Para criar alguém, use "Novo Usuário": nome, e-mail, cargo e a Loja (Gestor e Atendente) ou o nome da Conta nova (Gerente — a Conta nasce junto). A pessoa recebe o convite por e-mail e define a própria senha.',
+      'Na coluna Ações, o olho abre "Detalhes do Usuário", o lápis abre "Editar Usuário" (nome, telefone, cargo) e a lixeira abre "Excluir Usuário". Excluir tira o login e some com a pessoa das listas; o histórico de atendimento dela fica. Não existe botão para desfazer.',
+    ],
+    example:
+      'Chega um "não consigo entrar". Você busca o e-mail e vê "Bloqueado" na Conta: é cobrança, não senha. O contrato já foi assinado, então "Liberar Manualmente" abre na hora — e você revoga se o pagamento não vier.',
+    tips: [
+      'Esta aba e a tela "Gestão de Usuários" (Admin › Usuários no menu lateral) mostram as mesmas pessoas de dois jeitos: aqui, a lista plana com o selo de acesso e os botões de liberar, editar e excluir; lá, a hierarquia Superadmin → Conta → Loja, com "Convidar usuário". Para saber de quem é uma Loja, vá lá; para liberar ou excluir, é aqui.',
+      'Excluir é o último recurso. Quem só saiu do time deve ser suspenso pelo Gestor ou Gerente em Equipe — assim o rodízio se refaz e as conversas dela aparecem na pílula "Responsável indisponível".',
+      'Cargo Superadmin vê tudo, inclusive esta aba. Dê a alguém só quando essa pessoa opera a plataforma.',
+    ],
+    category: 'tela',
+    area: 'Admin',
+  },
+  'page:admin-billing': {
+    minRole: 'superadmin',
+    title: 'Administração › Faturamento',
+    whatItDoes:
+      'É o dinheiro da plataforma, lido do Stripe: quantas assinaturas estão ativas, a receita mensal, o total faturado e as transações. É também onde os cupons de desconto são criados — e arquivar um cupom é para sempre.',
+    howToConfigure: [
+      'Os quatro cartões do topo resumem o mês: Assinaturas Ativas, Receita Mensal (MRR), Total Faturado e o Produto Stripe em uso. Abaixo, "Transações" lista os pagamentos e "Assinaturas" lista quem assina, com plano, valor, situação e a data da próxima cobrança.',
+      'Em "Cupons", clique em "Novo Cupom": código (é o que o cliente digita no checkout), tipo (percentual ou valor fixo), duração (uma vez, alguns meses ou para sempre), limite de usos e validade. O cupom nasce no Stripe e já vale no Checkout na hora.',
+      'Para tirar um cupom de circulação, use o ícone de arquivar na linha dele e confirme. Arquivar NÃO pode ser desfeito: o código deixa de ser aceito no mesmo instante e não volta a existir — quem já assinou com ele continua com o desconto. Se ainda tem dúvida, deixe o cupom expirar pela data em vez de arquivar.',
+      'Em "Configurações", as chaves do Stripe: "Salvar Configuração" grava e "Testar Conexão" confere. Leia a dica sobre o que essas chaves mandam e o que não mandam antes de mexer.',
+    ],
+    example:
+      'Feira de imobiliárias na semana que vem. Você cria FEIRA30, 30 % por 3 meses, limite de 50 usos e validade até o fim do mês. Acabou a feira, o cupom expira sozinho — sem precisar arquivar.',
+    tips: [
+      'Cupom errado não se corrige: não há edição. Arquive e crie outro com o código certo — e lembre que quem já usou o errado fica com o desconto errado até o fim da duração.',
+      'As chaves salvas em "Configurações" são usadas pelo gerenciador de cupons. O checkout dos clientes e o webhook de pagamento leem a chave guardada como secret no Supabase, não esta tela: trocar aqui não troca a cobrança. Com o campo vazio, os cupons usam a mesma chave da cobrança — que é o estado certo hoje.',
+      'Assinatura é da Conta, nunca da Loja. Uma linha por Conta pagante; as Lojas dela não aparecem aqui.',
+      'Os números vêm das tabelas que o webhook do Stripe preenche: um pagamento aparece aqui quando o Stripe avisa, normalmente em segundos. Se algo não bater, o Stripe é a fonte — esta tela é a cópia.'
+    ],
+    category: 'tela',
+    area: 'Admin',
+  },
+  'page:admin-reports': {
+    minRole: 'superadmin',
+    title: 'Administração › Relatórios',
+    whatItDoes:
+      'É o tamanho da plataforma em números: quantas pessoas têm login, quantas estão ativas, quantos Superadmins, Contas e Lojas existem. Serve para saber quanto o ConvoFlow cresceu, não para acompanhar um cliente.',
+    howToConfigure: [
+      'Leia os dois cartões do topo: Total de Usuários (todo mundo cadastrado) e Usuários Ativos (quem pode entrar hoje).',
+      'Na tabela "Resumo do Sistema", cada linha é uma contagem com a explicação ao lado: Usuários Cadastrados, Superadmins, Contas (Gerentes) e Lojas (Gestores).',
+      'Para investigar uma Conta específica, saia daqui: a aba Usuários mostra a pessoa e o acesso; o seletor de Conta no topo mostra o Dashboard dela.',
+    ],
+    example:
+      'Fim do mês: 14 Contas, 31 Lojas, 118 usuários, 97 ativos. A diferença entre cadastrados e ativos é o que ainda não aceitou convite ou foi suspenso — vale uma olhada na aba Usuários.',
+    tips: [
+      'Não há exportação nem período: são contagens do momento. Para série histórica, anote mês a mês.',
+      'Usuários Ativos conta quem está com a caixa "Usuário ativo" ligada; convite ainda não aceito e pessoa suspensa ficam fora. A diferença para o total é onde procurar quem travou no caminho.',
+    ],
+    category: 'tela',
+    area: 'Admin',
+  },
+  'page:admin-settings': {
+    minRole: 'superadmin',
+    title: 'Administração › Configurações',
+    whatItDoes:
+      'Três ajustes que valem para a plataforma inteira, um cartão cada: o modo de manutenção (que tem a própria ajuda no cartão), quem recebe por e-mail os relatos do botão "Reportar bug" e qual número de WhatsApp o sistema usa para enviar relatórios.',
+    howToConfigure: [
+      'Manutenção vem primeiro de propósito: é a única coisa aqui que fecha o sistema para todos os clientes. O botão de ajuda dele está no próprio cartão.',
+      'Em Destinatários de bug: escreva em "E-mails (um por linha)" quem deve receber os relatos que qualquer usuário manda pelo botão "Reportar bug", e clique em "Salvar". O relato chega com print, tela e Conta de quem mandou.',
+      'Em "Número de envio dos relatórios", escolha a instância de WhatsApp que envia relatório quando alguém pede entrega por WhatsApp em Relatórios. Sem escolher, a entrega por WhatsApp falha e só o e-mail sai.',
+    ],
+    example:
+      'Você põe suporte@ e dev@ como destinatários. Um Gestor relata "o funil não abre" pelo botão: os dois recebem o e-mail com o print e a Conta dele, sem ninguém precisar pedir detalhes.',
+    tips: [
+      'Sem nenhum e-mail salvo, os relatos de bug ficam gravados no banco mas ninguém é avisado — preencha ao menos um.',
+      'O número de envio é da plataforma, não do cliente: o relatório de qualquer Conta sai por ele. Use um número que não seja de atendimento.',
+      'Tudo nesta aba é lido por funções de servidor no momento do uso. Salvar vale na hora, sem reiniciar nada.',
     ],
     category: 'tela',
     area: 'Admin',

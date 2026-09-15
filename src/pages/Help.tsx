@@ -13,7 +13,7 @@
  * O corpo de cada tópico é o mesmo componente que o painel lateral contextual
  * usa (<FeatureHelpBody />) — uma implementação, dois lugares.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, SearchX } from 'lucide-react';
 
@@ -63,7 +63,10 @@ const Help = () => {
 
   const [query, setQuery] = useState('');
   const [openItems, setOpenItems] = useState<string[]>([]);
-  const [scrolledFor, setScrolledFor] = useState<string | null>(null);
+  // Chave já rolada. Ref, não estado: um estado aqui entrava nas dependências
+  // do efeito de rolagem, o efeito rodava de novo e o cleanup cancelava o
+  // próprio timer antes dos 150 ms — o link profundo abria, mas nunca rolava.
+  const scrolledForRef = useRef<string | null>(null);
 
   /** Chave vinda do link profundo (#page:conversations, #tutorial:montar-funil). */
   const hashKey = useMemo(() => {
@@ -132,18 +135,20 @@ const Help = () => {
   }, [hashKey]);
 
   // Rola até ele. Depende de `sections` porque no primeiro render os módulos
-  // podem ainda estar carregando e o item nem existir no DOM.
+  // podem ainda estar carregando e o item nem existir no DOM; se `sections`
+  // mudar antes dos 150 ms, o cleanup cancela e o efeito rearma o timer — a
+  // marca de "já rolei" só é gravada quando a rolagem acontece de fato.
   useEffect(() => {
-    if (!hashKey || scrolledFor === hashKey) return;
+    if (!hashKey || scrolledForRef.current === hashKey) return;
     const target = document.getElementById(hashKey);
     if (!target) return;
 
-    setScrolledFor(hashKey);
     const timer = setTimeout(() => {
+      scrolledForRef.current = hashKey;
       target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }, SCROLL_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [hashKey, scrolledFor, sections]);
+  }, [hashKey, sections]);
 
   return (
     <div className="space-y-6">

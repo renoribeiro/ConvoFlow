@@ -338,6 +338,30 @@ describe('Help — link profundo', () => {
     renderHelp('#tutorial:nao-existe');
     expect(document.querySelectorAll('[data-state="open"]').length).toBe(0);
   });
+
+  it('o link do estado vazio de Conversas abre o tutorial do dia a dia expandido e rolado, para o atendente', () => {
+    // É o href exato que ChatWindow monta (ver ChatWindow.emptyState.test.tsx).
+    currentRole = 'atendente';
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      renderHelp('#tutorial:atender-conversas');
+
+      const item = document.getElementById('tutorial:atender-conversas') as HTMLElement;
+      expect(item?.getAttribute('data-state')).toBe('open');
+      const tutorial = TUTORIALS.find((t) => t.id === 'atender-conversas')!;
+      expect(within(item).getByText(tutorial.steps[0]!.title)).toBeTruthy();
+
+      // A rolagem espera a sanfona abrir (SCROLL_DELAY_MS = 150).
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(200);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.instances[0]).toBe(item);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // ── 4. Filtro por cargo ──────────────────────────────────────────────────────

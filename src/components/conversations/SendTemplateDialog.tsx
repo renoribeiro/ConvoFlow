@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TemplateStatusBadge } from '@/components/shared/TemplateStatusBadge';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import {
   Select,
   SelectContent,
@@ -186,7 +187,10 @@ export function SendTemplateDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Enviar template aprovado</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Enviar template aprovado
+            <FeatureHelp helpKey="page:conversations-template" />
+          </DialogTitle>
           <DialogDescription>
             Fora da janela de 24h, a Meta só permite reabrir a conversa com um template já aprovado no
             Gerenciador do WhatsApp Business.

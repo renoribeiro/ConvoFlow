@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -261,8 +262,9 @@ export function SequencesManager() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Cadências automáticas multi-passo (WhatsApp + tarefas). Pausam ao receber resposta.
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span>Cadências automáticas multi-passo (WhatsApp + tarefas). Pausam ao receber resposta.</span>
+          <FeatureHelp helpKey="page:followups-sequences" />
         </p>
         <Button size="sm" onClick={() => setShowBuilder(true)}>
           <Plus className="w-4 h-4 mr-2" /> Nova sequência

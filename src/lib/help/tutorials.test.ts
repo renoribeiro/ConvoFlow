@@ -211,13 +211,21 @@ describe('busca em tutoriais', () => {
 
 describe('cobertura dos cinco tutoriais de onboarding', () => {
   it('estão na ordem de leitura recomendada', () => {
+    // Os cinco primeiros montam a Loja (onboarding); o sexto é o dia a dia de
+    // quem atende nela e vem por último porque pressupõe os outros.
     expect(TUTORIALS.map((t) => t.id)).toEqual([
       'conectar-whatsapp',
       'configurar-equipe',
       'montar-funil',
       'primeiro-chatbot',
       'primeira-campanha',
+      'atender-conversas',
     ]);
+  });
+
+  it('o tutorial do dia a dia é legível pelo atendente (sem minRole)', () => {
+    expect(getTutorial('atender-conversas')?.minRole).toBeUndefined();
+    expect(getTutorial('atender-conversas')?.moduleName).toBe('conversations');
   });
 
   it('o tutorial de equipe abre para o gestor (a tela Equipe abre para ele desde 2026-08-18)', () => {
