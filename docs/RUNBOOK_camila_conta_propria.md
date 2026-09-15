@@ -13,6 +13,7 @@ Conta vazia do Mario, no fim deste arquivo).
 | 4 | `20260909000004_rls_gerente_writes_child_store_inbox` | Gerente passa a **escrever** na caixa de entrada das Lojas filhas (4 tabelas) | ✅ aplicada |
 | 5 | `20260909000005_storage_gerente_uploads_child_store_media` | Gerente passa a **subir mídia** para a pasta das Lojas filhas (bucket `whatsapp-media`) | ✅ aplicada |
 | 6 | `20260909000006_fix_bug_reports_child_store_clause` | Conserta a cláusula **morta** das 3 policies do bucket `bug-reports` | ✅ aplicada |
+| 7 | *(sem migração — edge functions)* `whatsapp-send-message` + `list-whatsapp-templates` | A **Meta** passa a aceitar o gerente na instância da Loja filha (2026-09-14) | ✅ deployadas |
 
 As seis estão no ledger (`supabase_migrations.schema_migrations`). **Nenhuma
 delas deve rodar de novo** — as guardas abortam sozinhas se tentarem.
@@ -84,7 +85,7 @@ apagar nada. Se um dia precisar, é outra migração e outra decisão.
 
 ## Parte 5 — a mídia
 
-Texto passou a sair na Parte 4, mas foto/áudio/documento não: `uploadWhatsAppMedia`
+Texto passou a sair na Parte 4 (em instância Evolution/WAHA — na Meta só na Parte 7), mas foto/áudio/documento não: `uploadWhatsAppMedia`
 sobe o arquivo antes, em `<tenant_id>/<arquivo>`, e `whatsapp_media_tenant_upload`
 só aceitava a pasta da Conta do próprio perfil. Medido como a Camila: pasta da
 EncaixaRH `false`, pasta da própria Conta `true`.
@@ -126,6 +127,37 @@ Conta; recusado `42501` na Loja de outra Conta e na Conta de outro gerente.
 todo mundo ("Use the Storage API instead"). O app apaga pela Storage API, onde
 a policy é quem decide. Conferido avaliando o predicado: `true` para a pasta da
 EncaixaRH, `false` para a de outra Conta.
+
+## Parte 7 — a Meta (achado em 2026-09-14, cinco dias depois)
+
+A Parte 4 liberou o **banco**, mas a EncaixaRH é instância **Meta**
+(`provider = 'official'`), e nesse caminho o navegador não fala com a API
+direto: ele chama a edge function `whatsapp-send-message`, que continuava com
+a regra antiga `instance.tenant_id === callerProfile.tenant_id`. Como a
+gravação em `messages` vem antes da chamada ao provedor, o sintoma virou
+outro: a mensagem **aparece com ícone vermelho** (`status = 'failed'`) e o
+toast diz `Edge Function returned a non-2xx status code`. Nos logs:
+`POST | 403 | .../whatsapp-send-message`, quatro vezes entre 19:15 e 19:18 UTC.
+O cliente do outro lado não recebeu nada.
+
+Corrigido no código, sem migração:
+
+- `supabase/functions/_shared/instance-access.ts` — `decideInstanceAccess()`,
+  regra pura que **espelha `gerente_child_store_ids()` + `is_gerente_safe()`**:
+  superadmin passa; qualquer cargo passa na própria Conta/Loja; gerente
+  **ativo** passa numa Loja (`kind='store'`) cuja `parent_tenant_id` é a Conta
+  dele. Só filha direta. Teste: `src/lib/conversations/instanceAccess.test.ts`.
+- `whatsapp-send-message` e `list-whatsapp-templates` (o seletor de template
+  do inbox) usam o helper. As duas foram deployadas em 2026-09-14 via
+  `npx supabase functions deploy`.
+
+**Ficaram de fora, de propósito:** `whatsapp-meta-setup` e
+`register-meta-number` — são configuração da instância, não caixa de entrada,
+e a Parte 4 limitou a escrita do gerente à caixa de entrada. Se um dia o
+gerente precisar reconfigurar a Meta da Loja pelo painel, é outra decisão.
+
+Se a regra SQL e a do helper divergirem, o inbox grava e a Meta não envia (ou
+o contrário). Mantenha as duas iguais.
 
 ## Exposição nova a conferir
 
@@ -180,4 +212,4 @@ Texto pronto na resposta do chat (seção "O que a Camila vai ver de diferente")
 
 ## 3. (resolvido) Escrita na EncaixaRH
 
-Feito na Parte 4 — ela responde normalmente. Nada a decidir aqui.
+Feito na Parte 4 (banco) e na Parte 7 (edge functions da Meta) — ela responde normalmente. Nada a decidir aqui.

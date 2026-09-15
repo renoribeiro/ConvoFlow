@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLogger } from '../_shared/logger.ts';
+import { decideInstanceAccess } from '../_shared/instance-access.ts';
 import { buildCorsHeaders } from '../_shared/validation.ts';
 import { ProviderFactory } from '../_shared/provider-factory.ts';
 import { MetaProvider } from '../_shared/whatsapp-providers/meta.ts';
@@ -51,7 +52,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerProfile } = await supabaseAdmin
     .from('profiles')
-    .select('tenant_id, role')
+    .select('tenant_id, role, status')
     .eq('user_id', callerUser.id)
     .single();
   if (!callerProfile?.tenant_id) return jsonResponse({ ok: false, error: 'Profile not found' }, 403);
@@ -75,9 +76,17 @@ Deno.serve(async (req: Request) => {
     .single();
   if (instanceError || !instance) return jsonResponse({ ok: false, error: 'Instance not found' }, 404);
 
-  // Enum user_role usa 'superadmin'; 'super_admin' é legado aceito por compat.
-  const isSuperAdmin = callerProfile.role === 'superadmin' || callerProfile.role === 'super_admin';
-  if (!isSuperAdmin && instance.tenant_id !== callerProfile.tenant_id) {
+  // Quem pode usar a instância: superadmin, a própria Conta/Loja, ou o gerente
+  // da Conta-mãe numa Loja filha (espelho de `gerente_child_store_ids()` — a
+  // mesma regra que já deixa o inbox GRAVAR em `messages`; ver
+  // `_shared/instance-access.ts`).
+  const { data: instanceTenant } = await supabaseAdmin
+    .from('tenants')
+    .select('id, kind, parent_tenant_id')
+    .eq('id', instance.tenant_id)
+    .maybeSingle();
+  const access = decideInstanceAccess(callerProfile, instance, instanceTenant);
+  if (!access.allowed) {
     return jsonResponse({ ok: false, error: 'Forbidden' }, 403);
   }
   if (instance.provider !== 'official') {
