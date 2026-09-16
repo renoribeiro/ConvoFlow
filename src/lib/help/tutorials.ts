@@ -391,7 +391,7 @@ export const TUTORIALS: Tutorial[] = [
         body:
           'Confira o resumo e dispare primeiro para um punhado de contatos, não para a lista inteira. Se preferir revisar depois, use "Salvar como Rascunho". Confirmado, a campanha entra na fila de envio.',
         note:
-          'Lista grande num número recém-conectado é pedido de bloqueio. Deixe a linha amadurecer antes do primeiro disparo grande.',
+          'Número da API Oficial recém-conectado tem teto diário na primeira semana — proteção contra bloqueio pela Meta, não limite do plano: 50 por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; depois disso o teto some. Se a lista passar do teto, o resto fica como "skipped" nos Detalhes e não sai sozinho no dia seguinte — planeje a primeira semana em lotes.',
       },
       {
         title: 'Acompanhe a entrega pelo botão "Relatórios"',

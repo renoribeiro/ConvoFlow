@@ -15,11 +15,11 @@ export const FAQSection = () => {
     },
     {
       question: 'É possível integrar com meu CRM/ERP atual?',
-      answer: 'Absolutamente! Temos integração nativa com os principais CRMs do mercado (Pipedrive, RD Station, HubSpot, etc.) e também oferecemos API para integrações customizadas.'
+      answer: 'Sim, por webhooks: o ConvoFlow avisa a outra ferramenta no instante em que algo acontece aqui — mensagem recebida, contato criado ou atualizado, campanha iniciada ou concluída, follow-up agendado, chatbot acionado. É assim que ele se liga ao que você já usa, normalmente por uma ferramenta de automação como n8n ou Make, sem ninguém copiar lead na mão.'
     },
     {
       question: 'Os chatbots funcionam em português?',
-      answer: 'Sim, nossos chatbots são otimizados para português brasileiro e incluem processamento de linguagem natural avançado para entender diferentes formas de expressão.'
+      answer: 'Sim. Você monta o fluxo em português num construtor visual: mensagens, menus de opções, perguntas cujas respostas o bot guarda no contato e o ponto em que ele passa a conversa para alguém do time. O cliente responde escolhendo entre as opções que você definiu — o bot não interpreta texto livre, e é por isso que responde na hora e não inventa.'
     },
     {
       question: 'Quantas mensagens posso enviar por mês?',
@@ -31,7 +31,7 @@ export const FAQSection = () => {
     },
     {
       question: 'Como funciona o suporte técnico?',
-      answer: 'Oferecemos suporte técnico prioritário via WhatsApp, email e chat. Nossa equipe responde em até 2 horas úteis e inclui treinamento completo para sua equipe.'
+      answer: 'Por e-mail, em português, em horário comercial: contato@convoflow.com.br. Dentro do produto, a Ajuda tem tutoriais passo-a-passo e a documentação de cada tela, para a sua equipe aprender sozinha — e a gente responde o que ela não resolver.'
     },
     {
       question: 'Posso cancelar a qualquer momento?',
