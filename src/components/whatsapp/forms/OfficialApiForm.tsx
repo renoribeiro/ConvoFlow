@@ -102,22 +102,45 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
         </Tooltip>
       )}
 
+      {/* O texto muda com o estado do botão: com a conexão automática no ar, os
+          campos são a exceção; sem ela, continuam sendo o único caminho. */}
       <Alert className="border-emerald-200 bg-emerald-50/60">
         <ShieldCheck className="h-4 w-4 text-emerald-700" />
         <AlertTitle>API Oficial do WhatsApp (Meta Cloud API)</AlertTitle>
         <AlertDescription className="text-xs">
-          Antes de continuar, você precisa de um App configurado no{' '}
-          <a
-            href="https://developers.facebook.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Meta for Developers
-          </a>
-          {' '}com WhatsApp Business habilitado e um Access Token permanente (System User). O webhook
-          do ConvoFlow é configurado uma única vez na instalação, não a cada número — veja o aviso
-          no fim do formulário.
+          {embeddedSignupAvailable ? (
+            <>
+              Você não precisa de app nem de token: "Conectar com a Meta" abre uma janela da própria
+              Meta, onde você entra com o login do Facebook da empresa, escolhe (ou cria) a conta do
+              WhatsApp Business, informa o número e confirma o código. Tenha em mãos esse login e um
+              número que receba SMS ou ligação e que não esteja em uso no aplicativo do WhatsApp.
+              Os campos abaixo são só para quem já mantém um app próprio no{' '}
+              <a
+                href="https://developers.facebook.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Meta for Developers
+              </a>
+              .
+            </>
+          ) : (
+            <>
+              Antes de continuar, você precisa de um App configurado no{' '}
+              <a
+                href="https://developers.facebook.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Meta for Developers
+              </a>
+              {' '}com WhatsApp Business habilitado e um Access Token permanente (System User). O webhook
+              do ConvoFlow é configurado uma única vez na instalação, não a cada número — veja o aviso
+              no fim do formulário.
+            </>
+          )}
         </AlertDescription>
       </Alert>
 

@@ -829,6 +829,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'É a base de tudo: sem um número conectado aqui, não existe conversa, campanha nem chatbot. Cada instância é uma linha de WhatsApp ligada ao sistema.',
     howToConfigure: [
       'Crie a instância e escolha o provedor: "API Oficial do WhatsApp" (Meta, o caminho de produção e o único que dispara campanha dentro das regras), "Evolution API" (número comum, por QR Code, no servidor da plataforma) ou "WAHA API" (número comum, por QR Code, num servidor auto-hospedado).',
+      'Na API Oficial, clique em "Conectar com a Meta": abre uma janela da própria Meta, em que você entra com o login do Facebook da empresa, escolhe (ou cria) a conta do WhatsApp Business, informa o número e confirma o código. Você não copia código nem chave. Os campos Phone Number ID, WhatsApp Business Account ID e Access Token são só para quem já tem app próprio na Meta — o passo-a-passo completo está no tutorial "Conectar seu WhatsApp".',
       'Na Evolution você informa só o nome e a chave da instância: o servidor de WhatsApp é o da plataforma e já vem configurado.',
       'Na WAHA você informa o nome, a URL base do servidor WAHA, a API Key se o servidor exigir e o nome da sessão. Aqui o servidor é seu (ou de quem o hospeda para você): endereço e chave são pedidos porque a plataforma não o conhece.',
       'Conecte lendo o QR Code no celular que tem o número, ou use o código de pareamento se preferir não escanear.',
@@ -841,8 +842,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Instâncias pertencem à Conta e quem as conecta é o Gerente ou o Gestor. Como Superadmin você não abre esta tela de nenhuma Conta — ela mostra "Exclusivo para lojas" mesmo com a Conta escolhida no seletor. Para apoiar um cliente que não consegue conectar: confira na Administração se a Conta tem acesso e se a pessoa tem o cargo certo, e passe a ela o tutorial "Conectar seu WhatsApp" da Ajuda.',
       'Linha desconectada é atendimento parado: mensagem que chega com a instância fora pode não entrar no sistema. Reconecte assim que ver "Desconectado".',
-      'Usar o mesmo número no WhatsApp do celular e aqui ao mesmo tempo pode derrubar a sessão.',
-      'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Ao conectar um número, você só informa Phone Number ID, WABA ID e Access Token.',
+      'Número conectado por QR Code (Evolution ou WAHA): usar o mesmo número no WhatsApp do celular e aqui ao mesmo tempo pode derrubar a sessão.',
+      'Número na API Oficial: ele deixa de funcionar no aplicativo do WhatsApp do celular. Não é instabilidade — é a regra da Meta: o número passa a atender só pela API, e o ConvoFlow não liga o modo em que os dois convivem. Avise o time antes de conectar.',
+      'Na API Oficial, quem cobra as conversas é a Meta — e ela cobra você, não o ConvoFlow. O cartão fica no seu portfólio empresarial da Meta, o mesmo em que a conta do WhatsApp Business foi criada. Sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Os valores atuais estão na página da Meta: developers.facebook.com/docs/whatsapp/pricing.',
+      'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Pelos campos manuais, você só informa Phone Number ID, WABA ID e Access Token; pelo botão "Conectar com a Meta", nem isso.',
       'Você nunca precisa de endereço de servidor nem de chave de API para ligar um número pela Evolution. Se alguma tela pedir isso na Evolution, é engano — fale com quem opera a plataforma. Na WAHA é o contrário: o servidor é seu, então URL e chave são pedidos mesmo.',
     ],
     category: 'tela',
