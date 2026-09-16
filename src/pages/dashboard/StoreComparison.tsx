@@ -1,13 +1,6 @@
 import { BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FeatureHelp } from '@/components/shared/FeatureHelp';
 import { useStoreComparison } from '@/hooks/useStoreComparison';
@@ -65,34 +58,24 @@ const StoreComparison = () => {
               Nenhuma loja no seu grupo ainda. As lojas aparecem aqui assim que forem criadas.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Loja</TableHead>
-                    <TableHead className="text-right">Contatos</TableHead>
-                    <TableHead className="text-right">Conversas</TableHead>
-                    <TableHead className="text-right">Mensagens</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {metrics.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-medium">{m.name}</TableCell>
-                      <TableCell className="text-right">{numberFmt.format(m.contacts)}</TableCell>
-                      <TableCell className="text-right">{numberFmt.format(m.conversations)}</TableCell>
-                      <TableCell className="text-right">{numberFmt.format(m.messages)}</TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="border-t-2 font-semibold">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-right">{numberFmt.format(totals.contacts)}</TableCell>
-                    <TableCell className="text-right">{numberFmt.format(totals.conversations)}</TableCell>
-                    <TableCell className="text-right">{numberFmt.format(totals.messages)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            // A linha "Total" é uma linha comum com id próprio, em negrito —
+            // a ResponsiveTable não tem rodapé, e no cartão o total precisa
+            // aparecer do mesmo jeito que as lojas.
+            <ResponsiveTable
+              ariaLabel="Comparativo das lojas"
+              rows={[
+                ...metrics,
+                { id: '__total__', name: 'Total', contacts: totals.contacts, conversations: totals.conversations, messages: totals.messages },
+              ]}
+              rowKey={(m) => m.id}
+              rowClassName={(m) => (m.id === '__total__' ? 'border-t-2 font-semibold' : undefined)}
+              columns={[
+                { key: 'loja', header: 'Loja', card: 'title', cellClassName: 'font-medium', cell: (m) => m.name },
+                { key: 'contatos', header: 'Contatos', headClassName: 'text-right', cellClassName: 'text-right', cell: (m) => numberFmt.format(m.contacts) },
+                { key: 'conversas', header: 'Conversas', headClassName: 'text-right', cellClassName: 'text-right', cell: (m) => numberFmt.format(m.conversations) },
+                { key: 'mensagens', header: 'Mensagens', headClassName: 'text-right', cellClassName: 'text-right', cell: (m) => numberFmt.format(m.messages) },
+              ]}
+            />
           )}
         </CardContent>
       </Card>
