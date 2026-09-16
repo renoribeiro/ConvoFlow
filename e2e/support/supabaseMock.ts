@@ -136,7 +136,10 @@ function valueFor(table: string, col: string, type: string, i: number, role: Moc
   if (col === 'unread_count') return i % 3 === 0 ? 3 : 0;
   if (col === 'sort_order') return i;
   if (col === 'percent' || col === 'percentage') return 25;
-  if (['is_archived', 'is_deleted', 'is_read', 'is_from_bot', 'is_default'].includes(col)) return false;
+  if (['is_archived', 'is_deleted', 'is_read', 'is_from_bot', 'is_default', 'is_blocked', 'opt_out_mass_message'].includes(col)) return false;
+  // Metade dos contatos com opt-in marcado, metade sem nada — o estado "sem
+  // nada" é o mais largo na tabela (dois chips), e é o que precisa caber.
+  if (col === 'opt_in_mass_message') return i % 2 === 0;
   if (['is_enabled', 'is_active', 'active', 'enabled'].includes(col)) return true;
   if (['settings', 'metadata', 'config', 'data', 'capabilities'].includes(col)) return {};
   if (col === 'connection_config') return { api_url: 'https://evo.exemplo.com.br', api_key: 'x' };

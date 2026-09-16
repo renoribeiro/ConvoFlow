@@ -28,6 +28,14 @@ import { installSupabaseMock, IDS, type MockRole } from './support/supabaseMock'
  *      janela, exceto quando está dentro de um contêiner com rolagem
  *      horizontal própria (overflow-x auto/scroll) — aí é rolável, não
  *      cortado. O canvas do ReactFlow, tooltips, poppers e toasts ficam de fora.
+ *   3. Tabelas (decisão de 2026-09-16: toda tabela de dados vira lista de
+ *      cartões no celular, via src/components/shared/ResponsiveTable):
+ *      - abaixo de md (768px), qualquer <table> visível em <main> é violação
+ *        ("tabela-no-celular") — inclusive uma tabela nova que não use o padrão;
+ *      - uma lista de cartões mais larga que a própria caixa é violação
+ *        ("cartoes-estourando");
+ *      - a ação de uma linha (botão/menu) fora da janela ou fora da caixa
+ *        rolável da tabela é violação ("acao-inalcancavel"), nos dois modos.
  *
  * O QUE FICA DE FORA (e por quê)
  *   - Modais e drawers: o gatilho de quase todos depende de estado por linha
@@ -122,7 +130,7 @@ interface Violation { width: number; kind: string; detail: string }
 /** Roda no navegador: mede a página e devolve a lista de violações. */
 const MEASURE = () => {
   const vw = window.innerWidth;
-  const out: { scrollWidth: number; offscreen: string[] } = { scrollWidth: document.documentElement.scrollWidth, offscreen: [] };
+  const out: { scrollWidth: number; offscreen: string[]; tables: string[] } = { scrollWidth: document.documentElement.scrollWidth, offscreen: [], tables: [] };
 
   const EXCLUDE = '.react-flow, [data-radix-popper-content-wrapper], [role="tooltip"], [data-sonner-toaster], [aria-hidden="true"]';
   const visible = (el: Element) => {
@@ -181,6 +189,35 @@ const MEASURE = () => {
     out.offscreen.push(`${describe(el)} [left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}]`);
   }
   out.offscreen = out.offscreen.slice(0, 8);
+
+  // ---- tabelas: cartões no celular, ações sempre alcançáveis ----------------
+  const MD = 768;
+  if (vw < MD) {
+    for (const t of document.querySelectorAll('main table')) {
+      if (visible(t)) out.tables.push(`tabela-no-celular|${describe(t)}`);
+    }
+    for (const list of document.querySelectorAll('[data-responsive-table="cards"]')) {
+      if (list.scrollWidth > list.clientWidth + 1) out.tables.push(`cartoes-estourando|${describe(list)} [${list.scrollWidth} > ${list.clientWidth}]`);
+    }
+  }
+  for (const box of document.querySelectorAll('[data-responsive-row] [data-responsive-actions]')) {
+    if (!visible(box)) continue;
+    const controls = [...box.querySelectorAll('button, a[href], input, [role="button"]')].filter(visible);
+    if (controls.length === 0) continue;
+    // Na tabela a caixa rolável é a div overflow-auto do shadcn; a ação precisa
+    // estar dentro dela (coluna sticky) E dentro da janela. No cartão, só a janela.
+    const table = box.closest('[data-responsive-table="table"]');
+    const scroller = table?.parentElement;
+    const limit = scroller ? Math.min(vw, scroller.getBoundingClientRect().right) : vw;
+    for (const c of controls) {
+      const r = c.getBoundingClientRect();
+      if (r.right > limit + 1 || r.left < -1) {
+        out.tables.push(`acao-inalcancavel|${describe(c)} [left=${Math.round(r.left)} right=${Math.round(r.right)} limite=${Math.round(limit)}]`);
+        break;
+      }
+    }
+  }
+  out.tables = out.tables.slice(0, 8);
   return out;
 };
 
@@ -188,7 +225,9 @@ async function settle(page: Page) {
   try { await page.waitForLoadState('networkidle', { timeout: 2500 }); } catch { /* polling nunca para */ }
   await page.waitForTimeout(600);
   // Chunk lazy + skeleton ainda no ar? Espera um pouco mais (só o conteúdo, não a landing).
-  for (let i = 0; i < 5; i++) {
+  // Até 6s: a regra "tabela no celular" precisa da tabela com dados, não do
+  // esqueleto — numa máquina carregada o chunk + a consulta passam de 2s.
+  for (let i = 0; i < 15; i++) {
     const busy = await page.evaluate(() => !!document.querySelector('main .animate-spin, main .animate-pulse, body > div > .animate-spin'));
     if (!busy) break;
     await page.waitForTimeout(400);
@@ -199,7 +238,8 @@ for (const role of ROLES) {
   test.describe(`responsividade — ${role}`, () => {
     for (const screen of SCREENS.filter((s) => s.roles.includes(role))) {
       test(`${screen.name}`, async ({ context, page }) => {
-        test.setTimeout(150_000);
+        // Seis recargas por tela; numa máquina carregada cada uma passa de 30s.
+        test.setTimeout(300_000);
         if (role !== 'public') await installSupabaseMock(context, role);
 
         const violations: Violation[] = [];
@@ -225,6 +265,10 @@ for (const role of ROLES) {
             violations.push({ width, kind: 'rolagem-horizontal', detail: `scrollWidth ${m.scrollWidth} > ${width}` });
           }
           for (const d of m.offscreen) violations.push({ width, kind: 'fora-da-janela', detail: d });
+          for (const d of m.tables) {
+            const [kind, detail] = d.split('|', 2);
+            violations.push({ width, kind, detail });
+          }
         }
 
         for (const v of violations) {

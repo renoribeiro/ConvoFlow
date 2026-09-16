@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RefreshCw, Activity, AlertTriangle, CheckCircle, Clock, Zap } from 'lucide-react';
 import { useSupabase } from '@/hooks/useSupabase';
@@ -304,30 +304,19 @@ export function WebhookDashboard() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-96">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Instância</TableHead>
-                      <TableHead>Evento</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Tempo</TableHead>
-                      <TableHead>Quando</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-medium">{log.instance_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{log.event_type}</Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(log.http_status)}</TableCell>
-                        <TableCell>{formatDuration(log.processing_time_ms)}</TableCell>
-                        <TableCell>{formatRelativeTime(log.created_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <ResponsiveTable
+                  ariaLabel="Logs de webhook"
+                  rows={logs}
+                  rowKey={(log) => log.id}
+                  empty="Nenhum evento ainda."
+                  columns={[
+                    { key: 'instancia', header: 'Instância', card: 'title', cellClassName: 'font-medium', cell: (log) => log.instance_name },
+                    { key: 'evento', header: 'Evento', card: 'badge', cell: (log) => <Badge variant="outline">{log.event_type}</Badge> },
+                    { key: 'status', header: 'Status', card: 'badge', cell: (log) => getStatusBadge(log.http_status) },
+                    { key: 'tempo', header: 'Tempo', cell: (log) => formatDuration(log.processing_time_ms) },
+                    { key: 'quando', header: 'Quando', cell: (log) => formatRelativeTime(log.created_at) },
+                  ]}
+                />
               </ScrollArea>
             </CardContent>
           </Card>

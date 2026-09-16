@@ -35,14 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { stripeService, type Coupon, type CreateCouponPayload } from '@/services/stripeService';
 
 /**
@@ -257,83 +250,66 @@ export function CouponManager() {
       {/* Lista */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Desconto</TableHead>
-                <TableHead>Duração</TableHead>
-                <TableHead>Usos</TableHead>
-                <TableHead>Validade</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    {Array.from({ length: 7 }).map((__, cellIndex) => (
-                      <TableCell key={`skeleton-${index}-${cellIndex}`}>
-                        <Skeleton className="h-5 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : isError ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-destructive">
-                    {(listError as Error)?.message || 'Não foi possível carregar os cupons.'}
-                  </TableCell>
-                </TableRow>
-              ) : coupons.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                    <TicketPercent className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                    Nenhum cupom cadastrado ainda.
-                  </TableCell>
-                </TableRow>
+          {/* Cartão no celular: código lidera, status vira chip, desconto,
+              duração, usos e validade viram campos; arquivar fica no canto. */}
+          <ResponsiveTable
+            ariaLabel="Cupons"
+            rows={coupons}
+            rowKey={(coupon) => coupon.id}
+            loading={isLoading}
+            error={isError ? ((listError as Error)?.message || 'Não foi possível carregar os cupons.') : undefined}
+            empty={
+              <>
+                <TicketPercent className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                Nenhum cupom cadastrado ainda.
+              </>
+            }
+            actionsHeader="Ações"
+            columns={[
+              {
+                key: 'codigo',
+                header: 'Código',
+                card: 'title',
+                cell: (coupon) => (
+                  <Badge variant="outline" className="font-mono tracking-wide">
+                    {coupon.code}
+                  </Badge>
+                ),
+              },
+              { key: 'desconto', header: 'Desconto', cellClassName: 'font-medium', cell: formatDiscount },
+              { key: 'duracao', header: 'Duração', cell: formatDuration },
+              { key: 'usos', header: 'Usos', cellClassName: 'tabular-nums', cell: formatUses },
+              { key: 'validade', header: 'Validade', cell: formatValidUntil },
+              {
+                key: 'status',
+                header: 'Status',
+                card: 'badge',
+                cell: (coupon) =>
+                  coupon.is_active ? (
+                    <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/90">
+                      Ativo
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Arquivado</Badge>
+                  ),
+              },
+            ]}
+            actions={(coupon) =>
+              coupon.is_active ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Arquivar cupom ${coupon.code}`}
+                  title="Arquivar cupom"
+                  onClick={() => setCouponToArchive(coupon)}
+                >
+                  <Archive className="h-4 w-4" />
+                </Button>
               ) : (
-                coupons.map((coupon) => (
-                  <TableRow key={coupon.id}>
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono tracking-wide">
-                        {coupon.code}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{formatDiscount(coupon)}</TableCell>
-                    <TableCell>{formatDuration(coupon)}</TableCell>
-                    <TableCell className="tabular-nums">{formatUses(coupon)}</TableCell>
-                    <TableCell>{formatValidUntil(coupon)}</TableCell>
-                    <TableCell>
-                      {coupon.is_active ? (
-                        <Badge className="border-transparent bg-success text-success-foreground hover:bg-success/90">
-                          Ativo
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Arquivado</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {coupon.is_active ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Arquivar cupom ${coupon.code}`}
-                          title="Arquivar cupom"
-                          onClick={() => setCouponToArchive(coupon)}
-                        >
-                          <Archive className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                <span className="text-xs text-muted-foreground">—</span>
+              )
+            }
+          />
         </CardContent>
       </Card>
 
