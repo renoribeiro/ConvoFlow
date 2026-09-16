@@ -37,7 +37,7 @@ import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useContactFollowups } from '@/hooks/useContactFollowups';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { useIsBelowLg } from '@/hooks/use-mobile';
+import { useIsBelowXl } from '@/hooks/use-mobile';
 
 interface ContactPanelProps {
   open: boolean;
@@ -374,9 +374,11 @@ function ContactPanelBody({
  */
 export function ContactPanel(props: ContactPanelProps) {
   const { open, onOpenChange } = props;
-  // Drawer abaixo de lg (1024px), não só no celular: a 768px o painel de
-  // 320px ao lado da lista de 320px deixava 64px para o chat.
-  const asSheet = useIsBelowLg();
+  // Drawer abaixo de xl (1280px), não só no celular: a 768px o painel de
+  // 320px ao lado da lista de 320px deixava 64px para o chat, e a 1024
+  // (sidebar expandida) ainda só 144px. A partir de 1280 o chat fica com
+  // 400px ao lado das duas colunas.
+  const asSheet = useIsBelowXl();
 
   if (asSheet) {
     return (

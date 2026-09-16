@@ -536,7 +536,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'É a ficha do cliente ao lado do chat, para você mexer no cadastro sem sair da conversa: etapa do funil, etiquetas, anotações, follow-ups pendentes e a origem do lead. O que você muda aqui vale em Contatos e no Funil na mesma hora.',
     howToConfigure: [
-      'Abra o painel pelo ícone no canto direito do cabeçalho da conversa ("Abrir painel do contato"); o mesmo ícone fecha. No computador a escolha fica salva: nas próximas conversas ele volta como você deixou. No tablet e no celular ele abre por cima do chat, como uma gaveta, e fecha ao tocar fora — e nasce fechado, mesmo que esteja aberto no computador.',
+      'Abra o painel pelo ícone no canto direito do cabeçalho da conversa ("Abrir painel do contato"); o mesmo ícone fecha. Em tela larga (1280px ou mais) a escolha fica salva: nas próximas conversas ele volta como você deixou. Em janela mais estreita — tablet, celular ou navegador reduzido — ele abre por cima do chat, como uma gaveta, e fecha ao tocar fora; e nasce fechado, mesmo que esteja aberto na tela larga.',
       'Em "Funil", troque a etapa em "Mover para etapa..." — é o mesmo que arrastar o card no Funil de Vendas, e dispara as mesmas automações.',
       'Em "Etiquetas", o botão de mais abre o mesmo diálogo de etiquetar do menu ⋮; a etiqueta vale para campanhas segmentadas.',
       'Em "Notas", escreva o que o resto do time precisa saber antes de responder. Não há botão de salvar: o texto grava sozinho, e "Salvo automaticamente" confirma.',
