@@ -1,5 +1,5 @@
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { Badge } from '@/components/ui/badge';
 import { TagBadge } from '@/components/etiquetas/TagBadge';
 import { Button } from '@/components/ui/button';
@@ -269,6 +269,177 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
     setDeleteConfirmation({ isOpen: false, contactId: null, contactName: '' });
   };
 
+  const renderContato = (contact: Contact, showSourceInline: boolean) => (
+    <div className="flex items-center gap-3">
+      <Avatar className="w-8 h-8">
+        <AvatarFallback>
+          {(contact.name?.trim()
+            ? contact.name.trim().split(' ').map(n => n[0]).join('').slice(0, 2)
+            : '?'
+          ).slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <p className="font-medium text-foreground">{contact.name?.trim() || 'Contato sem nome'}</p>
+        <p className="text-sm text-muted-foreground whitespace-nowrap">{contact.phone}</p>
+        {contact.email && (
+          <p className="text-xs text-muted-foreground break-all">{contact.email}</p>
+        )}
+        {/* Enquanto a coluna Fonte está escondida (abaixo de 2xl), a fonte mora aqui. */}
+        {showSourceInline && contact.lead_source?.name && (
+          <p className="text-xs text-muted-foreground 2xl:hidden">Fonte: {contact.lead_source.name}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderConsentimento = (contact: Contact) => (
+    <div className="flex flex-col gap-1">
+      {contact.is_blocked ? (
+        <Badge variant="secondary" className="bg-red-100 text-red-800 w-fit">
+          Bloqueado
+        </Badge>
+      ) : contact.opt_in_mass_message ? (
+        <button
+          type="button"
+          title="Clique para remover opt-in"
+          onClick={() => handleToggleOptIn(contact.id, contact.opt_in_mass_message)}
+          disabled={consentMutation.isPending}
+          className="w-fit"
+        >
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer w-fit">
+            Opt-in
+          </Badge>
+        </button>
+      ) : contact.opt_out_mass_message ? (
+        <button
+          type="button"
+          title="Clique para remover opt-out"
+          onClick={() => handleToggleOptOut(contact.id, contact.opt_out_mass_message)}
+          disabled={consentMutation.isPending}
+          className="w-fit"
+        >
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 cursor-pointer w-fit">
+            Opt-out
+          </Badge>
+        </button>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            title="Marcar como opt-in"
+            onClick={() => handleToggleOptIn(contact.id, false)}
+            disabled={consentMutation.isPending}
+          >
+            <Badge variant="outline" className="hover:bg-green-50 cursor-pointer text-xs">
+              + Opt-in
+            </Badge>
+          </button>
+          <button
+            type="button"
+            title="Marcar como opt-out"
+            onClick={() => handleToggleOptOut(contact.id, false)}
+            disabled={consentMutation.isPending}
+          >
+            <Badge variant="outline" className="hover:bg-yellow-50 cursor-pointer text-xs">
+              Opt-out
+            </Badge>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const contactColumns: ResponsiveColumn<Contact>[] = [
+    {
+      key: 'contato',
+      header: 'Contato',
+      card: 'title',
+      cell: (contact) => renderContato(contact, true),
+      cardCell: (contact) => renderContato(contact, false),
+    },
+    {
+      key: 'estagio',
+      header: 'Estágio',
+      card: 'badge',
+      cell: (contact) =>
+        contact.stage ? (
+          <Badge
+            style={{
+              backgroundColor: `${contact.stage.color}20`,
+              color: contact.stage.color,
+              borderColor: contact.stage.color
+            }}
+            variant="outline"
+          >
+            {contact.stage.name}
+          </Badge>
+        ) : (
+          <Badge variant="secondary">Sem estágio</Badge>
+        ),
+    },
+    {
+      key: 'fonte',
+      header: 'Fonte',
+      hideBelow: '2xl',
+      cell: (contact) =>
+        contact.lead_source?.name ? (
+          <Badge variant="outline" className="max-w-[220px] truncate" title={contact.lead_source.name}>
+            {contact.lead_source.name}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        ),
+    },
+    {
+      key: 'etiquetas',
+      header: 'Etiquetas',
+      card: 'badge',
+      cell: (contact) => (
+        <div className="flex flex-wrap gap-1">
+          {contact.contact_tags && contact.contact_tags.length > 0 ? (
+            contact.contact_tags.map((contactTag) => (
+              contactTag.tags && (
+                <TagBadge
+                  key={contactTag.tag_id}
+                  name={contactTag.tags.name}
+                  color={contactTag.tags.color}
+                />
+              )
+            ))
+          ) : (
+            <span className="text-muted-foreground text-sm">-</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      // Fica sempre visível na tabela: é o único lugar onde o consentimento
+      // se marca/desmarca. O que some abaixo de 2xl é informação (Fonte,
+      // Última Interação), nunca um controle.
+      key: 'consentimento',
+      header: 'Consentimento',
+      cardFull: true,
+      cell: renderConsentimento,
+    },
+    {
+      key: 'ultima',
+      header: 'Última Interação',
+      hideBelow: '2xl',
+      cell: (contact) =>
+        contact.conversations && contact.conversations.length > 0 && contact.conversations[0].last_message_at ? (
+          <span className="text-sm text-muted-foreground">
+            {formatDistanceToNow(new Date(contact.conversations[0].last_message_at), {
+              locale: ptBR,
+              addSuffix: true
+            })}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">Nunca</span>
+        ),
+    },
+  ];
+
   if (isLoading) {
     return (
       <div className="bg-card border border-border rounded-lg">
@@ -321,183 +492,49 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
             </p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Contato</TableHead>
-                <TableHead>Estágio</TableHead>
-                <TableHead>Fonte</TableHead>
-                <TableHead>Etiquetas</TableHead>
-                <TableHead>Consentimento</TableHead>
-                <TableHead>Última Interação</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedContacts.map((contact) => (
-                <TableRow key={contact.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback>
-                          {(contact.name?.trim()
-                            ? contact.name.trim().split(' ').map(n => n[0]).join('').slice(0, 2)
-                            : '?'
-                          ).slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-foreground">{contact.name?.trim() || 'Contato sem nome'}</p>
-                        <p className="text-sm text-muted-foreground">{contact.phone}</p>
-                        {contact.email && (
-                          <p className="text-xs text-muted-foreground">{contact.email}</p>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {contact.stage ? (
-                      <Badge
-                        style={{
-                          backgroundColor: `${contact.stage.color}20`,
-                          color: contact.stage.color,
-                          borderColor: contact.stage.color
-                        }}
-                        variant="outline"
-                      >
-                        {contact.stage.name}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Sem estágio</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {contact.lead_source?.name ? (
-                      <Badge variant="outline" className="max-w-[220px] truncate" title={contact.lead_source.name}>
-                        {contact.lead_source.name}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {contact.contact_tags && contact.contact_tags.length > 0 ? (
-                        contact.contact_tags.map((contactTag) => (
-                          contactTag.tags && (
-                            <TagBadge
-                              key={contactTag.tag_id}
-                              name={contactTag.tags.name}
-                              color={contactTag.tags.color}
-                            />
-                          )
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {contact.is_blocked ? (
-                        <Badge variant="secondary" className="bg-red-100 text-red-800 w-fit">
-                          Bloqueado
-                        </Badge>
-                      ) : contact.opt_in_mass_message ? (
-                        <button
-                          type="button"
-                          title="Clique para remover opt-in"
-                          onClick={() => handleToggleOptIn(contact.id, contact.opt_in_mass_message)}
-                          disabled={consentMutation.isPending}
-                          className="w-fit"
-                        >
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer w-fit">
-                            Opt-in
-                          </Badge>
-                        </button>
-                      ) : contact.opt_out_mass_message ? (
-                        <button
-                          type="button"
-                          title="Clique para remover opt-out"
-                          onClick={() => handleToggleOptOut(contact.id, contact.opt_out_mass_message)}
-                          disabled={consentMutation.isPending}
-                          className="w-fit"
-                        >
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 cursor-pointer w-fit">
-                            Opt-out
-                          </Badge>
-                        </button>
-                      ) : (
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            title="Marcar como opt-in"
-                            onClick={() => handleToggleOptIn(contact.id, false)}
-                            disabled={consentMutation.isPending}
-                          >
-                            <Badge variant="outline" className="hover:bg-green-50 cursor-pointer text-xs">
-                              + Opt-in
-                            </Badge>
-                          </button>
-                          <button
-                            type="button"
-                            title="Marcar como opt-out"
-                            onClick={() => handleToggleOptOut(contact.id, false)}
-                            disabled={consentMutation.isPending}
-                          >
-                            <Badge variant="outline" className="hover:bg-yellow-50 cursor-pointer text-xs">
-                              Opt-out
-                            </Badge>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {contact.conversations && contact.conversations.length > 0 && contact.conversations[0].last_message_at ? (
-                      <span className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(contact.conversations[0].last_message_at), {
-                          locale: ptBR,
-                          addSuffix: true
-                        })}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Nunca</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link to={`/dashboard/conversations?contact=${contact.id}`}>
-                            <MessageCircle className="mr-2 h-4 w-4" />
-                            Conversar
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(contact.id)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteClick(contact.id, contact.name?.trim() || 'Contato sem nome')}
-                          className="text-red-600"
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          // Uma coluna, dois modos (ver ResponsiveTable). No cartão: nome/telefone
+          // lideram, etapa e etiquetas vêm como chips, fonte e última interação
+          // como campos, e o consentimento — que tem botões — ocupa a linha toda.
+          // Na tabela, Fonte e Última Interação somem abaixo de 2xl (1536px):
+          // com a coluna de filtros ao lado, sete colunas não cabem a 1280 (a
+          // tabela ficava 182px mais larga que o cartão). A fonte continua
+          // visível, embaixo do nome, enquanto a coluna dela está escondida;
+          // Consentimento nunca some, porque é um controle.
+          <ResponsiveTable
+            ariaLabel="Contatos"
+            rows={paginatedContacts}
+            rowKey={(contact) => contact.id}
+            columns={contactColumns}
+            actions={(contact) => (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`Ações de ${contact.name?.trim() || 'contato sem nome'}`}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link to={`/dashboard/conversations?contact=${contact.id}`}>
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Conversar
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit(contact.id)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteClick(contact.id, contact.name?.trim() || 'Contato sem nome')}
+                    className="text-red-600"
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          />
         )}
         
         {/* Paginação */}
