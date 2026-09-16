@@ -827,7 +827,7 @@ async function handleSessionReply(
         // Excedeu o limite: avisa e encerra a sessão para o bot parar de reenviar.
         const closing =
           d.invalid_end_message?.trim() ||
-          'Não consegui entender sua escolha. Encerrei o atendimento automático por aqui — se precisar, é só mandar uma nova mensagem. 🙂';
+          'Não consegui entender sua escolha. Encerrei o atendimento automático por aqui. Se precisar, é só mandar uma nova mensagem. 🙂';
         await sendBotMessage(closing, input, ctx);
         const { [retryKey]: _drop, ...cleanVars } = updatedVars;
         await updateSession(supabase, session.id, {

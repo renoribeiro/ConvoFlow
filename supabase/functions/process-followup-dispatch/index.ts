@@ -127,7 +127,7 @@ async function sendWhatsApp(
   }
 
   const text = substituteVariables(spec.messageBody || '', variables)
-  if (!text.trim()) throw new Error('Mensagem vazia — nada a enviar.')
+  if (!text.trim()) throw new Error('Mensagem vazia, nada a enviar.')
   const result = await provider.sendMessage(phone, text)
   return { msgId: extractMessageId(result), mirrorContent: text }
 }

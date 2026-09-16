@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
       rpc_error: tokenError?.message,
     });
     return jsonResponse(
-      { success: false, error: 'Token de acesso Meta ausente — reconfigure a instância' },
+      { success: false, error: 'Token de acesso Meta ausente. Reconfigure a instância' },
       400,
     );
   }

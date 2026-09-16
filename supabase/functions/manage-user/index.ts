@@ -400,7 +400,7 @@ async function actionCreate(
     !resolvedTenantId
   ) {
     throw new SecureError(
-      'Selecione a Loja do usuário — Gestor e Atendente sempre pertencem a uma.',
+      'Selecione a Loja do usuário. Gestor e Atendente sempre pertencem a uma.',
       'VALIDATION_ERROR',
       400,
     );
@@ -628,7 +628,7 @@ async function actionResetPassword(
 
     if (ehLimite) {
       throw new SecureError(
-        'Limite de envio de e-mail atingido. O servidor de e-mail padrão libera poucos envios por hora — espere cerca de uma hora e tente de novo, ou configure um SMTP próprio para não esbarrar nisso.',
+        'Limite de envio de e-mail atingido. O servidor de e-mail padrão libera poucos envios por hora. Espere cerca de uma hora e tente de novo, ou configure um SMTP próprio para não esbarrar nisso.',
         'EMAIL_RATE_LIMIT',
         429,
       );

@@ -137,12 +137,12 @@ describe('falha ao carregar', () => {
       isLoading: false,
       isFetching: false,
       isError: true,
-      error: new Error('connection_config.wabaId ausente — não é possível listar templates.'),
+      error: new Error('connection_config.wabaId ausente: não é possível listar templates.'),
     };
     renderTela();
 
     expect(
-      screen.getByText('connection_config.wabaId ausente — não é possível listar templates.'),
+      screen.getByText('connection_config.wabaId ausente: não é possível listar templates.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Não foi possível carregar os templates')).toBeInTheDocument();
   });

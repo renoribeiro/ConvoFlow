@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
   const cfg = (instance.connection_config as Record<string, any>) || {};
   if (!cfg.wabaId) {
     return jsonResponse(
-      { ok: false, error: 'connection_config.wabaId ausente — não é possível listar templates.' },
+      { ok: false, error: 'connection_config.wabaId ausente: não é possível listar templates.' },
       400,
     );
   }
