@@ -69,7 +69,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Separe o que a Meta vai pedir antes de começar',
         body:
-          'Três coisas. O login do Facebook de quem administra a empresa no portfólio empresarial da Meta — é ele que autoriza a conexão. Um número de telefone que receba SMS ou ligação, porque a Meta manda um código para ele. E a decisão de tirar esse número do aplicativo do WhatsApp: depois de conectado, ele atende só pelo ConvoFlow e deixa de funcionar no celular.',
+          'Quatro coisas. O login do Facebook de quem administra a empresa no portfólio empresarial da Meta — é ele que autoriza a conexão. Um número de telefone que receba SMS ou ligação, porque a Meta manda um código para ele. A decisão de tirar esse número do aplicativo do WhatsApp: depois de conectado, ele atende só pelo ConvoFlow e deixa de funcionar no celular. E uma forma de pagamento válida nesse portfólio: quem cobra as conversas é a Meta, e ela cobra você, não o ConvoFlow — sem cartão válido lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Os valores atuais estão na página da Meta: developers.facebook.com/docs/whatsapp/pricing.',
         note:
           'Número que está em uso no WhatsApp do celular precisa ser removido do aplicativo antes — a Meta recusa número que ainda está registrado lá. Um número novo, que nunca teve WhatsApp, é o caminho mais simples.',
       },
