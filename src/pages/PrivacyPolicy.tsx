@@ -77,7 +77,7 @@ export default function PrivacyPolicy() {
                     <div className="p-4 bg-background rounded border-l-4 border-primary">
                       <h3 className="font-medium mb-2">ConvoFlow como Controlador</h3>
                       <p className="text-muted-foreground text-sm mb-2">
-                        O ConvoFlow é o <strong>controlador</strong> dos dados pessoais de seus próprios usuários — as
+                        O ConvoFlow é o <strong>controlador</strong> dos dados pessoais de seus próprios usuários, as
                         pessoas que contratam e operam a plataforma (proprietários, gestores e atendentes da loja
                         cliente). Nessa condição, o ConvoFlow define as finalidades e os meios do tratamento de:
                       </p>
@@ -92,8 +92,8 @@ export default function PrivacyPolicy() {
                     <div className="p-4 bg-background rounded border-l-4 border-amber-500">
                       <h3 className="font-medium mb-2">ConvoFlow como Operador</h3>
                       <p className="text-muted-foreground text-sm mb-2">
-                        Em relação aos dados dos <strong>clientes finais</strong> — as pessoas com quem a loja cliente
-                        se comunica por WhatsApp —, o ConvoFlow atua exclusivamente como <strong>operador</strong>,
+                        Em relação aos dados dos <strong>clientes finais</strong> (as pessoas com quem a loja cliente
+                        se comunica por WhatsApp), o ConvoFlow atua exclusivamente como <strong>operador</strong>,
                         tratando os dados por conta e ordem da loja cliente e conforme as instruções desta. São dados
                         tratados nessa condição:
                       </p>
@@ -152,7 +152,7 @@ export default function PrivacyPolicy() {
 
                     <div>
                       <h3 className="font-medium mb-2">
-                        Dados de Clientes Finais (WhatsApp) — tratados na condição de operador:
+                        Dados de Clientes Finais (WhatsApp), tratados na condição de operador:
                       </h3>
                       <ul className="list-disc pl-6 text-muted-foreground">
                         <li><strong>Mensagens:</strong> Conteúdo das conversas processadas</li>
@@ -513,7 +513,7 @@ export default function PrivacyPolicy() {
                       <p>contato@convoflow.com.br</p>
                       <p>CONVOFLOW TECNOLOGIA LTDA</p>
                       <p>Rua Pereira Valente, 578, Sala 207</p>
-                      <p>Meireles, Fortaleza/CE — CEP 60.160-250</p>
+                      <p>Meireles, Fortaleza/CE, CEP 60.160-250</p>
                     </div>
                     <div>
                       <p><strong>Autoridade Nacional (ANPD):</strong></p>
