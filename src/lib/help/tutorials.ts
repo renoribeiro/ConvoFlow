@@ -67,51 +67,61 @@ export const TUTORIALS: Tutorial[] = [
     minRole: 'gestor',
     steps: [
       {
-        title: 'Separe os dados do seu app na Meta',
+        title: 'Separe o que a Meta vai pedir antes de começar',
         body:
-          'Abra o Meta for Developers, vá no seu app com WhatsApp Business habilitado e copie três informações: o Phone Number ID, o WhatsApp Business Account ID (WABA) e um Access Token permanente.',
+          'Três coisas. O login do Facebook de quem administra a empresa no portfólio empresarial da Meta — é ele que autoriza a conexão. Um número de telefone que receba SMS ou ligação, porque a Meta manda um código para ele. E a decisão de tirar esse número do aplicativo do WhatsApp: depois de conectado, ele atende só pelo ConvoFlow e deixa de funcionar no celular.',
         note:
-          'Use um token de System User. Token de usuário comum expira em poucas horas e a conexão cai junto.',
+          'Número que está em uso no WhatsApp do celular precisa ser removido do aplicativo antes — a Meta recusa número que ainda está registrado lá. Um número novo, que nunca teve WhatsApp, é o caminho mais simples.',
       },
       {
         title: 'Abra Instâncias e APIs e clique em "Nova Instância"',
         body:
-          'Cada instância é uma linha de WhatsApp ligada ao sistema. Sem nenhuma conectada, não existe conversa, chatbot nem campanha.',
+          'Cada instância é uma linha de WhatsApp ligada ao sistema. Sem nenhuma conectada, não existe conversa, chatbot nem campanha. Na primeira vez, o botão se chama "Criar Primeira Instância".',
         screen: '/dashboard/whatsapp-numbers',
         helpKey: 'page:whatsapp-numbers',
       },
       {
         title: 'Escolha "API Oficial do WhatsApp" e clique em "Continuar"',
         body:
-          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp" (Meta Cloud API) — é a que a produção usa e a única que permite disparo em massa dentro das regras da Meta.',
+          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp" — é a que a produção usa e a única que dispara campanha dentro das regras da Meta.',
+      },
+      {
+        title: 'Dê um nome à instância e clique em "Conectar com a Meta"',
+        body:
+          'O nome é só o rótulo que aparece nas telas (ex.: "WhatsApp Vendas Oficial"). Se deixar vazio, o ConvoFlow usa o nome verificado que a Meta devolver para o número. O botão abre uma janela da própria Meta: é ela que faz a conexão, e você não copia código nem chave nenhuma.',
         note:
-          'Se o botão "Conectar com a Meta" aparecer ativo no topo do formulário, ele faz a conexão automática e você pode pular o preenchimento manual. Quando ele está cinza, a integração automática ainda não foi configurada nesta instalação — siga pelos campos.',
+          'Se o botão estiver cinza, esta instalação não tem a conexão automática configurada, e o caminho é o do último passo, com os campos manuais.',
       },
       {
-        title: 'Preencha os campos da instância',
+        title: 'Siga a janela da Meta até o fim',
         body:
-          'Dê um nome que identifique a linha (ex.: "WhatsApp Vendas Oficial") e cole o Phone Number ID, o WhatsApp Business Account ID e o Access Token. São só esses quatro campos — nenhum token de webhook é pedido aqui.',
+          'Entre com o login do Facebook, escolha (ou crie) o portfólio empresarial e a conta do WhatsApp Business, digite o número, receba o código por SMS ou ligação e confirme. As telas são da Meta e mudam de tempos em tempos; o que não muda é a ordem: empresa, conta, número, código.',
         note:
-          'O Access Token é guardado cifrado no Supabase Vault, não em texto puro.',
+          'Fechar a janela no meio cancela tudo: o ConvoFlow avisa "Cadastro cancelado" e nada é gravado. É só clicar de novo em "Conectar com a Meta".',
       },
       {
-        title: 'Confirme o webhook da Meta (uma vez por instalação)',
+        title: 'Confira o que volta para o ConvoFlow',
         body:
-          'Este passo é da plataforma, não do número: vale para a instalação inteira do ConvoFlow e é feito uma única vez. Se algum número já recebe mensagens aqui, pule para o passo seguinte. Na primeira instalação, quem opera a plataforma abre o painel da Meta em Webhooks › WhatsApp Business Account, usa como Callback URL o endereço que o formulário mostra (termina em /functions/v1/meta-webhook) e assina os campos "messages" e "message_template_status_update". Sem isso, você envia mensagem mas não recebe resposta.',
-        note:
-          'O Verify Token do handshake é único da instalação (secret META_GLOBAL_VERIFY_TOKEN no Supabase) e por segurança não aparece na tela — quem administra a instalação lê o valor no painel do Supabase e cola no console da Meta.',
+          'Quando a Meta termina, aparece o aviso "Conta Meta conectada", a janela fecha e a instância entra na lista com o selo "Oficial", o número e o status "Conectado". Nos bastidores o ConvoFlow já inscreveu o número na API e o registrou para envio.',
       },
       {
-        title: 'Clique em "Validar e conectar"',
+        title: 'Se o número já tinha verificação em duas etapas, digite o PIN',
         body:
-          'O ConvoFlow chama a Meta para conferir o token e o Phone Number ID antes de salvar. Se as credenciais estiverem erradas, nada é gravado e você pode corrigir e tentar de novo sem duplicar instância.',
+          'Nesse caso o registro automático não acontece: o número aparece "Conectado", mas não envia. Clique no ícone de chave "Registrar número na Cloud API" na linha da instância. Abre a caixa "PIN necessário": digite o PIN de 6 dígitos que você já usava e clique em "Confirmar". O aviso "Número registrado!" fecha o assunto.',
       },
       {
-        title: 'Confirme o status e faça um teste real',
+        title: 'Faça um teste real',
         body:
-          'Veja a instância aparecer na lista com o número identificado. Depois mande uma mensagem de outro celular para esse número e confirme que ela chega em Conversas. Enquanto a mensagem não aparecer ali, a conexão não está completa.',
+          'Mande uma mensagem de outro celular para o número conectado e confirme que ela aparece em Conversas. Depois responda por ali e veja chegar. Enquanto isso não acontecer, a conexão não está completa — "Testar conexão Meta", na linha da instância, ajuda a achar onde parou.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
+      },
+      {
+        title: 'Só se você já tem app próprio na Meta: preencha os campos manuais',
+        body:
+          'É a exceção, para quem já mantém um app no Meta for Developers. Em vez de "Conectar com a Meta", cole o "Phone Number ID", o "WhatsApp Business Account ID" e o "Access Token" e clique em "Validar e conectar". O ConvoFlow confere as credenciais na Meta antes de gravar; se estiverem erradas, nada é salvo e você corrige sem duplicar instância.',
+        note:
+          'Use um token de System User, de longa duração. Token de usuário comum expira em poucas horas e a conexão cai junto. O webhook da Meta é configurado uma vez por instalação, por quem opera a plataforma — não é passo seu.',
       },
     ],
   },
