@@ -702,7 +702,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'Mensagem idêntica para milhares de números é o caminho mais rápido para o WhatsApp bloquear a linha. Personalize e envie em lotes.',
       'Quem nunca falou com você tende a denunciar como spam — priorize contatos que já conversaram.',
-      'Lista grande num número recém-conectado é pedido de bloqueio. Deixe a linha amadurecer antes do primeiro disparo grande.',
+      'Número da API Oficial recém-conectado tem um teto diário de envio na primeira semana — é proteção contra bloqueio pela Meta, não limite do plano: 50 mensagens por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; do oitavo dia em diante o teto some. Conta tudo o que sai pelo número no dia, inclusive respostas do time. Quem ficar fora do teto naquele dia aparece nos Detalhes da campanha como "skipped" e não é reenviado sozinho — monte outra campanha para esses contatos no dia seguinte, ou planeje a primeira semana em lotes.',
       'Como Atendente você acompanha as campanhas e as respostas que elas geram, mas não cria nem dispara: o botão "Nova Campanha" aparece, mas o servidor recusa na hora de salvar. Quem dispara é o Gestor ou o Gerente — os passos acima são deles.',
     ],
     category: 'tela',
