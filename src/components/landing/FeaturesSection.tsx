@@ -47,7 +47,7 @@ export const FeaturesSection = () => {
     {
       icon: Shield,
       title: 'Segurança Avançada',
-      description: 'Criptografia ponta-a-ponta e conformidade com LGPD para máxima segurança.',
+      description: 'Criptografia em trânsito e em repouso, dados no Brasil e conformidade com a LGPD.',
       color: 'bg-red-500'
     },
     {

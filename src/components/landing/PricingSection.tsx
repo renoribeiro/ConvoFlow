@@ -17,9 +17,9 @@ export const PricingSection = () => {
     'Automação de fluxos completa',
     'Templates de mensagem profissionais',
     'Segmentação avançada de contatos',
-    'Integração com CRM/ERP',
+    'Webhooks para integrar com CRM, ERP ou n8n',
     'Suporte técnico prioritário',
-    'Treinamento completo da equipe'
+    'Tutoriais e ajuda dentro do produto'
   ];
 
   const handleSubscribe = () => {
@@ -46,7 +46,7 @@ export const PricingSection = () => {
             <span className="text-brand-primary">transparente</span>
           </h2>
           <p className="text-lg sm:text-xl text-muted-foreground px-4 sm:px-0">
-            Sem pegadinhas, sem taxas ocultas. Pague apenas pelo que usar.
+            Sem pegadinhas: um plano, preço fixo. As conversas na API oficial são cobradas pela Meta, direto de você.
           </p>
         </motion.div>
 
