@@ -23,11 +23,11 @@ export const FAQSection = () => {
     },
     {
       question: 'Quantas mensagens posso enviar por mês?',
-      answer: 'Não há limite de mensagens! Você paga apenas pelos usuários da plataforma. Todas as mensagens enviadas e recebidas são ilimitadas em todos os planos.'
+      answer: 'O ConvoFlow não cobra por mensagem nem limita a quantidade: o plano é por loja, e as mensagens na plataforma são ilimitadas. O que existe é a cobrança da própria Meta pelas conversas na API oficial, feita direto no cartão do seu portfólio empresarial — os valores atuais estão em developers.facebook.com/docs/whatsapp/pricing. A Meta também aplica um limite diário de quantas pessoas você pode abordar primeiro (responder quem te escreveu não conta), e ele cresce sozinho conforme o número é bem usado.'
     },
     {
       question: 'Meus dados ficam seguros?',
-      answer: 'Sim, utilizamos criptografia ponta-a-ponta e seguimos todas as normas da LGPD. Seus dados são armazenados em servidores seguros no Brasil e nunca são compartilhados com terceiros.'
+      answer: 'Sim. Seus dados ficam em servidores no Brasil, com criptografia em trânsito e em repouso, e seguimos a LGPD. Eles só são compartilhados com quem precisa deles para o serviço funcionar — a Meta, que entrega as mensagens do WhatsApp, e o processador de pagamento — como descreve nossa Política de Privacidade.'
     },
     {
       question: 'Como funciona o suporte técnico?',
