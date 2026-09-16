@@ -64,9 +64,9 @@ export const TUTORIALS: Tutorial[] = [
     id: 'antes-de-conectar',
     title: 'Antes de conectar seu WhatsApp',
     goal:
-      'No fim, você terá escolhido o número certo e separado tudo o que a Meta pede — para a conexão não travar no meio.',
+      'No fim, você terá escolhido o número certo e separado tudo o que a Meta pede, para a conexão não travar no meio.',
     forWhom:
-      'Gerente ou Gestor, junto com quem decide pela empresa — porque o primeiro passo é uma decisão, não um clique. Atendente não conecta número.',
+      'Gerente ou Gestor, junto com quem decide pela empresa, porque o primeiro passo é uma decisão, não um clique. Atendente não conecta número.',
     moduleName: 'whatsapp-numbers',
     minRole: 'gestor',
     nextTutorialId: 'conectar-whatsapp',
@@ -74,24 +74,24 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Decida se este é mesmo o número certo',
         body:
-          'Ao entrar na API Oficial, o número deixa de funcionar no aplicativo do WhatsApp do celular: ele passa a atender só pelo ConvoFlow. Por isso o número que a empresa inteira usa num celular costuma ser a escolha errada — quem usa o aplicativo perde o acesso no mesmo dia. O certo é um número comercial dedicado, que só vai atender por aqui. E as conversas antigas não vêm junto: o histórico do aplicativo fica no aplicativo.',
+          'Ao entrar na API Oficial, o número deixa de funcionar no aplicativo do WhatsApp do celular: ele passa a atender só pelo ConvoFlow. Por isso o número que a empresa inteira usa num celular costuma ser a escolha errada: quem usa o aplicativo perde o acesso no mesmo dia. O certo é um número comercial dedicado, que só vai atender por aqui. E as conversas antigas não vêm junto: o histórico do aplicativo fica no aplicativo.',
         note:
-          'Número que já está em uso no WhatsApp do celular precisa ser removido do aplicativo antes — a Meta recusa número que ainda está registrado lá. Um chip novo, que nunca teve WhatsApp, é o caminho mais simples.',
+          'Número que já está em uso no WhatsApp do celular precisa ser removido do aplicativo antes: a Meta recusa número que ainda está registrado lá. Um chip novo, que nunca teve WhatsApp, é o caminho mais simples.',
       },
       {
         title: 'Combine quem vai estar presente na hora da conexão',
         body:
-          'A janela da Meta pede duas coisas ao mesmo tempo. O login do Facebook de quem administra a empresa na Meta — é com ele que a Meta confirma quem está autorizando; se essa pessoa não é quem usa o ConvoFlow, ela precisa estar junto nesse momento, ou fazer a conexão ela mesma. E o celular com o chip do número, na mão de alguém: a Meta manda um código por SMS ou ligação para ele, e sem o código a conexão não termina.',
+          'A janela da Meta pede duas coisas ao mesmo tempo. O login do Facebook de quem administra a empresa na Meta: é com ele que a Meta confirma quem está autorizando; se essa pessoa não é quem usa o ConvoFlow, ela precisa estar junto nesse momento, ou fazer a conexão ela mesma. E o celular com o chip do número, na mão de alguém: a Meta manda um código por SMS ou ligação para ele, e sem o código a conexão não termina.',
       },
       {
         title: 'Tenha, ou crie na hora, o portfólio empresarial da Meta',
         body:
-          'Portfólio empresarial é o cadastro da sua empresa na Meta — o antigo Gerenciador de Negócios. É nele que ficam a conta do WhatsApp Business, o número e o cartão. Se a empresa já anuncia no Facebook ou no Instagram, provavelmente já tem um: use esse. Se não tem, dá para criar durante a própria conexão, com o login do passo anterior.',
+          'Portfólio empresarial é o cadastro da sua empresa na Meta, o antigo Gerenciador de Negócios. É nele que ficam a conta do WhatsApp Business, o número e o cartão. Se a empresa já anuncia no Facebook ou no Instagram, provavelmente já tem um: use esse. Se não tem, dá para criar durante a própria conexão, com o login do passo anterior.',
       },
       {
         title: 'Separe os dados da empresa',
         body:
-          'Nome da empresa como está no CNPJ, endereço, site (se houver) e um e-mail de contato. Nem tudo é pedido na hora de conectar, mas é isso que a Meta pede quando quer confirmar que a empresa existe — e é mais rápido ter à mão do que procurar com a janela aberta.',
+          'Nome da empresa como está no CNPJ, endereço, site (se houver) e um e-mail de contato. Nem tudo é pedido na hora de conectar, mas é isso que a Meta pede quando quer confirmar que a empresa existe, e é mais rápido ter à mão do que procurar com a janela aberta.',
       },
       {
         title: 'Escolha o nome que os clientes vão ver',
@@ -106,12 +106,12 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Planeje a primeira semana com o teto de aquecimento',
         body:
-          'Número recém-conectado tem um teto diário de envio nos primeiros sete dias — proteção contra bloqueio pela Meta, não limite do plano: 50 mensagens por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; do oitavo dia em diante o teto some. Conta tudo o que sai pelo número no dia, inclusive respostas do time. Se a ideia é disparar campanha, não compre nem importe uma lista grande para a primeira semana: comece pelos contatos que já conhecem a empresa e cresça junto com o teto.',
+          'Número recém-conectado tem um teto diário de envio nos primeiros sete dias. É proteção contra bloqueio pela Meta, não limite do plano: 50 mensagens por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; do oitavo dia em diante o teto some. Conta tudo o que sai pelo número no dia, inclusive respostas do time. Se a ideia é disparar campanha, não compre nem importe uma lista grande para a primeira semana: comece pelos contatos que já conhecem a empresa e cresça junto com o teto.',
       },
       {
         title: 'Confira a lista e vá para a conexão',
         body:
-          'Número certo e fora do aplicativo; quem tem o login do Facebook e o celular, presentes; portfólio empresarial, ou a decisão de criar na hora; dados da empresa; nome escolhido; cartão cadastrado; primeira semana planejada. Com isso em mãos, a conexão é um clique em "Conectar com a Meta", em Instâncias e APIs — o passo-a-passo é o próximo tutorial, "Conectar seu WhatsApp".',
+          'Número certo e fora do aplicativo; quem tem o login do Facebook e o celular, presentes; portfólio empresarial, ou a decisão de criar na hora; dados da empresa; nome escolhido; cartão cadastrado; primeira semana planejada. Com isso em mãos, a conexão é um clique em "Conectar com a Meta", em Instâncias e APIs. O passo-a-passo é o próximo tutorial, "Conectar seu WhatsApp".',
         screen: '/dashboard/whatsapp-numbers',
         helpKey: 'page:whatsapp-numbers',
       },
@@ -124,14 +124,14 @@ export const TUTORIALS: Tutorial[] = [
     title: 'Conectar seu WhatsApp',
     goal:
       'No fim, seu número estará conectado pela API Oficial da Meta, recebendo e enviando mensagens dentro do ConvoFlow.',
-    forWhom: 'Gerente ou Gestor — quem cuida da configuração da Loja. Atendente não conecta número.',
+    forWhom: 'Gerente ou Gestor: quem cuida da configuração da Loja. Atendente não conecta número.',
     moduleName: 'whatsapp-numbers',
     minRole: 'gestor',
     steps: [
       {
         title: 'Confira o que o tutorial anterior pediu',
         body:
-          'Número certo, já fora do aplicativo do WhatsApp; o login do Facebook de quem administra a empresa na Meta; o celular com o chip, para receber o código; e um cartão no portfólio empresarial da Meta, porque é ela quem cobra as conversas — sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Se algum item falta, volte a "Antes de conectar seu WhatsApp".',
+          'Número certo, já fora do aplicativo do WhatsApp; o login do Facebook de quem administra a empresa na Meta; o celular com o chip, para receber o código; e um cartão no portfólio empresarial da Meta, porque é ela quem cobra as conversas. Sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Se algum item falta, volte a "Antes de conectar seu WhatsApp".',
       },
       {
         title: 'Abra Instâncias e APIs e clique em "Nova Instância"',
@@ -143,7 +143,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Escolha "API Oficial do WhatsApp" e clique em "Continuar"',
         body:
-          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp" — é a que a produção usa e a única que dispara campanha dentro das regras da Meta.',
+          'São três opções de provedor. Escolha a primeira, "API Oficial do WhatsApp": é a que a produção usa e a única que dispara campanha dentro das regras da Meta.',
       },
       {
         title: 'Dê um nome à instância e clique em "Conectar com a Meta"',
@@ -172,7 +172,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Faça um teste real',
         body:
-          'Mande uma mensagem de outro celular para o número conectado e confirme que ela aparece em Conversas. Depois responda por ali e veja chegar. Enquanto isso não acontecer, a conexão não está completa — "Testar conexão Meta", na linha da instância, ajuda a achar onde parou.',
+          'Mande uma mensagem de outro celular para o número conectado e confirme que ela aparece em Conversas. Depois responda por ali e veja chegar. Enquanto isso não acontecer, a conexão não está completa. "Testar conexão Meta", na linha da instância, ajuda a achar onde parou.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
       },
@@ -181,7 +181,7 @@ export const TUTORIALS: Tutorial[] = [
         body:
           'É a exceção, para quem já mantém um app no Meta for Developers. Em vez de "Conectar com a Meta", cole o "Phone Number ID", o "WhatsApp Business Account ID" e o "Access Token" e clique em "Validar e conectar". O ConvoFlow confere as credenciais na Meta antes de gravar; se estiverem erradas, nada é salvo e você corrige sem duplicar instância.',
         note:
-          'Use um token de System User, de longa duração. Token de usuário comum expira em poucas horas e a conexão cai junto. O webhook da Meta é configurado uma vez por instalação, por quem opera a plataforma — não é passo seu.',
+          'Use um token de System User, de longa duração. Token de usuário comum expira em poucas horas e a conexão cai junto. O webhook da Meta é configurado uma vez por instalação, por quem opera a plataforma. Não é passo seu.',
       },
     ],
   },
@@ -209,7 +209,7 @@ export const TUTORIALS: Tutorial[] = [
         screen: '/dashboard/team',
         helpKey: 'page:team',
         note:
-          'Seu plano inclui 5 Lojas, e o contador ao lado do botão mostra quantas já foram usadas. Quando acabam, "Nova Loja" fica cinza — aí é contratar Lojas adicionais em Configurações › Assinatura.',
+          'Seu plano inclui 5 Lojas, e o contador ao lado do botão mostra quantas já foram usadas. Quando acabam, "Nova Loja" fica cinza. Aí é contratar Lojas adicionais em Configurações › Assinatura.',
       },
       {
         title: 'Só o Gerente: coloque em foco a Loja onde a pessoa vai trabalhar',
@@ -228,24 +228,24 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Preencha nome, sobrenome, e-mail e a Função',
         body:
-          'O e-mail é o login da pessoa. O telefone é opcional. Preencha o nome de verdade: é ele que o time vê quando uma conversa é transferida e é por ele que os relatórios separam quem atendeu o quê. Ao trocar a Função, o cartão logo abaixo lista o que aquele cargo pode e o que não pode fazer — leia antes de enviar.',
+          'O e-mail é o login da pessoa. O telefone é opcional. Preencha o nome de verdade: é ele que o time vê quando uma conversa é transferida e é por ele que os relatórios separam quem atendeu o quê. Ao trocar a Função, o cartão logo abaixo lista o que aquele cargo pode e o que não pode fazer. Leia antes de enviar.',
         note:
           'Cada Loja aceita no máximo 1 Gestor e até 5 Atendentes.',
       },
       {
         title: 'Escolha a Loja e clique em "Enviar convite"',
         body:
-          'Para Gestor e Atendente aparece uma lista com as Lojas da sua Conta, já marcada na que você colocou em foco. Confira se é a certa antes de enviar — é ela que define quais conversas e contatos a pessoa vai enxergar.',
+          'Para Gestor e Atendente aparece uma lista com as Lojas da sua Conta, já marcada na que você colocou em foco. Confira se é a certa antes de enviar: é ela que define quais conversas e contatos a pessoa vai enxergar.',
         note:
           'Como Gestor você não escolhe nada aqui: o convite entra na sua Loja, que é a única que você administra.',
       },
       {
         title: 'Confirme que a pessoa conseguiu entrar',
         body:
-          'Ela recebe um e-mail de convite, clica no link e cai numa tela para criar a própria senha. Depois disso já entra no sistema. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa — cada um usa o seu.',
+          'Ela recebe um e-mail de convite, clica no link e cai numa tela para criar a própria senha. Depois disso já entra no sistema. Volte em Equipe e veja se o nome aparece na lista. Login compartilhado quebra relatório por pessoa. Cada um usa o seu.',
         screen: '/dashboard/team',
         note:
-          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "Este link expirou ou já foi usado" — nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta. Se a Loja já usa o rodízio de conversas, quem acabou de entrar já recebe a própria fatia: as fatias se refazem em divisão igual no momento em que a pessoa aceita o convite.',
+          'O link do convite vale por UM acesso só. Se ela abrir no celular e depois tentar no computador, o segundo dá "Este link expirou ou já foi usado". Nesse caso é só pedir um novo pela própria tela, ou usar "Redefinir senha" no menu de Ações. A Loja herda o acesso da sua Conta, então quem entra numa Loja nova já cai direto no sistema; se aparecer "Acesso bloqueado", o pagamento pendente é o da Conta. Se a Loja já usa o rodízio de conversas, quem acabou de entrar já recebe a própria fatia: as fatias se refazem em divisão igual no momento em que a pessoa aceita o convite.',
       },
       {
         title: 'Divida as conversas novas entre a equipe',
@@ -254,7 +254,7 @@ export const TUTORIALS: Tutorial[] = [
         screen: '/dashboard/settings',
         helpKey: 'page:settings-visibility',
         note:
-          'Com um atendente só, o cartão mostra uma linha explicando que o rodízio aparece a partir do segundo — não há com quem dividir. O rodízio nunca troca uma conversa que já tem responsável, e não toca o sino. Na mesma aba, o cartão "Transferência por tempo sem resposta" faz o oposto para quem já tem a conversa e não responde: em X minutos de funcionamento ela passa para o próximo do rodízio, com aviso no sino. Vem desligado; ligue quando o time já souber que isso vai acontecer.',
+          'Com um atendente só, o cartão mostra uma linha explicando que o rodízio aparece a partir do segundo, porque não há com quem dividir. O rodízio nunca troca uma conversa que já tem responsável, e não toca o sino. Na mesma aba, o cartão "Transferência por tempo sem resposta" faz o oposto para quem já tem a conversa e não responde: em X minutos de funcionamento ela passa para o próximo do rodízio, com aviso no sino. Vem desligado; ligue quando o time já souber que isso vai acontecer.',
       },
       {
         title: 'Remova o acesso de quem sair do time no mesmo dia',
@@ -271,7 +271,7 @@ export const TUTORIALS: Tutorial[] = [
     title: 'Montar seu funil de vendas',
     goal:
       'No fim, seu funil terá as etapas do seu processo real e você saberá onde cada lead está parado.',
-    forWhom: 'Quem define o processo comercial da Loja — normalmente o Gestor.',
+    forWhom: 'Quem define o processo comercial da Loja, normalmente o Gestor.',
     moduleName: 'funnel',
     steps: [
       {
@@ -304,7 +304,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Feche a configuração e mova um lead de verdade',
         body:
-          'Na aba "Kanban Board", arraste um card de uma coluna para outra. Mover o card é o que registra que a negociação andou — é assim que o time todo passa a ver a mesma situação.',
+          'Na aba "Kanban Board", arraste um card de uma coluna para outra. Mover o card é o que registra que a negociação andou. É assim que o time todo passa a ver a mesma situação.',
         screen: '/dashboard/funnel',
       },
       {
@@ -316,7 +316,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Ligue o funil às automações',
         body:
-          'Com as etapas prontas, use o gatilho "Mudança de Estágio" para disparar ação no momento em que o lead avança — agendar follow-up ao entrar em "Visita agendada", por exemplo.',
+          'Com as etapas prontas, use o gatilho "Mudança de Estágio" para disparar ação no momento em que o lead avança: agendar follow-up ao entrar em "Visita agendada", por exemplo.',
         screen: '/dashboard/automation',
         helpKey: 'trigger:funnel_stage_changed',
       },
@@ -342,7 +342,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Dê um nome e escolha a instância de WhatsApp',
         body:
-          'Preencha o Nome. Em "Instância WhatsApp", escolha o número em que o bot responde — deixar em "Todas as instâncias" faz ele valer para qualquer linha conectada. A Prioridade só importa se houver mais de um bot no mesmo número.',
+          'Preencha o Nome. Em "Instância WhatsApp", escolha o número em que o bot responde. Deixar em "Todas as instâncias" faz ele valer para qualquer linha conectada. A Prioridade só importa se houver mais de um bot no mesmo número.',
       },
       {
         title: 'Marque o gatilho "Primeiro contato"',
@@ -352,7 +352,7 @@ export const TUTORIALS: Tutorial[] = [
           'Se escolher "Palavra-chave", você precisa cadastrar pelo menos uma palavra, senão o formulário não salva.',
       },
       {
-        title: 'Salve — o construtor do fluxo abre sozinho',
+        title: 'Salve: o construtor do fluxo abre sozinho',
         body:
           'Ao salvar, o ConvoFlow leva você direto para o construtor daquele bot. À esquerda ficam os blocos, no meio a área de desenho, e à direita o painel de configuração do bloco selecionado.',
         helpKey: 'page:chatbot-builder',
@@ -360,7 +360,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Arraste "Início do Fluxo" e ligue nele um "Enviar Texto"',
         body:
-          'Arraste "Início do Fluxo" para a área de desenho (só pode existir um) e depois "Enviar Texto" — no tablet ou no celular, toque em "Blocos" na barra do topo e escolha cada um. Ligue a bolinha de saída do Início na entrada do Enviar Texto e escreva a saudação no painel da direita.',
+          'Arraste "Início do Fluxo" para a área de desenho (só pode existir um) e depois "Enviar Texto". No tablet ou no celular, toque em "Blocos" na barra do topo e escolha cada um. Ligue a bolinha de saída do Início na entrada do Enviar Texto e escreva a saudação no painel da direita.',
         note: 'Bloco solto não executa. Se não houver seta ligando, aquele trecho nunca roda.',
       },
       {
@@ -372,9 +372,9 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Feche o fluxo com "Transferir para Atendente"',
         body:
-          'Ligue um bloco "Transferir para Atendente" no fim. Ele encerra a parte automática, já com o bairro coletado. Em "Transferir para", deixe "Qualquer atendente disponível" para a conversa seguir o rodízio da Loja — ou ficar na fila, sem responsável, se o rodízio estiver desligado. Escolha "Atendente específico" só se uma pessoa certa deve ficar com ela: aí a conversa passa a ser dessa pessoa, que recebe um aviso no sino. Fluxo que só fala e não entrega deixa o lead sem resposta.',
+          'Ligue um bloco "Transferir para Atendente" no fim. Ele encerra a parte automática, já com o bairro coletado. Em "Transferir para", deixe "Qualquer atendente disponível" para a conversa seguir o rodízio da Loja, ou ficar na fila, sem responsável, se o rodízio estiver desligado. Escolha "Atendente específico" só se uma pessoa certa deve ficar com ela: aí a conversa passa a ser dessa pessoa, que recebe um aviso no sino. Fluxo que só fala e não entrega deixa o lead sem resposta.',
         note:
-          '"Atendente específico" só vale para conversa que ainda não tem responsável. Se a Loja usa o rodízio em "Na primeira mensagem", a conversa já chegou com dono antes de o bot rodar e o bloco não troca — use "Quando o chatbot terminar" em Configurações › Escala/Transferência.',
+          '"Atendente específico" só vale para conversa que ainda não tem responsável. Se a Loja usa o rodízio em "Na primeira mensagem", a conversa já chegou com dono antes de o bot rodar e o bloco não troca. Use "Quando o chatbot terminar" em Configurações › Escala/Transferência.',
         helpKey: 'transfer_agent',
       },
       {
@@ -387,7 +387,7 @@ export const TUTORIALS: Tutorial[] = [
         body:
           'Use outro celular, escreva para o número e acompanhe em Conversas: enquanto o bot conduz, a conversa mostra o selo "Bot em atendimento", que some quando o fluxo chega em "Transferir para Atendente". Erro de texto e pergunta confusa só aparecem na conversa real.',
         note:
-          'Para intervir antes do fim do fluxo, abra o menu ⋮ da conversa e clique em "Encerrar sessão do bot" — o item só fica ativo enquanto há bot na conversa.',
+          'Para intervir antes do fim do fluxo, abra o menu ⋮ da conversa e clique em "Encerrar sessão do bot". O item só fica ativo enquanto há bot na conversa.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
       },
@@ -408,14 +408,14 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Aprove um template no Gerenciador do WhatsApp Business',
         body:
-          'A aprovação do template acontece do lado da Meta, no Gerenciador do WhatsApp Business — o ConvoFlow não cria nem submete template. Cadastre lá o texto que você quer disparar e espere a aprovação antes de continuar.',
+          'A aprovação do template acontece do lado da Meta, no Gerenciador do WhatsApp Business; o ConvoFlow não cria nem submete template. Cadastre lá o texto que você quer disparar e espere a aprovação antes de continuar.',
         note:
           'Guarde o nome exato do template aprovado e o idioma. É esse nome que você digita no ConvoFlow; qualquer diferença de letra faz o envio falhar.',
       },
       {
         title: 'Decida o tipo de envio a partir da janela de 24 horas',
         body:
-          'Mensagem de texto livre só é entregue dentro de 24 horas após a última mensagem do contato. Fora dessa janela, só template aprovado passa. Para uma lista fria — que é o caso da maioria das campanhas — o caminho é template.',
+          'Mensagem de texto livre só é entregue dentro de 24 horas após a última mensagem do contato. Fora dessa janela, só template aprovado passa. Para uma lista fria, que é o caso da maioria das campanhas, o caminho é template.',
       },
       {
         title: 'Prepare a segmentação em Contatos',
@@ -451,12 +451,12 @@ export const TUTORIALS: Tutorial[] = [
         body:
           'Confira o resumo e dispare primeiro para um punhado de contatos, não para a lista inteira. Se preferir revisar depois, use "Salvar como Rascunho". Confirmado, a campanha entra na fila de envio.',
         note:
-          'Número da API Oficial recém-conectado tem teto diário na primeira semana — proteção contra bloqueio pela Meta, não limite do plano: 50 por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; depois disso o teto some. Se a lista passar do teto, o resto fica como "skipped" nos Detalhes e não sai sozinho no dia seguinte — planeje a primeira semana em lotes.',
+          'Número da API Oficial recém-conectado tem teto diário na primeira semana. É proteção contra bloqueio pela Meta, não limite do plano: 50 por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; depois disso o teto some. Se a lista passar do teto, o resto fica como "skipped" nos Detalhes e não sai sozinho no dia seguinte. Planeje a primeira semana em lotes.',
       },
       {
         title: 'Acompanhe a entrega pelo botão "Relatórios"',
         body:
-          'Ainda em Campanhas, abra Relatórios e veja entrega e respostas. Aqui você descobre se o problema foi o texto, a lista ou o horário — e ajusta antes do próximo disparo.',
+          'Ainda em Campanhas, abra Relatórios e veja entrega e respostas. Aqui você descobre se o problema foi o texto, a lista ou o horário, e ajusta antes do próximo disparo.',
         screen: '/dashboard/campaigns',
       },
     ],
@@ -472,7 +472,7 @@ export const TUTORIALS: Tutorial[] = [
     goal:
       'No fim, você vai saber de quem é cada conversa, como assumir e passar adiante, o que o bot está fazendo, e por que uma conversa pode aparecer ou sumir da sua lista sem você tocar nela.',
     forWhom:
-      'Atendente, principalmente — e o Gestor que quer saber o que a equipe vê quando liga cada chave. A Loja já está conectada e com equipe.',
+      'Atendente, principalmente, e o Gestor que quer saber o que a equipe vê quando liga cada chave. A Loja já está conectada e com equipe.',
     moduleName: 'conversations',
     steps: [
       {
@@ -485,7 +485,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Pegue uma conversa da fila: "Sem responsável" → "Assumir"',
         body:
-          'Clique em "Sem responsável" no cabeçalho e depois em "Assumir". O seu nome aparece para todo mundo da Loja e a conversa entra em "Minhas". Se duas pessoas clicarem quase ao mesmo tempo, só a primeira fica com ela — a outra vê um aviso dizendo quem pegou.',
+          'Clique em "Sem responsável" no cabeçalho e depois em "Assumir". O seu nome aparece para todo mundo da Loja e a conversa entra em "Minhas". Se duas pessoas clicarem quase ao mesmo tempo, só a primeira fica com ela. A outra vê um aviso dizendo quem pegou.',
         note:
           'Responder numa conversa não a torna sua. Se você respondeu e não assumiu, ela continua "Sem responsável" para os colegas.',
       },
@@ -498,29 +498,29 @@ export const TUTORIALS: Tutorial[] = [
         helpKey: 'page:settings-visibility',
       },
       {
-        title: 'Reconheça o selo "Bot em atendimento" — e encerre a sessão antes de responder',
+        title: 'Reconheça o selo "Bot em atendimento" e encerre a sessão antes de responder',
         body:
           'O selo na linha da lista e no cabeçalho quer dizer que um chatbot está conduzindo a conversa agora. Antes de escrever, abra o menu ⋮ e clique em "Encerrar sessão do bot": o bot para na hora e a conversa passa a ser sua para responder. Sem isso, você e o bot falam com o cliente ao mesmo tempo.',
         note:
-          'Sem selo, não há bot e o item fica desabilitado. Encerrar a sessão não muda o responsável nem chama o rodízio — é uma ação sua, e só.',
+          'Sem selo, não há bot e o item fica desabilitado. Encerrar a sessão não muda o responsável nem chama o rodízio: é uma ação sua, e só.',
         helpKey: 'page:conversations',
       },
       {
         title: 'Entenda o que muda se o Gestor restringir a visibilidade',
         body:
-          'Por padrão você vê todas as conversas da Loja. Se o Gestor escolher "Sem responsável + as dele" ou "Só as dele" em Escala/Transferência, a sua lista encolhe: só o que está com você, o que você já respondeu, o que você passou adiante e, na opção intermediária, a fila sem dono. Uma conversa que sumiu não foi apagada — está com um colega. Os números do Dashboard continuam da Loja inteira, com a etiqueta "Toda a Loja".',
+          'Por padrão você vê todas as conversas da Loja. Se o Gestor escolher "Sem responsável + as dele" ou "Só as dele" em Escala/Transferência, a sua lista encolhe: só o que está com você, o que você já respondeu, o que você passou adiante e, na opção intermediária, a fila sem dono. Uma conversa que sumiu não foi apagada: está com um colega. Os números do Dashboard continuam da Loja inteira, com a etiqueta "Toda a Loja".',
         helpKey: 'page:settings-visibility',
       },
       {
         title: 'Saiba como o rodízio entrega conversas novas',
         body:
-          'Com o rodízio ligado, a conversa nova já chega com responsável, na fatia que o Gestor definiu para cada pessoa — na primeira mensagem do cliente ou só quando o chatbot terminar. Ela entra em "Minhas" sem aviso no sino; o sino toca só quando alguém entrega de propósito. Cliente que volta cai com quem já o atendia: o rodízio nunca troca um responsável que existe.',
+          'Com o rodízio ligado, a conversa nova já chega com responsável, na fatia que o Gestor definiu para cada pessoa, na primeira mensagem do cliente ou só quando o chatbot terminar. Ela entra em "Minhas" sem aviso no sino; o sino toca só quando alguém entrega de propósito. Cliente que volta cai com quem já o atendia: o rodízio nunca troca um responsável que existe.',
         helpKey: 'concept:conversation-routing',
       },
       {
         title: 'Entenda por que uma conversa pode sair de "Minhas" sozinha',
         body:
-          'Se a Loja ligou a transferência por tempo sem resposta, uma conversa sua em que o cliente esperou resposta de pessoa por mais minutos de funcionamento do que o limite passa para o próximo do rodízio — e quem recebe ganha "Conversa transferida para você" no sino. Resposta do bot não segura a conversa; só a sua. Quando ela chega a você por esse caminho, o relógio começa do zero.',
+          'Se a Loja ligou a transferência por tempo sem resposta, uma conversa sua em que o cliente esperou resposta de pessoa por mais minutos de funcionamento do que o limite passa para o próximo do rodízio, e quem recebe ganha "Conversa transferida para você" no sino. Resposta do bot não segura a conversa; só a sua. Quando ela chega a você por esse caminho, o relógio começa do zero.',
         note:
           'Não é punição: é a Loja garantindo que o cliente não fique sem resposta. Para não perder conversas, responda dentro do limite ou peça ao Gestor para transferir antes.',
         helpKey: 'page:conversations',
