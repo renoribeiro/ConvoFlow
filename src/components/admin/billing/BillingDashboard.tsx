@@ -4,14 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   CreditCard,
@@ -196,49 +189,22 @@ export function BillingDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
-                        Carregando...
-                      </TableCell>
-                    </TableRow>
-                  ) : transactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        Nenhuma transação encontrada
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    transactions.map((tx: any) => (
-                      <TableRow key={tx.id}>
-                        <TableCell className="font-mono text-xs">
-                          {tx.stripe_payment_intent_id?.slice(0, 20)}...
-                        </TableCell>
-                        <TableCell>{tx.description || '-'}</TableCell>
-                        <TableCell>{formatCurrency(tx.amount, tx.currency)}</TableCell>
-                        <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                        <TableCell>
-                          {tx.processed_at
-                            ? new Date(tx.processed_at).toLocaleDateString('pt-BR')
-                            : '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              {/* Cartão no celular: descrição lidera, id do Stripe embaixo,
+                  status vira chip, valor e data viram campos. Sem ações. */}
+              <ResponsiveTable
+                ariaLabel="Transações recentes"
+                rows={transactions as any[]}
+                rowKey={(tx: any) => tx.id}
+                loading={isLoading}
+                empty="Nenhuma transação encontrada"
+                columns={[
+                  { key: 'id', header: 'ID', card: 'subtitle', cellClassName: 'font-mono text-xs', cell: (tx: any) => <span className="font-mono text-xs break-all">{tx.stripe_payment_intent_id?.slice(0, 20)}...</span> },
+                  { key: 'descricao', header: 'Descrição', card: 'title', cell: (tx: any) => tx.description || '-' },
+                  { key: 'valor', header: 'Valor', cell: (tx: any) => formatCurrency(tx.amount, tx.currency) },
+                  { key: 'status', header: 'Status', card: 'badge', cell: (tx: any) => getStatusBadge(tx.status) },
+                  { key: 'data', header: 'Data', cell: (tx: any) => (tx.processed_at ? new Date(tx.processed_at).toLocaleDateString('pt-BR') : '-') },
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -250,55 +216,32 @@ export function BillingDashboard() {
               <CardDescription>Todas as assinaturas ativas e históricas.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Plano</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Período Atual</TableHead>
-                    <TableHead>Criado em</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
-                        Carregando...
-                      </TableCell>
-                    </TableRow>
-                  ) : subscriptions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Nenhuma assinatura encontrada
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    subscriptions.map((sub: any) => (
-                      <TableRow key={sub.id}>
-                        <TableCell className="font-medium">
-                          {sub.profiles
-                            ? `${sub.profiles.first_name || ''} ${sub.profiles.last_name || ''}`.trim() || 'N/A'
-                            : 'N/A'}
-                        </TableCell>
-                        <TableCell>{sub.plan_name}</TableCell>
-                        <TableCell>{formatCurrency((sub.amount || 0) / 100, sub.currency)}</TableCell>
-                        <TableCell>{getStatusBadge(sub.status)}</TableCell>
-                        <TableCell>
-                          {sub.current_period_end
-                            ? new Date(sub.current_period_end).toLocaleDateString('pt-BR')
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(sub.created_at).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              {/* Cartão no celular: usuário lidera, plano embaixo, status vira
+                  chip, valor, período e criação viram campos. Sem ações. */}
+              <ResponsiveTable
+                ariaLabel="Assinaturas"
+                rows={subscriptions as any[]}
+                rowKey={(sub: any) => sub.id}
+                loading={isLoading}
+                empty="Nenhuma assinatura encontrada"
+                columns={[
+                  {
+                    key: 'usuario',
+                    header: 'Usuário',
+                    card: 'title',
+                    cellClassName: 'font-medium',
+                    cell: (sub: any) =>
+                      sub.profiles
+                        ? `${sub.profiles.first_name || ''} ${sub.profiles.last_name || ''}`.trim() || 'N/A'
+                        : 'N/A',
+                  },
+                  { key: 'plano', header: 'Plano', card: 'subtitle', cell: (sub: any) => sub.plan_name },
+                  { key: 'valor', header: 'Valor', cell: (sub: any) => formatCurrency((sub.amount || 0) / 100, sub.currency) },
+                  { key: 'status', header: 'Status', card: 'badge', cell: (sub: any) => getStatusBadge(sub.status) },
+                  { key: 'periodo', header: 'Período Atual', cell: (sub: any) => (sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('pt-BR') : '-') },
+                  { key: 'criado', header: 'Criado em', cell: (sub: any) => new Date(sub.created_at).toLocaleDateString('pt-BR') },
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
