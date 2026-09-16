@@ -7,7 +7,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, BookOpen, Target, Users } from 'lucide-react';
-import type { Tutorial } from '@/lib/help/tutorials';
+import { getTutorial, tutorialKey, type Tutorial } from '@/lib/help/tutorials';
 import { getFeatureHelp } from '@/lib/help/featureHelp';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +16,12 @@ interface Props {
   className?: string;
 }
 
-export const TutorialBody: React.FC<Props> = ({ tutorial, className }) => (
+export const TutorialBody: React.FC<Props> = ({ tutorial, className }) => {
+  // Tutorial seguinte, quando este declara um: vira o link "Próximo" no fim
+  // dos passos, para quem terminou não ter que procurar na lista.
+  const next = getTutorial(tutorial.nextTutorialId);
+
+  return (
   <div className={cn('space-y-5 text-sm', className)}>
     <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
       <p className="flex gap-2 text-foreground">
@@ -77,7 +82,18 @@ export const TutorialBody: React.FC<Props> = ({ tutorial, className }) => (
         );
       })}
     </ol>
+
+    {next && (
+      <Link
+        to={`/dashboard/help#${tutorialKey(next.id)}`}
+        className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Próximo tutorial: {next.title}
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+    )}
   </div>
-);
+  );
+};
 
 export default TutorialBody;

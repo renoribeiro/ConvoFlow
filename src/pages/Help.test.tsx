@@ -184,6 +184,15 @@ describe('Help — tutoriais', () => {
     expect(hrefs).toContain(`/dashboard/help#${stepWithDoc.helpKey}`);
   });
 
+  it('mostra o link "Próximo tutorial" quando o tutorial declara um', () => {
+    const tutorial = TUTORIALS[0]!;
+    const next = TUTORIALS.find((t) => t.id === tutorial.nextTutorialId)!;
+    renderHelp(`#${tutorialKey(tutorial.id)}`);
+    const item = document.getElementById(tutorialKey(tutorial.id)) as HTMLElement;
+    const link = within(item).getByRole('link', { name: `Próximo tutorial: ${next.title}` });
+    expect(link.getAttribute('href')).toBe(`/dashboard/help#${tutorialKey(next.id)}`);
+  });
+
   it('mostra a ressalva (note) quando o passo tem uma', () => {
     const tutorial = TUTORIALS[0]!;
     const note = tutorial.steps.find((s) => s.note)!.note!;
@@ -467,6 +476,7 @@ describe('Help — visibilidade por cargo', () => {
     currentRole = 'atendente';
     renderHelp();
     expect(topic('Configurar sua equipe')).toBeNull();
+    expect(topic('Antes de conectar seu WhatsApp')).toBeNull();
     expect(topic('Conectar seu WhatsApp')).toBeNull();
     expect(topic('Disparar sua primeira campanha')).toBeNull();
     expect(topic('Montar seu funil de vendas')).not.toBeNull();
@@ -477,6 +487,7 @@ describe('Help — visibilidade por cargo', () => {
     currentRole = 'gestor';
     renderHelp();
     expect(topic('Configurar sua equipe')).not.toBeNull();
+    expect(topic('Antes de conectar seu WhatsApp')).not.toBeNull();
     expect(topic('Conectar seu WhatsApp')).not.toBeNull();
   });
 

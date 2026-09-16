@@ -43,6 +43,8 @@ export interface Tutorial {
   minRole?: UserRole;
   /** Módulo exigido, mesmo nome do ModuleGuard. */
   moduleName?: string;
+  /** Tutorial que vem depois deste (renderizado como link no fim dos passos). */
+  nextTutorialId?: string;
 }
 
 /** Prefixo das chaves de deep link (/dashboard/help#tutorial:conectar-whatsapp). */
@@ -52,11 +54,71 @@ export const TUTORIAL_KEY_PREFIX = 'tutorial:';
 export const tutorialKey = (id: string) => `${TUTORIAL_KEY_PREFIX}${id}`;
 
 /**
- * Ordem = ordem recomendada de leitura, não alfabética. Conectar o WhatsApp vem
- * primeiro porque nada funciona antes disso.
+ * Ordem = ordem recomendada de leitura, não alfabética. A preparação para a
+ * API Oficial vem primeiro porque é decisão (qual número) antes de ser ação;
+ * conectar vem em seguida porque nada funciona antes disso.
  */
 export const TUTORIALS: Tutorial[] = [
   // ------------------------------------------------------------------ 1
+  {
+    id: 'antes-de-conectar',
+    title: 'Antes de conectar seu WhatsApp',
+    goal:
+      'No fim, você terá escolhido o número certo e separado tudo o que a Meta pede — para a conexão não travar no meio.',
+    forWhom:
+      'Gerente ou Gestor, junto com quem decide pela empresa — porque o primeiro passo é uma decisão, não um clique. Atendente não conecta número.',
+    moduleName: 'whatsapp-numbers',
+    minRole: 'gestor',
+    nextTutorialId: 'conectar-whatsapp',
+    steps: [
+      {
+        title: 'Decida se este é mesmo o número certo',
+        body:
+          'Ao entrar na API Oficial, o número deixa de funcionar no aplicativo do WhatsApp do celular: ele passa a atender só pelo ConvoFlow. Por isso o número que a empresa inteira usa num celular costuma ser a escolha errada — quem usa o aplicativo perde o acesso no mesmo dia. O certo é um número comercial dedicado, que só vai atender por aqui. E as conversas antigas não vêm junto: o histórico do aplicativo fica no aplicativo.',
+        note:
+          'Número que já está em uso no WhatsApp do celular precisa ser removido do aplicativo antes — a Meta recusa número que ainda está registrado lá. Um chip novo, que nunca teve WhatsApp, é o caminho mais simples.',
+      },
+      {
+        title: 'Combine quem vai estar presente na hora da conexão',
+        body:
+          'A janela da Meta pede duas coisas ao mesmo tempo. O login do Facebook de quem administra a empresa na Meta — é com ele que a Meta confirma quem está autorizando; se essa pessoa não é quem usa o ConvoFlow, ela precisa estar junto nesse momento, ou fazer a conexão ela mesma. E o celular com o chip do número, na mão de alguém: a Meta manda um código por SMS ou ligação para ele, e sem o código a conexão não termina.',
+      },
+      {
+        title: 'Tenha, ou crie na hora, o portfólio empresarial da Meta',
+        body:
+          'Portfólio empresarial é o cadastro da sua empresa na Meta — o antigo Gerenciador de Negócios. É nele que ficam a conta do WhatsApp Business, o número e o cartão. Se a empresa já anuncia no Facebook ou no Instagram, provavelmente já tem um: use esse. Se não tem, dá para criar durante a própria conexão, com o login do passo anterior.',
+      },
+      {
+        title: 'Separe os dados da empresa',
+        body:
+          'Nome da empresa como está no CNPJ, endereço, site (se houver) e um e-mail de contato. Nem tudo é pedido na hora de conectar, mas é isso que a Meta pede quando quer confirmar que a empresa existe — e é mais rápido ter à mão do que procurar com a janela aberta.',
+      },
+      {
+        title: 'Escolha o nome que os clientes vão ver',
+        body:
+          'É o nome que identifica sua empresa no WhatsApp. A Meta revisa esse nome, e ele precisa ser reconhecível como a empresa: nome de pessoa ou palavra genérica (vendas, atendimento, suporte) tende a ser recusado. Use o nome pelo qual seus clientes já conhecem o negócio, escrito como na sua marca.',
+      },
+      {
+        title: 'Cadastre um cartão no portfólio empresarial da Meta',
+        body:
+          'Quem cobra as conversas é a Meta, e ela cobra você, não o ConvoFlow: o cartão fica no seu portfólio empresarial, não aqui. Sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" no ConvoFlow. Se o portfólio já existe, cadastre o cartão agora; se vai criá-lo na conexão, cadastre logo depois, antes do primeiro disparo. Os valores atuais estão na página da Meta: developers.facebook.com/docs/whatsapp/pricing.',
+      },
+      {
+        title: 'Planeje a primeira semana com o teto de aquecimento',
+        body:
+          'Número recém-conectado tem um teto diário de envio nos primeiros sete dias — proteção contra bloqueio pela Meta, não limite do plano: 50 mensagens por dia nos dois primeiros dias, 250 até o quarto, 1.000 até o sétimo; do oitavo dia em diante o teto some. Conta tudo o que sai pelo número no dia, inclusive respostas do time. Se a ideia é disparar campanha, não compre nem importe uma lista grande para a primeira semana: comece pelos contatos que já conhecem a empresa e cresça junto com o teto.',
+      },
+      {
+        title: 'Confira a lista e vá para a conexão',
+        body:
+          'Número certo e fora do aplicativo; quem tem o login do Facebook e o celular, presentes; portfólio empresarial, ou a decisão de criar na hora; dados da empresa; nome escolhido; cartão cadastrado; primeira semana planejada. Com isso em mãos, a conexão é um clique em "Conectar com a Meta", em Instâncias e APIs — o passo-a-passo é o próximo tutorial, "Conectar seu WhatsApp".',
+        screen: '/dashboard/whatsapp-numbers',
+        helpKey: 'page:whatsapp-numbers',
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 2
   {
     id: 'conectar-whatsapp',
     title: 'Conectar seu WhatsApp',
@@ -67,11 +129,9 @@ export const TUTORIALS: Tutorial[] = [
     minRole: 'gestor',
     steps: [
       {
-        title: 'Separe o que a Meta vai pedir antes de começar',
+        title: 'Confira o que o tutorial anterior pediu',
         body:
-          'Quatro coisas. O login do Facebook de quem administra a empresa no portfólio empresarial da Meta — é ele que autoriza a conexão. Um número de telefone que receba SMS ou ligação, porque a Meta manda um código para ele. A decisão de tirar esse número do aplicativo do WhatsApp: depois de conectado, ele atende só pelo ConvoFlow e deixa de funcionar no celular. E uma forma de pagamento válida nesse portfólio: quem cobra as conversas é a Meta, e ela cobra você, não o ConvoFlow — sem cartão válido lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Os valores atuais estão na página da Meta: developers.facebook.com/docs/whatsapp/pricing.',
-        note:
-          'Número que está em uso no WhatsApp do celular precisa ser removido do aplicativo antes — a Meta recusa número que ainda está registrado lá. Um número novo, que nunca teve WhatsApp, é o caminho mais simples.',
+          'Número certo, já fora do aplicativo do WhatsApp; o login do Facebook de quem administra a empresa na Meta; o celular com o chip, para receber o código; e um cartão no portfólio empresarial da Meta, porque é ela quem cobra as conversas — sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Se algum item falta, volte a "Antes de conectar seu WhatsApp".',
       },
       {
         title: 'Abra Instâncias e APIs e clique em "Nova Instância"',
@@ -126,7 +186,7 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
-  // ------------------------------------------------------------------ 2
+  // ------------------------------------------------------------------ 3
   {
     id: 'configurar-equipe',
     title: 'Configurar sua equipe',
@@ -205,7 +265,7 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
-  // ------------------------------------------------------------------ 3
+  // ------------------------------------------------------------------ 4
   {
     id: 'montar-funil',
     title: 'Montar seu funil de vendas',
@@ -263,7 +323,7 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
-  // ------------------------------------------------------------------ 4
+  // ------------------------------------------------------------------ 5
   {
     id: 'primeiro-chatbot',
     title: 'Criar seu primeiro chatbot',
@@ -334,7 +394,7 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
-  // ------------------------------------------------------------------ 5
+  // ------------------------------------------------------------------ 6
   {
     id: 'primeira-campanha',
     title: 'Disparar sua primeira campanha',
@@ -402,7 +462,7 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
-  // ------------------------------------------------------------------ 6
+  // ------------------------------------------------------------------ 7
   // O único tutorial de OPERAÇÃO: os cinco acima montam a Loja; este é o dia
   // a dia de quem atende nela. Vem por último porque pressupõe tudo o que os
   // outros deixam pronto — e é o único que o atendente consegue seguir inteiro.

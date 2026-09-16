@@ -185,7 +185,7 @@ describe('busca em tutoriais', () => {
   });
 
   it('acha por palavra que só aparece numa ressalva (note)', () => {
-    // "System User" está só na note do primeiro passo de conectar-whatsapp.
+    // "System User" está só na note do último passo (campos manuais) de conectar-whatsapp.
     const whatsapp = getTutorial('conectar-whatsapp')!;
     expect(tutorialMatches(whatsapp, 'system user')).toBe(true);
   });
@@ -209,11 +209,13 @@ describe('busca em tutoriais', () => {
   });
 });
 
-describe('cobertura dos cinco tutoriais de onboarding', () => {
+describe('cobertura dos tutoriais de onboarding', () => {
   it('estão na ordem de leitura recomendada', () => {
-    // Os cinco primeiros montam a Loja (onboarding); o sexto é o dia a dia de
-    // quem atende nela e vem por último porque pressupõe os outros.
+    // Os seis primeiros montam a Loja (onboarding) — o primeiro é a decisão de
+    // qual número vai para a API Oficial, antes de qualquer clique; o sétimo é
+    // o dia a dia de quem atende nela e vem por último porque pressupõe os outros.
     expect(TUTORIALS.map((t) => t.id)).toEqual([
+      'antes-de-conectar',
       'conectar-whatsapp',
       'configurar-equipe',
       'montar-funil',
@@ -240,6 +242,24 @@ describe('cobertura dos cinco tutoriais de onboarding', () => {
     // ofereceria a quem não consegue segui-los.
     expect(getTutorial('conectar-whatsapp')?.minRole).toBe('gestor');
     expect(getTutorial('primeira-campanha')?.minRole).toBe('gestor');
+    // antes-de-conectar é o mesmo público de conectar-whatsapp (prepara a
+    // conexão), então herda o mesmo cargo e o mesmo módulo.
+    expect(getTutorial('antes-de-conectar')?.minRole).toBe('gestor');
+    expect(getTutorial('antes-de-conectar')?.moduleName).toBe('whatsapp-numbers');
+  });
+
+  it('todo nextTutorialId aponta para outro tutorial existente', () => {
+    // O link "Próximo tutorial" no fim dos passos é montado a partir daqui;
+    // id inexistente sumiria em silêncio, e apontar para si mesmo é um laço.
+    const broken = TUTORIALS.filter(
+      (t) => t.nextTutorialId && (t.nextTutorialId === t.id || !getTutorial(t.nextTutorialId)),
+    ).map((t) => `${t.id} → ${t.nextTutorialId}`);
+    expect(broken).toEqual([]);
+  });
+
+  it('a preparação leva para a conexão', () => {
+    // O primeiro tutorial para em "tudo pronto"; a conexão em si é o seguinte.
+    expect(getTutorial('antes-de-conectar')?.nextTutorialId).toBe('conectar-whatsapp');
   });
 
   it('a campanha fala de template e da janela de 24 horas', () => {
