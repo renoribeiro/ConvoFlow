@@ -12,14 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useToast } from '@/hooks/use-toast';
@@ -319,63 +312,70 @@ const Automation = () => {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fluxo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Etapas</TableHead>
-                  <TableHead className="text-center">Execuções</TableHead>
-                  <TableHead className="text-center">Sucesso</TableHead>
-                  <TableHead>Última</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleFlows.map((flow) => {
-                  const entry = getCatalogEntry(flow.trigger_type);
-                  const Icon = entry?.Icon ?? Settings;
-                  const stat = byFlow.get(flow.id);
-                  const s = CATEGORY_STYLES.trigger;
-                  return (
-                    <TableRow key={flow.id} className="cursor-pointer" onClick={() => openEdit(flow.id)}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white', s.iconBg)}><Icon className="h-4 w-4" /></div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{flow.name}</p>
-                            <p className="text-xs text-muted-foreground">{entry?.label || 'Personalizado'}</p>
-                          </div>
+            {/* Cartão no celular: nome + gatilho lideram, status vira chip,
+                as quatro métricas viram campos e as ações ficam no canto. */}
+            <ResponsiveTable
+              ariaLabel="Fluxos de automação"
+              rows={visibleFlows as unknown as AutomationFlow[]}
+              rowKey={(flow) => flow.id}
+              onRowClick={(flow) => openEdit(flow.id)}
+              actionsHeader="Ações"
+              columns={[
+                {
+                  key: 'fluxo',
+                  header: 'Fluxo',
+                  card: 'title',
+                  cell: (flow) => {
+                    const entry = getCatalogEntry(flow.trigger_type);
+                    const Icon = entry?.Icon ?? Settings;
+                    const s = CATEGORY_STYLES.trigger;
+                    return (
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white', s.iconBg)}><Icon className="h-4 w-4" /></div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{flow.name}</p>
+                          <p className="text-xs text-muted-foreground">{entry?.label || 'Personalizado'}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>{statusBadge(flow, stat)}</TableCell>
-                      <TableCell className="text-center text-sm">{getStepsCount(flow.steps)}</TableCell>
-                      <TableCell className="text-center text-sm">
-                        <span className="inline-flex items-center gap-1"><Activity className="h-3 w-3 text-muted-foreground" />{stat?.executions ?? 0}</span>
-                      </TableCell>
-                      <TableCell className="text-center text-sm">
-                        {stat && stat.executions > 0 ? (
-                          <span className={cn('inline-flex items-center gap-1', stat.failed > 0 ? 'text-amber-600' : 'text-emerald-600')}>
-                            {stat.failed > 0 ? <AlertTriangle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}{stat.successRate}%
-                          </span>
-                        ) : <span className="text-muted-foreground">--</span>}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{relativeTime(stat?.lastRun ?? null)}</TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Editar" onClick={() => openEdit(flow.id)}><Edit className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Duplicar" onClick={() => handleDuplicateFlow(flow)}><Copy className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive" title="Excluir" onClick={() => setDeleteTarget(flow)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title={flow.active ? 'Pausar' : 'Ativar'} onClick={() => handleToggleFlow(flow.id, flow.active)}>
-                            {flow.active ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      </div>
+                    );
+                  },
+                },
+                { key: 'status', header: 'Status', card: 'badge', cell: (flow) => statusBadge(flow, byFlow.get(flow.id)) },
+                { key: 'etapas', header: 'Etapas', headClassName: 'text-center', cellClassName: 'text-center text-sm', cell: (flow) => getStepsCount(flow.steps) },
+                {
+                  key: 'execucoes',
+                  header: 'Execuções',
+                  headClassName: 'text-center',
+                  cellClassName: 'text-center text-sm',
+                  cell: (flow) => <span className="inline-flex items-center gap-1"><Activity className="h-3 w-3 text-muted-foreground" />{byFlow.get(flow.id)?.executions ?? 0}</span>,
+                },
+                {
+                  key: 'sucesso',
+                  header: 'Sucesso',
+                  headClassName: 'text-center',
+                  cellClassName: 'text-center text-sm',
+                  cell: (flow) => {
+                    const stat = byFlow.get(flow.id);
+                    return stat && stat.executions > 0 ? (
+                      <span className={cn('inline-flex items-center gap-1', stat.failed > 0 ? 'text-amber-600' : 'text-emerald-600')}>
+                        {stat.failed > 0 ? <AlertTriangle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}{stat.successRate}%
+                      </span>
+                    ) : <span className="text-muted-foreground">--</span>;
+                  },
+                },
+                { key: 'ultima', header: 'Última', cellClassName: 'text-sm text-muted-foreground', cell: (flow) => relativeTime(byFlow.get(flow.id)?.lastRun ?? null) },
+              ]}
+              actions={(flow) => (
+                <div className="flex items-center justify-end gap-1">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" title="Editar" aria-label="Editar" onClick={() => openEdit(flow.id)}><Edit className="h-3.5 w-3.5" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" title="Duplicar" aria-label="Duplicar" onClick={() => handleDuplicateFlow(flow)}><Copy className="h-3.5 w-3.5" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive" title="Excluir" aria-label="Excluir" onClick={() => setDeleteTarget(flow)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" title={flow.active ? 'Pausar' : 'Ativar'} aria-label={flow.active ? 'Pausar' : 'Ativar'} onClick={() => handleToggleFlow(flow.id, flow.active)}>
+                    {flow.active ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              )}
+            />
           </CardContent>
         </Card>
       )}
