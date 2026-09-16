@@ -225,7 +225,9 @@ async function settle(page: Page) {
   try { await page.waitForLoadState('networkidle', { timeout: 2500 }); } catch { /* polling nunca para */ }
   await page.waitForTimeout(600);
   // Chunk lazy + skeleton ainda no ar? Espera um pouco mais (só o conteúdo, não a landing).
-  for (let i = 0; i < 5; i++) {
+  // Até 6s: a regra "tabela no celular" precisa da tabela com dados, não do
+  // esqueleto — numa máquina carregada o chunk + a consulta passam de 2s.
+  for (let i = 0; i < 15; i++) {
     const busy = await page.evaluate(() => !!document.querySelector('main .animate-spin, main .animate-pulse, body > div > .animate-spin'));
     if (!busy) break;
     await page.waitForTimeout(400);
@@ -236,7 +238,8 @@ for (const role of ROLES) {
   test.describe(`responsividade — ${role}`, () => {
     for (const screen of SCREENS.filter((s) => s.roles.includes(role))) {
       test(`${screen.name}`, async ({ context, page }) => {
-        test.setTimeout(150_000);
+        // Seis recargas por tela; numa máquina carregada cada uma passa de 30s.
+        test.setTimeout(300_000);
         if (role !== 'public') await installSupabaseMock(context, role);
 
         const violations: Violation[] = [];
