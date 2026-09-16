@@ -21,14 +21,7 @@ import { BugReportSettings } from '@/components/admin/BugReportSettings';
 import { MaintenanceSettings } from '@/components/admin/MaintenanceSettings';
 import { RoleDescriptionCard } from '@/components/admin/RoleDescriptionCard';
 import { SystemSettings } from '@/components/settings/SystemSettings';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import {
   Users,
   CreditCard,
@@ -411,6 +404,254 @@ const AdminDashboard = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Colunas da tabela de usuários (ver ResponsiveTable para o que é `card`).
+  const renderPlanoAcesso = (user: any) => {
+    // Quem responde pelo acesso é a Conta, não a Loja.
+    const t = contaDeCobranca(user.tenant_id);
+    const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
+    const herda = !!t && !!propria && t.id !== propria.id;
+
+    const selo =
+      t?.subscription_status === 'active' ? (
+        <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>
+      ) : t?.manual_access_granted ? (
+        <Badge
+          className="bg-purple-500 hover:bg-purple-600"
+          title={t.manual_access_granted_at ? `Liberado em ${format(new Date(t.manual_access_granted_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}` : undefined}
+        >
+          Manual (Liberado)
+        </Badge>
+      ) : (
+        <Badge variant="destructive">Bloqueado</Badge>
+      );
+
+    if (!herda) return selo;
+
+    // Deixa visível de onde vem o acesso, sem precisar
+    // passar o mouse: a Loja não decide nada sozinha.
+    return (
+      <div className="flex flex-col items-start gap-1">
+        {selo}
+        <span className="text-xs text-muted-foreground">
+          herda da Conta {t.name}
+        </span>
+      </div>
+    );
+  };
+
+  const adminUserColumns: ResponsiveColumn<any>[] = [
+    {
+      key: 'nome',
+      header: 'Nome',
+      card: 'title',
+      cellClassName: 'font-medium',
+      cell: (user) => (
+        <div className="min-w-0">
+          <p>{user.first_name} {user.last_name}</p>
+          {/* Enquanto a coluna E-mail está escondida (abaixo de 2xl), o e-mail mora aqui. */}
+          <p className="text-xs font-normal text-muted-foreground break-all 2xl:hidden">{user.email}</p>
+        </div>
+      ),
+      cardCell: (user) => <>{user.first_name} {user.last_name}</>,
+    },
+    { key: 'email', header: 'Email', card: 'subtitle', hideBelow: '2xl', cell: (user) => <span className="break-all">{user.email}</span> },
+    {
+      key: 'funcao',
+      header: 'Função',
+      card: 'badge',
+      cell: (user) => (
+        <Badge variant={user.role === 'superadmin' ? 'destructive' : 'secondary'}>
+          {user.role}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      card: 'badge',
+      cell: (user) => (
+        <Badge variant={profileStatusOf(user) === 'active' ? 'default' : 'secondary'}>
+          {STATUS_LABELS[profileStatusOf(user)]}
+        </Badge>
+      ),
+    },
+    { key: 'conta', header: 'Conta', cell: (user) => (user.tenant_id && tenantById[user.tenant_id]?.name) || 'N/A' },
+    { key: 'plano', header: 'Plano / Acesso', cardFull: true, cell: renderPlanoAcesso },
+    {
+      key: 'criado',
+      header: 'Criado em',
+      card: 'hidden',
+      hideBelow: '2xl',
+      cell: (user) => format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR }),
+    },
+  ];
+
+  const renderUserActions = (user: any) => (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {(() => {
+              // O alvo da liberação é sempre a Conta que responde
+              // pela cobrança — para um Gestor, a Conta pai da
+              // Loja dele. Marcar a Loja não destrava mais nada.
+              const alvo = contaDeCobranca(user.tenant_id);
+              const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
+              const herda = !!alvo && !!propria && alvo.id !== propria.id;
+              const liberado = !!alvo?.manual_access_granted;
+              const nomeAlvo = alvo?.name ?? 'Conta';
+
+              // O superadmin precisa saber ANTES de clicar que
+              // está mexendo na Conta inteira, não só nesta Loja.
+              const aviso = herda
+                ? ` — vale para a Conta ${nomeAlvo} e todas as Lojas dela`
+                : '';
+
+              return (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={liberado ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
+                  onClick={async () => {
+                    try {
+                      if (!user.tenant_id) {
+                        toast.error('Usuário não possui uma Conta associada.');
+                        return;
+                      }
+                      if (!alvo) {
+                        toast.error('Não foi possível identificar a Conta que responde por este usuário.');
+                        return;
+                      }
+
+                      const newValue = !liberado;
+                      const { error } = await supabase
+                        .from('tenants')
+                        .update({
+                          manual_access_granted: newValue,
+                          manual_access_granted_by: newValue ? currentUserId : null,
+                          manual_access_granted_at: newValue ? new Date().toISOString() : null,
+                        })
+                        .eq('id', alvo.id);
+
+                      if (error) throw error;
+
+                      // Auditoria: registra em QUAL tenant a marca
+                      // foi feita, e de onde a ação partiu — sem a
+                      // nota, o histórico da Conta não explica por
+                      // que alguém a liberou a partir de uma Loja.
+                      await supabase
+                        .from('tenant_access_events' as never)
+                        .insert({
+                          tenant_id: alvo.id,
+                          action: newValue ? 'granted' : 'revoked',
+                          source: 'manual',
+                          actor_user_id: currentUserId,
+                          note: herda
+                            ? `Ação feita a partir do usuário ${user.email} (Loja ${propria?.name ?? user.tenant_id}); aplicada na Conta ${nomeAlvo}.`
+                            : `Ação feita a partir do usuário ${user.email}.`,
+                        } as never);
+
+                      toast.success(
+                        newValue
+                          ? `Acesso liberado para a Conta ${nomeAlvo}.`
+                          : `Acesso manual revogado da Conta ${nomeAlvo}.`,
+                        herda
+                          ? { description: 'Vale para todas as Lojas dessa Conta.' }
+                          : undefined,
+                      );
+                      refetchTenants();
+                      refetchUsers();
+                    } catch (error: any) {
+                      toast.error('Erro ao alterar acesso: ' + error.message);
+                    }
+                  }}
+                  title={
+                    liberado
+                      ? `Revogar o acesso manual da Conta ${nomeAlvo}${aviso}`
+                      : `Liberar manualmente a Conta ${nomeAlvo}${aviso}`
+                  }
+                >
+                  {liberado ? 'Revogar Acesso' : 'Liberar Manualmente'}
+                </Button>
+              );
+            })()}
+            <Button
+
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedUser({
+                  id: user.id,
+                  name: `${user.first_name} ${user.last_name}`,
+                  email: user.email,
+                  role: user.role,
+                  status: user.is_active ? 'active' : 'inactive',
+                  lastLogin: '',
+                  createdAt: user.created_at,
+                  tenantId: user.tenant_id,
+                  tenantName: '', // Removido pois não temos mais o join com tenants
+                  phone: user.phone
+                });
+                setIsViewUserOpen(true);
+              }}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedUser({
+                  id: user.id,
+                  name: `${user.first_name} ${user.last_name}`,
+                  email: user.email,
+                  role: user.role,
+                  status: user.is_active ? 'active' : 'inactive',
+                  profileStatus: user.status,
+                  lastLogin: '',
+                  createdAt: user.created_at,
+                  tenantId: user.tenant_id,
+                  tenantName: '', // Removido pois não temos mais o join com tenants
+                  phone: user.phone
+                });
+                setUserForm({
+                  firstName: user.first_name || '',
+                  lastName: user.last_name || '',
+                  email: user.email || '',
+                  phone: user.phone || '',
+                  role: user.role,
+                  isActive: checkboxValueFor(user),
+                  tenantId: user.tenant_id || '',
+                  // Só a criação cria Conta; editar nunca mexe nisso.
+                  newTenantName: '',
+                  planType: 'basic'
+                });
+                setIsEditUserOpen(true);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedUser({
+                  id: user.id,
+                  name: `${user.first_name} ${user.last_name}`,
+                  email: user.email,
+                  role: user.role,
+                  status: user.is_active ? 'active' : 'inactive',
+                  lastLogin: '',
+                  createdAt: user.created_at,
+                  tenantId: user.tenant_id,
+                  tenantName: user.tenants?.name,
+                  phone: user.phone
+                });
+                setIsDeleteUserOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -495,258 +736,22 @@ const AdminDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Conta</TableHead>
-                    <TableHead>Plano / Acesso</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {usersLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
-                        Carregando usuários...
-                      </TableCell>
-                    </TableRow>
-                  ) : usersWithEmails.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
-                        Nenhum usuário encontrado
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((user: any) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          {user.first_name} {user.last_name}
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'superadmin' ? 'destructive' : 'secondary'}>
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={profileStatusOf(user) === 'active' ? 'default' : 'secondary'}>
-                            {STATUS_LABELS[profileStatusOf(user)]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{(user.tenant_id && tenantById[user.tenant_id]?.name) || 'N/A'}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            // Quem responde pelo acesso é a Conta, não a Loja.
-                            const t = contaDeCobranca(user.tenant_id);
-                            const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
-                            const herda = !!t && !!propria && t.id !== propria.id;
-
-                            const selo =
-                              t?.subscription_status === 'active' ? (
-                                <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>
-                              ) : t?.manual_access_granted ? (
-                                <Badge
-                                  className="bg-purple-500 hover:bg-purple-600"
-                                  title={t.manual_access_granted_at ? `Liberado em ${format(new Date(t.manual_access_granted_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}` : undefined}
-                                >
-                                  Manual (Liberado)
-                                </Badge>
-                              ) : (
-                                <Badge variant="destructive">Bloqueado</Badge>
-                              );
-
-                            if (!herda) return selo;
-
-                            // Deixa visível de onde vem o acesso, sem precisar
-                            // passar o mouse: a Loja não decide nada sozinha.
-                            return (
-                              <div className="flex flex-col items-start gap-1">
-                                {selo}
-                                <span className="text-xs text-muted-foreground">
-                                  herda da Conta {t.name}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(user.created_at), 'dd/MM/yyyy', { locale: ptBR })}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end space-x-2">
-                            {(() => {
-                              // O alvo da liberação é sempre a Conta que responde
-                              // pela cobrança — para um Gestor, a Conta pai da
-                              // Loja dele. Marcar a Loja não destrava mais nada.
-                              const alvo = contaDeCobranca(user.tenant_id);
-                              const propria = user.tenant_id ? tenantById[user.tenant_id] : null;
-                              const herda = !!alvo && !!propria && alvo.id !== propria.id;
-                              const liberado = !!alvo?.manual_access_granted;
-                              const nomeAlvo = alvo?.name ?? 'Conta';
-
-                              // O superadmin precisa saber ANTES de clicar que
-                              // está mexendo na Conta inteira, não só nesta Loja.
-                              const aviso = herda
-                                ? ` — vale para a Conta ${nomeAlvo} e todas as Lojas dela`
-                                : '';
-
-                              return (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className={liberado ? "text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" : "text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"}
-                                  onClick={async () => {
-                                    try {
-                                      if (!user.tenant_id) {
-                                        toast.error('Usuário não possui uma Conta associada.');
-                                        return;
-                                      }
-                                      if (!alvo) {
-                                        toast.error('Não foi possível identificar a Conta que responde por este usuário.');
-                                        return;
-                                      }
-
-                                      const newValue = !liberado;
-                                      const { error } = await supabase
-                                        .from('tenants')
-                                        .update({
-                                          manual_access_granted: newValue,
-                                          manual_access_granted_by: newValue ? currentUserId : null,
-                                          manual_access_granted_at: newValue ? new Date().toISOString() : null,
-                                        })
-                                        .eq('id', alvo.id);
-
-                                      if (error) throw error;
-
-                                      // Auditoria: registra em QUAL tenant a marca
-                                      // foi feita, e de onde a ação partiu — sem a
-                                      // nota, o histórico da Conta não explica por
-                                      // que alguém a liberou a partir de uma Loja.
-                                      await supabase
-                                        .from('tenant_access_events' as never)
-                                        .insert({
-                                          tenant_id: alvo.id,
-                                          action: newValue ? 'granted' : 'revoked',
-                                          source: 'manual',
-                                          actor_user_id: currentUserId,
-                                          note: herda
-                                            ? `Ação feita a partir do usuário ${user.email} (Loja ${propria?.name ?? user.tenant_id}); aplicada na Conta ${nomeAlvo}.`
-                                            : `Ação feita a partir do usuário ${user.email}.`,
-                                        } as never);
-
-                                      toast.success(
-                                        newValue
-                                          ? `Acesso liberado para a Conta ${nomeAlvo}.`
-                                          : `Acesso manual revogado da Conta ${nomeAlvo}.`,
-                                        herda
-                                          ? { description: 'Vale para todas as Lojas dessa Conta.' }
-                                          : undefined,
-                                      );
-                                      refetchTenants();
-                                      refetchUsers();
-                                    } catch (error: any) {
-                                      toast.error('Erro ao alterar acesso: ' + error.message);
-                                    }
-                                  }}
-                                  title={
-                                    liberado
-                                      ? `Revogar o acesso manual da Conta ${nomeAlvo}${aviso}`
-                                      : `Liberar manualmente a Conta ${nomeAlvo}${aviso}`
-                                  }
-                                >
-                                  {liberado ? 'Revogar Acesso' : 'Liberar Manualmente'}
-                                </Button>
-                              );
-                            })()}
-                            <Button
-
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedUser({
-                                  id: user.id,
-                                  name: `${user.first_name} ${user.last_name}`,
-                                  email: user.email,
-                                  role: user.role,
-                                  status: user.is_active ? 'active' : 'inactive',
-                                  lastLogin: '',
-                                  createdAt: user.created_at,
-                                  tenantId: user.tenant_id,
-                                  tenantName: '', // Removido pois não temos mais o join com tenants
-                                  phone: user.phone
-                                });
-                                setIsViewUserOpen(true);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedUser({
-                                  id: user.id,
-                                  name: `${user.first_name} ${user.last_name}`,
-                                  email: user.email,
-                                  role: user.role,
-                                  status: user.is_active ? 'active' : 'inactive',
-                                  profileStatus: user.status,
-                                  lastLogin: '',
-                                  createdAt: user.created_at,
-                                  tenantId: user.tenant_id,
-                                  tenantName: '', // Removido pois não temos mais o join com tenants
-                                  phone: user.phone
-                                });
-                                setUserForm({
-                                  firstName: user.first_name || '',
-                                  lastName: user.last_name || '',
-                                  email: user.email || '',
-                                  phone: user.phone || '',
-                                  role: user.role,
-                                  isActive: checkboxValueFor(user),
-                                  tenantId: user.tenant_id || '',
-                                  // Só a criação cria Conta; editar nunca mexe nisso.
-                                  newTenantName: '',
-                                  planType: 'basic'
-                                });
-                                setIsEditUserOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedUser({
-                                  id: user.id,
-                                  name: `${user.first_name} ${user.last_name}`,
-                                  email: user.email,
-                                  role: user.role,
-                                  status: user.is_active ? 'active' : 'inactive',
-                                  lastLogin: '',
-                                  createdAt: user.created_at,
-                                  tenantId: user.tenant_id,
-                                  tenantName: user.tenants?.name,
-                                  phone: user.phone
-                                });
-                                setIsDeleteUserOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              {/* Cartão no celular: nome lidera com o e-mail embaixo, cargo e
+                  status como chips, Conta e Plano/Acesso como campos; "Criado
+                  em" fica só na tabela (está em "Detalhes do Usuário"). Na
+                  tabela, E-mail e Criado em somem abaixo de 2xl — oito colunas
+                  passavam 153px do cartão a 1280 — e o e-mail passa a morar
+                  embaixo do nome enquanto a coluna dele está escondida. */}
+              <ResponsiveTable
+                ariaLabel="Usuários do sistema"
+                rows={filteredUsers}
+                rowKey={(user: any) => user.id}
+                loading={usersLoading}
+                empty="Nenhum usuário encontrado"
+                columns={adminUserColumns}
+                actionsHeader="Ações"
+                actions={renderUserActions}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -795,37 +800,21 @@ const AdminDashboard = () => {
               <CardDescription>Visão geral dos dados da plataforma</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Métrica</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Descrição</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Usuários Cadastrados</TableCell>
-                    <TableCell>{usersWithEmails.length}</TableCell>
-                    <TableCell className="text-muted-foreground">Total de contas na plataforma</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Superadmins</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'superadmin').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Administradores com acesso total</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Contas</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'gerente').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Gerentes (donos de Conta, gerenciam as Lojas dela)</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Lojas</TableCell>
-                    <TableCell>{usersWithEmails.filter((u: any) => u.role === 'gestor').length}</TableCell>
-                    <TableCell className="text-muted-foreground">Lojas/Gestores (operam conversas/contatos do dia-a-dia)</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+              <ResponsiveTable
+                ariaLabel="Resumo do Sistema"
+                rows={[
+                  { id: 'usuarios', metrica: 'Usuários Cadastrados', valor: usersWithEmails.length, descricao: 'Total de contas na plataforma' },
+                  { id: 'superadmins', metrica: 'Superadmins', valor: usersWithEmails.filter((u: any) => u.role === 'superadmin').length, descricao: 'Administradores com acesso total' },
+                  { id: 'contas', metrica: 'Contas', valor: usersWithEmails.filter((u: any) => u.role === 'gerente').length, descricao: 'Gerentes (donos de Conta, gerenciam as Lojas dela)' },
+                  { id: 'lojas', metrica: 'Lojas', valor: usersWithEmails.filter((u: any) => u.role === 'gestor').length, descricao: 'Lojas/Gestores (operam conversas/contatos do dia-a-dia)' },
+                ]}
+                rowKey={(r) => r.id}
+                columns={[
+                  { key: 'metrica', header: 'Métrica', card: 'title', cellClassName: 'font-medium', cell: (r) => r.metrica },
+                  { key: 'valor', header: 'Valor', cell: (r) => r.valor },
+                  { key: 'descricao', header: 'Descrição', cardFull: true, cellClassName: 'text-muted-foreground', cell: (r) => r.descricao },
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
