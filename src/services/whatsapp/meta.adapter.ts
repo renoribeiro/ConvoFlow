@@ -234,7 +234,7 @@ export class MetaAdapter implements IWhatsAppProvider {
 
   async archiveChat(_toPhone: string, _archive: boolean): Promise<void> {
     throw new WhatsAppAdapterError(
-      'Cloud API da Meta não suporta arquivamento de conversas pelo provider — apenas no banco local.',
+      'Cloud API da Meta não suporta arquivamento de conversas pelo provider, apenas no banco local.',
       'CAPABILITY_UNSUPPORTED',
       'official',
     );

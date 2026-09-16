@@ -176,7 +176,7 @@ const Help = () => {
           {isSearching
             ? plural(resultCount, 'resultado', 'resultados')
             : plural(resultCount, 'tópico disponível', 'tópicos disponíveis')}
-          {isSearching && ' — a busca ignora acentos e maiúsculas'}
+          {isSearching && ' (a busca ignora acentos e maiúsculas)'}
         </p>
       </div>
 

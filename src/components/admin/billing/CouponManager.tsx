@@ -353,7 +353,7 @@ export function CouponManager() {
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    Somente letras e números — convertido para maiúsculas automaticamente.
+                    Somente letras e números. O código é convertido para maiúsculas automaticamente.
                   </p>
                 </div>
 

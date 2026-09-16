@@ -76,7 +76,7 @@ export const MaintenanceScreen = ({ reason, endsAt, onRecheck }: MaintenanceScre
                 Já já o ConvoFlow volta
               </h1>
               <p className="text-sm text-muted-foreground">
-                Estamos trabalhando no sistema neste momento. Nada do que é seu foi perdido — suas
+                Estamos trabalhando no sistema neste momento. Nada do que é seu foi perdido: suas
                 conversas, contatos e configurações continuam no lugar e voltam exatamente como
                 estavam.
               </p>

@@ -30,7 +30,7 @@ export const LojaOnlyNotice = () => {
           <p className="text-sm text-muted-foreground">
             Como administrador da plataforma, você acompanha os clientes pelas
             <strong> estatísticas do Dashboard</strong> e gerencia tudo pela
-            <strong> Administração</strong> — sem acessar as conversas e contatos
+            <strong> Administração</strong>, sem acessar as conversas e contatos
             dos clientes.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center">

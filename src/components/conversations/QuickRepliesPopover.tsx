@@ -99,7 +99,7 @@ export function QuickRepliesPopover({
           <div className="p-4 text-sm space-y-2">
             <p className="font-medium">Nenhuma resposta rápida ainda</p>
             <p className="text-muted-foreground text-xs leading-relaxed">
-              Respostas rápidas são trechos que o time reaproveita — saudação, horário de
+              Respostas rápidas são trechos que o time reaproveita: saudação, horário de
               funcionamento, dados para pagamento. Qualquer cargo pode criar.
             </p>
             <Link

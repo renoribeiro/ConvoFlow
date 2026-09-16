@@ -28,7 +28,7 @@ const MIN_SENHA = 8;
  */
 function mensagemDoErro(code: string | null, description: string | null): string {
   if (code === 'otp_expired') {
-    return 'Este link expirou ou já foi usado. Cada link vale por um acesso só — peça um novo abaixo.';
+    return 'Este link expirou ou já foi usado. Cada link vale por um acesso só. Peça um novo abaixo.';
   }
   if (code === 'access_denied') {
     return 'Este link não é mais válido. Peça um novo abaixo.';
@@ -247,7 +247,7 @@ export const DefinirSenha = () => {
                 <AlertTitle>Não deu para usar este link</AlertTitle>
                 <AlertDescription>
                   {erroDoLink ??
-                    'O link não trouxe um acesso válido. Isso acontece quando ele já foi aberto antes — cada link vale por um acesso só.'}
+                    'O link não trouxe um acesso válido. Isso acontece quando ele já foi aberto antes: cada link vale por um acesso só.'}
                 </AlertDescription>
               </Alert>
             )}
@@ -282,7 +282,7 @@ export const DefinirSenha = () => {
                       required
                     />
                     <p className="text-xs text-muted-foreground">
-                      São 6 dígitos. O código não se gasta sozinho — diferente do link,
+                      São 6 dígitos. O código não se gasta sozinho. Diferente do link,
                       só funciona se alguém digitar.
                     </p>
                   </div>
@@ -318,7 +318,7 @@ export const DefinirSenha = () => {
                       onClick={() => reenviarLink()}
                     >
                       {reenviando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                      Não recebi — enviar de novo
+                      Não recebi, enviar de novo
                     </Button>
                   )}
                 </div>

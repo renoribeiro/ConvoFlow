@@ -82,7 +82,7 @@ export const BugReportSettings = () => {
       toast.success(
         emails.length
           ? `Destinatários salvos (${emails.length}).`
-          : 'Lista limpa — os relatos voltam para o e-mail dos relatórios.',
+          : 'Lista limpa. Os relatos voltam para o e-mail dos relatórios.',
       );
       queryClient.invalidateQueries({ queryKey: ['system-settings', BUG_RECIPIENTS_KEY] });
     },
@@ -117,7 +117,7 @@ export const BugReportSettings = () => {
               />
               <p className="text-xs text-muted-foreground">
                 {parsed.length === 0
-                  ? 'Nenhum e-mail definido — será usado o remetente dos relatórios.'
+                  ? 'Nenhum e-mail definido. Será usado o remetente dos relatórios.'
                   : `${parsed.length} destinatário(s).`}
               </p>
             </div>
@@ -135,7 +135,7 @@ export const BugReportSettings = () => {
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
                 O <strong>remetente</strong> continua sendo o mesmo dos relatórios
-                (<code>REPORT_FROM_EMAIL</code>) — aqui se define apenas quem recebe. Deixar a lista
+                (<code>REPORT_FROM_EMAIL</code>); aqui se define apenas quem recebe. Deixar a lista
                 vazia faz os relatos voltarem para o próprio endereço dos relatórios. O registro
                 completo fica sempre na tabela <strong>bug_reports</strong>, mesmo que o e-mail falhe.
               </AlertDescription>

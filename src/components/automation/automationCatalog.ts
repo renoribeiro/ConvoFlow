@@ -240,7 +240,7 @@ export const ACTIONS: CatalogEntry[] = [
     key: 'update_contact',
     category: 'action',
     label: 'Atualizar Contato',
-    description: 'Grava o valor de uma variável em um campo do contato — em tempo real.',
+    description: 'Grava o valor de uma variável em um campo do contato, em tempo real.',
     Icon: UserCog,
     helpKey: 'action:update_contact',
     fields: [
@@ -253,7 +253,7 @@ export const ACTIONS: CatalogEntry[] = [
     key: 'add_tag',
     category: 'action',
     label: 'Adicionar Tag',
-    description: 'Aplica uma etiqueta (tag) ao contato — útil para segmentar.',
+    description: 'Aplica uma etiqueta (tag) ao contato. Útil para segmentar.',
     Icon: Tag,
     helpKey: 'action:add_tag',
     fields: [

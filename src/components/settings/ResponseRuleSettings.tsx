@@ -211,7 +211,7 @@ export const ResponseRuleSettings = () => {
             <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               {saved.response_rule_enabled
-                ? `Nesta Loja, uma conversa sua sem resposta por ${saved.response_rule_minutes} min de funcionamento passa para um colega — e o sino avisa quem recebeu.`
+                ? `Nesta Loja, uma conversa sua sem resposta por ${saved.response_rule_minutes} min de funcionamento passa para um colega, e o sino avisa quem recebeu.`
                 : 'Nesta Loja a transferência automática está desligada. Apenas Gerente ou Gestor configura.'}
             </p>
           </div>

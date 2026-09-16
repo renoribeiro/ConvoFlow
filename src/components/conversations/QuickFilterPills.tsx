@@ -43,7 +43,7 @@ function countHint(count: QuickFilterCount | undefined): string {
   if (!count) return '';
   return count.exact
     ? ` ${count.value} no total.`
-    : ` ${count.value} entre as conversas já carregadas — role para ver o resto.`;
+    : ` ${count.value} entre as conversas já carregadas. Role para ver o resto.`;
 }
 
 /** Verde-limão da pílula ativa e o quase-preto que fica legível em cima dele. */

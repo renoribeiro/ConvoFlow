@@ -264,7 +264,7 @@ export const QuickRepliesSettings = () => {
                 Use <code className="px-1 rounded bg-muted">{'{first_name}'}</code>,{' '}
                 <code className="px-1 rounded bg-muted">{'{name}'}</code>,{' '}
                 <code className="px-1 rounded bg-muted">{'{phone}'}</code>,{' '}
-                <code className="px-1 rounded bg-muted">{'{date}'}</code> — a mesma escrita de
+                <code className="px-1 rounded bg-muted">{'{date}'}</code>, a mesma escrita de
                 chave simples do chatbot e das automações. Na hora de inserir, o sistema troca
                 pelos dados de quem está na conversa; o que ele não reconhecer fica como está.
               </p>

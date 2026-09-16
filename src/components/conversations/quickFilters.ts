@@ -50,7 +50,7 @@ export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; 
   // Só Gestor e Gerente veem esta: conversas presas com alguém suspenso,
   // excluído, movido de Loja ou em 0 % no rodízio. Quem alimenta é a RPC
   // loja_ineligible_owners (migração 20260915000001).
-  { id: 'responsavel-indisponivel', label: 'Responsável indisponível', hint: 'Conversas cujo responsável está suspenso, excluído, fora da Loja ou em 0 % no rodízio — só o Gestor move.' },
+  { id: 'responsavel-indisponivel', label: 'Responsável indisponível', hint: 'Conversas cujo responsável está suspenso, excluído, fora da Loja ou em 0 % no rodízio. Só o Gestor move.' },
   { id: 'arquivadas', label: 'Arquivadas', hint: 'Conversas arquivadas.' },
 ] as const;
 

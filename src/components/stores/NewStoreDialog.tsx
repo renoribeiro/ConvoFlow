@@ -102,7 +102,7 @@ export const NewStoreDialog = ({ open, onOpenChange }: Props) => {
             }}
           />
           <p className="text-xs text-muted-foreground">
-            Use o nome pelo qual o time reconhece a operação — é ele que aparece
+            Use o nome pelo qual o time reconhece a operação: é ele que aparece
             no seletor de Loja.
           </p>
           {erro && (

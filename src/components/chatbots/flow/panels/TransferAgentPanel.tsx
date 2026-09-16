@@ -146,7 +146,7 @@ const TransferAgentPanel: React.FC<Props> = ({ data, onChange }) => {
         </Select>
         <p className="text-xs text-muted-foreground">
           {data.assign_to === 'specific_user'
-            ? 'A conversa passa a ser dessa pessoa — se ela ainda não tiver responsável. Conversa que já tem responsável fica com quem está.'
+            ? 'A conversa passa a ser dessa pessoa, se ela ainda não tiver responsável. Conversa que já tem responsável fica com quem está.'
             : 'A conversa segue para o rodízio da Loja, se ele estiver ligado; senão fica sem responsável, na fila.'}
         </p>
       </div>
@@ -167,7 +167,7 @@ const TransferAgentPanel: React.FC<Props> = ({ data, onChange }) => {
                   aponta para alguém que se foi. */}
               {storedUnavailable && storedId && (
                 <SelectItem value={storedId} className="text-destructive">
-                  ⚠ {stored ? displayName(stored) : 'Pessoa não encontrada'} — {unavailableReason(stored, tenant?.id)}
+                  ⚠ {stored ? displayName(stored) : 'Pessoa não encontrada'}: {unavailableReason(stored, tenant?.id)}
                 </SelectItem>
               )}
               {profiles.map((p) => (
@@ -189,7 +189,7 @@ const TransferAgentPanel: React.FC<Props> = ({ data, onChange }) => {
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
               <span>
                 Este bloco aponta para alguém que não pode mais receber conversas ({unavailableReason(stored, tenant?.id)}).
-                Enquanto ficar assim, a conversa vai para o rodízio da Loja — ou fica sem responsável, se ele
+                Enquanto ficar assim, a conversa vai para o rodízio da Loja, ou fica sem responsável, se ele
                 estiver desligado. Escolha outra pessoa.
               </span>
             </p>

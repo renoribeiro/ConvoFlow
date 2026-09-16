@@ -130,7 +130,7 @@ export const CampaignDetailsModal = ({ campaignId, onClose }: CampaignDetailsMod
     const cfg = campaign.audience_config as Record<string, unknown> | null;
     if (type === 'csv_import') {
       const n = (cfg?.total_contacts as number | null) ?? campaign.total_recipients ?? '?';
-      return `CSV — ${n} contatos`;
+      return `CSV: ${n} contatos`;
     }
     if (type === 'tags') {
       const tags = campaign.target_tags ?? [];
@@ -138,7 +138,7 @@ export const CampaignDetailsModal = ({ campaignId, onClose }: CampaignDetailsMod
     }
     if (type === 'contact_list') {
       const ids = (cfg?.contact_ids as string[] | null) ?? [];
-      return `Lista — ${ids.length} contatos`;
+      return `Lista: ${ids.length} contatos`;
     }
     return '—';
   }, [campaign]);
@@ -334,7 +334,7 @@ export const CampaignDetailsModal = ({ campaignId, onClose }: CampaignDetailsMod
                   <ul className="mt-1 space-y-0.5 text-xs">
                     {failedErrors.top.map(([msg, count]) => (
                       <li key={msg}>
-                        <span className="font-medium">{count}x</span> — {msg}
+                        <span className="font-medium">{count}x</span>: {msg}
                       </li>
                     ))}
                   </ul>

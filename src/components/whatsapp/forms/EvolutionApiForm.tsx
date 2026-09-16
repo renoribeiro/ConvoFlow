@@ -66,7 +66,7 @@ export const EvolutionApiForm = ({
       <Alert className="border-slate-200 bg-slate-50/60">
         <Info className="h-4 w-4 text-slate-700" />
         <AlertDescription className="text-xs">
-          O servidor WhatsApp já é o da plataforma — você não precisa configurar nada disso. Dê um
+          O servidor WhatsApp já é o da plataforma: você não precisa configurar nada disso. Dê um
           nome à linha, escolha uma chave e conecte pelo QR Code.
         </AlertDescription>
       </Alert>

@@ -90,7 +90,7 @@ async function provisionWahaSession(params: {
   }
 
   if (sessionRes.status === 401 || sessionRes.status === 403) {
-    throw new Error('API Key WAHA inválida — verifique o cabeçalho X-Api-Key.');
+    throw new Error('API Key WAHA inválida. Verifique o cabeçalho X-Api-Key.');
   }
 
   const text = await sessionRes.text().catch(() => '');

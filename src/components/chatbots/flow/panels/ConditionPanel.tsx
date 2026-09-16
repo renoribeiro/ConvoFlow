@@ -42,7 +42,7 @@ const ConditionPanel: React.FC<Props> = ({ data, variables, onChange }) => {
   };
 
   const allVarOptions = [
-    ...SYSTEM_VARIABLES.map((v) => ({ value: v.token, label: `{${v.token}} — ${v.label}` })),
+    ...SYSTEM_VARIABLES.map((v) => ({ value: v.token, label: `{${v.token}} (${v.label})` })),
     ...variables.map((v) => ({ value: v.name, label: `{${v.name}}` })),
   ];
 

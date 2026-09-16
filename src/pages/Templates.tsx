@@ -287,7 +287,7 @@ export default function Templates() {
           title="Nenhum template nesta conta"
           description={
             'Esta conta do WhatsApp Business ainda não tem template criado. A criação e o ' +
-            'envio para aprovação acontecem no WhatsApp Manager da Meta — assim que a Meta ' +
+            'envio para aprovação acontecem no WhatsApp Manager da Meta; assim que a Meta ' +
             'aprovar, ele aparece aqui.'
           }
         />
