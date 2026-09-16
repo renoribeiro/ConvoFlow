@@ -172,7 +172,7 @@ export function renderHtml(opts: { name: string; typeLabel: string; periodLabel:
       <img src="${BRAND_ICON}" alt="ConvoFlow" width="36" height="36" style="display:inline-block;vertical-align:middle;" />
       <div>
         <div style="color:${EMAIL.bg};font-size:20px;font-weight:700;">ConvoFlow · Relatório</div>
-        <div style="color:${EMAIL.lime};font-size:13px;margin-top:4px;">${typeLabel} — ${periodLabel}</div>
+        <div style="color:${EMAIL.lime};font-size:13px;margin-top:4px;">${typeLabel} · ${periodLabel}</div>
       </div>
     </div>
     <div style="background:${EMAIL.card};border:1px solid ${EMAIL.border};border-top:none;border-radius:0 0 12px 12px;padding:24px;">
@@ -204,7 +204,7 @@ export function renderCsv(m: Metrics): string {
     ['Mensagens no período', m.messagesTotal],
     ['Mensagens enviadas', m.messagesSent],
     ['Mensagens recebidas', m.messagesReceived],
-    ...m.funnelStages.map((s) => [`Funil — ${s.name}`, s.count] as [string, number]),
+    ...m.funnelStages.map((s) => [`Funil: ${s.name}`, s.count] as [string, number]),
   ];
   return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
@@ -226,7 +226,7 @@ export function renderWhatsAppText(name: string, typeLabel: string, periodLabel:
     lines.push('', '*Funil:*');
     for (const s of m.funnelStages) lines.push(`   • ${s.name}: ${s.count}`);
   }
-  lines.push('', '— ConvoFlow');
+  lines.push('', 'Equipe ConvoFlow');
   return lines.join('\n');
 }
 
@@ -312,7 +312,7 @@ export async function buildReportPayload(
     name,
     typeLabel,
     periodLabel,
-    subject: `📊 ${name} — ${periodLabel}`,
+    subject: `📊 ${name} · ${periodLabel}`,
     html,
     attachments,
     metrics,

@@ -74,7 +74,7 @@ function paraIso(campo: string): string | null {
 const ROTULO: Record<MaintenanceStatus, { texto: string; classe: string }> = {
   off: { texto: 'Desligada', classe: 'bg-muted text-muted-foreground' },
   scheduled: { texto: 'Agendada', classe: 'bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  active: { texto: 'LIGADA — clientes bloqueados', classe: 'bg-amber-500/20 text-amber-800 dark:text-amber-200' },
+  active: { texto: 'LIGADA: clientes bloqueados', classe: 'bg-amber-500/20 text-amber-800 dark:text-amber-200' },
   ended: { texto: 'Janela encerrada', classe: 'bg-muted text-muted-foreground' },
 };
 
@@ -224,7 +224,7 @@ export const MaintenanceSettings = () => {
               <FeatureHelp helpKey="page:admin-maintenance" />
             </CardTitle>
             <CardDescription>
-              Fecha o sistema inteiro de uma vez — todas as Contas, todas as Lojas. Superadmins
+              Fecha o sistema inteiro de uma vez: todas as Contas, todas as Lojas. Superadmins
               continuam entrando normalmente.
             </CardDescription>
           </div>
@@ -239,7 +239,7 @@ export const MaintenanceSettings = () => {
 
         <div className="space-y-2">
           <Label htmlFor="motivo-manutencao">
-            Motivo <span className="text-muted-foreground font-normal">— o cliente lê este texto</span>
+            Motivo <span className="text-muted-foreground font-normal">(o cliente lê este texto)</span>
           </Label>
           <Textarea
             id="motivo-manutencao"
@@ -251,7 +251,7 @@ export const MaintenanceSettings = () => {
           />
           <p className="text-xs text-muted-foreground">
             Escreva como você explicaria por telefone. Este texto aparece na tela de bloqueio e
-            também na tela de login — inclusive para quem ainda não entrou.
+            também na tela de login, inclusive para quem ainda não entrou.
           </p>
         </div>
 
@@ -350,7 +350,7 @@ export const MaintenanceSettings = () => {
               <div className="space-y-2">
                 <p className="font-medium text-foreground">
                   Assim que você confirmar, TODOS os usuários do ConvoFlow são bloqueados
-                  imediatamente — gerentes, gestores e atendentes, de todas as Contas e todas as
+                  imediatamente: gerentes, gestores e atendentes, de todas as Contas e todas as
                   Lojas. Quem estiver com o sistema aberto cai na tela de manutenção em até um
                   minuto.
                 </p>
@@ -465,7 +465,7 @@ const EstadoAtual = ({
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 px-4 py-3">
         <CheckCircle2 className="h-5 w-5 mt-0.5 text-green-600 flex-shrink-0" />
         <div>
-          <p className="text-sm font-medium">Sistema aberto — a janela já terminou</p>
+          <p className="text-sm font-medium">Sistema aberto: a janela já terminou</p>
           <p className="text-xs text-muted-foreground">
             A janela marcada terminava {fim ?? '—'} e passou. O bloqueio se desfez sozinho, sem
             ninguém precisar desligar. Você pode limpar a janela ou marcar uma nova.
@@ -480,7 +480,7 @@ const EstadoAtual = ({
       <div className="flex items-start gap-3 rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-3">
         <CalendarClock className="h-5 w-5 mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
         <div>
-          <p className="text-sm font-medium">Agendada — ninguém bloqueado ainda</p>
+          <p className="text-sm font-medium">Agendada: ninguém bloqueado ainda</p>
           <p className="text-xs text-muted-foreground">
             Começa {inicio ?? '—'}
             {faltaInicio ? ` (${faltaInicio})` : ''} e termina {fim ?? '—'}. Até lá o sistema segue

@@ -148,7 +148,7 @@ export const RenameInstanceModal = ({
             <p className="text-xs text-destructive">{fieldError}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Chave técnica: <code className="px-1">{instance.instance_key}</code> — essa não muda.
+              Chave técnica: <code className="px-1">{instance.instance_key}</code> (essa não muda).
             </p>
           )}
         </div>

@@ -79,7 +79,7 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
             Conectar com a Meta
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            — ou preencha os campos abaixo manualmente —
+            ou preencha os campos abaixo manualmente
           </p>
         </div>
       ) : (
@@ -137,7 +137,7 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
                 Meta for Developers
               </a>
               {' '}com WhatsApp Business habilitado e um Access Token permanente (System User). O webhook
-              do ConvoFlow é configurado uma única vez na instalação, não a cada número — veja o aviso
+              do ConvoFlow é configurado uma única vez na instalação, não a cada número. Veja o aviso
               no fim do formulário.
             </>
           )}
@@ -201,7 +201,7 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
           <p>
             O webhook vale para a instalação inteira do ConvoFlow, não para cada número. Se algum
             número já recebe mensagens aqui, ele já está configurado e não há nada a fazer nesta
-            etapa — siga para "Validar e conectar".
+            etapa. Siga para "Validar e conectar".
           </p>
           <p>
             Na primeira instalação, quem opera a plataforma configura, no Meta App → Webhooks →
@@ -231,7 +231,7 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
               <code className="bg-background border px-1.5 py-0.5 rounded text-[11px]">
                 META_GLOBAL_VERIFY_TOKEN
               </code>{' '}
-              do Supabase. Por segurança ele não é exibido aqui — quem administra a instalação lê o
+              do Supabase. Por segurança ele não é exibido aqui; quem administra a instalação lê o
               valor no painel do Supabase. Não use o token do campo acima.
             </li>
             <li>

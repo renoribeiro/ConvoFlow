@@ -75,7 +75,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   const renderPanel = () => {
     switch (type) {
       case 'start':
-        return <p className="text-sm text-muted-foreground">Nó de início — sem configuração adicional.</p>;
+        return <p className="text-sm text-muted-foreground">Nó de início: sem configuração adicional.</p>;
       case 'send_text':
         return <SendTextPanel data={data as any} variables={variables} onChange={update} />;
       case 'ask_question':

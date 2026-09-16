@@ -408,7 +408,7 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
               )}
               <span>
                 {windowOpen
-                  ? 'Janela de 24h aberta — pode enviar mensagem livre.'
+                  ? 'Janela de 24h aberta: pode enviar mensagem livre.'
                   : 'Fora da janela de 24h. Em número oficial (Meta), só template aprovado será entregue; o envio livre pode ser bloqueado por conformidade.'}
               </span>
             </div>

@@ -77,7 +77,7 @@ export const MaintenanceBanner = () => {
       <Wrench className="h-4 w-4 flex-shrink-0" />
       <span className="font-semibold">Manutenção LIGADA</span>
       <span className="text-amber-950/85 dark:text-amber-100/85">
-        Todos os clientes estão bloqueados neste momento — só você entra.
+        Todos os clientes estão bloqueados neste momento; só você entra.
         {retorno
           ? ` Volta sozinho ${retorno}${faltaRetorno ? ` (${faltaRetorno})` : ''}.`
           : ' Sem previsão de retorno: só desliga na mão.'}

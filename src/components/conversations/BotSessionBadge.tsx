@@ -15,8 +15,8 @@ export const BOT_SESSION_LABEL = 'Bot em atendimento';
 
 export const botSessionHint = (botName: string | null): string =>
   botName
-    ? `O chatbot "${botName}" está conduzindo esta conversa. Para atender você mesmo, encerre a sessão do bot no menu ⋮ — senão vocês dois falam com o cliente ao mesmo tempo.`
-    : 'Um chatbot está conduzindo esta conversa. Para atender você mesmo, encerre a sessão do bot no menu ⋮ — senão vocês dois falam com o cliente ao mesmo tempo.';
+    ? `O chatbot "${botName}" está conduzindo esta conversa. Para atender você mesmo, encerre a sessão do bot no menu ⋮. Senão, vocês dois falam com o cliente ao mesmo tempo.`
+    : 'Um chatbot está conduzindo esta conversa. Para atender você mesmo, encerre a sessão do bot no menu ⋮. Senão, vocês dois falam com o cliente ao mesmo tempo.';
 
 /**
  * Selo "Bot em atendimento" — a mesma cara na lista e no cabeçalho do chat.

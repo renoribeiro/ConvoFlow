@@ -106,7 +106,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, RoleDescription> = {
   superadmin: {
     label: 'Superadmin',
     summary:
-      'Administrador da plataforma ConvoFlow. Não abre as telas de loja (Conversas, Campanhas, Contatos e afins) — esse acesso é de quem trabalha na loja.',
+      'Administrador da plataforma ConvoFlow. Não abre as telas de loja (Conversas, Campanhas, Contatos e afins): esse acesso é de quem trabalha na loja.',
     can: [
       'Acesso total à plataforma',
       'Painel administrativo',

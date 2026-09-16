@@ -237,7 +237,7 @@ export function SendTemplateDialog({
               </Select>
               {selectedTemplate && String(selectedTemplate.status).toUpperCase() !== 'APPROVED' && (
                 <p className="text-xs text-warning">
-                  Este template não está APROVADO — a Meta provavelmente vai recusar o envio.
+                  Este template não está APROVADO. A Meta provavelmente vai recusar o envio.
                 </p>
               )}
               {selectedTemplate?.bodyText && (

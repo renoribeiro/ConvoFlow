@@ -140,8 +140,8 @@ export const FollowupSettings = () => {
             </Label>
             <p className="text-sm text-muted-foreground">
               Mensagens que estavam marcadas para sair depois não saem mais. Sem isto, o cliente
-              responde hoje e ainda recebe amanhã a cobrança automática que já não faz sentido —
-              parece que ninguém leu o que ele escreveu.
+              responde hoje e ainda recebe amanhã a cobrança automática que já não faz sentido.
+              Parece que ninguém leu o que ele escreveu.
             </p>
           </div>
           <Switch
@@ -160,7 +160,7 @@ export const FollowupSettings = () => {
               Cancelar tarefas manuais quando o cliente responder
             </Label>
             <p className="text-sm text-muted-foreground">
-              Tarefa manual é um lembrete que alguém do time criou para si mesmo — "ligar na
+              Tarefa manual é um lembrete que alguém do time criou para si mesmo: "ligar na
               quinta", "levar a proposta". Ligando isto, a resposta do cliente apaga esses
               lembretes sozinha, e o plano que a pessoa tinha feito desaparece da lista dela sem
               aviso. Deixe desligado se você prefere que quem criou a tarefa decida o que fazer
@@ -180,7 +180,7 @@ export const FollowupSettings = () => {
           <p className="text-sm text-muted-foreground">
             Sequências têm a trava delas: cada sequência escolhe se para ao receber resposta, em
             Follow-ups › Sequências. Uma tarefa que fazia parte de uma sequência interrompida é
-            encerrada junto, sem depender das opções acima — ela não tinha mais cadência a que
+            encerrada junto, sem depender das opções acima: ela não tinha mais cadência a que
             servir.
           </p>
         </div>

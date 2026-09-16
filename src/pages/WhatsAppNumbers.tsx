@@ -306,7 +306,7 @@ export default function WhatsAppNumbers() {
         return;
       }
 
-      const pinInfo = data.pin ? ` PIN de verificação em duas etapas: ${data.pin} — guarde este PIN.` : '';
+      const pinInfo = data.pin ? ` PIN de verificação em duas etapas: ${data.pin}. Guarde este PIN.` : '';
       toast({ title: 'Número registrado!', description: `Registro concluído com sucesso.${pinInfo}` });
 
       if (data.warning) {
@@ -396,7 +396,7 @@ export default function WhatsAppNumbers() {
             <EmptyState
               icon={<Smartphone className="h-6 w-6" />}
               title="Nenhuma Conta selecionada"
-              description="Instâncias de WhatsApp são gerenciadas por Conta. Como superadmin, você não possui instâncias próprias — acesse a administração para gerenciar as Contas."
+              description="Instâncias de WhatsApp são gerenciadas por Conta. Como superadmin, você não possui instâncias próprias. Acesse a administração para gerenciar as Contas."
             />
           </CardContent>
         </Card>

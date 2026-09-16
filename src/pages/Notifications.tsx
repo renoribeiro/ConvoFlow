@@ -92,7 +92,7 @@ const mockNotifications: Notification[] = [
   {
     id: '5',
     title: 'Problema de conexão',
-    message: 'WhatsApp desconectado — verificar configurações',
+    message: 'WhatsApp desconectado. Verifique as configurações.',
     type: 'error',
     isRead: false,
     timestamp: '3 horas atrás',

@@ -221,7 +221,7 @@ export function InviteUserModal({
                 <Alert className="mt-1">
                   <AlertDescription>
                     Você ainda não tem nenhuma Loja. Crie uma em "Nova Loja" antes de
-                    convidar — Gestor e Atendente sempre pertencem a uma.
+                    convidar. Gestor e Atendente sempre pertencem a uma.
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -260,7 +260,7 @@ export function InviteUserModal({
               />
               <p className="text-xs text-muted-foreground mt-1">
                 O Gerente é dono de uma Conta, não de uma Loja. A Conta é criada agora,
-                vazia — as Lojas dela ele cria depois.
+                vazia; as Lojas dela ele cria depois.
               </p>
             </div>
           )}

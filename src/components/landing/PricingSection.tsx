@@ -69,7 +69,7 @@ export const PricingSection = () => {
                   <span className="text-xl sm:text-2xl text-muted-foreground font-normal">/mês</span>
                 </div>
                 <div className="text-sm sm:text-base text-muted-foreground px-4 sm:px-0">
-                  Plano Gerente — 5 lojas incluídas
+                  Plano Gerente com 5 lojas incluídas
                 </div>
                 <div className="text-xs sm:text-sm text-muted-foreground/80 px-4 sm:px-0 mt-1">
                   Loja adicional por R$ 99,90/mês

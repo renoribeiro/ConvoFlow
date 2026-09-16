@@ -501,7 +501,7 @@ const AdminDashboard = () => {
               // O superadmin precisa saber ANTES de clicar que
               // está mexendo na Conta inteira, não só nesta Loja.
               const aviso = herda
-                ? ` — vale para a Conta ${nomeAlvo} e todas as Lojas dela`
+                ? ` (vale para a Conta ${nomeAlvo} e todas as Lojas dela)`
                 : '';
 
               return (

@@ -130,7 +130,7 @@ export const ConversationOwnerControl = ({
                 className="h-9 gap-1 px-2"
                 aria-label={
                   isUnassigned
-                    ? 'Sem responsável — assumir ou transferir'
+                    ? 'Sem responsável: assumir ou transferir'
                     : `Responsável: ${holder ? memberDisplayName(holder) : 'fora do diretório'}`
                 }
                 disabled={busy}

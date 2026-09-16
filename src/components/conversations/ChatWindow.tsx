@@ -641,7 +641,7 @@ export const ChatWindow = ({
       return;
     }
     if (outsideMetaWindow && !pendingFile && message.trim()) {
-      toast.warning('Fora da janela de 24h da Meta — esta conversa exige envio de template aprovado para iniciar.');
+      toast.warning('Fora da janela de 24h da Meta: esta conversa exige envio de template aprovado para iniciar.');
     }
 
     setIsSending(true);
@@ -1040,7 +1040,7 @@ export const ChatWindow = ({
             />
             {hasMoreServerMatches && (
               <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
-                Há mais resultados no histórico ainda não carregado — role para cima para carregá-los.
+                Há mais resultados no histórico ainda não carregado. Role para cima para carregá-los.
               </p>
             )}
           </>
@@ -1091,7 +1091,7 @@ export const ChatWindow = ({
           )}
         {!capabilities?.fetchHistory && (
           <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
-            Este provider não suporta puxar histórico — apenas mensagens recebidas via webhook aparecem aqui.
+            Este provider não suporta puxar histórico: apenas mensagens recebidas via webhook aparecem aqui.
           </p>
         )}
 
@@ -1365,7 +1365,7 @@ export const ChatWindow = ({
               {botName
                 ? `O chatbot "${botName}" está conduzindo esta conversa. `
                 : 'Um chatbot está conduzindo esta conversa. '}
-              Encerrar a sessão faz o bot parar de responder este contato — a partir daqui é
+              Encerrar a sessão faz o bot parar de responder este contato. A partir daqui é
               você quem atende. Ele só volta a agir se uma nova mensagem disparar um gatilho.
             </DialogDescription>
           </DialogHeader>

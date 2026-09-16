@@ -257,7 +257,7 @@ function renderBugReportHtml(opts: {
   <div style="max-width:640px;margin:0 auto;padding:24px;">
     <div style="background:${EMAIL.ink};border-radius:12px 12px 0 0;padding:24px;">
       <div style="color:${EMAIL.bg};font-size:20px;font-weight:700;">ConvoFlow · Relato de bug</div>
-      <div style="color:${EMAIL.lime};font-size:13px;margin-top:4px;">${escapeHtml(opts.userRole)} — ${escapeHtml(opts.userEmail)}</div>
+      <div style="color:${EMAIL.lime};font-size:13px;margin-top:4px;">${escapeHtml(opts.userRole)} · ${escapeHtml(opts.userEmail)}</div>
     </div>
     <div style="background:${EMAIL.card};border:1px solid ${EMAIL.border};border-top:none;border-radius:0 0 12px 12px;padding:24px;">
       <h2 style="font-size:15px;color:${EMAIL.ink};margin:0 0 8px;">Descrição</h2>
@@ -363,7 +363,7 @@ async function handleBugReport(
     apiKey,
     from,
     to: recipients,
-    subject: `[ConvoFlow Bug] Relato de ${userRole} — ${userEmail}`,
+    subject: `[ConvoFlow Bug] Relato de ${userRole} (${userEmail})`,
     html,
   });
 

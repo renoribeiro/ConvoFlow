@@ -155,7 +155,7 @@ export const PaywallScreen = () => {
               <span className="text-4xl font-bold">{PLAN_PRICE_LABEL}</span>
               <span className="text-muted-foreground">/mês</span>
               <p className="text-sm text-muted-foreground mt-1">
-                {PLAN_NAME} — {INCLUDED_SLOTS} lojas incluídas
+                {PLAN_NAME} com {INCLUDED_SLOTS} lojas incluídas
               </p>
             </div>
 
@@ -174,7 +174,7 @@ export const PaywallScreen = () => {
                 <AlertDescription className="space-y-2">
                   <p>{falha}</p>
                   <p className="text-xs">
-                    Se continuar assim, fale com o suporte pelo contato abaixo — ninguém precisa
+                    Se continuar assim, fale com o suporte pelo contato abaixo. Ninguém precisa
                     ficar sem acesso esperando o checkout.
                   </p>
                 </AlertDescription>
@@ -187,7 +187,7 @@ export const PaywallScreen = () => {
               className="w-full bg-green-600 hover:bg-green-700"
             >
               {enviando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Assinar agora — {PLAN_PRICE_LABEL}/mês
+              Assinar agora por {PLAN_PRICE_LABEL}/mês
             </Button>
 
             <Button
@@ -201,7 +201,7 @@ export const PaywallScreen = () => {
               ) : (
                 <RefreshCw className="w-4 h-4" />
               )}
-              Já paguei — reconferir acesso
+              Já paguei, reconferir acesso
             </Button>
 
             <ContatoDeSuporte titulo="Prefere resolver com uma pessoa?" />
@@ -211,12 +211,12 @@ export const PaywallScreen = () => {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Quem contrata o plano é a <strong>Conta</strong>, nunca a Loja. A Loja onde você
-              trabalha herda o acesso dela — então não há nada para você assinar ou configurar
+              trabalha herda o acesso dela, então não há nada para você assinar ou configurar
               nesta tela.
             </p>
             <p className="text-sm text-muted-foreground">
               Fale com a pessoa responsável pela Conta, o <strong>Gerente</strong>. Assim que o
-              acesso for regularizado, todas as Lojas voltam juntas e você entra normalmente — não
+              acesso for regularizado, todas as Lojas voltam juntas e você entra normalmente. Não
               é preciso liberar uma por uma.
             </p>
 

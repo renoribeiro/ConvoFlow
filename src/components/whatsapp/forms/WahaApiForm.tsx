@@ -31,7 +31,7 @@ export const WahaApiForm = ({ values, onChange, loading }: Props) => {
     <div className="space-y-4">
       <Alert className="border-sky-200 bg-sky-50/60">
         <ServerCog className="h-4 w-4 text-sky-700" />
-        <AlertTitle>WAHA — Servidor self-hosted</AlertTitle>
+        <AlertTitle>WAHA (servidor self-hosted)</AlertTitle>
         <AlertDescription className="text-xs">
           Ao salvar, o ConvoFlow cria/atualiza a sessão diretamente no servidor WAHA via{' '}
           <code className="px-1">POST /api/sessions</code>, registrando o webhook do Supabase

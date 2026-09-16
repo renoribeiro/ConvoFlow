@@ -132,7 +132,7 @@ export default function TermsOfService() {
                       <h3 className="font-medium mb-2">4.2. Contratação e renovação automática</h3>
                       <p className="text-muted-foreground">
                         A contratação é feita pela própria plataforma, por meio do <strong>Stripe</strong>, que
-                        processa os pagamentos e armazena os dados do meio de pagamento — o ConvoFlow não tem
+                        processa os pagamentos e armazena os dados do meio de pagamento; o ConvoFlow não tem
                         acesso ao número do seu cartão. A assinatura é mensal e
                         <strong> renova-se automaticamente</strong> ao fim de cada ciclo, com cobrança na mesma
                         forma de pagamento, até que haja cancelamento. A data da primeira cobrança marca o início

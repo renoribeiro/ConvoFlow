@@ -104,7 +104,7 @@ describe('RotationSettings', () => {
   it('com um atendente só: uma linha explica por quê e não há controles', () => {
     estado.members = [ANA];
     abrir();
-    expect(screen.getByText(/O rodízio aparece quando a Loja tem pelo menos 2 atendentes ativos — hoje ela tem 1/)).toBeInTheDocument();
+    expect(screen.getByText(/O rodízio aparece quando a Loja tem pelo menos 2 atendentes ativos\. Hoje ela tem 1/)).toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: /Distribuir conversas novas/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /salvar distribuição/i })).not.toBeInTheDocument();
   });
@@ -128,7 +128,7 @@ describe('RotationSettings', () => {
     await user.type(campo(/Ana Lima/), '40');
     expect(campo(/Ana Lima/)).toHaveValue(40);
     expect(campo(/^Bruno$/)).toHaveValue(50);
-    expect(screen.getByText('Soma: 90 % — faltam 10 para chegar a 100.')).toBeInTheDocument();
+    expect(screen.getByText('Soma: 90 %. Faltam 10 para chegar a 100.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /salvar distribuição/i })).toBeDisabled();
     expect(mutateAsync).not.toHaveBeenCalled();
   });
@@ -138,7 +138,7 @@ describe('RotationSettings', () => {
     abrir();
     await user.clear(campo(/^Bruno$/));
     await user.type(campo(/^Bruno$/), '70');
-    expect(screen.getByText('Soma: 120 % — passou 20 de 100.')).toBeInTheDocument();
+    expect(screen.getByText('Soma: 120 %. Passou 20 de 100.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /salvar distribuição/i })).toBeDisabled();
   });
 

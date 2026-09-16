@@ -1331,10 +1331,10 @@ export const CampaignWizard = ({
     const instance = instances.find((i) => i.id === state.whatsapp_instance_id);
     const audienceLabel =
       state.audience_type === 'csv_import'
-        ? `CSV — ${state.csvRows.length} contatos`
+        ? `CSV: ${state.csvRows.length} contatos`
         : state.audience_type === 'tags'
-        ? `Tags — ${contactCount} contatos`
-        : `Lista — ${state.selectedContactIds.length} contatos`;
+        ? `Tags: ${contactCount} contatos`
+        : `Lista: ${state.selectedContactIds.length} contatos`;
 
     return (
       <div className="space-y-5">

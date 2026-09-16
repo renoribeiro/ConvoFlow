@@ -281,7 +281,7 @@ Deno.serve(async (req: Request) => {
         ok: false,
         error:
           'A Evolution criou a instância mas não devolveu a chave dela. ' +
-          'A instância foi desfeita para não ficar pela metade — tente de novo.',
+          'A instância foi desfeita para não ficar pela metade. Tente de novo.',
       },
       502,
     );

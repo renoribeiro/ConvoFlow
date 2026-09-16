@@ -25,8 +25,8 @@ export interface EvolutionCredentialSource {
 }
 
 export const SEM_CREDENCIAL =
-  'Esta instância não tem servidor e chave salvos. Ela foi criada antes da configuração atual — ' +
-  'remova e crie de novo para que o ConvoFlow guarde as credenciais dela.';
+  'Esta instância não tem servidor e chave salvos. Ela foi criada antes da configuração atual. ' +
+  'Remova e crie de novo para que o ConvoFlow guarde as credenciais dela.';
 
 /** Extrai baseUrl/apiKey de uma linha de `whatsapp_instances`, ou null. */
 export function evolutionCredentialsFrom(

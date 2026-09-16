@@ -151,8 +151,8 @@ export const RotationSettings = () => {
       if (gestorKeyDirty) {
         toast.success(
           includesGestor
-            ? 'O gestor entrou no rodízio. As porcentagens foram divididas igualmente — ajuste se quiser.'
-            : 'O gestor saiu do rodízio. As porcentagens foram divididas entre os atendentes — ajuste se quiser.',
+            ? 'O gestor entrou no rodízio. As porcentagens foram divididas igualmente. Ajuste se quiser.'
+            : 'O gestor saiu do rodízio. As porcentagens foram divididas entre os atendentes. Ajuste se quiser.',
         );
         await rotation.refetch();
       } else {
@@ -283,7 +283,7 @@ export const RotationSettings = () => {
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               O rodízio aparece quando a Loja tem pelo menos {ROTATION_MIN_ATENDENTES} atendentes
-              ativos — hoje ela tem {atendentesAtivos}. Com um só, toda conversa nova é dele de
+              ativos. Hoje ela tem {atendentesAtivos}. Com um só, toda conversa nova é dele de
               qualquer jeito; convide o segundo em Equipe.
             </p>
           </div>
@@ -419,9 +419,9 @@ export const RotationSettings = () => {
               >
                 {validation.ok && 'Soma: 100 %.'}
                 {!validation.ok && validation.reason === 'sum' && validation.missing > 0 &&
-                  `Soma: ${validation.sum} % — faltam ${validation.missing} para chegar a 100.`}
+                  `Soma: ${validation.sum} %. Faltam ${validation.missing} para chegar a 100.`}
                 {!validation.ok && validation.reason === 'sum' && validation.excess > 0 &&
-                  `Soma: ${validation.sum} % — passou ${validation.excess} de 100.`}
+                  `Soma: ${validation.sum} %. Passou ${validation.excess} de 100.`}
                 {!validation.ok && validation.reason === 'invalid' &&
                   'Use números inteiros entre 0 e 100.'}
               </p>

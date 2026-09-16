@@ -167,7 +167,7 @@ export const VisibilitySettings = () => {
             <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
             <p className="text-xs text-muted-foreground">
               Quem já respondeu numa conversa continua vendo-a mesmo depois de transferida, em qualquer
-              opção. Os números do Dashboard continuam sendo da Loja inteira — para o atendente eles
+              opção. Os números do Dashboard continuam sendo da Loja inteira; para o atendente eles
               aparecem com a etiqueta &quot;Toda a Loja&quot;: {LOJA_WIDE_HINT}
             </p>
           </div>

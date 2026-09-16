@@ -225,7 +225,7 @@ export const SubscriptionSettings = () => {
               className="bg-green-600 hover:bg-green-700 w-full md:w-auto"
             >
               {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Assinar Agora — {PLAN_PRICE_LABEL}/mês
+              Assinar Agora por {PLAN_PRICE_LABEL}/mês
             </Button>
           )}
         </CardFooter>
@@ -275,7 +275,7 @@ export const SubscriptionSettings = () => {
             </div>
             <Button onClick={handleBuySlots} disabled={buyingSlots}>
               {buyingSlots ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Contratar {extraSlots} loja{extraSlots > 1 ? 's' : ''} — {SLOT_PRICE_LABEL}/mês cada
+              Contratar {extraSlots} loja{extraSlots > 1 ? 's' : ''} por {SLOT_PRICE_LABEL}/mês cada
             </Button>
           </CardFooter>
         </Card>

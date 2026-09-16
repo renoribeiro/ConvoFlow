@@ -180,7 +180,7 @@ export class MetaProvider implements IWhatsAppProvider {
      */
     async listTemplates(): Promise<any[]> {
         if (!this.config.wabaId) {
-            throw new Error('Missing wabaId — não é possível listar templates da Meta.');
+            throw new Error('Missing wabaId: não é possível listar templates da Meta.');
         }
         // `components` já traz cabeçalho, rodapé e botões — a edge function
         // list-whatsapp-templates os normaliza a partir daqui, sem custo extra.
