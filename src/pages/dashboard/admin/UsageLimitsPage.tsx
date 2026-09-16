@@ -5,14 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/shared/ResponsiveTable';
 import { toast } from 'sonner';
 import { QUERY_KEYS } from '@/lib/queryClient';
 import { UserRole, roleLabel } from '@/types/userHierarchy';
@@ -83,69 +76,70 @@ export default function UsageLimitsPage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nível</TableHead>
-                  <TableHead>Limite</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="w-[180px]">Valor</TableHead>
-                  <TableHead className="w-[100px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {limits.map((l) => {
-                  const editing = edited[l.id];
-                  const currentValue =
-                    editing !== undefined
-                      ? editing
-                      : l.limit_value?.limit?.toString() ?? '';
-                  return (
-                    <TableRow key={l.id}>
-                      <TableCell className="font-medium">{roleLabel(l.role as any)}</TableCell>
-                      <TableCell>{l.limit_name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {l.description ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={currentValue}
-                          placeholder="Sem limite"
-                          className="h-8"
-                          onChange={(e) =>
-                            setEdited((prev) => ({ ...prev, [l.id]: e.target.value }))
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={editing === undefined || update.isPending}
-                          onClick={() => {
-                            const parsed = editing === '' ? null : Number(editing);
-                            update.mutate(
-                              { id: l.id, limitValue: parsed as number | null },
-                              {
-                                onSuccess: () =>
-                                  setEdited((prev) => {
-                                    const { [l.id]: _, ...rest } = prev;
-                                    return rest;
-                                  }),
-                              },
-                            );
-                          }}
-                        >
-                          Salvar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            // Cartão no celular: o nome do limite lidera, o nível vem
+            // embaixo, a descrição e o campo de valor ocupam a linha toda e
+            // "Salvar" fica no canto — o mesmo controle da tabela.
+            <ResponsiveTable
+              ariaLabel="Limites de uso"
+              rows={limits}
+              rowKey={(l) => l.id}
+              columns={[
+                { key: 'nivel', header: 'Nível', card: 'subtitle', cellClassName: 'font-medium', cell: (l) => roleLabel(l.role as any) },
+                { key: 'limite', header: 'Limite', card: 'title', cell: (l) => l.limit_name },
+                { key: 'descricao', header: 'Descrição', cardFull: true, cellClassName: 'text-muted-foreground text-sm', cell: (l) => l.description ?? '—' },
+                {
+                  key: 'valor',
+                  header: 'Valor',
+                  cardFull: true,
+                  headClassName: 'w-[180px]',
+                  cell: (l) => {
+                    const editing = edited[l.id];
+                    const currentValue =
+                      editing !== undefined
+                        ? editing
+                        : l.limit_value?.limit?.toString() ?? '';
+                    return (
+                      <Input
+                        type="number"
+                        min={0}
+                        value={currentValue}
+                        placeholder="Sem limite"
+                        aria-label={`Valor de ${l.limit_name}`}
+                        className="h-8"
+                        onChange={(e) =>
+                          setEdited((prev) => ({ ...prev, [l.id]: e.target.value }))
+                        }
+                      />
+                    );
+                  },
+                },
+              ]}
+              actions={(l) => {
+                const editing = edited[l.id];
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={editing === undefined || update.isPending}
+                    onClick={() => {
+                      const parsed = editing === '' ? null : Number(editing);
+                      update.mutate(
+                        { id: l.id, limitValue: parsed as number | null },
+                        {
+                          onSuccess: () =>
+                            setEdited((prev) => {
+                              const { [l.id]: _, ...rest } = prev;
+                              return rest;
+                            }),
+                        },
+                      );
+                    }}
+                  >
+                    Salvar
+                  </Button>
+                );
+              }}
+            />
           )}
         </CardContent>
       </Card>
