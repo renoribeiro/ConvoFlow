@@ -346,7 +346,7 @@ export function CouponManager() {
           if (!open) setFormError(null);
         }}
       >
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
           <AnimatePresence initial={false}>
             <motion.div
               key="coupon-form"

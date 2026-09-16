@@ -424,7 +424,7 @@ const AdminDashboard = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start md:grid md:grid-cols-5">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="users">Usuários</TabsTrigger>
           <TabsTrigger value="billing">Faturamento</TabsTrigger>
@@ -467,15 +467,15 @@ const AdminDashboard = () => {
             <span>Como funciona esta aba</span>
             <FeatureHelp helpKey="page:admin-users-tab" />
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             {/* Sem botão de lupa: a busca filtra enquanto se digita, então o
                 botão não tinha o que fazer e não tinha handler. */}
-            <div className="flex items-center">
+            <div className="flex items-center w-full sm:w-auto">
               <Input
                 placeholder="Buscar usuários..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-[300px]"
+                className="w-full sm:w-[300px]"
               />
             </div>
             <Button onClick={() => {
@@ -834,7 +834,7 @@ const AdminDashboard = () => {
 
       {/* Modal Criar Usuário */}
       <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Novo Usuário</DialogTitle>
             <DialogDescription>
@@ -842,7 +842,7 @@ const AdminDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="create-firstName">Nome</Label>
                 <Input
@@ -984,7 +984,7 @@ const AdminDashboard = () => {
 
       {/* Modal Editar Usuário */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>
@@ -992,7 +992,7 @@ const AdminDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-firstName">Nome</Label>
                 <Input
@@ -1096,13 +1096,13 @@ const AdminDashboard = () => {
 
       {/* Modal Visualizar Usuário */}
       <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes do Usuário</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Nome</Label>
                   <p className="text-sm text-muted-foreground">{selectedUser.name}</p>

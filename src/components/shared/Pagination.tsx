@@ -88,7 +88,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   }
 
   return (
-    <div className={`flex items-center justify-between space-x-6 lg:space-x-8 ${className}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-x-6 gap-y-2 lg:gap-x-8 ${className}`}>
       {/* Items per page selector */}
       {showItemsPerPage && (
         <div className="flex items-center space-x-2">

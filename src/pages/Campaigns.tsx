@@ -42,7 +42,7 @@ export default function Campaigns() {
           { label: 'Campanhas' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -60,7 +60,7 @@ export default function Campaigns() {
       />
 
       {/* Estatísticas Rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total de Campanhas"
           value={stats?.totalCampaigns}
@@ -101,7 +101,7 @@ export default function Campaigns() {
         )
       ) : (
         <Tabs defaultValue="active" className="space-y-6">
-          <TabsList>
+          <TabsList className="h-auto max-w-full flex-wrap">
             <TabsTrigger value="active">Ativas</TabsTrigger>
             <TabsTrigger value="scheduled">Agendadas</TabsTrigger>
             <TabsTrigger value="completed">Concluídas</TabsTrigger>

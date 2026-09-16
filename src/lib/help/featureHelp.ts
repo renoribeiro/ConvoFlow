@@ -447,7 +447,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Use a busca por nome ou número em vez de rolar a lista inteira.',
       'Para reaproveitar um trecho pronto, clique no raio ao lado do campo de mensagem — ou digite "/" com o campo vazio, que abre a mesma lista.',
       'Para guardar um trecho que você acabou de escrever, passe o mouse sobre a mensagem enviada e clique no raio que aparece nela.',
-      'Use as pílulas acima da lista ("Não lidas", "Aguardando"...) para trabalhar uma fila de cada vez; o número em cada uma diz o tamanho dela.',
+      'Use as pílulas acima da lista ("Não lidas", "Aguardando"...) para trabalhar uma fila de cada vez; o número em cada uma diz o tamanho dela. Não cabem todas na coluna: a seta na ponta (ou arrastar de lado) mostra as demais.',
       'O botão "Filtros" abre três recortes que se somam às pílulas: "Apenas conversas com mensagens não lidas", "Mostrar arquivadas" e um período pela data da última mensagem. Eles valem na hora, sem botão de aplicar — "Aplicar" só fecha a janela.',
       'Para ficar responsável por uma conversa, abra-a e clique em "Sem responsável", no cabeçalho, e depois em "Assumir". O seu nome passa a aparecer na conversa, para todo mundo da Loja.',
       'Para passar a conversa a um colega, clique no responsável no cabeçalho e em "Transferir…", escolha a pessoa na lista e pronto — ela recebe um aviso no sino. Dá para transferir para você mesmo uma conversa que está com outra pessoa.',
@@ -536,7 +536,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'É a ficha do cliente ao lado do chat, para você mexer no cadastro sem sair da conversa: etapa do funil, etiquetas, anotações, follow-ups pendentes e a origem do lead. O que você muda aqui vale em Contatos e no Funil na mesma hora.',
     howToConfigure: [
-      'Abra o painel pelo ícone no canto direito do cabeçalho da conversa ("Abrir painel do contato"); o mesmo ícone fecha. A escolha fica salva: nas próximas conversas ele volta como você deixou.',
+      'Abra o painel pelo ícone no canto direito do cabeçalho da conversa ("Abrir painel do contato"); o mesmo ícone fecha. No computador a escolha fica salva: nas próximas conversas ele volta como você deixou. No tablet e no celular ele abre por cima do chat, como uma gaveta, e fecha ao tocar fora — e nasce fechado, mesmo que esteja aberto no computador.',
       'Em "Funil", troque a etapa em "Mover para etapa..." — é o mesmo que arrastar o card no Funil de Vendas, e dispara as mesmas automações.',
       'Em "Etiquetas", o botão de mais abre o mesmo diálogo de etiquetar do menu ⋮; a etiqueta vale para campanhas segmentadas.',
       'Em "Notas", escreva o que o resto do time precisa saber antes de responder. Não há botão de salvar: o texto grava sozinho, e "Salvo automaticamente" confirma.',
@@ -668,11 +668,11 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     moduleName: 'chatbots',
     title: 'Construtor de Fluxo',
     whatItDoes:
-      'É a tela onde o fluxo é desenhado. Você arrasta blocos da esquerda e liga a saída de um na entrada do outro: o caminho que as setas formam é exatamente o que o cliente vai viver na conversa.',
+      'É a tela onde o fluxo é desenhado. Você arrasta blocos da esquerda e liga a saída de um na entrada do outro: o caminho que as setas formam é exatamente o que o cliente vai viver na conversa. No tablet e no celular a lista de blocos fica no botão "Blocos" da barra do topo, e tocar num bloco o coloca no meio da tela.',
     howToConfigure: [
       'Arraste "Início do Fluxo" primeiro — só pode existir um por chatbot.',
       'Arraste os blocos seguintes e ligue as bolinhas, saída de um na entrada do próximo. Bloco solto não executa.',
-      'Clique num bloco para configurar o conteúdo dele no painel da direita.',
+      'Clique num bloco para configurar o conteúdo dele no painel da direita (no tablet e no celular o painel abre por cima do desenho e fecha ao tocar fora).',
       'Salvar guarda o rascunho; Publicar valida o fluxo inteiro e coloca no ar.',
     ],
     example:

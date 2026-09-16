@@ -63,7 +63,7 @@ export const AutomationsSummary = ({ period }: AutomationsSummaryProps) => {
               <Progress value={successRate} className="h-2" />
             </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <StatusPill
                 icon={<CheckCircle2 className="h-3.5 w-3.5 text-status-success" />}
                 label="Concluídas"

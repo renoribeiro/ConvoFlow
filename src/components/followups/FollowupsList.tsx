@@ -289,7 +289,7 @@ export const FollowupsList = ({ status, filters }: FollowupsListProps) => {
               <div className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
                   <AvatarFallback>
-                    {((followup as any).contacts?.name || 'N/A').split(' ').map((n: string) => n[0]).join('')}
+                    {((followup as any).contacts?.name || 'N/A').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
                 <div>

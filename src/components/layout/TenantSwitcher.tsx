@@ -69,7 +69,8 @@ export const TenantSwitcher = () => {
           aria-expanded={open}
           aria-label="Selecionar Conta ativa"
           className={cn(
-            'h-8 gap-2 max-w-[200px]',
+            // min-w-0: é o item que cede quando a Navbar fica apertada (o nome trunca).
+            'h-8 gap-2 min-w-0 max-w-[200px]',
             isImpersonating && 'border-primary/50 bg-primary/5 text-foreground',
           )}
         >

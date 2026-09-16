@@ -41,7 +41,7 @@ export default function Followups() {
           { label: 'Follow-ups' }
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button 
               variant="outline" 
               size="sm"
@@ -67,7 +67,7 @@ export default function Followups() {
       />
 
       {/* Estatísticas Rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -158,7 +158,7 @@ export default function Followups() {
       )}
 
       <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap">
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
           <TabsTrigger value="today">Hoje</TabsTrigger>
           <TabsTrigger value="scheduled">Agendados</TabsTrigger>

@@ -53,15 +53,21 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
       .toUpperCase() || 'U'
   );
 
+  // Nada aqui pode empurrar a página para o lado. O grupo da esquerda é quem
+  // cede (min-w-0 flex-1): dentro dele o seletor de Conta/Loja encolhe e trunca
+  // o nome; busca e ícones são shrink-0. O grupo da direita nunca encolhe, mas
+  // só carrega texto (nome do usuário, "Reportar bug") a partir de lg. Medido
+  // antes: +197px a 390, +118 a 768, +38 a 1024 para o gerente — sino, tema e
+  // menu do usuário saíam da tela.
   return (
-    <header className="h-12 bg-card border-b border-border flex items-center justify-between px-4 flex-shrink-0">
+    <header className="h-12 bg-card border-b border-border flex items-center justify-between gap-2 px-3 sm:px-4 flex-shrink-0">
       {/* Left */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="md:hidden h-8 w-8"
+          className="md:hidden h-8 w-8 shrink-0"
           aria-label="Abrir menu"
         >
           <Menu className="h-4 w-4" />
@@ -71,7 +77,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
           type="button"
           onClick={() => setPaletteOpen(true)}
           aria-label="Abrir busca (Ctrl+K)"
-          className="relative hidden sm:flex items-center h-8 w-56 rounded-md bg-muted/50 hover:bg-muted text-sm text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
+          className="relative hidden sm:flex shrink-0 items-center h-8 w-56 rounded-md bg-muted/50 hover:bg-muted text-sm text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
         >
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
           <span className="pl-8 pr-12">Buscar...</span>
@@ -85,7 +91,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
           size="icon"
           onClick={() => setPaletteOpen(true)}
           aria-label="Abrir busca"
-          className="sm:hidden h-8 w-8"
+          className="sm:hidden h-8 w-8 shrink-0"
         >
           <Search className="h-4 w-4" />
         </Button>
@@ -97,7 +103,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <BugReportButton />
         <NotificationCenter />
         <ThemeToggle />
@@ -113,7 +119,7 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
                 <AvatarImage src={profile?.avatar_url ?? undefined} alt={displayName} />
                 <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
-              <div className="text-left hidden md:block">
+              <div className="text-left hidden lg:block">
                 <p className="text-xs font-medium leading-none">{displayName}</p>
                 {!tenantLoading && profile?.role && (
                   <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
@@ -121,7 +127,8 @@ export const Navbar = ({ onMenuClick }: NavbarProps) => {
                   </p>
                 )}
               </div>
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              {/* No celular a seta é só enfeite e custa 20px que o seletor de Loja precisa. */}
+              <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">

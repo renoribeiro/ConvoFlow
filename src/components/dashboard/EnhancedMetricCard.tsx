@@ -74,9 +74,13 @@ export const EnhancedMetricCard = ({
           <span className="text-muted-foreground [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
         </div>
 
-        <div className="mt-2 flex items-end justify-between gap-2">
-          <div className="min-w-0">
-            <div className="font-display text-2xl font-bold leading-none text-foreground truncate">
+        {/* O número nunca é cortado: quem cede é o sparkline (fica com 48px a
+            96px e, se nem 48 couber, desce para a linha de baixo). Antes o
+            valor tinha `truncate` e virava "100…" a 1280px, onde o grid de 5
+            colunas deixa ~186px por cartão. */}
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
+          <div className="shrink-0">
+            <div className="font-display text-2xl font-bold leading-none text-foreground whitespace-nowrap">
               {value}
             </div>
             {showDelta && (
@@ -93,7 +97,9 @@ export const EnhancedMetricCard = ({
           </div>
 
           {/* Sparkline 7 dias */}
-          <div className="h-[44px] w-[96px] shrink-0">
+          {/* basis 48 + grow até 96: num flex que quebra linha, a quebra olha
+              o tamanho-base do item, então a base precisa ser o mínimo. */}
+          <div className="h-[44px] grow basis-[48px] max-w-[96px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={metric.sparkline} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                 <defs>

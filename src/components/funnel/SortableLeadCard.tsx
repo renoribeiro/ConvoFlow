@@ -98,7 +98,7 @@ export const SortableLeadCard = ({ lead }: SortableLeadCardProps) => {
                 isDragging && "ring-2 ring-primary/50"
               )}>
                 <AvatarFallback className="text-xs">
-                  {lead.name.split(' ').map(n => n[0]).join('')}
+                  {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div>

@@ -36,7 +36,7 @@ export const DragOverlay = ({ draggedLead }: DragOverlayProps) => {
             <div className="flex items-center gap-2">
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="text-xs bg-primary/10">
-                  {draggedLead.name.split(' ').map(n => n[0]).join('')}
+                  {draggedLead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div>

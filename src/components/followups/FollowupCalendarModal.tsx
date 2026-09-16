@@ -124,15 +124,17 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+      {/* No celular ocupa a tela inteira (dvh: a barra do navegador entra na
+          conta); a partir de sm volta a ser o diálogo largo de sempre. */}
+      <DialogContent className="max-w-6xl h-[100dvh] max-h-none rounded-none sm:h-auto sm:max-h-[80vh] sm:rounded-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Calendário de Follow-ups</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Controles do calendário */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
                   <ChevronLeft className="w-4 h-4" />
@@ -173,7 +175,10 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
                       <span className="ml-2">Carregando follow-ups...</span>
                     </div>
                   ) : (
-                    <>
+                    // Sete colunas não cabem em 342px; abaixo disso a grade rola
+                    // de lado dentro do cartão (min-w) em vez de estourar o diálogo.
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[420px]">
                       <div className="grid grid-cols-7 gap-1 mb-4">
                         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
                           <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
@@ -222,7 +227,8 @@ export const FollowupCalendarModal = ({ isOpen, onClose }: FollowupCalendarModal
                           );
                         })}
                       </div>
-                    </>
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>

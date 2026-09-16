@@ -290,7 +290,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Arraste "Início do Fluxo" e ligue nele um "Enviar Texto"',
         body:
-          'Arraste "Início do Fluxo" para a área de desenho (só pode existir um) e depois "Enviar Texto". Ligue a bolinha de saída do Início na entrada do Enviar Texto e escreva a saudação no painel da direita.',
+          'Arraste "Início do Fluxo" para a área de desenho (só pode existir um) e depois "Enviar Texto" — no tablet ou no celular, toque em "Blocos" na barra do topo e escolha cada um. Ligue a bolinha de saída do Início na entrada do Enviar Texto e escreva a saudação no painel da direita.',
         note: 'Bloco solto não executa. Se não houver seta ligando, aquele trecho nunca roda.',
       },
       {
