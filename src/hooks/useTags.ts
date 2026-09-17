@@ -22,17 +22,26 @@ interface TagInput {
  * porque aquele hook injeta tenant_id automaticamente, o que quebra em tabelas
  * sem essa coluna (contact_tags). A RLS de `tags` é FOR ALL USING (tenant_id =
  * get_current_user_tenant_id()), então as operações abaixo respeitam a Conta.
+ *
+ * A listagem filtra pela Conta/Loja ATIVA (`tenant.id`), e não confia só no
+ * RLS: desde 20260909000001 um gerente lê as etiquetas da própria Conta E das
+ * Lojas filhas, então sem o filtro o modal "Etiquetar lead" mostrava as duas
+ * listas juntas — "Cliente" duas vezes, uma delas invisível para a equipe da
+ * Loja (medido em 2026-09-17). O queryKey leva o tenant para o cache não
+ * vazar entre Lojas ao trocar no seletor.
  */
 export function useTags() {
   const queryClient = useQueryClient();
   const { tenant } = useTenant();
 
   const list = useQuery({
-    queryKey: ['tags'],
+    queryKey: ['tags', tenant?.id],
+    enabled: !!tenant?.id,
     queryFn: async (): Promise<Tag[]> => {
       const { data, error } = await supabase
         .from('tags')
         .select('id, name, color')
+        .eq('tenant_id', tenant!.id)
         .order('name', { ascending: true });
 
       if (error) throw error;

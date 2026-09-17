@@ -51,6 +51,14 @@
 --   tabela, quick_replies muda de lado: sai de 'NAO escreve na Loja filha' e
 --   entra no grupo que escreve, com INSERT e DELETE afirmados dos dois lados.
 --
+-- QUARTA MUDANCA (2026-09-17): tabelas SEM tenant_id (20260917000002)
+--   contact_tags liga-se a Loja por contacts, e ficou fora das duas
+--   liberacoes do gerente (que partiram das tabelas COM tenant_id). Agora ele
+--   le/adiciona/remove etiqueta em lead da Loja filha; campaign_messages,
+--   campaign_dispatch_queue e webhook_logs ganharam leitura pelo mesmo
+--   caminho. A suite afirma contact_tags nos dois lados (bloco proprio, ja
+--   que o loop por tabela filtra por tenant_id).
+--
 --   O que impede as duas mudancas de vazarem PARA BAIXO: a Conta pai entrou
 --   na lista de `foreign_tenants` de gestor e atendente, entao a suite afirma
 --   que um membro de Loja continua sem ler nem escrever na Conta acima dele.
@@ -161,6 +169,12 @@ INSERT INTO public.tags (tenant_id, name)
 SELECT t.id, 'FIX tag ' || g
 FROM (SELECT id FROM public.tenants WHERE slug LIKE 'fixture-%') t, generate_series(1,2) g;
 
+-- contact_tags NAO tem tenant_id: liga-se a Loja por contacts. Uma etiqueta
+-- por contato -> 2 linhas por tenant, como nas outras tabelas.
+INSERT INTO public.contact_tags (contact_id, tag_id)
+SELECT c.id, (SELECT t.id FROM public.tags t WHERE t.tenant_id = c.tenant_id AND t.name = 'FIX tag 1')
+FROM public.contacts c WHERE c.name = 'FIX contato';
+
 SET LOCAL session_replication_role = origin;
 
 -- -----------------------------------------------------------------------------
@@ -182,6 +196,17 @@ CREATE TEMP TABLE _rls_results (
 
 GRANT ALL ON _rls_cases, _rls_results TO authenticated;
 GRANT ALL ON SEQUENCE _rls_results_seq_seq TO authenticated;
+
+-- Ids para os checks de contact_tags. Levantados AQUI, como postgres, porque o
+-- gerente A nao enxerga o contato da Loja B - e o check de "INSERT recusado"
+-- precisa do id para tentar.
+CREATE TEMP TABLE _rls_ids ON COMMIT DROP AS
+SELECT
+  (SELECT id FROM public.contacts WHERE tenant_id='11111111-0000-4000-8000-000000000002' AND name='FIX contato' ORDER BY phone LIMIT 1) AS a_contact,
+  (SELECT id FROM public.contacts WHERE tenant_id='22222222-0000-4000-8000-000000000002' AND name='FIX contato' ORDER BY phone LIMIT 1) AS b_contact,
+  (SELECT id FROM public.tags WHERE tenant_id='11111111-0000-4000-8000-000000000002' AND name='FIX tag 2') AS a_tag2,
+  (SELECT id FROM public.tags WHERE tenant_id='22222222-0000-4000-8000-000000000002' AND name='FIX tag 2') AS b_tag2;
+GRANT ALL ON _rls_ids TO authenticated;
 
 -- own_tenants / foreign_tenants agora vem prontos como ARRAY na propria matriz,
 -- porque o GERENTE deixou de ter um unico tenant proprio: desde 20260909000001
@@ -458,6 +483,70 @@ BEGIN
   END LOOP;
 
   -- ---------------------------------------------------------------------------
+  -- Dimensao SEM tenant_id (2026-09-17): contact_tags, via contacts.
+  --
+  -- A 20260909000001/4 partiram das tabelas COM tenant_id, e contact_tags
+  -- ficou de fora: a Camila via 0 etiquetas nos leads da Loja e nao conseguia
+  -- aplicar nenhuma. A 20260917000002 liberou ler/adicionar/remover. Os
+  -- checks abaixo afirmam os dois lados: Loja filha sim, Loja de outra Conta
+  -- nao. O INSERT na Loja filha e desfeito na hora (sub-transacao), para a
+  -- fase seguinte contar as mesmas 2 linhas.
+  --
+  -- Alias `k`, nao `c`: `c` e a variavel record do loop acima e o PL/pgSQL a
+  -- resolve primeiro ("record c has no field id").
+  -- ---------------------------------------------------------------------------
+  PERFORM set_config('request.jwt.claims',
+    '{"sub":"11111111-0000-4000-8000-00000000000a","role":"authenticated"}', true);
+  SELECT count(*) INTO n_own FROM public.contact_tags ct
+    JOIN public.contacts k ON k.id = ct.contact_id
+   WHERE k.tenant_id = '11111111-0000-4000-8000-000000000002';
+  INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+  VALUES (p_phase,'A gerente','contact_tags','LE a Loja filha',2,n_own,
+          CASE WHEN n_own = 2 THEN 'ok' ELSE 'FAIL' END);
+
+  SELECT count(*) INTO n_foreign FROM public.contact_tags ct
+   WHERE ct.contact_id = (SELECT b_contact FROM _rls_ids);
+  INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+  VALUES (p_phase,'A gerente','contact_tags','NAO le Loja de outra Conta',0,n_foreign,
+          CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
+
+  ins_ok := false;
+  BEGIN
+    INSERT INTO public.contact_tags (contact_id, tag_id)
+    SELECT a_contact, a_tag2 FROM _rls_ids;
+    ins_ok := true;
+    RAISE EXCEPTION USING ERRCODE = 'P0999';  -- desfaz o INSERT
+  EXCEPTION
+    WHEN SQLSTATE 'P0999' THEN NULL;
+    WHEN others THEN ins_ok := false;
+  END;
+  INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+  VALUES (p_phase,'A gerente','contact_tags','INSERT na Loja filha aceito',1,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+          CASE WHEN ins_ok THEN 'ok' ELSE 'FAIL' END);
+
+  ins_ok := false;
+  BEGIN
+    INSERT INTO public.contact_tags (contact_id, tag_id)
+    SELECT b_contact, b_tag2 FROM _rls_ids;
+    ins_ok := true;   -- entrou = vazamento
+  EXCEPTION WHEN others THEN ins_ok := false;
+  END;
+  INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+  VALUES (p_phase,'A gerente','contact_tags','INSERT em Loja de outra Conta recusado',0,CASE WHEN ins_ok THEN 1 ELSE 0 END,
+          CASE WHEN ins_ok THEN 'FAIL' ELSE 'ok' END);
+
+  -- A porta abriu so para baixo: o gestor da Loja continua sem ver a Conta pai
+  -- (a Conta A tem 2 contact_tags proprias na semeadura).
+  PERFORM set_config('request.jwt.claims',
+    '{"sub":"11111111-0000-4000-8000-00000000000b","role":"authenticated"}', true);
+  SELECT count(*) INTO n_foreign FROM public.contact_tags ct
+    JOIN public.contacts k ON k.id = ct.contact_id
+   WHERE k.tenant_id = '11111111-0000-4000-8000-000000000001';
+  INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+  VALUES (p_phase,'A gestor','contact_tags','NAO le a Conta pai',0,n_foreign,
+          CASE WHEN n_foreign = 0 THEN 'ok' ELSE 'FAIL' END);
+
+  -- ---------------------------------------------------------------------------
   -- Dimensao de STORAGE (2026-09-09): o bucket `whatsapp-media`.
   --
   -- Mandar foto/audio nao passa so pelas tabelas: `uploadWhatsAppMedia` sobe o
@@ -561,6 +650,8 @@ DELETE FROM public.quick_replies WHERE name LIKE 'FIX ger filha%';
 --    Medido em 2026-09-17 (com os checks de DELETE): 251 ok / 0 falhas na
 --    fase intacta, e 251 ok de novo numa segunda rodada da MESMA bateria -
 --    prova de que o check de DELETE nao consome as fixtures.
+--    Medido em 2026-09-17, mais tarde (com os 5 checks de contact_tags):
+--    256 ok / 0 falhas, duas rodadas.
 --    (7 em `contacts` + 1 em cada bucket: `whatsapp-media` e `bug-reports`)
 --
 --    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz
