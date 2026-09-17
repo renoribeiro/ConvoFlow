@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
-import { slotQuantityFromSubscription } from '../_shared/store-slots.ts'
+import { deriveExtraSlots } from '../_shared/stripe-slot-sync.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2024-12-18.acacia',
@@ -25,16 +25,19 @@ const SLOT_PRICE = Deno.env.get('STRIPE_PRICE_STORE_SLOT') ?? '';
  * ordem e quantas vezes -- o handler vira idempotente. Isso tambem cobre a
  * corrida real de 2026-07-27, quando invoice.payment_succeeded chegou ANTES de
  * checkout.session.completed.
+ *
+ * null = nao foi possivel RELER a assinatura (Price nao configurado ou Stripe
+ * fora do ar); o handler entao nao toca na coluna. Se a DERIVACAO lancar, o
+ * erro sobe ate o catch do serve(), que responde 500 e faz o Stripe reenviar
+ * o evento -- ver _shared/stripe-slot-sync.ts para o porque.
  */
 async function extrasDaAssinatura(subscriptionId: string): Promise<number | null> {
   if (!SLOT_PRICE) return null;   // sem Price de vaga configurado, nao mexe
-  try {
-    const sub = await stripe.subscriptions.retrieve(subscriptionId);
-    return slotQuantityFromSubscription(sub as never, SLOT_PRICE);
-  } catch (e) {
-    console.error('Falha ao reler assinatura para derivar vagas:', e?.message ?? e);
-    return null;
-  }
+  return await deriveExtraSlots(
+    (id) => stripe.subscriptions.retrieve(id),
+    subscriptionId,
+    SLOT_PRICE,
+  );
 }
 
 const corsHeaders = {
