@@ -42,6 +42,15 @@
 --   E, em TODAS elas, 'NAO escreve na Loja de outra Conta' continua esperando
 --   zero: o que a mudanca abriu foi a Loja filha, nao a vizinhanca.
 --
+-- TERCEIRA MUDANCA (2026-09-17): quick_replies (20260917000001)
+--   A Camila, gerente dentro da Loja EncaixaRH, tentou salvar uma mensagem
+--   como resposta rapida e recebeu 42501: a tabela tinha ficado de fora da
+--   20260909000004. Agora o gerente cria, edita e APAGA respostas rapidas da
+--   Loja filha (DELETE entra aqui porque resposta rapida nao e historico de
+--   cliente e a tela oferece "Apagar" a todo cargo da Loja). Na matriz por
+--   tabela, quick_replies muda de lado: sai de 'NAO escreve na Loja filha' e
+--   entra no grupo que escreve, com INSERT e DELETE afirmados dos dois lados.
+--
 --   O que impede as duas mudancas de vazarem PARA BAIXO: a Conta pai entrou
 --   na lista de `foreign_tenants` de gestor e atendente, entao a suite afirma
 --   que um membro de Loja continua sem ler nem escrever na Conta acima dele.
@@ -338,7 +347,7 @@ BEGIN
         INTO n_written USING '11111111-0000-4000-8000-000000000002'::uuid;
     EXCEPTION WHEN others THEN n_written := 999;
     END;
-    IF c.tbl IN ('messages','conversations','contacts','tags') THEN
+    IF c.tbl IN ('messages','conversations','contacts','tags','quick_replies') THEN
       INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
       VALUES (p_phase,'A gerente',c.tbl,'ESCREVE na Loja filha',2,n_written,
               CASE WHEN n_written = 2 THEN 'ok' ELSE 'FAIL' END);
@@ -360,14 +369,53 @@ BEGIN
     VALUES (p_phase,'A gerente',c.tbl,'NAO escreve na Loja de outra Conta',0,n_written,
             CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
 
-    -- (3c) O WITH CHECK do INSERT, nas duas tabelas sem FK complicada.
+    -- (3d) DELETE: so quick_replies ganhou (20260917000001). A afirmacao e
+    --      "apaga na Loja filha, e SO em quick_replies; em Loja de outra Conta,
+    --      nunca". O DELETE roda numa sub-transacao que SEMPRE desfaz (RAISE
+    --      com codigo proprio, capturado logo abaixo): a suite roda a matriz
+    --      duas vezes sobre as mesmas fixtures, e apagar de verdade faria a
+    --      fase 2 ler 0 onde espera 2. Por isso este check vem ANTES do (3c),
+    --      que insere uma linha extra na Loja filha.
+    BEGIN
+      EXECUTE format('WITH d AS (DELETE FROM public.%I WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM d', c.tbl)
+        INTO n_written USING '11111111-0000-4000-8000-000000000002'::uuid;
+      RAISE EXCEPTION USING ERRCODE = 'P0999', MESSAGE = n_written::text;  -- desfaz o DELETE
+    EXCEPTION
+      WHEN SQLSTATE 'P0999' THEN n_written := SQLERRM::int;
+      WHEN others THEN n_written := 999;
+    END;
+    IF c.tbl = 'quick_replies' THEN
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'APAGA na Loja filha',2,n_written,
+              CASE WHEN n_written = 2 THEN 'ok' ELSE 'FAIL' END);
+    ELSE
+      INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+      VALUES (p_phase,'A gerente',c.tbl,'NAO apaga na Loja filha',0,n_written,
+              CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+    END IF;
+    BEGIN
+      EXECUTE format('WITH d AS (DELETE FROM public.%I WHERE tenant_id=$1 RETURNING 1) SELECT count(*) FROM d', c.tbl)
+        INTO n_written USING '22222222-0000-4000-8000-000000000002'::uuid;
+      RAISE EXCEPTION USING ERRCODE = 'P0999', MESSAGE = n_written::text;
+    EXCEPTION
+      WHEN SQLSTATE 'P0999' THEN n_written := SQLERRM::int;
+      WHEN others THEN n_written := 999;
+    END;
+    INSERT INTO _rls_results(phase,scenario,tbl,check_kind,expected,actual,status)
+    VALUES (p_phase,'A gerente',c.tbl,'NAO apaga na Loja de outra Conta',0,n_written,
+            CASE WHEN n_written = 0 THEN 'ok' ELSE 'FAIL' END);
+
+    -- (3c) O WITH CHECK do INSERT, nas tres tabelas sem FK complicada.
     --      Aceita na Loja filha, recusa na Loja alheia.
-    IF c.tbl IN ('contacts','tags') THEN
+    IF c.tbl IN ('contacts','tags','quick_replies') THEN
       ins_ok := false;
       BEGIN
         IF c.tbl = 'contacts' THEN
           INSERT INTO public.contacts (tenant_id,phone,name)
           VALUES ('11111111-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSIF c.tbl = 'quick_replies' THEN
+          INSERT INTO public.quick_replies (tenant_id,name,content)
+          VALUES ('11111111-0000-4000-8000-000000000002','FIX ger filha '||p_phase,'x');
         ELSE
           INSERT INTO public.tags (tenant_id,name)
           VALUES ('11111111-0000-4000-8000-000000000002','FIX invasor '||p_phase);
@@ -384,6 +432,9 @@ BEGIN
         IF c.tbl = 'contacts' THEN
           INSERT INTO public.contacts (tenant_id,phone,name)
           VALUES ('22222222-0000-4000-8000-000000000002','5511'||floor(random()*1e9)::text,'FIX invasor');
+        ELSIF c.tbl = 'quick_replies' THEN
+          INSERT INTO public.quick_replies (tenant_id,name,content)
+          VALUES ('22222222-0000-4000-8000-000000000002','FIX invasor B '||p_phase,'x');
         ELSE
           INSERT INTO public.tags (tenant_id,name)
           VALUES ('22222222-0000-4000-8000-000000000002','FIX invasor B '||p_phase);
@@ -482,6 +533,7 @@ SELECT pg_temp.chk('1-intacto');
 RESET ROLE;
 DELETE FROM public.contacts WHERE name = 'FIX invasor';
 DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
+DELETE FROM public.quick_replies WHERE name LIKE 'FIX ger filha%';
 -- Nao ha limpeza de storage.objects: o gatilho storage.protect_delete() proibe
 -- DELETE direto nessas tabelas ("Use the Storage API instead"). Nao e preciso -
 -- o nome do objeto carrega a fase ('FIXSTORAGE-1-intacto' x '...-2-sabotado'),
@@ -506,6 +558,9 @@ DELETE FROM public.tags WHERE name LIKE 'FIX invasor%';
 --
 --    Esperado: falhas SO em `contacts`, na leitura e na escrita alheia.
 --    Medido em 2026-09-09: 237 ok / 0 falhas -> 228 ok / 9 falhas.
+--    Medido em 2026-09-17 (com os checks de DELETE): 251 ok / 0 falhas na
+--    fase intacta, e 251 ok de novo numa segunda rodada da MESMA bateria -
+--    prova de que o check de DELETE nao consome as fixtures.
 --    (7 em `contacts` + 1 em cada bucket: `whatsapp-media` e `bug-reports`)
 --
 --    Repare no que a sabotagem NAO derruba: 'INSERT alheio recusado' da matriz

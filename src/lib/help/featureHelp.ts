@@ -923,6 +923,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     tips: [
       'A escrita de variável é a mesma do chatbot e das automações: chave simples, {first_name}. O que o sistema não reconhecer fica na mensagem do jeito que você escreveu.',
       'A lista mostra quem criou e quem editou por último. Como todo cargo pode mexer, é assim que o time sabe a quem perguntar antes de mudar um texto.',
+      'Como Gerente, a resposta vai para a Loja que está aberta no seletor, não para a sua Conta. Escolha a Loja antes de criar: é a equipe dela que vai ver o trecho.',
       'Apagar pede confirmação e vale para a Loja inteira. Não dá para desfazer.',
       'Dois trechos não podem ter o mesmo nome na mesma Loja: numa lista onde se escolhe pelo nome, o repetido só atrapalha.',
       'As automações também usam esta lista: a ação "Enviar Mensagem" escolhe uma resposta rápida daqui.',
