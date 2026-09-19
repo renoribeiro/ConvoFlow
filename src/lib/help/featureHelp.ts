@@ -836,6 +836,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Confirme que o status ficou "Conectado" antes de configurar chatbot ou campanha.',
       'Confira o webhook, que é o que faz as mensagens chegarem em tempo real. Na API Oficial ele é configurado uma única vez para a instalação inteira, não a cada número.',
       'Errou o nome? Use o lápis ao lado da instância para renomear. Muda só o rótulo que aparece nas telas; a conexão, as conversas e o número continuam os mesmos. Gerente e Gestor renomeiam; Atendente não vê o botão.',
+      'A lixeira exclui a instância, e só funciona em instância VAZIA. Ao abrir, a janela confere e mostra quantas conversas, mensagens, contatos, chatbots, sessões de chatbot, campanhas e follow-ups dependem dela. Se qualquer número for maior que zero, a exclusão é recusada e não há como forçar: apagar a instância apagaria tudo isso, sem volta. Gerente e Gestor veem a lixeira; Atendente não. O Gerente também exclui nas Lojas da Conta dele.',
+      'Quer usar o número de novo, trocar de provedor ou refazer a conexão? Isso é reconectar, não excluir. A reconexão sem perder o histórico está a caminho; até lá, escreva para contato@convoflow.com.br antes de mexer. Excluir e criar de novo é exatamente o caminho que perde o histórico.',
     ],
     example:
       'A imobiliária liga o número do plantão como uma instância e o do comercial como outra. O chatbot de triagem fica publicado só no número do plantão.',
@@ -847,6 +849,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Na API Oficial, quem cobra as conversas é a Meta, e ela cobra você, não o ConvoFlow. O cartão fica no seu portfólio empresarial da Meta, o mesmo em que a conta do WhatsApp Business foi criada. Sem forma de pagamento válida lá, as mensagens param de sair mesmo com o número "Conectado" aqui. Os valores atuais estão na página da Meta: developers.facebook.com/docs/whatsapp/pricing.',
       'Na API Oficial, o Verify Token que a Meta valida não é pedido no formulário: é um token único da instalação, guardado como secret no Supabase e configurado uma vez por quem opera a plataforma. Pelos campos manuais, você só informa Phone Number ID, WABA ID e Access Token; pelo botão "Conectar com a Meta", nem isso.',
       'Você nunca precisa de endereço de servidor nem de chave de API para ligar um número pela Evolution. Se alguma tela pedir isso na Evolution, é engano: fale com quem opera a plataforma. Na WAHA é o contrário: o servidor é seu, então URL e chave são pedidos mesmo.',
+      'O que excluir uma instância vazia faz em cada provedor: na Evolution, a sessão é encerrada e a instância some do servidor da plataforma; na WAHA, a sessão é apagada no seu servidor; na API Oficial, nada muda na Meta (o número continua registrado lá e o app continua inscrito na conta do WhatsApp Business), o que some é o vínculo aqui e o token guardado no cofre. Em todos, os registros de webhook da instância vão junto.',
     ],
     category: 'tela',
     area: 'Configuração',

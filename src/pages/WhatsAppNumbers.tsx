@@ -671,15 +671,20 @@ export default function WhatsAppNumbers() {
                         </Button>
                       )}
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(instance)}
-                        className="text-red-600 hover:text-red-700"
-                        title="Excluir instância"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Mesma cortesia do lápis: o bloqueio real é a RPC
+                          delete_whatsapp_instance (recusa sem whatsapp.configure
+                          e com histórico), não este `if`. */}
+                      {canConfigure && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(instance)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Excluir instância"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

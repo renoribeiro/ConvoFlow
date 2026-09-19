@@ -25,7 +25,6 @@ interface UseEvolutionApiReturn {
     webhookUrl?: string,
     options?: CreateInstanceOptions,
   ) => Promise<any>;
-  deleteInstance: (instanceName: string) => Promise<void>;
   connectInstance: (instanceName: string) => Promise<{ pairingCode: string; code: string; count: number; base64?: string }>;
   disconnectInstance: (instanceName: string) => Promise<void>;
   getQRCode: (instanceName: string) => Promise<string | null>;
@@ -240,118 +239,12 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     }
   };
 
-  const deleteInstance = async (instanceName: string) => {
-    // If service is available, delete from API. Else just DB.
-    try {
-      setLoading(true);
-
-      if (service) {
-        try {
-          await service.deleteInstance(instanceName);
-        } catch (e) {
-          console.warn("Failed to delete from API, removing from DB anyway", e);
-        }
-      }
-
-      // Delete from database — get tenant_id first for safe filtering
-      const { data: { user } } = await supabase.auth.getUser();
-      let tenantId: string | null = null;
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('tenant_id')
-          .eq('user_id', user.id)
-          .single();
-        tenantId = profile?.tenant_id || null;
-      }
-
-      // Get the instance ID first to nullify foreign keys
-      const { data: instanceRow } = await supabase
-        .from('whatsapp_instances')
-        .select('id')
-        .eq('instance_key', instanceName)
-        .eq('tenant_id', tenantId!)
-        .single();
-
-      if (instanceRow && tenantId) {
-        // Delete records from tables that reference whatsapp_instance_id.
-        // webhook_configuration_attempts and webhook_logs have ON DELETE CASCADE,
-        // so they are cleaned up automatically when the instance row is deleted.
-        // Each delete is independent — partial failures are logged but don't block the process.
-        const tablesToDelete = [
-          { table: 'messages', label: 'Mensagens' },
-          { table: 'mass_message_campaigns', label: 'Campanhas' },
-          { table: 'follow_up_sequences', label: 'Follow-ups' },
-          { table: 'conversations', label: 'Conversas' },
-        ] as const;
-
-        for (const { table, label } of tablesToDelete) {
-          const { error: delErr } = await supabase
-            .from(table)
-            .delete()
-            .eq('whatsapp_instance_id', instanceRow.id)
-            .eq('tenant_id', tenantId);
-          if (delErr) {
-            console.warn(`[deleteInstance] Falha ao remover ${label} (${table}):`, delErr.message);
-          }
-        }
-
-        // Nullify FK on tables where the column IS nullable
-        const tablesToNullify = [
-          { table: 'contacts', label: 'Contatos' },
-          { table: 'chatbots', label: 'Chatbots' },
-        ] as const;
-
-        for (const { table, label } of tablesToNullify) {
-          const { error: updErr } = await supabase
-            .from(table)
-            .update({ whatsapp_instance_id: null })
-            .eq('whatsapp_instance_id', instanceRow.id)
-            .eq('tenant_id', tenantId);
-          if (updErr) {
-            console.warn(`[deleteInstance] Falha ao desvincular ${label} (${table}):`, updErr.message);
-          }
-        }
-      }
-
-      const deleteQuery = supabase
-        .from('whatsapp_instances')
-        .delete()
-        .eq('instance_key', instanceName);
-
-      // Add tenant_id filter for safety if available
-      if (tenantId) {
-        deleteQuery.eq('tenant_id', tenantId);
-      }
-
-      const { error: deleteError } = await deleteQuery;
-      if (deleteError) {
-        console.error('Failed to delete instance from DB:', deleteError);
-        throw deleteError;
-      }
-
-      // Refresh internal state
-      await refreshInstances();
-
-      // Invalidate React Query cache so the WhatsAppNumbers page refreshes
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
-
-      toast({
-        title: "Sucesso",
-        description: "Instância removida com sucesso",
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao remover instância';
-      toast({
-        title: "Erro",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  // A exclusão de instância NÃO mora mais aqui. O laço antigo (apagar
+  // messages/campanhas/conversas do navegador, cada erro ignorado, e a linha
+  // por último) deixava um atendente apagar 2.622 mensagens sem conseguir
+  // apagar a instância — e ver "sucesso". Hoje é a RPC delete_whatsapp_instance
+  // (recusa com histórico, uma transação) via edge function
+  // delete-whatsapp-instance. Ver DeleteInstanceModal.
 
   const connectInstance = async (instanceName: string): Promise<{ pairingCode: string; code: string; count: number }> => {
     if (!service) throw new Error('Serviço Evolution API não inicializado');
@@ -586,7 +479,6 @@ export const useEvolutionApi = (): UseEvolutionApiReturn => {
     loading,
     error,
     createInstance,
-    deleteInstance,
     connectInstance,
     disconnectInstance,
     getQRCode,

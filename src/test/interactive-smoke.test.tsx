@@ -148,7 +148,27 @@ vi.mock('@/integrations/supabase/client', () => {
   return {
     supabase: {
       from: vi.fn(() => builder()),
-      rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      rpc: vi.fn((nome: string) =>
+        Promise.resolve({
+          // O modal de excluir instância chama esta RPC ao abrir e trata
+          // resposta sem `ok` como erro (e loga). No smoke a instância
+          // "guarda histórico": a exclusão é recusada e o botão nem aparece.
+          data:
+            nome === 'whatsapp_instance_delete_preview'
+              ? {
+                  ok: false,
+                  reason: 'has_history',
+                  total: 3,
+                  counts: {
+                    conversations: 1, messages: 2, contacts: 0, chatbots: 0,
+                    chatbot_sessions: 0, campaigns: 0, followups: 0,
+                    followup_enrollments: 0, followup_sequences: 0,
+                  },
+                }
+              : [],
+          error: null,
+        }),
+      ),
       channel: vi.fn(() => ({
         on: vi.fn().mockReturnThis(),
         subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })),
