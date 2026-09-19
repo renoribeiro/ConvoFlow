@@ -69,6 +69,11 @@ export const OfficialApiForm = ({ values, onChange, loading, onSignupSuccess }: 
             Clique abaixo para conectar sua conta WhatsApp Business diretamente via Meta, sem
             precisar copiar IDs ou tokens manualmente.
           </p>
+          <p className="text-xs text-blue-800">
+            Número que já está cadastrado aqui? O mesmo botão <strong>reconecta</strong>: o
+            ConvoFlow reconhece o número, atualiza a instância no lugar e o histórico fica onde
+            está. Não exclua a instância para reconectar.
+          </p>
           <Button
             type="button"
             className="w-full bg-blue-700 hover:bg-blue-800 text-white"
