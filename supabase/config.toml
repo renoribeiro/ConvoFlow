@@ -44,6 +44,12 @@ verify_jwt = true
 # se autentica por apikey: lá verify_jwt tem de ser false.)
 verify_jwt = true
 
+[functions.delete-whatsapp-instance]
+# Exclui uma instância: chama a RPC delete_whatsapp_instance como o usuário
+# (recusa com histórico, uma transação) e depois encerra a sessão no provedor
+# com a chave global da Evolution. Sessão autenticada, então exige JWT.
+verify_jwt = true
+
 [functions.meta-oauth-exchange]
 # Completes the Embedded Signup OAuth flow (code -> token -> WABA subscribe ->
 # instance creation). Called from an authenticated user session, so JWT

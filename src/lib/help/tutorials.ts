@@ -175,6 +175,8 @@ export const TUTORIALS: Tutorial[] = [
           'Mande uma mensagem de outro celular para o número conectado e confirme que ela aparece em Conversas. Depois responda por ali e veja chegar. Enquanto isso não acontecer, a conexão não está completa. "Testar conexão Meta", na linha da instância, ajuda a achar onde parou.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
+        note:
+          'Se algo travou, não exclua a instância para recomeçar: assim que a primeira conversa entra, a lixeira passa a recusar a exclusão, porque apagar a instância apagaria o histórico. Escreva para contato@convoflow.com.br e descreva onde parou.',
       },
       {
         title: 'Só se você já tem app próprio na Meta: preencha os campos manuais',
