@@ -274,9 +274,22 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
                 <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
                   <li>
                     Quer usar este número de novo, ou trocar a conexão? Isso é <strong>reconectar</strong>, não
-                    excluir. A reconexão sem perder o histórico está chegando; até lá, escreva para{' '}
-                    <a className="underline" href={`mailto:${SUPORTE_EMAIL}`}>{SUPORTE_EMAIL}</a> antes de
-                    mexer.
+                    excluir.{' '}
+                    {instance.provider === 'official' ? (
+                      <>
+                        Feche esta janela, clique em "Nova Instância" › "API Oficial do WhatsApp" › "Conectar
+                        com a Meta" e escolha este mesmo número: o ConvoFlow o reconhece, atualiza a instância
+                        no lugar e o histórico fica. Se a reconexão recusar, escreva para{' '}
+                        <a className="underline" href={`mailto:${SUPORTE_EMAIL}`}>{SUPORTE_EMAIL}</a> antes de
+                        mexer.
+                      </>
+                    ) : (
+                      <>
+                        Use "Conectar" (QR Code) na linha da instância. Se quiser trocar de provedor, escreva
+                        para <a className="underline" href={`mailto:${SUPORTE_EMAIL}`}>{SUPORTE_EMAIL}</a>{' '}
+                        antes de mexer.
+                      </>
+                    )}
                   </li>
                   {(!instance.provider || instance.provider === 'evolution') && (
                     <li>Quer só parar de receber por este número? Use "Desconectar" na linha da instância; o histórico fica.</li>

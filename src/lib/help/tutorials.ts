@@ -148,9 +148,9 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Dê um nome à instância e clique em "Conectar com a Meta"',
         body:
-          'O nome é só o rótulo que aparece nas telas (ex.: "WhatsApp Vendas Oficial"). Se deixar vazio, o ConvoFlow usa o nome verificado que a Meta devolver para o número. O botão abre uma janela da própria Meta: é ela que faz a conexão, e você não copia código nem chave nenhuma.',
+          'O nome é só o rótulo que aparece nas telas (ex.: "WhatsApp Vendas Oficial"). Se deixar vazio, o ConvoFlow usa o nome verificado que a Meta devolver para o número. O botão abre uma janela da própria Meta: é ela que faz a conexão, e você não copia código nem chave nenhuma. Gerente: a instância nasce na Conta ou Loja escolhida no seletor do topo; confira antes de clicar.',
         note:
-          'Se o botão estiver cinza, esta instalação não tem a conexão automática configurada, e o caminho é o do último passo, com os campos manuais.',
+          'Se o botão estiver cinza, esta instalação não tem a conexão automática configurada, e o caminho é o do último passo, com os campos manuais. Para RECONECTAR um número que já está na lista (trocar o app da Meta, renovar a conexão), o caminho é este mesmo botão: escolha o mesmo número na janela da Meta e deixe o nome em branco. O ConvoFlow reconhece o número e atualiza a instância no lugar, sem mexer no histórico.',
       },
       {
         title: 'Siga a janela da Meta até o fim',
@@ -162,7 +162,9 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'Confira o que volta para o ConvoFlow',
         body:
-          'Quando a Meta termina, aparece o aviso "Conta Meta conectada", a janela fecha e a instância entra na lista com o selo "Oficial", o número e o status "Conectado". Nos bastidores o ConvoFlow já inscreveu o número na API e o registrou para envio.',
+          'Quando a Meta termina, aparece o aviso "Conta Meta conectada", a janela fecha e a instância entra na lista com o selo "Oficial", o número e o status "Conectado". Nos bastidores o ConvoFlow já inscreveu o número na API e o registrou para envio. Numa reconexão o aviso é "Número reconectado": a instância continua a mesma na lista, com o histórico no lugar, e o registro do número não é refeito.',
+        note:
+          'Se aparecer "Este número já está conectado em outra Conta ou Loja que você não administra", nada foi alterado e a Meta nem chegou a ser chamada: o número existe no ConvoFlow em uma Conta ou Loja fora do seu alcance. Se ele é seu, escreva para contato@convoflow.com.br.',
       },
       {
         title: 'Se o número já tinha verificação em duas etapas, digite o PIN',
