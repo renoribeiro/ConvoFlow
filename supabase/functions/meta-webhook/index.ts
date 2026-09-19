@@ -4,6 +4,7 @@ import { createLogger } from '../_shared/logger.ts';
 import { applyReplyCancellations } from '../_shared/followup-reply.ts';
 import { corsHeaders, DataSanitizer } from '../_shared/validation.ts';
 import { verifyMetaSignatureAny, matchVerifyToken } from '../_shared/cryptoSignature.ts';
+import { appSlotName, isDuplicateInsertError, summarizeDelivery, type MetaAppSlot } from '../_shared/meta-webhook-delivery.ts';
 import { ProviderFactory } from '../_shared/provider-factory.ts';
 import { MetaProvider } from '../_shared/whatsapp-providers/meta.ts';
 import {
@@ -172,6 +173,13 @@ serve(async (req) => {
       });
     }
 
+    // UM log por entrega dizendo QUAL app assinou. É o que responde "o app
+    // antigo já parou de entregar?" durante uma troca de app (ver o cabeçalho
+    // e _shared/meta-webhook-delivery.ts). Nunca o conteúdo, só contagens.
+    const app = appSlotName(signedBy);
+    const summary = summarizeDelivery(payload);
+    logger.info('Meta webhook delivery', { app, ...summary });
+
     const entries: any[] = Array.isArray(payload.entry) ? payload.entry : [];
 
     for (const entry of entries) {
@@ -214,13 +222,13 @@ serve(async (req) => {
         // Incoming messages
         const messages: any[] = Array.isArray(value.messages) ? value.messages : [];
         for (const msg of messages) {
-          await handleIncomingMessage(supabase, instance, msg, logger);
+          await handleIncomingMessage(supabase, instance, msg, logger, app);
         }
 
         // Delivery / read statuses
         const statuses: any[] = Array.isArray(value.statuses) ? value.statuses : [];
         for (const status of statuses) {
-          await handleStatusUpdate(supabase, status, logger);
+          await handleStatusUpdate(supabase, status, logger, app);
         }
       }
     }
@@ -296,6 +304,7 @@ async function handleIncomingMessage(
   },
   msg: any,
   logger: ReturnType<typeof createLogger>,
+  app: MetaAppSlot | 'unknown' = 'unknown',
 ) {
   const rawPhone: string = msg.from || '';
   const phone = DataSanitizer.sanitizePhoneNumber(rawPhone);
@@ -326,7 +335,7 @@ async function handleIncomingMessage(
   if (dedupError) {
     logger.warn('Meta dedup lookup failed, proceeding anyway', { error: dedupError.message });
   } else if (existing) {
-    logger.info('Meta message already processed, skipping', { id: messageId });
+    logger.info('Meta message already processed, skipping', { id: messageId, app });
     return;
   }
 
@@ -335,14 +344,37 @@ async function handleIncomingMessage(
   // an instance filter missed contacts whose whatsapp_instance_id is null or set
   // to another instance (e.g. created before this instance existed), which
   // silently prevented the v2 engine from ever being invoked.
-  const { data: rpcResult } = await supabase.rpc('process_incoming_message', {
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('process_incoming_message', {
     p_phone: phone,
     p_message_content: content,
     p_whatsapp_instance_id: instance.id,
     p_evolution_message_id: messageId,
   });
 
-  logger.info('Meta message processed', { id: messageId, type: msg.type });
+  if (isDuplicateInsertError(rpcError)) {
+    // Duas entregas do mesmo wamid (dois apps inscritos na mesma WABA, ou
+    // retry da Meta) passaram pelo SELECT acima ao mesmo tempo; esta perdeu
+    // a corrida no índice único. A linha já existe — e o bot já foi chamado
+    // pela entrega que ganhou. Parar aqui é o que evita a resposta em dobro.
+    logger.info('Meta message duplicate delivery lost the race, skipping side effects', {
+      id: messageId,
+      app,
+      phoneNumberId: instance.connection_config?.phoneNumberId ?? null,
+    });
+    return;
+  }
+  if (rpcError) {
+    // Comportamento de sempre para qualquer outro erro: segue para o bot pelo
+    // fallback de contato. Só ganhou um log, que antes não existia.
+    logger.warn('process_incoming_message failed (continuing)', { id: messageId, app, error: rpcError.message });
+  }
+
+  logger.info('Meta message processed', {
+    id: messageId,
+    type: msg.type,
+    app,
+    phoneNumberId: instance.connection_config?.phoneNumberId ?? null,
+  });
 
   // CTWA ad referral: Meta anexa `referral` à PRIMEIRA mensagem quando o lead chega
   // clicando num anúncio Click-to-WhatsApp (Face/Insta). O insert da mensagem é feito
@@ -452,6 +484,7 @@ async function handleStatusUpdate(
   supabase: ReturnType<typeof createClient>,
   status: any,
   logger: ReturnType<typeof createLogger>,
+  app: MetaAppSlot | 'unknown' = 'unknown',
 ) {
   const messageId: string | undefined = status.id;
   const metaStatus: string | undefined = status.status;
@@ -465,7 +498,7 @@ async function handleStatusUpdate(
     .update({ status: normalized })
     .eq('evolution_message_id', messageId);
 
-  logger.info('Meta message status updated', { id: messageId, status: normalized });
+  logger.info('Meta message status updated', { id: messageId, status: normalized, app });
 
   // Campaign delivery/read tracking (additive, isolated — never disrupt status handling).
   // The wamid we stored as campaign_executions.provider_message_id on send equals status.id.
