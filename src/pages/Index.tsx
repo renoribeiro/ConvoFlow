@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageCircle, UserPlus, TrendingUp, Timer, Send, ChevronDown } from 'lucide-react';
+import { MessageCircle, UserPlus, TrendingUp, Send, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
   Collapsible,
@@ -12,6 +12,7 @@ import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { OnboardingTutorialsCard } from '@/components/dashboard/OnboardingTutorialsCard';
 import { EnhancedMetricCard } from '@/components/dashboard/EnhancedMetricCard';
 import { AttentionPanel } from '@/components/dashboard/AttentionPanel';
+import { AttendanceMetrics } from '@/components/dashboard/AttendanceMetrics';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
 import { FunnelMini } from '@/components/dashboard/FunnelMini';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
@@ -61,13 +62,6 @@ const Index = () => {
       href: '/dashboard/funnel',
     },
     {
-      title: 'Tempo Médio de Resposta',
-      value: `${kpis.avgResponseTime.value.toFixed(1)} min`,
-      icon: <Timer />,
-      metric: kpis.avgResponseTime,
-      lojaWide: true,
-    },
-    {
       title: 'Mensagens Enviadas',
       value: numberFmt.format(kpis.messagesSent.value),
       icon: <Send />,
@@ -84,8 +78,10 @@ const Index = () => {
           Único ponto de descoberta dos tutoriais no produto. */}
       <OnboardingTutorialsCard />
 
-      {/* Seção 2 — KPI cards com sparkline + variação */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {/* Seção 2 — KPI cards com sparkline + variação. O "Tempo Médio de
+          Resposta" saiu daqui: misturava bot e pessoa. Virou a seção
+          Atendimento, logo abaixo, com os dois números separados. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card, i) => (
           <EnhancedMetricCard
             key={card.title}
@@ -99,6 +95,10 @@ const Index = () => {
           />
         ))}
       </div>
+
+      {/* Seção 2.5 — Atendimento: 1ª resposta do bot × de uma pessoa (medianas),
+          esperando agora, sem resposta de pessoa, bot participou, duração. */}
+      <AttendanceMetrics period={period} />
 
       {/* Seção 3 — Precisa de Atenção */}
       <AttentionPanel />

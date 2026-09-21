@@ -424,12 +424,15 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Escolha o período no topo (Hoje, 7 dias, 30 dias ou uma faixa personalizada). O resto da tela segue essa escolha.',
       'Comece pelo painel "Precisa de Atenção": é onde estão as conversas e os leads parados.',
       'Clique em um cartão de métrica para ir direto à tela correspondente (Conversas, Contatos, Funil).',
+      'Na seção "Atendimento", leia os dois tempos de resposta como coisas diferentes: "1ª resposta do bot" é quanto o cliente espera pela primeira mensagem automática; "1ª resposta de uma pessoa" é quanto ele espera até alguém do time responder de verdade. Um não entra no outro. Os dois são medianas, isto é, na metade das conversas o tempo foi até aquele valor. A média foi trocada de propósito, porque meia dúzia de conversas esquecidas por dias puxavam o número para longe do que acontece de fato.',
+      'Ainda em "Atendimento": "Esperando uma pessoa agora" conta as conversas em que o cliente falou por último e ninguém do time respondeu, com quantas delas não têm responsável; "Sem resposta de pessoa" conta as conversas do período em que só o bot falou (ou ninguém). Campanha, follow-up e chatbot não contam como resposta de pessoa.',
       'Abra "Análise detalhada" no fim da página para ver origem dos leads e desempenho das automações.',
     ],
     example:
-      'Você abre o dia em "7 dias", vê a Taxa de Conversão cair de 12% para 7% e o painel de atenção apontando conversas sem resposta há horas. Distribuir essas conversas passa a ser a primeira tarefa.',
+      'Você abre o dia em "7 dias": o bot responde em 6 segundos, mas a 1ª resposta de uma pessoa está em 2 horas e há 90 conversas esperando alguém, quase todas sem responsável. Distribuir essas conversas passa a ser a primeira tarefa.',
     tips: [
-      'Em imobiliária, o Tempo Médio de Resposta é a métrica que mais move venda: o lead de portal fala com três corretores e fecha com quem responde primeiro.',
+      'Em imobiliária, a 1ª resposta de uma pessoa é a métrica que mais move venda: o lead de portal fala com três corretores e fecha com quem responde primeiro. O bot responder rápido não substitui isso.',
+      'Os números de atendimento olham conversas iniciadas no período escolhido; só "Esperando uma pessoa agora" é retrato de hoje, seja qual for o período.',
       'A tela se atualiza sozinha a cada 30 segundos. Não precisa recarregar.',
       'Como Gerente ou Superadmin você troca a Conta em foco pelo seletor do topo. Como Gestor ou Atendente, você vê sempre a sua Loja.',
       'Gerente: ao escolher uma Loja no seletor, os dados dela aparecem: conversas, contatos, funil, campanhas. Você atende junto na caixa de entrada (responder, editar contato, marcar etiqueta); nas demais telas da Loja a visão é de acompanhamento, sem edição.',
