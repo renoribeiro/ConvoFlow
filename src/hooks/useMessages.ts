@@ -20,6 +20,13 @@ interface Message {
   is_from_bot: boolean;
   source: string | null;
   campaign_id: string | null;
+  /**
+   * Quem enviou (profiles.id), preenchido SÓ pelo banco (trigger
+   * trg_set_message_sender, migração 20260921000004) a partir da sessão de
+   * quem inseriu; o que o cliente mandar é sobrescrito. NULL em bot, campanha,
+   * follow-up, webhook, histórico importado e em tudo anterior a 2026-09-21.
+   */
+  sender_profile_id?: string | null;
   /** CTWA ad referral (Meta) on the first inbound message from a Click-to-WhatsApp ad. */
   ad_referral?: Record<string, unknown> | null;
 }

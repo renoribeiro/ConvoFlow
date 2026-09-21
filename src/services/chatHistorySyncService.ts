@@ -17,6 +17,19 @@ import { logger } from '../lib/logger';
 
 const MESSAGES_PER_CHAT = 20;
 
+/**
+ * `messages.source` das linhas importadas do histórico do Evolution. As
+ * mensagens `fromMe` antigas entram pela sessão de quem clicou em sincronizar,
+ * com is_from_bot false — e o banco define "resposta humana" como outbound,
+ * não-bot, `source IS NULL` (trg_set_message_sender, trg_record_conversation_
+ * participant, response_rule_turn_start). Sem esta origem, quem sincronizou
+ * seria registrado como autor e participante de todo o histórico importado.
+ * Com ela, o histórico entra sem dono (o que ele é) e não conta como resposta
+ * humana nas métricas. Convive com 'campaign' / 'chatbot' / 'followup' /
+ * 'automation' (20260605120010) e não ganha selo na bolha (OriginBadge).
+ */
+export const HISTORY_SYNC_SOURCE = 'history_sync';
+
 export interface SyncProgress {
   phase: 'idle' | 'fetching_chats' | 'syncing_messages' | 'done' | 'error';
   totalChats: number;
@@ -464,6 +477,10 @@ export async function syncChatHistory(
             evolution_message_id: msgId,
             status: fromMe ? 'sent' : 'received',
             is_from_bot: false,
+            // Histórico importado: sem esta origem, quem clicou em sincronizar
+            // viraria AUTOR (messages.sender_profile_id) e PARTICIPANTE de toda
+            // conversa importada — os dois triggers pulam linhas com `source`.
+            source: HISTORY_SYNC_SOURCE,
             created_at: timestamp || new Date().toISOString(),
           });
         }
@@ -657,6 +674,8 @@ export async function syncSingleChat(
         evolution_message_id: msgId,
         status: fromMe ? 'sent' : 'received',
         is_from_bot: false,
+        // Mesma origem da sincronização completa: ver HISTORY_SYNC_SOURCE.
+        source: HISTORY_SYNC_SOURCE,
         created_at: timestamp,
       });
     }

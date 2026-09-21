@@ -2638,6 +2638,7 @@ export type Database = {
           is_from_bot: boolean | null
           media_url: string | null
           message_type: string
+          sender_profile_id: string | null
           source: string | null
           status: string | null
           tenant_id: string
@@ -2656,6 +2657,7 @@ export type Database = {
           is_from_bot?: boolean | null
           media_url?: string | null
           message_type: string
+          sender_profile_id?: string | null
           source?: string | null
           status?: string | null
           tenant_id: string
@@ -2674,6 +2676,7 @@ export type Database = {
           is_from_bot?: boolean | null
           media_url?: string | null
           message_type?: string
+          sender_profile_id?: string | null
           source?: string | null
           status?: string | null
           tenant_id?: string
@@ -2713,6 +2716,13 @@ export type Database = {
             columns: ["whatsapp_instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_profile_id_fkey"
+            columns: ["sender_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
