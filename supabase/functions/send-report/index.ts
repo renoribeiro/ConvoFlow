@@ -58,6 +58,13 @@ interface ReportRequest {
   frequency?: string;
   format?: string;
   metrics?: string[];
+  /**
+   * A Loja aberta no seletor (tenant.id do TenantContext). Sem ela o relatório
+   * saía SEMPRE da Conta do perfil de quem clicou: um gerente olhando uma Loja
+   * filha recebia os números da própria Conta — zeros. Revalidada no servidor
+   * por resolveReportTenant: só a própria Conta ou uma Loja filha do gerente.
+   */
+  tenant_id?: string | null;
   filters?: { dateRange?: string; campaigns?: string[]; contacts?: string[]; status?: string[] };
   delivery?: { email?: boolean; whatsapp?: boolean; recipients?: string[] | string };
 }
@@ -96,6 +103,37 @@ async function getCaller(
   if (requireActive && profile.status && profile.status !== 'active') throw new SecureError('Conta suspensa ou inativa', 'INACTIVE', 403);
   if (requireTenant && !profile.tenant_id) throw new SecureError('Usuário sem tenant associado', 'NO_TENANT', 403);
   return profile as CallerProfile;
+}
+
+// Cargos que administram Lojas filhas — o mesmo conjunto de is_account_manager_safe().
+const GERENTE_ROLES = new Set(['gerente', 'agencia', 'account_manager']);
+
+/**
+ * A Loja de que o relatório sai. O agendado já segue a Loja da agenda
+ * (report_schedules.tenant_id); o interativo passa a seguir a Loja aberta no
+ * seletor — mas nunca só por dizer: um gerente só alcança a própria Conta e as
+ * Lojas cuja `parent_tenant_id` é a Conta dele (o mesmo teste de
+ * canUseActiveTenant no cliente e de gerente_child_store_ids no banco). Todo
+ * mundo mais só pode pedir a própria Conta. Pedido fora do alcance é 403, não
+ * silêncio: silêncio era o bug.
+ */
+async function resolveReportTenant(
+  admin: SupabaseClient,
+  caller: CallerProfile,
+  requested: string | null | undefined,
+): Promise<string> {
+  const own = caller.tenant_id!;
+  if (!requested || requested === own) return own;
+  if (GERENTE_ROLES.has(String(caller.role))) {
+    const { data, error } = await admin
+      .from('tenants')
+      .select('id')
+      .eq('id', requested)
+      .eq('parent_tenant_id', own)
+      .maybeSingle();
+    if (!error && data) return requested;
+  }
+  throw new SecureError('A Loja pedida não está no seu alcance.', 'TENANT_FORBIDDEN', 403);
 }
 
 // Instância de WhatsApp de envio do sistema (definida pelo super admin).
@@ -400,6 +438,9 @@ Deno.serve(async (req) => {
 
     caller = await getCaller(admin, token);
     body = rawBody as ReportRequest;
+    // A Loja aberta no seletor, revalidada. Fica em `caller.tenant_id` para o
+    // resto do fluxo (montagem, report_executions e o catch) usar UMA fonte.
+    caller.tenant_id = await resolveReportTenant(admin, caller, body.tenant_id);
 
     // Destinatários: separa e-mails de telefones a partir do mesmo campo.
     const rawRecipients = body.delivery?.recipients;

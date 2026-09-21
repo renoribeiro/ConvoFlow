@@ -34,6 +34,8 @@ export const useRealTimeUpdates = (options: RealTimeUpdateOptions = {}) => {
     queryClient.invalidateQueries({ queryKey: ['dashboard-charts'] });
     // Números da Loja inteira (loja_* RPCs, migração 20260914000001)
     queryClient.invalidateQueries({ queryKey: ['loja-stats'] });
+    // Por pessoa (loja_attendant_metrics, migração 20260921000002)
+    queryClient.invalidateQueries({ queryKey: ['attendant-metrics'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-attention'] });
     queryClient.invalidateQueries({ queryKey: ['recent-activity'] });
     queryClient.invalidateQueries({ queryKey: ['recent-messages'] });

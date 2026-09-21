@@ -424,12 +424,16 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Escolha o período no topo (Hoje, 7 dias, 30 dias ou uma faixa personalizada). O resto da tela segue essa escolha.',
       'Comece pelo painel "Precisa de Atenção": é onde estão as conversas e os leads parados.',
       'Clique em um cartão de métrica para ir direto à tela correspondente (Conversas, Contatos, Funil).',
+      'Na seção "Atendimento", leia os dois tempos de resposta como coisas diferentes: "1ª resposta do bot" é quanto o cliente espera pela primeira mensagem automática; "1ª resposta de uma pessoa" é quanto ele espera até alguém do time responder de verdade. Um não entra no outro. Os dois são medianas, isto é, na metade das conversas o tempo foi até aquele valor. A média foi trocada de propósito, porque meia dúzia de conversas esquecidas por dias puxavam o número para longe do que acontece de fato.',
+      'Ainda em "Atendimento": "Esperando uma pessoa agora" conta as conversas em que o cliente falou por último e ninguém do time respondeu, com quantas delas não têm responsável; "Sem resposta de pessoa" conta as conversas do período em que só o bot falou (ou ninguém). Campanha, follow-up e chatbot não contam como resposta de pessoa.',
+      'Como Gestor ou Gerente, você vê também a seção "Por atendente": quem está com cada conversa aberta agora, como ela chegou (assumiu, recebeu de colega ou automático), quantas esperam resposta e quantas vezes a regra de tempo tirou ou entregou conversa à pessoa. Isso é POSSE, não autoria: diz quem é o responsável, não quem escreveu. O aviso no topo da seção diz quantas conversas estão sem responsável e quantas delas esperam alguém — leia esse número antes da tabela, porque conversa sem dono não aparece na linha de ninguém. Quem saiu do time mas ainda tem conversa aparece com o motivo ao lado do nome, e o Gerente da Conta aparece marcado como "da Conta".',
       'Abra "Análise detalhada" no fim da página para ver origem dos leads e desempenho das automações.',
     ],
     example:
-      'Você abre o dia em "7 dias", vê a Taxa de Conversão cair de 12% para 7% e o painel de atenção apontando conversas sem resposta há horas. Distribuir essas conversas passa a ser a primeira tarefa.',
+      'Você abre o dia em "7 dias": o bot responde em 6 segundos, mas a 1ª resposta de uma pessoa está em 2 horas e há 90 conversas esperando alguém, quase todas sem responsável. Distribuir essas conversas passa a ser a primeira tarefa.',
     tips: [
-      'Em imobiliária, o Tempo Médio de Resposta é a métrica que mais move venda: o lead de portal fala com três corretores e fecha com quem responde primeiro.',
+      'Em imobiliária, a 1ª resposta de uma pessoa é a métrica que mais move venda: o lead de portal fala com três corretores e fecha com quem responde primeiro. O bot responder rápido não substitui isso.',
+      'Os números de atendimento olham conversas iniciadas no período escolhido; só "Esperando uma pessoa agora" é retrato de hoje, seja qual for o período.',
       'A tela se atualiza sozinha a cada 30 segundos. Não precisa recarregar.',
       'Como Gerente ou Superadmin você troca a Conta em foco pelo seletor do topo. Como Gestor ou Atendente, você vê sempre a sua Loja.',
       'Gerente: ao escolher uma Loja no seletor, os dados dela aparecem: conversas, contatos, funil, campanhas. Você atende junto na caixa de entrada (responder, editar contato, marcar etiqueta); nas demais telas da Loja a visão é de acompanhamento, sem edição.',
@@ -476,6 +480,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A Loja pode desligar a transferência para atendentes. Aí o botão "Transferir…" some para o atendente e o servidor recusa a tentativa; "Assumir" continua funcionando.',
       'Uma conversa sua pode mudar de responsável sozinha: se a Loja ligou a transferência por tempo sem resposta (Configurações › Escala/Transferência) e o cliente ficou esperando resposta de pessoa por mais minutos de funcionamento do que o limite, ela passa para o próximo do rodízio. Você percebe assim: ela sai de "Minhas" (e some da sua lista, se a Loja restringiu a visibilidade), e quem recebeu ganha o aviso "Conversa transferida para você" no sino. Não é erro nem punição: é a Loja garantindo que o cliente não fique sem resposta. Para segurar as suas, responda dentro do limite: resposta do bot não conta, só a sua. Se uma conversa chegar a você por esse caminho, o relógio recomeça do zero.',
       'Se duas pessoas clicarem em "Assumir" na mesma conversa quase ao mesmo tempo, só a primeira fica com ela. A segunda vê um aviso dizendo quem pegou, e a tela se atualiza.',
+      'Desde 21/09/2026 o sistema guarda quem enviou cada mensagem escrita por uma pessoa (texto, mídia, template e a primeira mensagem de uma conversa nova). Isso é gravado pelo próprio sistema a partir de quem está logado e não pode ser alterado depois. Mensagem do bot, de campanha, de follow-up, digitada direto no celular ou importada do histórico fica sem autor. As mensagens anteriores a essa data também não têm autor e nunca terão: não há como saber quem escreveu. Toda mudança de responsável (assumir, transferir, devolver, rodízio, regra de tempo, bloco do chatbot) também passa a ficar registrada a partir dessa data, com quem, de quem e como.',
       'As etiquetas e as pessoas são de cada Loja. Se você é Gerente e troca de Loja no seletor do topo, os filtros de etiqueta e de responsável são limpos sozinhos: as etiquetas e o time da outra Loja são outros, mesmo que tenham o mesmo nome.',
       'Conversas é privada por Loja: o Superadmin não abre esta tela de nenhuma Conta, nem entrando nela pelo seletor do topo, que aqui mostra "Exclusivo para lojas". Quem lê as conversas é o Atendente, o Gestor e o Gerente da Conta.',
       'Gerente atende as Lojas da própria Conta escolhendo a Loja no seletor do topo: abre o histórico, responde e marca como lida, igual ao Gestor. O que o Gerente não faz é apagar conversa ou contato de uma Loja.',
@@ -627,13 +632,14 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'Serve para prestar contas a quem não abre o sistema: o dono da imobiliária, o diretor, o cliente da agência. Você monta o recorte uma vez em vez de remontar planilha todo mês.',
     howToConfigure: [
-      'Escolha o período e o recorte: o relatório sai exatamente do que estiver selecionado.',
+      'Escolha o período: o relatório sai da Loja aberta no seletor, no período escolhido. O tipo (Campanhas, Conversas, Funil, Geral) muda só o título do e-mail; o conteúdo é sempre o mesmo.',
+      'Na segunda etapa você vê a lista do que vai no relatório. É a lista completa: contatos, conversas, mensagens, leads por estágio do funil e três números de atendimento da Loja inteira: a 1ª resposta de uma pessoa (mediana, isto é, na metade das conversas iniciadas no período alguém do time respondeu em até aquele tempo; não conta bot nem campanha), quantas conversas esperam uma pessoa agora (e quantas delas sem responsável) e quantas conversas do período ficaram sem resposta de pessoa. Não há nada para marcar ou desmarcar.',
       'Gere uma vez e confira os números na tela.',
       'Para repassar sozinho toda semana, abra a aba Agendamentos e crie um agendamento: nome, frequência, horário e os e-mails que recebem.',
       'Acompanhe a aba Entregas depois do primeiro disparo. É lá que aparece se o envio saiu ou falhou.',
     ],
     example:
-      'Relatório de segunda-feira com leads novos, conversas atendidas e negócios fechados por corretor, para o dono acompanhar a semana sem pedir print para ninguém.',
+      'Relatório de segunda-feira com leads novos, conversas novas, quanto tempo o cliente esperou por uma pessoa e quantas conversas ainda esperam alguém, para o dono acompanhar a semana sem pedir print para ninguém.',
     tips: [
       'O envio agendado é por e-mail. Não há envio recorrente por WhatsApp: no agendamento você informa endereços de e-mail, não telefones.',
       'O horário é o de Brasília e o disparo acontece na janela dos 5 minutos seguintes: marcar 09:00 significa receber entre 09:00 e 09:05.',
@@ -641,6 +647,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Antes de confiar em qualquer envio recorrente, faça um envio de teste para você mesmo.',
       'Relatório com número errado é pior que relatório nenhum: confira o recorte antes de programar o envio.',
       'Como Gerente, gere um relatório por Loja trocando a Conta em foco antes de gerar. O agendamento também é por Conta: cada Loja tem os seus.',
+      'O relatório não traz números por atendente, de propósito: ele vai para qualquer endereço de e-mail, e um atendente poderia receber os números dos colegas. Esses números ficam na seção "Por atendente" do Dashboard, só para Gestor e Gerente.',
+      'Mensagens enviadas incluem bot, campanha e follow-up. Os três números de atendimento, não: neles só conta resposta escrita por uma pessoa.',
     ],
     category: 'tela',
     area: 'Marketing',

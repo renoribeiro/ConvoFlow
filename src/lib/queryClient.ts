@@ -60,6 +60,13 @@ export const QUERY_KEYS = {
     CONVERSATION_ROTATION: 'conversation-rotation',
     INELIGIBLE_OWNERS: 'ineligible-owners',
     /**
+     * Métricas por pessoa, por posse (RPC loja_attendant_metrics), só para
+     * gestor/gerente. semiStatic (5 min): é o retrato da Loja para o
+     * Dashboard, e o painel já se atualiza sozinho a cada 30 s pelo
+     * useRealTimeUpdates, que invalida as chaves do Dashboard.
+     */
+    ATTENDANT_METRICS: 'attendant-metrics',
+    /**
      * Prévia da regra de tempo de resposta (RPC loja_response_rule_preview):
      * "com X minutos, quantas esperas dos últimos 30 dias teriam sido
      * transferidas". semiStatic (5 min): é histórico, e a chave carrega os

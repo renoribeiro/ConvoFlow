@@ -6,8 +6,6 @@ import {
   sumCounts,
   useLojaConversationCounts,
   useLojaMessageCounts,
-  useLojaResponseTime,
-  type LojaResponseTimeRow,
 } from './useLojaStats';
 
 /**
@@ -20,9 +18,12 @@ import {
  * migração 20260914000001: quando uma Loja restringe o que um atendente vê,
  * o RLS de `messages`/`conversations` devolve só o que é dele — e o Dashboard,
  * por decisão de produto, continua mostrando a Loja inteira. As funções
- * devolvem só contagens e médias por balde; a matemática aqui é a mesma de
- * antes (tempo de resposta = 1º inbound → 1º outbound seguinte, por conversa),
- * só que feita no banco em vez de sobre linhas baixadas.
+ * devolvem só contagens por balde; a matemática aqui é a mesma de antes, só
+ * que feita no banco em vez de sobre linhas baixadas.
+ *
+ * O tempo de resposta SAIU daqui (2026-09-21): o cartão único de "Tempo Médio
+ * de Resposta" misturava bot e pessoa (loja_response_time não distinguia) e
+ * usava média. Agora são dois números, em mediana, em `useAttendanceMetrics`.
  *
  * As sparklines são SEMPRE dos últimos 7 dias (mini-tendência), independente do
  * período — por isso suas queries usam janelas normalizadas por dia (estáveis
@@ -49,7 +50,6 @@ export interface DashboardKpis {
   activeConversations: KpiMetric;
   newContacts: KpiMetric;
   conversionRate: KpiMetric;
-  avgResponseTime: KpiMetric;
   messagesSent: KpiMetric;
 }
 
@@ -105,24 +105,6 @@ function dailyBucketSpark(rows: Array<{ bucket: string | null; n: number }>): Sp
     value,
   }));
 }
-
-/** Sparkline de tempo médio de resposta: a média do dia que o banco já calculou. */
-function responseTimeSpark(rows: LojaResponseTimeRow[]): SparkPoint[] {
-  const byDay = new Map<string, number>();
-  for (const d of sparkDays()) byDay.set(d.key, 0);
-  for (const r of rows) {
-    if (!r.bucket) continue;
-    const key = format(new Date(r.bucket), 'yyyy-MM-dd');
-    if (byDay.has(key)) byDay.set(key, Number(r.avg_minutes.toFixed(1)));
-  }
-  return Array.from(byDay.entries()).map(([date, value]) => ({
-    date: format(new Date(date), 'dd/MM'),
-    value,
-  }));
-}
-
-/** A média do período inteiro vem numa linha só (bucket = null). */
-const avgMinutesOf = (rows: LojaResponseTimeRow[] | undefined): number => rows?.[0]?.avg_minutes ?? 0;
 
 export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
   const { tenant } = useTenant();
@@ -260,36 +242,13 @@ export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
   const sentPeriod = sumCounts(msgsPeriodRows, (r) => r.direction === 'outbound');
   const sentPrev = sumCounts(msgsPrevRows, (r) => r.direction === 'outbound');
   // Últimos 7 dias, por dia: sparkline de enviadas.
-  const { data: msgs7dRows = [], isLoading: msgs7dLoading } = useLojaMessageCounts({
+  const { data: msgs7dRows = [] } = useLojaMessageCounts({
     from: spark7dISO,
     bucket: 'day',
     enabled,
     keySuffix: ['spark'],
   });
   const sentSparkRows = msgs7dRows.filter((r) => r.direction === 'outbound');
-
-  // ===== Tempo Médio de Resposta (período) =====
-  const { data: respPeriodRows, isLoading: respLoading } = useLojaResponseTime({
-    from: startISO,
-    to: endISO,
-    enabled,
-    keySuffix: ['period'],
-  });
-  const { data: respPrevRows } = useLojaResponseTime({
-    from: prevStartISO,
-    to: prevEndISO,
-    enabled,
-    keySuffix: ['prev'],
-  });
-  const { data: resp7dRows = [] } = useLojaResponseTime({
-    from: spark7dISO,
-    bucket: 'day',
-    enabled,
-    keySuffix: ['spark'],
-  });
-
-  const respValue = avgMinutesOf(respPeriodRows);
-  const respPrevValue = avgMinutesOf(respPrevRows);
 
   return {
     activeConversations: {
@@ -312,15 +271,6 @@ export function useDashboardKpis(period: UsePeriodFilterResult): DashboardKpis {
       deltaPct: deltaPct(convertedPeriod, convertedPrev),
       sparkline: dailyCountSpark(convSpark as any[], 'stage_entered_at'),
       loading: stagesLoading || convertedLoading || totalLoading,
-    },
-    avgResponseTime: {
-      value: respValue,
-      previousValue: respPrevValue,
-      // Menor é melhor: variação positiva = ficou mais rápido (prev - atual).
-      deltaPct: deltaPct(respPrevValue, respValue),
-      // Sem nenhuma enviada nos 7 dias não há resposta a medir: fica tudo zero.
-      sparkline: responseTimeSpark(sentSparkRows.length ? resp7dRows : []),
-      loading: respLoading || msgs7dLoading,
     },
     messagesSent: {
       value: sentPeriod,
