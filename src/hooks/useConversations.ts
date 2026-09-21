@@ -190,6 +190,122 @@ let lastMessageColumnsAvailable = true;
 /** Idem para as colunas de responsável. */
 let assignmentColumnsAvailable = true;
 
+/**
+ * Último instante do dia escolhido, no fuso do navegador.
+ *
+ * O DatePicker devolve o dia à meia-noite local. Usar esse valor direto num
+ * `lte` deixava o dia "Até" inteiro de fora: "até 20/09" virava "até 20/09
+ * 00:00", e nada daquele dia entrava. O `toISOString()` de quem chama converte
+ * para UTC — é o mesmo relógio que `last_message_at` usa.
+ */
+export const endOfLocalDay = (date: Date): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+/**
+ * Alias do segundo embed de `contact_tags` — o que faz o join do filtro.
+ *
+ * Um embed com `!inner` recorta o pai, mas também recorta a si mesmo: a lista
+ * receberia só as etiquetas que casaram com o filtro, e o cartão da conversa
+ * mostraria uma etiqueta em vez de todas. Por isso a relação entra duas vezes
+ * no select: `contact_tags` (sem filtro, para exibir) e este alias (com
+ * `!inner`, para filtrar). O filtro aponta para o alias, e o cartão continua
+ * lendo `contact_tags`.
+ */
+export const TAG_FILTER_EMBED = 'etiquetas_filtro';
+
+/**
+ * Recorte de servidor comum à lista e à contagem. Tudo que a lista filtra, a
+ * pílula conta: ter as duas coisas numa função só é o que impede lista e
+ * contagem de contarem universos diferentes.
+ */
+export interface ConversationScope {
+  isArchived: boolean;
+  hasUnread: boolean;
+  /** Texto de busca já sem espaços nas pontas; vazio = sem busca. */
+  term: string;
+  whatsappInstanceId?: string;
+  dateFrom: Date | null;
+  dateTo: Date | null;
+  /** Etiquetas do contato: QUALQUER uma delas (OR). Vazio = sem filtro. */
+  tagIds: string[];
+}
+
+/**
+ * `contacts` vira join interno sempre que um filtro mora no embed — a busca
+ * (o `.or()` em nome/telefone) ou as etiquetas. O PostgREST só descarta a
+ * linha-pai por causa de um filtro no embed quando o join é `!inner`; sem a
+ * dica o filtro recortava apenas o embed e a lista inteira voltava. Fora
+ * disso o embed continua LEFT, para não sumir com conversas cujo contato não
+ * veio junto.
+ */
+export const contactsEmbedFor = (scope: Pick<ConversationScope, 'term' | 'tagIds'>): string =>
+  scope.term || scope.tagIds.length > 0 ? 'contacts!inner' : 'contacts';
+
+/** Trecho de select do embed de filtro por etiqueta (vazio sem filtro). */
+export const tagFilterEmbedFor = (tagIds: string[]): string =>
+  tagIds.length > 0 ? `${TAG_FILTER_EMBED}:contact_tags!inner (tag_id)` : '';
+
+/**
+ * Mínimo que os filtros abaixo precisam do builder do Supabase. Declarado à
+ * mão (em vez do tipo do PostgREST) porque o caminho de embed
+ * (`contacts.etiquetas_filtro.tag_id`) não é coluna de `conversations`.
+ */
+export interface ScopeQuery<T> {
+  eq(column: string, value: unknown): T;
+  gt(column: string, value: unknown): T;
+  gte(column: string, value: unknown): T;
+  lte(column: string, value: unknown): T;
+  in(column: string, values: unknown[]): T;
+  or(filters: string, options?: { referencedTable?: string }): T;
+}
+
+/**
+ * Aplica o recorte à query — a mesma sequência para a lista e para a contagem.
+ * Não entram aqui: tenant, ordenação, limite e cursor, que são da lista.
+ */
+export const applyConversationScope = <T extends ScopeQuery<T>>(
+  query: T,
+  scope: ConversationScope,
+): T => {
+  let q = query.eq('is_archived', scope.isArchived);
+
+  // Only filter by instance if explicitly specified
+  if (scope.whatsappInstanceId) {
+    q = q.eq('whatsapp_instance_id', scope.whatsappInstanceId);
+  }
+
+  // Aplicar filtro de busca — o `.or()` vai no recurso embutido (`contacts`)
+  // e, com o join inner, recorta as conversas. O valor vai entre aspas porque
+  // nome e telefone podem conter vírgula e parênteses, que são separadores na
+  // gramática de filtros do PostgREST.
+  if (scope.term) {
+    const escaped = scope.term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    q = q.or(`name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`, {
+      referencedTable: 'contacts',
+    });
+  }
+
+  // Etiquetas: filtro no caminho do alias (ver TAG_FILTER_EMBED). `in` = a
+  // conversa entra se o contato tiver QUALQUER uma das etiquetas; o PostgREST
+  // agrega o embed em JSON, então um contato com duas etiquetas casando continua
+  // sendo uma conversa só.
+  if (scope.tagIds.length > 0) {
+    q = q.in(`contacts.${TAG_FILTER_EMBED}.tag_id`, scope.tagIds);
+  }
+
+  if (scope.hasUnread) {
+    q = q.gt('unread_count', 0);
+  }
+  if (scope.dateFrom) {
+    q = q.gte('last_message_at', scope.dateFrom.toISOString());
+  }
+  if (scope.dateTo) {
+    q = q.lte('last_message_at', endOfLocalDay(scope.dateTo).toISOString());
+  }
+
+  return q;
+};
+
 interface UseConversationsOptions {
   pageSize?: number;
   searchQuery?: string;
@@ -198,9 +314,11 @@ interface UseConversationsOptions {
   whatsappInstanceId?: string;
   /** Quando true, traz apenas conversas com unread_count > 0. */
   hasUnread?: boolean;
-  /** Filtro por janela de tempo (last_message_at). */
+  /** Filtro por janela de tempo (last_message_at). `dateTo` inclui o dia inteiro. */
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  /** Etiquetas do contato (qualquer uma). Vazio = sem filtro. */
+  tagIds?: string[];
 }
 
 // Hook para buscar conversas com paginação infinita
@@ -213,6 +331,7 @@ export const useConversations = ({
   hasUnread = false,
   dateFrom = null,
   dateTo = null,
+  tagIds = [],
 }: UseConversationsOptions = {}) => {
   const { tenant } = useTenant();
 
@@ -227,20 +346,27 @@ export const useConversations = ({
       hasUnread,
       dateFrom?.toISOString() ?? null,
       dateTo?.toISOString() ?? null,
+      tagIds,
     ],
     queryFn: async ({ pageParam = null }) => {
       if (!tenant?.id) {
         throw new Error('Tenant ID is required');
       }
 
-      const term = searchQuery.trim();
-
-      // O PostgREST só descarta a linha-pai por causa de um filtro no embed
-      // quando o join é `!inner`. Sem essa dica o `.or()` abaixo era aplicado
-      // apenas ao embed e a busca devolvia a lista inteira. Fora da busca o
-      // embed continua LEFT, para não sumir com conversas cujo contato não
-      // veio junto.
-      const contactsEmbed = term ? 'contacts!inner' : 'contacts';
+      const scope: ConversationScope = {
+        isArchived,
+        hasUnread,
+        term: searchQuery.trim(),
+        whatsappInstanceId,
+        dateFrom,
+        dateTo,
+        tagIds,
+      };
+      const contactsEmbed = contactsEmbedFor(scope);
+      // Segundo embed de contact_tags, só com filtro de etiqueta ligado. O de
+      // exibição (`contact_tags`, logo abaixo dele) não muda — é dele que o
+      // cartão lê todas as etiquetas do contato.
+      const tagFilterEmbed = tagFilterEmbedFor(tagIds);
 
       // Uma única query monta a página inteira, prévia incluída. `comPrevia`
       // existe só para o caso da migração ainda não ter rodado (ver
@@ -277,6 +403,7 @@ export const useConversations = ({
               lead_sources:lead_source_id (
                 name
               ),
+              ${tagFilterEmbed ? `${tagFilterEmbed},` : ''}
               contact_tags (
                 tag_id,
                 tags (
@@ -288,36 +415,11 @@ export const useConversations = ({
             )
           `)
           .eq('tenant_id', tenant.id)
-          .eq('is_archived', isArchived)
           .order('last_message_at', { ascending: false })
           .limit(pageSize);
 
-        // Only filter by instance if explicitly specified
-        if (whatsappInstanceId) {
-          query = query.eq('whatsapp_instance_id', whatsappInstanceId);
-        }
-
-        // Aplicar filtro de busca — o `.or()` vai no recurso embutido (`contacts`)
-        // e, com o join inner acima, recorta as conversas. O valor vai entre aspas
-        // porque nome e telefone podem conter vírgula e parênteses, que são
-        // separadores na gramática de filtros do PostgREST.
-        if (term) {
-          const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-          query = query.or(
-            `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
-            { referencedTable: 'contacts' }
-          );
-        }
-
-        if (hasUnread) {
-          query = query.gt('unread_count', 0);
-        }
-        if (dateFrom) {
-          query = query.gte('last_message_at', dateFrom.toISOString());
-        }
-        if (dateTo) {
-          query = query.lte('last_message_at', dateTo.toISOString());
-        }
+        // O recorte é o mesmo da contagem (ver applyConversationScope).
+        query = applyConversationScope(query, scope);
 
         // Aplicar cursor para paginação
         if (pageParam) {
@@ -447,6 +549,7 @@ export interface UseConversationsCountOptions {
   whatsappInstanceId?: string;
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  tagIds?: string[];
   enabled?: boolean;
 }
 
@@ -473,6 +576,7 @@ export const useConversationsCount = ({
   whatsappInstanceId,
   dateFrom = null,
   dateTo = null,
+  tagIds = [],
   enabled = true,
 }: UseConversationsCountOptions = {}) => {
   const { tenant } = useTenant();
@@ -492,44 +596,44 @@ export const useConversationsCount = ({
       hasUnread,
       dateFrom?.toISOString() ?? null,
       dateTo?.toISOString() ?? null,
+      tagIds,
     ],
     queryFn: async () => {
       if (!tenant?.id) {
         throw new Error('Tenant ID is required');
       }
 
-      const term = searchQuery.trim();
+      const scope: ConversationScope = {
+        isArchived,
+        hasUnread,
+        term: searchQuery.trim(),
+        whatsappInstanceId,
+        dateFrom,
+        dateTo,
+        tagIds,
+      };
 
-      // Mesmo motivo do `!inner` da lista: sem ele o `.or()` recortaria apenas
-      // o recurso embutido e a contagem viria com a Loja inteira.
+      // Mesmo `!inner` da lista: sem ele o `.or()` e o filtro de etiqueta
+      // recortariam apenas o recurso embutido e a contagem viria com a Loja
+      // inteira. A contagem não exibe etiquetas, então só o embed de filtro
+      // entra aqui.
+      const contactsEmbed = contactsEmbedFor(scope);
+      const tagFilterEmbed = tagFilterEmbedFor(tagIds);
+      const select =
+        contactsEmbed === 'contacts!inner'
+          ? `id, contacts!inner(id${tagFilterEmbed ? `, ${tagFilterEmbed}` : ''})`
+          : 'id';
+
       let query = supabase
         .from('conversations')
-        .select(term ? 'id, contacts!inner(id)' : 'id', {
+        .select(select, {
           count: 'exact',
           head: true,
         })
-        .eq('tenant_id', tenant.id)
-        .eq('is_archived', isArchived);
+        .eq('tenant_id', tenant.id);
 
-      if (whatsappInstanceId) {
-        query = query.eq('whatsapp_instance_id', whatsappInstanceId);
-      }
-      if (term) {
-        const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        query = query.or(
-          `name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`,
-          { referencedTable: 'contacts' },
-        );
-      }
-      if (hasUnread) {
-        query = query.gt('unread_count', 0);
-      }
-      if (dateFrom) {
-        query = query.gte('last_message_at', dateFrom.toISOString());
-      }
-      if (dateTo) {
-        query = query.lte('last_message_at', dateTo.toISOString());
-      }
+      // O recorte é o mesmo da lista (ver applyConversationScope).
+      query = applyConversationScope(query, scope);
 
       const { count, error } = await query;
       if (error) {
