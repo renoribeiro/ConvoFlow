@@ -228,6 +228,14 @@ export interface ConversationScope {
   dateTo: Date | null;
   /** Etiquetas do contato: QUALQUER uma delas (OR). Vazio = sem filtro. */
   tagIds: string[];
+  /**
+   * Responsáveis (profiles.id): QUALQUER um deles (OR). Vazio = sem filtro.
+   * É o filtro por atendente do modal e também a pílula "Minhas" (o próprio
+   * perfil, sozinho na lista).
+   */
+  assignedProfileIds: string[];
+  /** Só conversas sem responsável (`assigned_profile_id IS NULL`) — a pílula "Sem responsável". */
+  unassignedOnly: boolean;
 }
 
 /**
@@ -256,6 +264,8 @@ export interface ScopeQuery<T> {
   gte(column: string, value: unknown): T;
   lte(column: string, value: unknown): T;
   in(column: string, values: unknown[]): T;
+  /** `IS NULL` — `in` nunca casa NULL, e "Sem responsável" é exatamente isso. */
+  is(column: string, value: null | boolean): T;
   or(filters: string, options?: { referencedTable?: string }): T;
 }
 
@@ -293,6 +303,18 @@ export const applyConversationScope = <T extends ScopeQuery<T>>(
     q = q.in(`contacts.${TAG_FILTER_EMBED}.tag_id`, scope.tagIds);
   }
 
+  // Responsável: coluna da própria conversa, então nada de embed nem `!inner`.
+  // `in` = QUALQUER um dos escolhidos (uma conversa tem um responsável só, e
+  // "todos ao mesmo tempo" seria sempre vazio). "Sem responsável" é `is null`
+  // porque `in` não casa NULL. A tela nunca liga os dois juntos (ver
+  // reconcile* em quickFilters.ts); se ligasse, o resultado seria vazio.
+  if (scope.assignedProfileIds.length > 0) {
+    q = q.in('assigned_profile_id', scope.assignedProfileIds);
+  }
+  if (scope.unassignedOnly) {
+    q = q.is('assigned_profile_id', null);
+  }
+
   if (scope.hasUnread) {
     q = q.gt('unread_count', 0);
   }
@@ -319,6 +341,10 @@ interface UseConversationsOptions {
   dateTo?: Date | null;
   /** Etiquetas do contato (qualquer uma). Vazio = sem filtro. */
   tagIds?: string[];
+  /** Responsáveis (qualquer um). Vazio = sem filtro. */
+  assignedProfileIds?: string[];
+  /** Só conversas sem responsável. */
+  unassignedOnly?: boolean;
 }
 
 // Hook para buscar conversas com paginação infinita
@@ -332,6 +358,8 @@ export const useConversations = ({
   dateFrom = null,
   dateTo = null,
   tagIds = [],
+  assignedProfileIds = [],
+  unassignedOnly = false,
 }: UseConversationsOptions = {}) => {
   const { tenant } = useTenant();
 
@@ -347,6 +375,8 @@ export const useConversations = ({
       dateFrom?.toISOString() ?? null,
       dateTo?.toISOString() ?? null,
       tagIds,
+      assignedProfileIds,
+      unassignedOnly,
     ],
     queryFn: async ({ pageParam = null }) => {
       if (!tenant?.id) {
@@ -361,6 +391,8 @@ export const useConversations = ({
         dateFrom,
         dateTo,
         tagIds,
+        assignedProfileIds,
+        unassignedOnly,
       };
       const contactsEmbed = contactsEmbedFor(scope);
       // Segundo embed de contact_tags, só com filtro de etiqueta ligado. O de
@@ -550,6 +582,8 @@ export interface UseConversationsCountOptions {
   dateFrom?: Date | null;
   dateTo?: Date | null;
   tagIds?: string[];
+  assignedProfileIds?: string[];
+  unassignedOnly?: boolean;
   enabled?: boolean;
 }
 
@@ -577,6 +611,8 @@ export const useConversationsCount = ({
   dateFrom = null,
   dateTo = null,
   tagIds = [],
+  assignedProfileIds = [],
+  unassignedOnly = false,
   enabled = true,
 }: UseConversationsCountOptions = {}) => {
   const { tenant } = useTenant();
@@ -597,6 +633,8 @@ export const useConversationsCount = ({
       dateFrom?.toISOString() ?? null,
       dateTo?.toISOString() ?? null,
       tagIds,
+      assignedProfileIds,
+      unassignedOnly,
     ],
     queryFn: async () => {
       if (!tenant?.id) {
@@ -611,6 +649,8 @@ export const useConversationsCount = ({
         dateFrom,
         dateTo,
         tagIds,
+        assignedProfileIds,
+        unassignedOnly,
       };
 
       // Mesmo `!inner` da lista: sem ele o `.or()` e o filtro de etiqueta
@@ -643,7 +683,7 @@ export const useConversationsCount = ({
     },
     enabled: enabled && !!tenant?.id,
     staleTime: 1000 * 15,
-    // Mais espaçado que os 10s da lista de propósito: são três contagens em
+    // Mais espaçado que os 10s da lista de propósito: são cinco contagens em
     // paralelo (uma por pílula de servidor) e elas já são invalidadas na hora
     // por qualquer ação da pessoa. O intervalo só cobre o que chega de fora.
     refetchInterval: 1000 * 30,

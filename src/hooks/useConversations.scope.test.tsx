@@ -24,7 +24,7 @@ type Recorded = { table: string; select: string; selectOptions?: unknown; calls:
 const gravador = vi.hoisted(() => ({ queries: [] as Recorded[] }));
 
 vi.mock('@/integrations/supabase/client', () => {
-  const FILTERS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'or', 'order', 'limit'];
+  const FILTERS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'is', 'or', 'order', 'limit'];
   const from = (table: string) => {
     const rec: Recorded = { table, select: '', calls: [] };
     gravador.queries.push(rec);
@@ -198,5 +198,94 @@ describe('"Até" inclui o dia inteiro', () => {
       'last_message_at',
       de.toISOString(),
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Filtro por responsável (2026-09-21): o filtro por atendente do modal e as
+// pílulas "Minhas" / "Sem responsável", todos no servidor, pelo MESMO
+// applyConversationScope — lista e contagem contam o mesmo universo.
+// ---------------------------------------------------------------------------
+describe('paridade lista × contagem — responsável', () => {
+  it('só atendente: `in` em assigned_profile_id nos dois, sem embed nem `!inner`', async () => {
+    const { lista, contagem } = await rodarOsDois({ assignedProfileIds: ['maria', 'joao'] });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista)).toContainEqual({ method: 'in', args: ['assigned_profile_id', ['maria', 'joao']] });
+    // Coluna da própria conversa: o embed de contatos continua LEFT e sem alias.
+    expect(normalizar(lista.select)).toContain(' contacts (');
+    expect(normalizar(lista.select)).not.toContain(TAG_FILTER_EMBED);
+    expect(contagem.select).toBe('id');
+  });
+
+  it('pílula "Sem responsável": `is null` em assigned_profile_id nos dois', async () => {
+    const { lista, contagem } = await rodarOsDois({ unassignedOnly: true });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista)).toContainEqual({ method: 'is', args: ['assigned_profile_id', null] });
+    expect(recorte(lista).map((c) => c.method)).not.toContain('in');
+  });
+
+  it('pílula "Minhas" (= eu, sozinho): `in` com um id só, nos dois', async () => {
+    const { lista, contagem } = await rodarOsDois({ assignedProfileIds: ['eu'] });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista)).toContainEqual({ method: 'in', args: ['assigned_profile_id', ['eu']] });
+  });
+
+  it('atendente + etiquetas + busca + pílula "Não lidas": tudo igual nos dois, na mesma ordem', async () => {
+    const opts = {
+      assignedProfileIds: ['maria'],
+      tagIds: ['t1'],
+      searchQuery: 'Ana',
+      hasUnread: true,
+    };
+    const { lista, contagem } = await rodarOsDois(opts);
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    const metodos = recorte(lista).map((c) => `${c.method}:${c.args[0]}`);
+    expect(metodos).toEqual([
+      'eq:tenant_id',
+      'eq:is_archived',
+      'or:name.ilike."%Ana%",phone.ilike."%Ana%"',
+      `in:contacts.${TAG_FILTER_EMBED}.tag_id`,
+      'in:assigned_profile_id',
+      'gt:unread_count',
+    ]);
+    // A busca e a etiqueta continuam pedindo `!inner`; o responsável não muda isso.
+    expect(normalizar(lista.select)).toContain('contacts!inner (');
+    expect(normalizar(contagem.select)).toBe(
+      `id, contacts!inner(id, ${TAG_FILTER_EMBED}:contact_tags!inner (tag_id))`,
+    );
+  });
+
+  it('"Sem responsável" + etiquetas + período + arquivadas: igual nos dois', async () => {
+    const opts = {
+      unassignedOnly: true,
+      tagIds: ['t1'],
+      isArchived: true,
+      dateFrom: new Date(2026, 8, 1),
+      dateTo: new Date(2026, 8, 20),
+    };
+    const { lista, contagem } = await rodarOsDois(opts);
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista).map((c) => `${c.method}:${c.args[0]}`)).toEqual([
+      'eq:tenant_id',
+      'eq:is_archived',
+      `in:contacts.${TAG_FILTER_EMBED}.tag_id`,
+      'is:assigned_profile_id',
+      'gte:last_message_at',
+      'lte:last_message_at',
+    ]);
+  });
+
+  it('sem responsável no recorte nada muda: nem `in` nem `is` em assigned_profile_id', async () => {
+    const { lista, contagem } = await rodarOsDois({ tagIds: ['t1'] });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista).map((c) => c.method)).not.toContain('is');
+    expect(recorte(lista).filter((c) => c.args[0] === 'assigned_profile_id')).toHaveLength(0);
+  });
+
+  it('a contagem de "Minhas"/"Sem responsável" é exata: count exact + head, como as outras', async () => {
+    const { contagem } = await rodarOsDois({ unassignedOnly: true });
+    expect(contagem.selectOptions).toEqual({ count: 'exact', head: true });
+    const { contagem: minhas } = await rodarOsDois({ assignedProfileIds: ['eu'] });
+    expect(minhas.selectOptions).toEqual({ count: 'exact', head: true });
   });
 });
