@@ -13,6 +13,7 @@ import { OnboardingTutorialsCard } from '@/components/dashboard/OnboardingTutori
 import { EnhancedMetricCard } from '@/components/dashboard/EnhancedMetricCard';
 import { AttentionPanel } from '@/components/dashboard/AttentionPanel';
 import { AttendanceMetrics } from '@/components/dashboard/AttendanceMetrics';
+import { AttendantMetricsSection } from '@/components/dashboard/AttendantMetricsSection';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
 import { FunnelMini } from '@/components/dashboard/FunnelMini';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
@@ -99,6 +100,10 @@ const Index = () => {
       {/* Seção 2.5 — Atendimento: 1ª resposta do bot × de uma pessoa (medianas),
           esperando agora, sem resposta de pessoa, bot participou, duração. */}
       <AttendanceMetrics period={period} />
+
+      {/* Seção 2.6 — Por atendente (posse), só gestor/gerente. Renderiza nada
+          para os outros cargos; o banco devolve zero linhas a quem não administra. */}
+      <AttendantMetricsSection />
 
       {/* Seção 3 — Precisa de Atenção */}
       <AttentionPanel />
