@@ -7,9 +7,11 @@ import { ChatWindow } from '@/components/conversations/ChatWindow';
 import {
   ConversationFiltersModal,
   DEFAULT_FILTER_STATE,
+  countActiveFilters,
   type ConversationsFilterState,
 } from '@/components/conversations/ConversationFiltersModal';
 import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
+import { TagFilterChips } from '@/components/conversations/TagFilterChips';
 import {
   isAdminOnlyFilter,
   mergeServerTotals,
@@ -25,6 +27,7 @@ import {
   useCreateConversation,
 } from '@/hooks/useConversations';
 import { useSlaConfig } from '@/hooks/useSlaConfig';
+import { useTenant } from '@/contexts/TenantContext';
 import { EtiquetasManagerSheet } from '@/components/etiquetas/EtiquetasManagerSheet';
 import { Search, Filter, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -58,6 +61,16 @@ export default function Conversations() {
   // Busca compacta do mobile: fica como lupa e expande em campo ao toque.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
+  // Etiqueta é da Loja: ao trocar de Loja no seletor, as marcadas não existem
+  // na nova e o filtro devolveria lista vazia sem explicação. Só as etiquetas
+  // são limpas — não lidas, arquivadas e período valem em qualquer Loja.
+  const { tenant } = useTenant();
+  const tenantIdAnterior = useRef(tenant?.id);
+  useEffect(() => {
+    if (tenantIdAnterior.current === tenant?.id) return;
+    tenantIdAnterior.current = tenant?.id;
+    setFilters((prev) => (prev.tagIds.length > 0 ? { ...prev, tagIds: [] } : prev));
+  }, [tenant?.id]);
   // Pílulas de filtro rápido (seleção única) + contagens vindas da lista.
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(() =>
     // Deep link da aba Escala: /dashboard/conversations?quick=responsavel-indisponivel
@@ -240,11 +253,11 @@ export default function Conversations() {
     requestAnimationFrame(() => listSearchRef.current?.focus());
   }, []);
 
-  const activeFilterCount =
-    (filters.hasUnread ? 1 : 0) +
-    (filters.isArchived ? 1 : 0) +
-    (filters.dateFrom ? 1 : 0) +
-    (filters.dateTo ? 1 : 0);
+  const activeFilterCount = countActiveFilters(filters);
+
+  const removeTagFilter = useCallback((tagId: string) => {
+    setFilters((prev) => ({ ...prev, tagIds: prev.tagIds.filter((id) => id !== tagId) }));
+  }, []);
 
   // A pílula ativa vira filtro de servidor quando existe coluna para ela; o que
   // ela não cobre continua vindo do modal "Filtros". Só "Arquivadas" sobrescreve
@@ -279,6 +292,7 @@ export default function Conversations() {
     whatsappInstanceId: activeInstanceId ?? undefined,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
+    tagIds: filters.tagIds,
   };
   const modalScope = { hasUnread: filters.hasUnread, isArchived: filters.isArchived };
 
@@ -309,13 +323,23 @@ export default function Conversations() {
 
   const list = (
     <div className="flex h-full min-h-0 flex-col">
+      <TagFilterChips
+        tagIds={filters.tagIds}
+        onRemove={removeTagFilter}
+        className={cn('flex-shrink-0 pb-2', isMobile ? 'px-0 pt-1' : 'px-4 pt-4')}
+      />
       <QuickFilterPills
         value={effectiveQuickFilter}
         onChange={setQuickFilter}
         counts={countsComTotais}
         slaEnabled={slaEnabled}
         canSeeIneligible={canSeeIneligible}
-        className={cn('flex-shrink-0 pb-3', isMobile ? 'px-0' : 'px-4 pt-4')}
+        className={cn(
+          'flex-shrink-0 pb-3',
+          isMobile ? 'px-0' : 'px-4',
+          // Com os selos de etiqueta em cima, o respiro já veio deles.
+          !isMobile && filters.tagIds.length === 0 && 'pt-4',
+        )}
       />
       <div className="min-h-0 flex-1">
         <ConversationsList
@@ -328,6 +352,7 @@ export default function Conversations() {
           onCountsChange={handleQuickFilterCounts}
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
+          tagIds={filters.tagIds}
           whatsappInstanceId={activeInstanceId}
           onInstanceChange={setActiveInstanceId}
           onItemsChange={setItemIds}

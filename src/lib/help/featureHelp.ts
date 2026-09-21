@@ -448,7 +448,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Para reaproveitar um trecho pronto, clique no raio ao lado do campo de mensagem, ou digite "/" com o campo vazio, que abre a mesma lista.',
       'Para guardar um trecho que você acabou de escrever, passe o mouse sobre a mensagem enviada e clique no raio que aparece nela.',
       'Use as pílulas acima da lista ("Não lidas", "Aguardando"...) para trabalhar uma fila de cada vez; o número em cada uma diz o tamanho dela. Não cabem todas na coluna: a seta na ponta (ou arrastar de lado) mostra as demais.',
-      'O botão "Filtros" abre três recortes que se somam às pílulas: "Apenas conversas com mensagens não lidas", "Mostrar arquivadas" e um período pela data da última mensagem. Eles valem na hora, sem botão de aplicar: "Aplicar" só fecha a janela.',
+      'O botão "Filtros" abre quatro recortes que se somam às pílulas: só não lidas, só arquivadas (as ativas somem da lista), um período pela data da última mensagem (o dia "Até" entra inteiro) e as etiquetas do contato. Cada um vale na hora, assim que você marca; "Fechar" só fecha a janela e "Limpar" desliga todos.',
+      'Para ver só as conversas de quem tem uma etiqueta, abra "Filtros" e marque a etiqueta em "Etiquetas do contato". Marque várias para ver quem tem qualquer uma delas. As marcadas aparecem acima das pílulas, cada uma com um "x" para tirar; a lista e o número da pílula passam a contar só essas conversas.',
       'Para ficar responsável por uma conversa, abra-a e clique em "Sem responsável", no cabeçalho, e depois em "Assumir". O seu nome passa a aparecer na conversa, para todo mundo da Loja.',
       'Para passar a conversa a um colega, clique no responsável no cabeçalho e em "Transferir…", escolha a pessoa na lista e pronto: ela recebe um aviso no sino. Dá para transferir para você mesmo uma conversa que está com outra pessoa.',
       'Use as pílulas "Minhas" e "Sem responsável" para ver só o que está com você ou o que ninguém pegou ainda.',
@@ -474,6 +475,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Uma conversa sua pode mudar de responsável sozinha: se a Loja ligou a transferência por tempo sem resposta (Configurações › Escala/Transferência) e o cliente ficou esperando resposta de pessoa por mais minutos de funcionamento do que o limite, ela passa para o próximo do rodízio. Você percebe assim: ela sai de "Minhas" (e some da sua lista, se a Loja restringiu a visibilidade), e quem recebeu ganha o aviso "Conversa transferida para você" no sino. Não é erro nem punição: é a Loja garantindo que o cliente não fique sem resposta. Para segurar as suas, responda dentro do limite: resposta do bot não conta, só a sua. Se uma conversa chegar a você por esse caminho, o relógio recomeça do zero.',
       'Se duas pessoas clicarem em "Assumir" na mesma conversa quase ao mesmo tempo, só a primeira fica com ela. A segunda vê um aviso dizendo quem pegou, e a tela se atualiza.',
       'As pílulas "Minhas" e "Sem responsável" contam só o que já foi carregado na lista (aparecem com "+"); role até o fim para o número virar exato.',
+      'As etiquetas são de cada Loja. Se você é Gerente e troca de Loja no seletor do topo, o filtro de etiqueta é limpo sozinho: as etiquetas da outra Loja são outras, mesmo que tenham o mesmo nome.',
       'Conversas é privada por Loja: o Superadmin não abre esta tela de nenhuma Conta, nem entrando nela pelo seletor do topo, que aqui mostra "Exclusivo para lojas". Quem lê as conversas é o Atendente, o Gestor e o Gerente da Conta.',
       'Gerente atende as Lojas da própria Conta escolhendo a Loja no seletor do topo: abre o histórico, responde e marca como lida, igual ao Gestor. O que o Gerente não faz é apagar conversa ou contato de uma Loja.',
       'A resposta rápida entra no campo com as variáveis já trocadas pelos dados de quem está na conversa, e só sai quando você clica em enviar. Dá para ajustar antes.',
@@ -485,8 +487,9 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
   // Os três a seguir são superfícies DENTRO de Conversas (diálogo, diálogo,
   // painel). Ganharam entrada própria porque cada um tem regra que não cabe num
   // passo: a janela de 24 h, o atalho que só serve à Evolution, e um painel
-  // com seis seções. O modal "Filtros" ficou como um passo em page:conversations
-  // — são três caixas, não há o que explicar em separado.
+  // com seis seções. O modal "Filtros" ficou como dois passos em
+  // page:conversations — quatro recortes que valem na hora, não há o que
+  // explicar em separado.
   'page:conversations-template': {
     moduleName: 'conversations',
     title: 'Conversas › Enviar template',

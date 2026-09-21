@@ -52,6 +52,8 @@ interface ConversationsListProps {
   isArchived?: boolean;
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  /** Etiquetas do contato (qualquer uma). Recorte de servidor, como o período. */
+  tagIds?: string[];
   /**
    * Pílula de filtro rápido ativa. As pílulas que viram coluna real já chegam
    * aqui traduzidas em `hasUnread`/`isArchived`; esta prop serve só para o
@@ -122,6 +124,7 @@ export const ConversationsList = ({
   isArchived = false,
   dateFrom = null,
   dateTo = null,
+  tagIds,
   quickFilter = 'todas',
   onCountsChange,
   whatsappInstanceId,
@@ -167,6 +170,7 @@ export const ConversationsList = ({
     hasUnread,
     dateFrom,
     dateTo,
+    tagIds,
   });
 
   // Memoize so the flattened array keeps a stable identity between renders
