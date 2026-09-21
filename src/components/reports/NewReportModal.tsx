@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { FileText, BarChart3, Users, MessageSquare, Calendar, X, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
+import { REPORT_CONTENTS, REPORT_CONTENT_IDS, REPORT_NOT_INCLUDED } from '@/lib/reports/reportContents';
 
 interface NewReportModalProps {
   isOpen: boolean;
@@ -40,13 +41,19 @@ interface ReportData {
 }
 
 export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalProps) => {
+  // A Loja aberta no seletor: é dela que o relatório sai (revalidado no
+  // servidor). Sem isto um gerente olhando uma Loja filha recebia os números
+  // da própria Conta.
+  const { tenant } = useTenant();
   const [reportData, setReportData] = useState<ReportData>({
     name: '',
     description: '',
     type: '',
     frequency: 'manual',
     format: 'pdf',
-    metrics: [],
+    // O conteúdo é fixo (ver REPORT_CONTENTS): a lista vai no corpo só como
+    // registro do que foi pedido, não como seleção.
+    metrics: [...REPORT_CONTENT_IDS],
     filters: {
       dateRange: '30days',
       campaigns: [],
@@ -71,6 +78,9 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
       setReportData((prev) => ({
         ...prev,
         ...initialData,
+        // Templates antigos guardam ids de métricas que o servidor nunca
+        // calculou ('satisfaction', 'revenue'...): o conteúdo real é sempre o mesmo.
+        metrics: [...REPORT_CONTENT_IDS],
         filters: { ...prev.filters, ...(initialData.filters ?? {}) },
         delivery: { ...prev.delivery, ...(initialData.delivery ?? {}) },
       }));
@@ -86,36 +96,6 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
     { value: 'general', label: 'Geral', icon: FileText, description: 'Relatório geral do sistema' }
   ];
 
-  const availableMetrics = {
-    campaigns: [
-      { id: 'sent', label: 'Mensagens Enviadas' },
-      { id: 'delivered', label: 'Mensagens Entregues' },
-      { id: 'opened', label: 'Mensagens Abertas' },
-      { id: 'responded', label: 'Respostas Recebidas' },
-      { id: 'conversion_rate', label: 'Taxa de Conversão' }
-    ],
-    conversations: [
-      { id: 'total_conversations', label: 'Total de Conversas' },
-      { id: 'active_conversations', label: 'Conversas Ativas' },
-      { id: 'response_time', label: 'Tempo de Resposta' },
-      { id: 'satisfaction', label: 'Satisfação do Cliente' },
-      { id: 'resolution_rate', label: 'Taxa de Resolução' }
-    ],
-    funnel: [
-      { id: 'leads_by_stage', label: 'Leads por Estágio' },
-      { id: 'conversion_by_stage', label: 'Conversão por Estágio' },
-      { id: 'average_time', label: 'Tempo Médio no Estágio' },
-      { id: 'revenue', label: 'Receita Gerada' },
-      { id: 'lost_opportunities', label: 'Oportunidades Perdidas' }
-    ],
-    general: [
-      { id: 'overview', label: 'Visão Geral' },
-      { id: 'growth', label: 'Crescimento' },
-      { id: 'performance', label: 'Performance' },
-      { id: 'trends', label: 'Tendências' }
-    ]
-  };
-
   const frequencies = [
     { value: 'manual', label: 'Manual' },
     { value: 'daily', label: 'Diário' },
@@ -130,15 +110,6 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
     { value: 'csv', label: 'CSV' },
     { value: 'html', label: 'HTML' }
   ];
-
-  const handleMetricToggle = (metricId: string) => {
-    setReportData(prev => ({
-      ...prev,
-      metrics: prev.metrics.includes(metricId)
-        ? prev.metrics.filter(id => id !== metricId)
-        : [...prev.metrics, metricId]
-    }));
-  };
 
   const handleNext = () => {
     if (currentStep < 3) {
@@ -159,7 +130,7 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
       type: '',
       frequency: 'manual',
       format: 'pdf',
-      metrics: [],
+      metrics: [...REPORT_CONTENT_IDS],
       filters: { dateRange: '30days', campaigns: [], contacts: [], status: [] },
       delivery: { email: false, whatsapp: false, recipients: [] }
     });
@@ -168,7 +139,7 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
   };
 
   const handleSubmit = async () => {
-    if (!reportData.name || !reportData.type || reportData.metrics.length === 0) {
+    if (!reportData.name || !reportData.type) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -196,7 +167,11 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
     try {
       // Gera o relatório com dados reais e envia por e-mail via Edge Function.
       const { data, error } = await supabase.functions.invoke('send-report', {
-        body: { ...reportData, delivery: { ...reportData.delivery, recipients: recipientsRaw } },
+        body: {
+          ...reportData,
+          tenant_id: tenant?.id ?? null,
+          delivery: { ...reportData.delivery, recipients: recipientsRaw },
+        },
       });
 
       // invoke() trata status != 2xx como erro; tenta extrair a mensagem do corpo.
@@ -240,7 +215,7 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
       case 1:
         return reportData.name && reportData.type;
       case 2:
-        return reportData.metrics.length > 0;
+        return true;
       case 3:
         return true;
       default:
@@ -323,7 +298,7 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
                         className={`cursor-pointer transition-all hover:shadow-md ${
                           reportData.type === type.value ? 'ring-2 ring-primary' : ''
                         }`}
-                        onClick={() => setReportData(prev => ({ ...prev, type: type.value, metrics: [] }))}
+                        onClick={() => setReportData(prev => ({ ...prev, type: type.value }))}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start gap-3">
@@ -376,44 +351,31 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
             </div>
           )}
 
-          {/* Etapa 2: Métricas */}
+          {/* Etapa 2: O que vai no relatório (conteúdo fixo — ver REPORT_CONTENTS) */}
           {currentStep === 2 && reportData.type && (
-            <div className="space-y-6">
+            <div className="space-y-6" data-testid="report-contents-step">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Selecionar Métricas</h3>
-                <p className="text-muted-foreground mb-4">Escolha as métricas que deseja incluir no relatório</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {availableMetrics[reportData.type as keyof typeof availableMetrics]?.map((metric) => (
-                    <Card key={metric.id} className="cursor-pointer hover:shadow-sm" onClick={() => handleMetricToggle(metric.id)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={reportData.metrics.includes(metric.id)}
-                            onChange={() => handleMetricToggle(metric.id)}
-                          />
-                          <Label className="cursor-pointer">{metric.label}</Label>
-                        </div>
-                      </CardContent>
-                    </Card>
+                <h3 className="text-lg font-semibold mb-1">O que vai no relatório</h3>
+                <p className="text-muted-foreground mb-4">
+                  Todo relatório traz estes números da Loja inteira, no período escolhido. O tipo muda só o título do e-mail.
+                </p>
+
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {REPORT_CONTENTS.map((item) => (
+                    <li key={item.id} data-testid={`report-content-${item.id}`}>
+                      <Card>
+                        <CardContent className="p-4">
+                          <p className="font-medium">{item.label}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                        </CardContent>
+                      </Card>
+                    </li>
                   ))}
-                </div>
-                
-                {reportData.metrics.length > 0 && (
-                  <div className="mt-4">
-                    <Label className="text-sm font-medium">Métricas Selecionadas:</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {reportData.metrics.map((metricId) => {
-                        const metric = availableMetrics[reportData.type as keyof typeof availableMetrics]?.find(m => m.id === metricId);
-                        return (
-                          <Badge key={metricId} variant="secondary">
-                            {metric?.label}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                </ul>
+
+                <p className="mt-4 text-xs text-muted-foreground" data-testid="report-not-included">
+                  {REPORT_NOT_INCLUDED}
+                </p>
               </div>
             </div>
           )}
@@ -491,8 +453,8 @@ export const NewReportModal = ({ isOpen, onClose, initialData }: NewReportModalP
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Métricas:</span>
-                      <span className="font-medium">{reportData.metrics.length} selecionadas</span>
+                      <span className="text-muted-foreground">Conteúdo:</span>
+                      <span className="font-medium">{REPORT_CONTENTS.length} números da Loja inteira</span>
                     </div>
                   </CardContent>
                 </Card>

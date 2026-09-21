@@ -632,13 +632,14 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
     whatItDoes:
       'Serve para prestar contas a quem não abre o sistema: o dono da imobiliária, o diretor, o cliente da agência. Você monta o recorte uma vez em vez de remontar planilha todo mês.',
     howToConfigure: [
-      'Escolha o período e o recorte: o relatório sai exatamente do que estiver selecionado.',
+      'Escolha o período: o relatório sai da Loja aberta no seletor, no período escolhido. O tipo (Campanhas, Conversas, Funil, Geral) muda só o título do e-mail; o conteúdo é sempre o mesmo.',
+      'Na segunda etapa você vê a lista do que vai no relatório. É a lista completa: contatos, conversas, mensagens, leads por estágio do funil e três números de atendimento da Loja inteira: a 1ª resposta de uma pessoa (mediana, isto é, na metade das conversas iniciadas no período alguém do time respondeu em até aquele tempo; não conta bot nem campanha), quantas conversas esperam uma pessoa agora (e quantas delas sem responsável) e quantas conversas do período ficaram sem resposta de pessoa. Não há nada para marcar ou desmarcar.',
       'Gere uma vez e confira os números na tela.',
       'Para repassar sozinho toda semana, abra a aba Agendamentos e crie um agendamento: nome, frequência, horário e os e-mails que recebem.',
       'Acompanhe a aba Entregas depois do primeiro disparo. É lá que aparece se o envio saiu ou falhou.',
     ],
     example:
-      'Relatório de segunda-feira com leads novos, conversas atendidas e negócios fechados por corretor, para o dono acompanhar a semana sem pedir print para ninguém.',
+      'Relatório de segunda-feira com leads novos, conversas novas, quanto tempo o cliente esperou por uma pessoa e quantas conversas ainda esperam alguém, para o dono acompanhar a semana sem pedir print para ninguém.',
     tips: [
       'O envio agendado é por e-mail. Não há envio recorrente por WhatsApp: no agendamento você informa endereços de e-mail, não telefones.',
       'O horário é o de Brasília e o disparo acontece na janela dos 5 minutos seguintes: marcar 09:00 significa receber entre 09:00 e 09:05.',
@@ -646,6 +647,8 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Antes de confiar em qualquer envio recorrente, faça um envio de teste para você mesmo.',
       'Relatório com número errado é pior que relatório nenhum: confira o recorte antes de programar o envio.',
       'Como Gerente, gere um relatório por Loja trocando a Conta em foco antes de gerar. O agendamento também é por Conta: cada Loja tem os seus.',
+      'O relatório não traz números por atendente, de propósito: ele vai para qualquer endereço de e-mail, e um atendente poderia receber os números dos colegas. Esses números ficam na seção "Por atendente" do Dashboard, só para Gestor e Gerente.',
+      'Mensagens enviadas incluem bot, campanha e follow-up. Os três números de atendimento, não: neles só conta resposta escrita por uma pessoa.',
     ],
     category: 'tela',
     area: 'Marketing',

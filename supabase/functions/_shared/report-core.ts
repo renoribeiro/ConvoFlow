@@ -26,6 +26,14 @@
 export interface ReportDb {
   // deno-lint-ignore no-explicit-any
   from(table: string): any;
+  /**
+   * Opcional: as métricas de atendimento vêm da RPC loja_conversation_metrics
+   * (migração 20260921000001), que aceita o papel service_role. Um cliente sem
+   * `rpc` (o dublê dos testes) só perde essas três linhas — o resto do
+   * relatório sai igual.
+   */
+  // deno-lint-ignore no-explicit-any
+  rpc?(fn: string, args: Record<string, unknown>): any;
 }
 
 export class SecureError extends Error {
@@ -120,10 +128,78 @@ export async function collectMetrics(db: ReportDb, tenantId: string, sinceIso: s
     }
   } catch { /* funil opcional */ }
 
+  const attendance = await collectAttendance(db, tenantId, sinceIso);
+
   return {
     contactsTotal, contactsNew, conversationsTotal, conversationsNew,
     conversationsArchived, messagesTotal, messagesSent, messagesReceived, funnelStages,
+    attendance,
   };
+}
+
+/**
+ * Atendimento da Loja inteira, só o que é real (decisão de 2026-09-21): a
+ * mediana da 1ª resposta de uma PESSOA nas conversas iniciadas no período,
+ * quantas esperam uma pessoa AGORA e quantas do período ficaram sem resposta
+ * humana. Nada por pessoa aqui — o destinatário do relatório é um e-mail
+ * livre, e um atendente poderia receber os números dos colegas.
+ *
+ * `null` quando a RPC não está disponível (cliente sem `rpc`, função ausente,
+ * chamador fora do alcance): o relatório escreve "—" em vez de zero falso.
+ */
+export interface AttendanceMetrics {
+  /** Minutos; null sem conversa medida no período. */
+  firstHumanReplyMedianMinutes: number | null;
+  /** Quantas conversas entraram na mediana. */
+  firstHumanReplyCount: number;
+  waitingHumanNow: number;
+  waitingHumanUnowned: number;
+  noHumanReply: number;
+  conversationsInPeriod: number;
+}
+
+export async function collectAttendance(
+  db: ReportDb,
+  tenantId: string,
+  sinceIso: string,
+): Promise<AttendanceMetrics | null> {
+  if (typeof db.rpc !== 'function') return null;
+  try {
+    const { data, error } = await db.rpc('loja_conversation_metrics', {
+      p_tenant_id: tenantId,
+      p_from: sinceIso,
+      p_to: null,
+    });
+    if (error) return null;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+    const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0));
+    const median = row.median_first_human_minutes;
+    return {
+      firstHumanReplyMedianMinutes: median === null || median === undefined ? null : num(median),
+      firstHumanReplyCount: num(row.n_first_human),
+      waitingHumanNow: num(row.n_waiting_human),
+      waitingHumanUnowned: num(row.n_waiting_human_unowned),
+      noHumanReply: num(row.n_no_human_reply),
+      conversationsInPeriod: num(row.n_conversations),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** "6 s", "12 min", "7 h 28 min", "2 d 3 h" — a mesma escala do Dashboard. */
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return '—';
+  if (minutes < 1) return `${Math.max(1, Math.round(minutes * 60))} s`;
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const totalMin = Math.round(minutes);
+  const hours = Math.floor(totalMin / 60);
+  const rest = totalMin % 60;
+  if (hours < 24) return rest > 0 ? `${hours} h ${rest} min` : `${hours} h`;
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return restHours > 0 ? `${days} d ${restHours} h` : `${days} d`;
 }
 
 export type Metrics = Awaited<ReturnType<typeof collectMetrics>>;
@@ -153,6 +229,33 @@ function metricCard(label: string, value: number | string): string {
         <div style="font-size:12px;color:${EMAIL.muted};margin-top:4px;">${label}</div>
       </div>
     </td>`;
+}
+
+function attendanceHtml(a: AttendanceMetrics | null): string {
+  if (!a) {
+    return `<p style="font-size:13px;color:${EMAIL.muted};margin:0;">Números de atendimento indisponíveis para esta Conta.</p>`;
+  }
+  const median = a.firstHumanReplyCount > 0
+    ? `${formatMinutes(a.firstHumanReplyMedianMinutes)} <span style="color:${EMAIL.muted};">(na metade das ${a.firstHumanReplyCount} conversas iniciadas no período, alguém do time respondeu em até isso; não conta bot nem campanha)</span>`
+    : `— <span style="color:${EMAIL.muted};">(nenhuma conversa do período teve resposta de pessoa)</span>`;
+  const waiting = a.waitingHumanUnowned > 0
+    ? `${a.waitingHumanNow} <span style="color:${EMAIL.muted};">(${a.waitingHumanUnowned} sem responsável)</span>`
+    : `${a.waitingHumanNow}`;
+  return `
+      <table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid ${EMAIL.border};border-radius:8px;overflow:hidden;font-size:13px;">
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};color:${EMAIL.olive};">1ª resposta de uma pessoa (mediana)</td>
+          <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};text-align:right;font-weight:600;color:${EMAIL.ink};">${median}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};color:${EMAIL.olive};">Esperando uma pessoa agora</td>
+          <td style="padding:8px 12px;border-bottom:1px solid ${EMAIL.border};text-align:right;font-weight:600;color:${EMAIL.ink};">${waiting}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:${EMAIL.olive};">Sem resposta de pessoa (conversas do período)</td>
+          <td style="padding:8px 12px;text-align:right;font-weight:600;color:${EMAIL.ink};">${a.noHumanReply} de ${a.conversationsInPeriod}</td>
+        </tr>
+      </table>`;
 }
 
 export function renderHtml(opts: { name: string; typeLabel: string; periodLabel: string; generatedAt: string; m: Metrics }): string {
@@ -185,6 +288,8 @@ export function renderHtml(opts: { name: string; typeLabel: string; periodLabel:
       </table>
       <h2 style="font-size:15px;color:${EMAIL.ink};margin:24px 0 8px;">Resumo de mensagens</h2>
       <p style="font-size:13px;color:${EMAIL.olive};margin:0;">Total de mensagens no período: <strong>${m.messagesTotal}</strong> &middot; Conversas arquivadas: <strong>${m.conversationsArchived}</strong></p>
+      <h2 style="font-size:15px;color:${EMAIL.ink};margin:24px 0 8px;">Atendimento (Loja inteira)</h2>
+      ${attendanceHtml(m.attendance)}
       <h2 style="font-size:15px;color:${EMAIL.ink};margin:24px 0 8px;">Leads por estágio do funil</h2>
       <table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid ${EMAIL.border};border-radius:8px;overflow:hidden;">${funnelRows}</table>
       <p style="font-size:12px;color:${EMAIL.muted};margin:24px 0 0;border-top:1px solid ${EMAIL.border};padding-top:16px;">Este relatório foi gerado automaticamente pelo ConvoFlow com base nos dados reais da sua conta.</p>
@@ -205,6 +310,16 @@ export function renderCsv(m: Metrics): string {
     ['Mensagens enviadas', m.messagesSent],
     ['Mensagens recebidas', m.messagesReceived],
     ...m.funnelStages.map((s) => [`Funil: ${s.name}`, s.count] as [string, number]),
+    ...(m.attendance
+      ? ([
+          ['1ª resposta de uma pessoa (mediana, min)', m.attendance.firstHumanReplyMedianMinutes === null ? '' : Math.round(m.attendance.firstHumanReplyMedianMinutes * 10) / 10],
+          ['Conversas na mediana', m.attendance.firstHumanReplyCount],
+          ['Esperando uma pessoa agora', m.attendance.waitingHumanNow],
+          ['Esperando uma pessoa agora (sem responsável)', m.attendance.waitingHumanUnowned],
+          ['Sem resposta de pessoa (período)', m.attendance.noHumanReply],
+          ['Conversas iniciadas no período', m.attendance.conversationsInPeriod],
+        ] as Array<[string, string | number]>)
+      : []),
   ];
   return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
@@ -225,6 +340,15 @@ export function renderWhatsAppText(name: string, typeLabel: string, periodLabel:
   if (m.funnelStages.length) {
     lines.push('', '*Funil:*');
     for (const s of m.funnelStages) lines.push(`   • ${s.name}: ${s.count}`);
+  }
+  if (m.attendance) {
+    lines.push(
+      '',
+      '*Atendimento (Loja inteira):*',
+      `   • 1ª resposta de uma pessoa (mediana): ${m.attendance.firstHumanReplyCount > 0 ? formatMinutes(m.attendance.firstHumanReplyMedianMinutes) : '—'}`,
+      `   • Esperando uma pessoa agora: ${m.attendance.waitingHumanNow}${m.attendance.waitingHumanUnowned > 0 ? ` (${m.attendance.waitingHumanUnowned} sem responsável)` : ''}`,
+      `   • Sem resposta de pessoa: ${m.attendance.noHumanReply} de ${m.attendance.conversationsInPeriod}`,
+    );
   }
   lines.push('', 'Equipe ConvoFlow');
   return lines.join('\n');

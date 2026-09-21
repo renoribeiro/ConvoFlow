@@ -420,3 +420,102 @@ describe('resolveDateRange', () => {
     expect(resolveDateRange(null, '0 9 * * 1')).toBe('7days');
   });
 });
+
+// ── 6. Atendimento (RPC loja_conversation_metrics) ───────────────────────────
+// A RPC roda com service role e é a ÚNICA consulta do relatório que não passa
+// por `.eq('tenant_id')`: o isolamento dela é o argumento p_tenant_id. Este
+// bloco afirma que cada agenda pede a RPC com o SEU tenant, que o resultado
+// entra no relatório com os rótulos de leigo, e que sem RPC o relatório sai
+// igual ao de antes (nenhuma linha de atendimento, nada quebrado).
+
+import {
+  collectAttendance,
+  formatMinutes,
+  renderCsv,
+  renderHtml,
+  renderWhatsAppText,
+  type Metrics,
+} from '../../../supabase/functions/_shared/report-core.ts';
+
+describe('atendimento no relatório', () => {
+  const baseMetrics: Metrics = {
+    contactsTotal: 1, contactsNew: 1, conversationsTotal: 1, conversationsNew: 1,
+    conversationsArchived: 0, messagesTotal: 2, messagesSent: 1, messagesReceived: 1,
+    funnelStages: [], attendance: null,
+  };
+
+  it('cada agenda chama a RPC com o próprio tenant_id (isolamento por argumento)', async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const dbComRpc = Object.assign(db, {
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        return { data: [{ n_conversations: '3', n_first_human: '2', median_first_human_minutes: '448.2', n_waiting_human: '92', n_waiting_human_unowned: '92', n_no_human_reply: '1' }], error: null };
+      },
+    });
+    dbComRpc.seed('report_schedules', [
+      schedule({ id: 'sched-A', tenant_id: 'tenant-A', name: 'Relatório A' }),
+      schedule({ id: 'sched-B', tenant_id: 'tenant-B', name: 'Relatório B' }),
+    ]);
+    const { sendEmail } = makeSender();
+
+    await runDueSchedules({ db: dbComRpc, sendEmail, now: NOW });
+
+    expect(calls.map((c) => c.fn)).toEqual(['loja_conversation_metrics', 'loja_conversation_metrics']);
+    expect(calls.map((c) => c.args.p_tenant_id).sort()).toEqual(['tenant-A', 'tenant-B']);
+    const execA = dbComRpc.rows('report_executions').find((e) => e.tenant_id === 'tenant-A');
+    expect(execA!.parameters.result.attendance).toEqual({
+      firstHumanReplyMedianMinutes: 448.2,
+      firstHumanReplyCount: 2,
+      waitingHumanNow: 92,
+      waitingHumanUnowned: 92,
+      noHumanReply: 1,
+      conversationsInPeriod: 3,
+    });
+  });
+
+  it('sem `rpc` no cliente o relatório sai como antes: attendance null e o e-mail explica', async () => {
+    expect(await collectAttendance(db, 'tenant-A', '2026-08-10T00:00:00Z')).toBeNull();
+    const html = renderHtml({ name: 'X', typeLabel: 'Geral', periodLabel: '7 dias', generatedAt: 'agora', m: baseMetrics });
+    expect(html).toContain('Números de atendimento indisponíveis');
+    expect(renderCsv(baseMetrics)).not.toContain('1ª resposta de uma pessoa');
+  });
+
+  it('RPC com erro ou sem linha vira null, nunca zero falso', async () => {
+    const erro = Object.assign(db, { rpc: async () => ({ data: null, error: { message: 'x' } }) });
+    expect(await collectAttendance(erro, 'tenant-A', '2026-08-10T00:00:00Z')).toBeNull();
+    const vazio = Object.assign(db, { rpc: async () => ({ data: [], error: null }) });
+    expect(await collectAttendance(vazio, 'tenant-A', '2026-08-10T00:00:00Z')).toBeNull();
+  });
+
+  it('HTML, CSV e WhatsApp escrevem os três números com rótulo de leigo', () => {
+    const m: Metrics = {
+      ...baseMetrics,
+      attendance: {
+        firstHumanReplyMedianMinutes: 448.2, firstHumanReplyCount: 100,
+        waitingHumanNow: 92, waitingHumanUnowned: 92, noHumanReply: 68, conversationsInPeriod: 168,
+      },
+    };
+    const html = renderHtml({ name: 'X', typeLabel: 'Geral', periodLabel: '7 dias', generatedAt: 'agora', m });
+    expect(html).toContain('1ª resposta de uma pessoa (mediana)');
+    expect(html).toContain('7 h 28 min');
+    expect(html).toContain('não conta bot nem campanha');
+    expect(html).toContain('92 sem responsável');
+    expect(html).toContain('68 de 168');
+    // Nada por pessoa no e-mail (decisão 4): nenhum nome, nenhuma tabela de gente.
+    expect(html).not.toMatch(/Por atendente/);
+
+    const csv = renderCsv(m);
+    expect(csv).toContain('"1ª resposta de uma pessoa (mediana, min)","448.2"');
+    expect(csv).toContain('"Esperando uma pessoa agora","92"');
+
+    const wa = renderWhatsAppText('X', 'Geral', '7 dias', m);
+    expect(wa).toContain('1ª resposta de uma pessoa (mediana): 7 h 28 min');
+    expect(wa).toContain('Esperando uma pessoa agora: 92 (92 sem responsável)');
+  });
+
+  it('formatMinutes: a mesma escala do Dashboard', () => {
+    expect(formatMinutes(0.1)).toBe('6 s');
+    expect(formatMinutes(448.2)).toBe('7 h 28 min');
+    expect(formatMinutes(null)).toBe('—');
+  });
+});
