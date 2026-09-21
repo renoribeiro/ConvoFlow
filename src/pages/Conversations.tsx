@@ -12,10 +12,13 @@ import {
 } from '@/components/conversations/ConversationFiltersModal';
 import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
 import { TagFilterChips } from '@/components/conversations/TagFilterChips';
+import { OwnerFilterChips } from '@/components/conversations/OwnerFilterChips';
 import {
   isAdminOnlyFilter,
   mergeServerTotals,
   QUICK_FILTERS,
+  reconcileAttendantChoice,
+  reconcilePillChoice,
   resolveQuickFilterScope,
   type QuickFilterCounts,
   type QuickFilterType,
@@ -61,15 +64,22 @@ export default function Conversations() {
   // Busca compacta do mobile: fica como lupa e expande em campo ao toque.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [filters, setFilters] = useState<ConversationsFilterState>(DEFAULT_FILTER_STATE);
-  // Etiqueta é da Loja: ao trocar de Loja no seletor, as marcadas não existem
-  // na nova e o filtro devolveria lista vazia sem explicação. Só as etiquetas
-  // são limpas — não lidas, arquivadas e período valem em qualquer Loja.
-  const { tenant } = useTenant();
+  // Etiqueta e responsável são da Loja: ao trocar de Loja no seletor, os
+  // marcados não existem na nova e o filtro devolveria lista vazia sem
+  // explicação. Só esses dois são limpos — não lidas, arquivadas e período
+  // valem em qualquer Loja.
+  const { tenant, profile } = useTenant();
+  // O "eu" da pílula "Minhas" — profiles.id, o mesmo que assigned_profile_id guarda.
+  const viewerProfileId = profile?.id ?? null;
   const tenantIdAnterior = useRef(tenant?.id);
   useEffect(() => {
     if (tenantIdAnterior.current === tenant?.id) return;
     tenantIdAnterior.current = tenant?.id;
-    setFilters((prev) => (prev.tagIds.length > 0 ? { ...prev, tagIds: [] } : prev));
+    setFilters((prev) =>
+      prev.tagIds.length > 0 || prev.assignedProfileIds.length > 0
+        ? { ...prev, tagIds: [], assignedProfileIds: [] }
+        : prev,
+    );
   }, [tenant?.id]);
   // Pílulas de filtro rápido (seleção única) + contagens vindas da lista.
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(() =>
@@ -259,16 +269,49 @@ export default function Conversations() {
     setFilters((prev) => ({ ...prev, tagIds: prev.tagIds.filter((id) => id !== tagId) }));
   }, []);
 
+  const removeOwnerFilter = useCallback((profileId: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      assignedProfileIds: prev.assignedProfileIds.filter((id) => id !== profileId),
+    }));
+  }, []);
+
+  // Exclusão mútua entre o filtro por atendente (modal) e as pílulas "Minhas"
+  // / "Sem responsável": os três escrevem a mesma coluna, e "Minhas" + "Maria"
+  // seria uma lista vazia sem explicação. A regra é pura (quickFilters.ts);
+  // aqui só se aplica o resultado aos dois estados.
+  const selectQuickFilter = useCallback(
+    (next: QuickFilterType) => {
+      setQuickFilter(next);
+      setFilters((prev) => {
+        const r = reconcilePillChoice(next, prev.assignedProfileIds);
+        return r.assignedProfileIds === prev.assignedProfileIds
+          ? prev
+          : { ...prev, assignedProfileIds: r.assignedProfileIds };
+      });
+    },
+    [],
+  );
+  const handleFiltersChange = useCallback((next: ConversationsFilterState) => {
+    setFilters(next);
+    setQuickFilter((current) => reconcileAttendantChoice(next.assignedProfileIds, current).quickFilter);
+  }, []);
+
   // A pílula ativa vira filtro de servidor quando existe coluna para ela; o que
-  // ela não cobre continua vindo do modal "Filtros". Só "Arquivadas" sobrescreve
-  // o modal — as duas coisas convivem sem se anular.
+  // ela não cobre continua vindo do modal "Filtros". "Arquivadas" sobrescreve o
+  // modal; "Minhas" e "Sem responsável" sobrescrevem só o responsável — as
+  // duas coisas convivem sem se anular.
+  const modalScope = useMemo(
+    () => ({
+      hasUnread: filters.hasUnread,
+      isArchived: filters.isArchived,
+      assignedProfileIds: filters.assignedProfileIds,
+    }),
+    [filters.hasUnread, filters.isArchived, filters.assignedProfileIds],
+  );
   const quickScope = useMemo(
-    () =>
-      resolveQuickFilterScope(effectiveQuickFilter, {
-        hasUnread: filters.hasUnread,
-        isArchived: filters.isArchived,
-      }),
-    [effectiveQuickFilter, filters.hasUnread, filters.isArchived],
+    () => resolveQuickFilterScope(effectiveQuickFilter, modalScope, viewerProfileId),
+    [effectiveQuickFilter, modalScope, viewerProfileId],
   );
 
   // A lista publica só as contagens que o recorte carregado consegue cobrir —
@@ -287,6 +330,11 @@ export default function Conversations() {
   //
   // Só aqui dá para montar isso: a `ConversationsList` recebe o recorte já
   // resolvido e não tem como recuperar o que veio do modal "Filtros".
+  //
+  // O responsável entra pelo `modalScope`, não por aqui: é o único filtro do
+  // modal que uma pílula sobrescreve ("Minhas" e "Sem responsável" limpam os
+  // atendentes ao serem clicadas), e `resolveQuickFilterScope` é quem sabe
+  // disso. Para as outras pílulas ele passa intacto, como as etiquetas.
   const filtrosDeServidor = {
     searchQuery,
     whatsappInstanceId: activeInstanceId ?? undefined,
@@ -294,19 +342,29 @@ export default function Conversations() {
     dateTo: filters.dateTo,
     tagIds: filters.tagIds,
   };
-  const modalScope = { hasUnread: filters.hasUnread, isArchived: filters.isArchived };
 
   const totalTodas = useConversationsCount({
     ...filtrosDeServidor,
-    ...resolveQuickFilterScope('todas', modalScope),
+    ...resolveQuickFilterScope('todas', modalScope, viewerProfileId),
+  });
+  // Sem perfil carregado não existe "eu": a contagem nem é pedida, e a pílula
+  // fica com o piso do conjunto carregado (zero, pelo predicado de cliente).
+  const totalMinhas = useConversationsCount({
+    ...filtrosDeServidor,
+    ...resolveQuickFilterScope('minhas', modalScope, viewerProfileId),
+    enabled: !!viewerProfileId,
+  });
+  const totalSemResponsavel = useConversationsCount({
+    ...filtrosDeServidor,
+    ...resolveQuickFilterScope('sem-responsavel', modalScope, viewerProfileId),
   });
   const totalNaoLidas = useConversationsCount({
     ...filtrosDeServidor,
-    ...resolveQuickFilterScope('nao-lidas', modalScope),
+    ...resolveQuickFilterScope('nao-lidas', modalScope, viewerProfileId),
   });
   const totalArquivadas = useConversationsCount({
     ...filtrosDeServidor,
-    ...resolveQuickFilterScope('arquivadas', modalScope),
+    ...resolveQuickFilterScope('arquivadas', modalScope, viewerProfileId),
   });
 
   // Total do servidor vence a contagem do conjunto carregado; onde ele ainda
@@ -315,11 +373,22 @@ export default function Conversations() {
     () =>
       mergeServerTotals(quickFilterCounts, {
         todas: totalTodas.data,
+        minhas: totalMinhas.data,
+        'sem-responsavel': totalSemResponsavel.data,
         'nao-lidas': totalNaoLidas.data,
         arquivadas: totalArquivadas.data,
       }),
-    [quickFilterCounts, totalTodas.data, totalNaoLidas.data, totalArquivadas.data],
+    [
+      quickFilterCounts,
+      totalTodas.data,
+      totalMinhas.data,
+      totalSemResponsavel.data,
+      totalNaoLidas.data,
+      totalArquivadas.data,
+    ],
   );
+
+  const temSelosAcimaDasPilulas = filters.tagIds.length > 0 || filters.assignedProfileIds.length > 0;
 
   const list = (
     <div className="flex h-full min-h-0 flex-col">
@@ -328,17 +397,26 @@ export default function Conversations() {
         onRemove={removeTagFilter}
         className={cn('flex-shrink-0 pb-2', isMobile ? 'px-0 pt-1' : 'px-4 pt-4')}
       />
+      <OwnerFilterChips
+        assignedProfileIds={filters.assignedProfileIds}
+        onRemove={removeOwnerFilter}
+        className={cn(
+          'flex-shrink-0 pb-2',
+          isMobile ? 'px-0 pt-1' : 'px-4',
+          !isMobile && filters.tagIds.length === 0 && 'pt-4',
+        )}
+      />
       <QuickFilterPills
         value={effectiveQuickFilter}
-        onChange={setQuickFilter}
+        onChange={selectQuickFilter}
         counts={countsComTotais}
         slaEnabled={slaEnabled}
         canSeeIneligible={canSeeIneligible}
         className={cn(
           'flex-shrink-0 pb-3',
           isMobile ? 'px-0' : 'px-4',
-          // Com os selos de etiqueta em cima, o respiro já veio deles.
-          !isMobile && filters.tagIds.length === 0 && 'pt-4',
+          // Com selos (etiqueta ou responsável) em cima, o respiro já veio deles.
+          !isMobile && !temSelosAcimaDasPilulas && 'pt-4',
         )}
       />
       <div className="min-h-0 flex-1">
@@ -353,6 +431,8 @@ export default function Conversations() {
           dateFrom={filters.dateFrom}
           dateTo={filters.dateTo}
           tagIds={filters.tagIds}
+          assignedProfileIds={quickScope.assignedProfileIds ?? []}
+          unassignedOnly={quickScope.unassignedOnly ?? false}
           whatsappInstanceId={activeInstanceId}
           onInstanceChange={setActiveInstanceId}
           onItemsChange={setItemIds}
@@ -506,7 +586,7 @@ export default function Conversations() {
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
         value={filters}
-        onChange={setFilters}
+        onChange={handleFiltersChange}
       />
 
       <EtiquetasManagerSheet open={showEtiquetas} onOpenChange={setShowEtiquetas} />

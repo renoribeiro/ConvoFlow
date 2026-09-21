@@ -6,8 +6,11 @@
  *    uma manda `tagIds` para fora na hora — não existe passo de aplicar;
  *  - "Fechar" só fecha: não mexe no estado;
  *  - "Limpar" volta tudo ao padrão, etiquetas incluídas;
- *  - o número do selo conta período como UM filtro, e etiquetas como UM;
- *  - nenhum texto do modal fala em coluna, tabela ou em filtro que não existe.
+ *  - o número do selo conta período como UM filtro, etiquetas como UM e
+ *    responsáveis como UM;
+ *  - nenhum texto do modal fala em coluna, tabela ou em filtro que não existe;
+ *  - a seção "Responsável" só existe para quem `useOwnerFilterOptions` diz
+ *    que pode (gestor/gerente); para o atendente ela não é montada.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,6 +28,39 @@ const tagsMock = vi.hoisted(() => ({
 vi.mock('@/hooks/useTags', () => ({
   useTags: () => ({ tags: tagsMock.tags, isLoading: tagsMock.isLoading }),
 }));
+
+const ownersMock = vi.hoisted(() => ({
+  canFilter: false,
+  isLoading: false,
+  options: [] as Array<{
+    id: string;
+    label: string;
+    first_name: string | null;
+    last_name: string | null;
+    avatar_url: string | null;
+    reason?: string;
+  }>,
+}));
+
+vi.mock('@/hooks/useOwnerFilterOptions', () => ({
+  useOwnerFilterOptions: () => ({
+    canFilter: ownersMock.canFilter,
+    isLoading: ownersMock.isLoading,
+    options: ownersMock.options,
+    optionFor: (id: string) => ownersMock.options.find((o) => o.id === id),
+  }),
+}));
+
+const MARIA = { id: 'p-maria', label: 'Maria Souza', first_name: 'Maria', last_name: 'Souza', avatar_url: null };
+const JOAO = { id: 'p-joao', label: 'João Lima', first_name: 'João', last_name: 'Lima', avatar_url: null };
+const CARLA_SUSPENSA = {
+  id: 'p-carla',
+  label: 'Carla Reis (suspenso)',
+  first_name: 'Carla',
+  last_name: 'Reis',
+  avatar_url: null,
+  reason: 'suspended',
+};
 
 import {
   ConversationFiltersModal,
@@ -54,6 +90,9 @@ beforeEach(() => {
     { id: 'tag-frio', name: 'Frio', color: '#3b82f6' },
   ];
   tagsMock.isLoading = false;
+  ownersMock.canFilter = false;
+  ownersMock.isLoading = false;
+  ownersMock.options = [];
 });
 
 describe('seletor de etiquetas', () => {
@@ -157,6 +196,90 @@ describe('texto do modal', () => {
   });
 });
 
+describe('seção "Responsável pela conversa" (só gestor/gerente)', () => {
+  it('o atendente NÃO vê a seção: ela não é montada, nem escondida', () => {
+    ownersMock.canFilter = false;
+    ownersMock.options = [MARIA, JOAO];
+    renderModal();
+    expect(screen.queryByRole('group', { name: 'Responsável pela conversa' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Responsável pela conversa')).not.toBeInTheDocument();
+    expect(screen.queryByText('Maria Souza')).not.toBeInTheDocument();
+  });
+
+  it('o atendente não vê a seção nem com responsáveis já marcados no estado', () => {
+    ownersMock.canFilter = false;
+    ownersMock.options = [MARIA];
+    renderModal({ assignedProfileIds: ['p-maria'] });
+    expect(screen.queryByRole('group', { name: 'Responsável pela conversa' })).not.toBeInTheDocument();
+  });
+
+  it('gestor/gerente veem o time da Loja, um por linha', () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA, JOAO];
+    renderModal();
+    const grupo = screen.getByRole('group', { name: 'Responsável pela conversa' });
+    expect(within(grupo).getByRole('checkbox', { name: /Maria Souza/ })).toBeInTheDocument();
+    expect(within(grupo).getByRole('checkbox', { name: /João Lima/ })).toBeInTheDocument();
+  });
+
+  it('marcar uma pessoa sai na hora em assignedProfileIds, sem passo de aplicar', async () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA, JOAO];
+    const user = userEvent.setup();
+    renderModal();
+    await user.click(screen.getByRole('checkbox', { name: /Maria Souza/ }));
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_FILTER_STATE, assignedProfileIds: ['p-maria'] });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('marcar uma segunda pessoa acrescenta (qualquer uma delas), e desmarcar tira só ela', async () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA, JOAO];
+    const user = userEvent.setup();
+    renderModal({ assignedProfileIds: ['p-maria'] });
+    expect(screen.getByRole('checkbox', { name: /Maria Souza/ })).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByRole('checkbox', { name: /João Lima/ }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_FILTER_STATE,
+      assignedProfileIds: ['p-maria', 'p-joao'],
+    });
+    await user.click(screen.getByRole('checkbox', { name: /Maria Souza/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTER_STATE, assignedProfileIds: [] });
+  });
+
+  it('quem saiu do time mas ainda tem conversa aparece com o motivo no nome', () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA, CARLA_SUSPENSA];
+    renderModal();
+    expect(screen.getByRole('checkbox', { name: /Carla Reis \(suspenso\)/ })).toBeInTheDocument();
+  });
+
+  it('o texto diz "qualquer uma delas" — várias marcadas é OU, como as etiquetas', () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA];
+    renderModal();
+    expect(screen.getByText(/entra o que está com qualquer uma delas/)).toBeInTheDocument();
+  });
+
+  it('não oferece "Sem responsável" dentro do modal: isso é pílula', () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA, JOAO];
+    renderModal();
+    const grupo = screen.getByRole('group', { name: 'Responsável pela conversa' });
+    expect(within(grupo).queryByText(/Sem responsável/)).not.toBeInTheDocument();
+  });
+
+  it('"Limpar" zera os responsáveis junto com o resto', async () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [MARIA];
+    const user = userEvent.setup();
+    renderModal({ assignedProfileIds: ['p-maria'], tagIds: ['tag-quente'] });
+    await user.click(screen.getByRole('button', { name: 'Limpar' }));
+    expect(onChange).toHaveBeenCalledWith(DEFAULT_FILTER_STATE);
+    expect(onChange.mock.calls[0]?.[0].assignedProfileIds).toEqual([]);
+  });
+});
+
 describe('countActiveFilters (o número do selo em "Filtros")', () => {
   it('zero no padrão', () => {
     expect(countActiveFilters(DEFAULT_FILTER_STATE)).toBe(0);
@@ -183,7 +306,26 @@ describe('countActiveFilters (o número do selo em "Filtros")', () => {
         dateFrom: new Date(2026, 8, 1),
         dateTo: new Date(2026, 8, 20),
         tagIds: ['a', 'b'],
+        assignedProfileIds: [],
       }),
     ).toBe(4);
+  });
+
+  it('responsáveis contam UMA vez, marcados um ou vários', () => {
+    expect(countActiveFilters({ ...DEFAULT_FILTER_STATE, assignedProfileIds: ['p1'] })).toBe(1);
+    expect(countActiveFilters({ ...DEFAULT_FILTER_STATE, assignedProfileIds: ['p1', 'p2', 'p3'] })).toBe(1);
+  });
+
+  it('tudo ligado, responsáveis incluídos = 5', () => {
+    expect(
+      countActiveFilters({
+        hasUnread: true,
+        isArchived: true,
+        dateFrom: new Date(2026, 8, 1),
+        dateTo: new Date(2026, 8, 20),
+        tagIds: ['a', 'b'],
+        assignedProfileIds: ['p1', 'p2'],
+      }),
+    ).toBe(5);
   });
 });

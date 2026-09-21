@@ -2,10 +2,14 @@
  * Pílulas de responsável — "Minhas" e "Sem responsável".
  *
  * Arquivo separado de `quickFilters.test.ts` de propósito: aquele protege o
- * comportamento que já existia e não foi tocado. Este cobre só o que a
- * migração 20260913000001 acrescentou: o recorte por `assigned_profile_id`,
- * feito no cliente sobre o que já foi carregado (piso, não total), sem mexer
- * nas pílulas de servidor.
+ * comportamento que já existia e não foi tocado. Este cobre o que a migração
+ * 20260913000001 acrescentou: o recorte por `assigned_profile_id`.
+ *
+ * Histórico: de 2026-09-13 a 2026-09-21 as duas pílulas recortavam SÓ no
+ * cliente (piso, não total). Em 2026-09-21 viraram recorte de SERVIDOR com
+ * contagem própria — os dois testes que afirmavam o contrário foram
+ * invertidos, não apagados. O predicado de cliente continua existindo como
+ * rede, e os testes dele seguem valendo.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -63,15 +67,26 @@ describe('as pílulas novas existem e ficam entre "Todas" e "Não lidas"', () =>
     }
   });
 
-  it('NÃO viraram pílulas de servidor: as contagens exatas continuam sendo só as três antigas', () => {
-    expect([...SERVER_COUNTED_FILTERS]).toEqual(['todas', 'nao-lidas', 'arquivadas']);
-    expect(isServerCountedFilter('minhas')).toBe(false);
-    expect(isServerCountedFilter('sem-responsavel')).toBe(false);
+  it('VIRARAM pílulas de servidor (2026-09-21): entram nas contagens exatas, junto das três antigas', () => {
+    expect([...SERVER_COUNTED_FILTERS]).toEqual(['todas', 'minhas', 'sem-responsavel', 'nao-lidas', 'arquivadas']);
+    expect(isServerCountedFilter('minhas')).toBe(true);
+    expect(isServerCountedFilter('sem-responsavel')).toBe(true);
   });
 
-  it('não mexem no recorte de servidor (hasUnread / isArchived)', () => {
-    expect(resolveQuickFilterScope('minhas', escopoLimpo)).toEqual(escopoLimpo);
-    expect(resolveQuickFilterScope('sem-responsavel', escopoLimpo)).toEqual(escopoLimpo);
+  it('só mexem no recorte de responsável — hasUnread / isArchived do modal ficam como estavam', () => {
+    expect(resolveQuickFilterScope('minhas', escopoLimpo, EU)).toEqual({
+      ...escopoLimpo,
+      assignedProfileIds: [EU],
+      unassignedOnly: false,
+    });
+    expect(resolveQuickFilterScope('sem-responsavel', escopoLimpo, EU)).toEqual({
+      ...escopoLimpo,
+      assignedProfileIds: [],
+      unassignedOnly: true,
+    });
+    const modalCheio = { hasUnread: true, isArchived: true };
+    expect(resolveQuickFilterScope('minhas', modalCheio, EU)).toMatchObject(modalCheio);
+    expect(resolveQuickFilterScope('sem-responsavel', modalCheio, EU)).toMatchObject(modalCheio);
   });
 });
 
@@ -152,11 +167,15 @@ describe('buildQuickFilterCounts', () => {
     expect(arquivadas).toEqual({ arquivadas: { value: 5, exact: false } });
   });
 
-  it('mergeServerTotals não sobrescreve as pílulas novas — elas não têm total de servidor', () => {
+  it('mergeServerTotals: sem total ainda, o piso das duas fica; com total, viram exatas', () => {
     const loaded = buildQuickFilterCounts(lista, escopoLimpo, NOW, SLA_LIGADO, false, COMO_EU);
-    const merged = mergeServerTotals(loaded, { todas: 40, 'nao-lidas': 3, arquivadas: 7 });
-    expect(merged.todas).toEqual({ value: 40, exact: true });
-    expect(merged.minhas).toEqual({ value: 2, exact: false });
-    expect(merged['sem-responsavel']).toEqual({ value: 2, exact: false });
+    const semTotal = mergeServerTotals(loaded, { todas: 40, 'nao-lidas': 3, arquivadas: 7 });
+    expect(semTotal.todas).toEqual({ value: 40, exact: true });
+    expect(semTotal.minhas).toEqual({ value: 2, exact: false });
+    expect(semTotal['sem-responsavel']).toEqual({ value: 2, exact: false });
+
+    const comTotal = mergeServerTotals(loaded, { minhas: 9, 'sem-responsavel': 163 });
+    expect(comTotal.minhas).toEqual({ value: 9, exact: true });
+    expect(comTotal['sem-responsavel']).toEqual({ value: 163, exact: true });
   });
 });

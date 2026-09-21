@@ -55,9 +55,18 @@ interface ConversationsListProps {
   /** Etiquetas do contato (qualquer uma). Recorte de servidor, como o período. */
   tagIds?: string[];
   /**
+   * Responsáveis (qualquer um). Recorte de servidor: é o filtro por atendente
+   * do modal ou, na pílula "Minhas", o próprio perfil de quem olha.
+   */
+  assignedProfileIds?: string[];
+  /** Só sem responsável — a pílula "Sem responsável", já traduzida. */
+  unassignedOnly?: boolean;
+  /**
    * Pílula de filtro rápido ativa. As pílulas que viram coluna real já chegam
-   * aqui traduzidas em `hasUnread`/`isArchived`; esta prop serve só para o
-   * recorte derivado ("Aguardando" / "Em atendimento"), que é feito no cliente.
+   * aqui traduzidas em `hasUnread`/`isArchived`/`assignedProfileIds`/
+   * `unassignedOnly`; esta prop serve só para o recorte derivado
+   * ("Aguardando" / "Em atendimento" / "Responsável indisponível"), que é
+   * feito no cliente.
    */
   quickFilter?: QuickFilterType;
   /** Devolve ao pai as contagens conhecidas do conjunto carregado. */
@@ -125,6 +134,8 @@ export const ConversationsList = ({
   dateFrom = null,
   dateTo = null,
   tagIds,
+  assignedProfileIds,
+  unassignedOnly = false,
   quickFilter = 'todas',
   onCountsChange,
   whatsappInstanceId,
@@ -171,6 +182,8 @@ export const ConversationsList = ({
     dateFrom,
     dateTo,
     tagIds,
+    assignedProfileIds,
+    unassignedOnly,
   });
 
   // Memoize so the flattened array keeps a stable identity between renders
@@ -257,13 +270,13 @@ export const ConversationsList = ({
     () =>
       buildQuickFilterCounts(
         filteredConversations,
-        { hasUnread, isArchived },
+        { hasUnread, isArchived, assignedProfileIds, unassignedOnly },
         undefined,
         slaConfig,
         allLoaded,
         ownership,
       ),
-    [filteredConversations, hasUnread, isArchived, slaConfig, allLoaded, ownership],
+    [filteredConversations, hasUnread, isArchived, assignedProfileIds, unassignedOnly, slaConfig, allLoaded, ownership],
   );
 
   const lastCountsSignature = useRef<string>('');

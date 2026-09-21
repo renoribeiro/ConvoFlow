@@ -12,10 +12,20 @@
  *     duplicadas aqui), então só podem ser aplicados no cliente, sobre o que já
  *     foi carregado.
  *   - "Minhas" e "Sem responsável" olham `assigned_profile_id` (migração
- *     20260913000001). A coluna é real, mas neste passo elas recortam SÓ o que
- *     já foi carregado, como as derivadas — de propósito: não mexer na query
- *     nem nas contagens de servidor enquanto a visibilidade por pessoa não é
- *     decidida. O número delas é um piso, igual ao de "Aguardando".
+ *     20260913000001) e também viram filtro DE SERVIDOR (`assigned_profile_id
+ *     = eu` e `IS NULL`), com contagem própria — o número delas é o total da
+ *     fila, exato. Até 2026-09-21 elas recortavam só o carregado, e em
+ *     EncaixaRH "Sem responsável" mostrava "16+" de 163 até rolar tudo. O
+ *     predicado de cliente delas continua em `matchesQuickFilter` por
+ *     segurança (sobre o que o servidor já recortou, ele é um no-op).
+ *   - "Responsável indisponível" (só gestor/gerente) segue derivada: a lista
+ *     de quem está indisponível vem de uma RPC, não é coluna.
+ *
+ * Filtro por atendente (modal "Filtros", só gestor/gerente) e as pílulas
+ * "Minhas" / "Sem responsável" escrevem a mesma coluna, então são
+ * mutuamente exclusivos: escolher atendente devolve a pílula a "Todas", e
+ * clicar numa das duas pílulas limpa os atendentes (ver `reconcile*`). Sem
+ * isso, "Minhas" + "Maria" daria lista vazia sem explicação.
  *
  * "Não respondidas" ainda depende da Loja ter ligado a sinalização de SLA — com
  * ela desligada a pílula não existe (ver `visibleQuickFilters`).
@@ -57,6 +67,47 @@ export const QUICK_FILTERS: ReadonlyArray<{ id: QuickFilterType; label: string; 
 /** True para a pílula reservada a quem administra a Loja. */
 export function isAdminOnlyFilter(quickFilter: QuickFilterType): boolean {
   return quickFilter === 'responsavel-indisponivel';
+}
+
+/** As duas pílulas que escrevem `assigned_profile_id` no recorte de servidor. */
+export function isOwnershipPill(quickFilter: QuickFilterType): boolean {
+  return quickFilter === 'minhas' || quickFilter === 'sem-responsavel';
+}
+
+/**
+ * Exclusão mútua entre as pílulas de responsável e o filtro por atendente.
+ *
+ * As duas funções são puras e simétricas; a tela chama uma ao clicar numa
+ * pílula e a outra ao mudar o modal. Nenhuma das duas mexe no que não
+ * colide: "Aguardando" + "Maria" ou "Responsável indisponível" + "Maria"
+ * passam intactos.
+ */
+export interface OwnershipSelection {
+  quickFilter: QuickFilterType;
+  /** Atendentes marcados no modal "Filtros" (profiles.id). */
+  assignedProfileIds: string[];
+}
+
+/** Pílula escolhida: se for "Minhas" ou "Sem responsável", os atendentes saem. */
+export function reconcilePillChoice(
+  next: QuickFilterType,
+  assignedProfileIds: string[],
+): OwnershipSelection {
+  return {
+    quickFilter: next,
+    assignedProfileIds: isOwnershipPill(next) ? [] : assignedProfileIds,
+  };
+}
+
+/** Atendentes escolhidos: se houver algum, a pílula de responsável volta a "Todas". */
+export function reconcileAttendantChoice(
+  assignedProfileIds: string[],
+  quickFilter: QuickFilterType,
+): OwnershipSelection {
+  return {
+    quickFilter: assignedProfileIds.length > 0 && isOwnershipPill(quickFilter) ? 'todas' : quickFilter,
+    assignedProfileIds,
+  };
 }
 
 /** Configuração de SLA da Loja, quando a sinalização está ligada. */
@@ -127,15 +178,20 @@ export type QuickFilterCounts = Partial<Record<QuickFilterType, QuickFilterCount
 
 /**
  * Pílulas cujo total o servidor sabe responder, porque são coluna de verdade
- * em `conversations` (`is_archived`, `unread_count`).
+ * em `conversations` (`is_archived`, `unread_count`, `assigned_profile_id`).
  *
  * As outras três dependem de `conversationGroups.ts` / `slaLevels.ts`. Traduzir
  * essas regras para filtro do PostgREST criaria uma segunda fonte da verdade
  * para uma regra que já mostrou ser sutil (o 'incoming' que a normalização de
  * direção conserta) — e as duas cópias iam divergir na primeira mudança.
+ * "Responsável indisponível" também fica de fora: o conjunto de indisponíveis
+ * vem da RPC loja_ineligible_owners, e uma contagem de servidor teria que
+ * repetir a regra dela.
  */
 export const SERVER_COUNTED_FILTERS: ReadonlyArray<QuickFilterType> = [
   'todas',
+  'minhas',
+  'sem-responsavel',
   'nao-lidas',
   'arquivadas',
 ] as const;
@@ -150,32 +206,65 @@ const ATTENDANCE_BY_FILTER: Partial<Record<QuickFilterType, AttendanceGroup>> = 
   'em-atendimento': 'in_progress',
 };
 
-/** Recorte que a query aceita hoje (colunas reais de `conversations`). */
+/**
+ * Recorte que a query aceita hoje (colunas reais de `conversations`).
+ *
+ * Os dois campos de responsável são opcionais: ausentes (ou vazio/false) é
+ * "sem recorte por responsável" — o que o modal manda quando nenhum atendente
+ * está marcado, e o que as pílulas que não são de responsável preservam.
+ */
 export interface QuickFilterScope {
   hasUnread: boolean;
   isArchived: boolean;
+  /** Responsáveis (profiles.id), QUALQUER um. Do modal, ou `[eu]` na pílula "Minhas". */
+  assignedProfileIds?: string[];
+  /** Só sem responsável — a pílula "Sem responsável". */
+  unassignedOnly?: boolean;
 }
 
 /**
  * Compõe a pílula ativa com o que veio do modal "Filtros".
  *
- * Desempate: só "Arquivadas" sobrescreve o modal — a pílula vence. As demais
- * apenas somam ao que o modal pediu, para não desfazer escolha do usuário sem
- * ele perceber.
+ * Desempate: "Arquivadas" sobrescreve o modal — a pílula vence. "Minhas" e
+ * "Sem responsável" sobrescrevem só o campo de responsável, porque é o que
+ * clicar nelas faz (ver `reconcilePillChoice`): a contagem de cada uma tem de
+ * ser a da fila que apareceria ao clicar. As demais apenas somam ao que o
+ * modal pediu, para não desfazer escolha do usuário sem ele perceber.
+ *
+ * "Minhas" sem perfil carregado não vira filtro nenhum aqui (a lista ficaria
+ * com tudo); quem segura é o predicado de cliente, que sem "eu" não deixa
+ * nada passar, e a contagem de "Minhas", que a tela só liga com o perfil.
  */
 export function resolveQuickFilterScope(
   quickFilter: QuickFilterType,
   modal: QuickFilterScope,
+  viewerProfileId?: string | null,
 ): QuickFilterScope {
-  return {
+  const base: QuickFilterScope = {
+    ...modal,
     hasUnread: quickFilter === 'nao-lidas' ? true : modal.hasUnread,
     isArchived: quickFilter === 'arquivadas' ? true : modal.isArchived,
   };
+  if (quickFilter === 'minhas') {
+    return {
+      ...base,
+      assignedProfileIds: viewerProfileId ? [viewerProfileId] : [],
+      unassignedOnly: false,
+    };
+  }
+  if (quickFilter === 'sem-responsavel') {
+    return { ...base, assignedProfileIds: [], unassignedOnly: true };
+  }
+  return base;
 }
 
-/** Pílulas de responsável: recorte no cliente, sobre o que já foi carregado. */
+/**
+ * Pílulas de responsável. "Minhas" e "Sem responsável" já vêm recortadas do
+ * servidor; o predicado de cliente fica como rede (é no-op sobre o que o
+ * servidor devolveu). "Responsável indisponível" é só cliente.
+ */
 function isOwnershipFilter(quickFilter: QuickFilterType): boolean {
-  return quickFilter === 'minhas' || quickFilter === 'sem-responsavel' || isAdminOnlyFilter(quickFilter);
+  return isOwnershipPill(quickFilter) || isAdminOnlyFilter(quickFilter);
 }
 
 /** True para as pílulas que só existem como regra no cliente. */
@@ -267,9 +356,21 @@ export function buildQuickFilterCounts(
   if (scope.isArchived) return { arquivadas: conta(conversations.length) };
   // Universo já recortado por não lidas: idem.
   if (scope.hasUnread) return { 'nao-lidas': conta(conversations.length) };
+  // Universo já recortado por "sem responsável": idem.
+  if (scope.unassignedOnly) return { 'sem-responsavel': conta(conversations.length) };
 
   const viewer = ownership?.viewerProfileId ?? null;
   const ineligible = ownership?.ineligibleOwnerIds;
+  const owners = scope.assignedProfileIds ?? [];
+  // Universo já recortado por "Minhas" (só eu): idem.
+  if (owners.length === 1 && viewer && owners[0] === viewer) {
+    return { minhas: conta(conversations.length) };
+  }
+  // Universo recortado por atendente(s) do modal: as pílulas de mensagem
+  // ("Aguardando", "Não lidas"...) contam dentro desse universo, e é isso que
+  // elas mostrariam ao clicar. "Minhas" e "Sem responsável" não: clicar nelas
+  // limpa os atendentes, então o que se contaria aqui não é a fila delas.
+  const filtradoPorAtendente = owners.length > 0;
 
   let naoLidas = 0;
   let aguardando = 0;
@@ -296,12 +397,14 @@ export function buildQuickFilterCounts(
 
   const counts: QuickFilterCounts = {
     todas: conta(conversations.length),
-    minhas: conta(minhas),
-    'sem-responsavel': conta(semResponsavel),
     'nao-lidas': conta(naoLidas),
     aguardando: conta(aguardando),
     'em-atendimento': conta(emAtendimento),
   };
+  if (!filtradoPorAtendente) {
+    counts.minhas = conta(minhas);
+    counts['sem-responsavel'] = conta(semResponsavel);
+  }
 
   // Com o SLA desligado a chave nem é publicada — a pílula não existe.
   if (sla?.enabled) counts['nao-respondidas'] = conta(naoRespondidas);
