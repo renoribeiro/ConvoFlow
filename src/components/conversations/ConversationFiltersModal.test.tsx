@@ -269,6 +269,14 @@ describe('seção "Responsável pela conversa" (só gestor/gerente)', () => {
     expect(within(grupo).queryByText(/Sem responsável/)).not.toBeInTheDocument();
   });
 
+  it('sem ninguém no time, aponta para Equipe (a tela que existe), não para uma tela inventada', () => {
+    ownersMock.canFilter = true;
+    ownersMock.options = [];
+    renderModal();
+    expect(screen.getByText(/Convide pessoas em Equipe/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Configurações › Usuários/);
+  });
+
   it('"Limpar" zera os responsáveis junto com o resto', async () => {
     ownersMock.canFilter = true;
     ownersMock.options = [MARIA];

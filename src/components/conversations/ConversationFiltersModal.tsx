@@ -225,7 +225,7 @@ export function ConversationFiltersModal({ isOpen, onClose, value, onChange }: C
                     </>
                   ) : owners.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-3">
-                      Ninguém no time desta Loja ainda. Convide pessoas em Configurações › Usuários.
+                      Ninguém no time desta Loja ainda. Convide pessoas em Equipe, no menu ao lado.
                     </p>
                   ) : (
                     owners.map((owner) => {
