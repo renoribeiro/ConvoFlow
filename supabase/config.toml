@@ -33,6 +33,13 @@ verify_jwt = true
 [functions.meta-webhook]
 verify_jwt = false
 
+[functions.instagram-webhook]
+# Sonda da fatia 2 do Instagram. Chamada de FORA pela Meta, que não manda JWT:
+# verify_jwt tem de ser false, senão o gateway barra antes do handshake.
+# Ela se autentica pelo próprio handshake (INSTAGRAM_VERIFY_TOKEN) e verifica a
+# assinatura do corpo — e não escreve nada no banco.
+verify_jwt = false
+
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
