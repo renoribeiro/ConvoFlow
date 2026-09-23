@@ -64,7 +64,8 @@ interface WhatsAppInstance {
 interface Contact {
   id: string;
   name: string | null;
-  phone: string;
+  /** Nulo para contato que não é de WhatsApp. Campanha só alcança quem tem telefone. */
+  phone: string | null;
   current_stage_id: string | null;
 }
 
@@ -574,7 +575,7 @@ export const CampaignWizard = ({
     const matchText =
       !q ||
       (c.name ?? '').toLowerCase().includes(q) ||
-      c.phone.includes(q);
+      (c.phone ?? '').includes(q);
     const matchStage =
       state.contactStageFilter === 'all' ||
       c.current_stage_id === state.contactStageFilter;

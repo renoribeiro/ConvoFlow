@@ -4,7 +4,12 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface Contact {
   id: string;
-  phone: string;
+  /**
+   * Nulo para contato que não é de WhatsApp (o Instagram identifica por IGSID,
+   * não por telefone). Todo leitor tem que tratar a ausência — ver
+   * `contacts.external_id`, que é o identificador de verdade.
+   */
+  phone: string | null;
   name: string | null;
   email: string | null;
   current_stage_id: string | null;

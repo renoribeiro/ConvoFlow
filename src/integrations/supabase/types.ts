@@ -1368,11 +1368,13 @@ export type Database = {
       contacts: {
         Row: {
           avatar_url: string | null
+          channel: string
           created_at: string
           current_flow_step_id_temp: string | null
           current_stage_id: string | null
           custom_fields: Json
           email: string | null
+          external_id: string
           first_message: string | null
           id: string
           is_blocked: boolean | null
@@ -1386,7 +1388,7 @@ export type Database = {
           opt_out_at: string | null
           opt_out_mass_message: boolean | null
           opt_out_source: string | null
-          phone: string
+          phone: string | null
           source_details: Json | null
           stage_entered_at: string | null
           tenant_id: string
@@ -1395,11 +1397,13 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          channel?: string
           created_at?: string
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
           custom_fields?: Json
           email?: string | null
+          external_id?: string
           first_message?: string | null
           id?: string
           is_blocked?: boolean | null
@@ -1413,7 +1417,7 @@ export type Database = {
           opt_out_at?: string | null
           opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
-          phone: string
+          phone?: string | null
           source_details?: Json | null
           stage_entered_at?: string | null
           tenant_id: string
@@ -1422,11 +1426,13 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          channel?: string
           created_at?: string
           current_flow_step_id_temp?: string | null
           current_stage_id?: string | null
           custom_fields?: Json
           email?: string | null
+          external_id?: string
           first_message?: string | null
           id?: string
           is_blocked?: boolean | null
@@ -1440,7 +1446,7 @@ export type Database = {
           opt_out_at?: string | null
           opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
-          phone?: string
+          phone?: string | null
           source_details?: Json | null
           stage_entered_at?: string | null
           tenant_id?: string
@@ -1483,6 +1489,7 @@ export type Database = {
           assigned_at: string | null
           assigned_by: string | null
           assigned_profile_id: string | null
+          channel: string
           contact_id: string
           created_at: string | null
           id: string
@@ -1503,6 +1510,7 @@ export type Database = {
           assigned_at?: string | null
           assigned_by?: string | null
           assigned_profile_id?: string | null
+          channel?: string
           contact_id: string
           created_at?: string | null
           id?: string
@@ -1523,6 +1531,7 @@ export type Database = {
           assigned_at?: string | null
           assigned_by?: string | null
           assigned_profile_id?: string | null
+          channel?: string
           contact_id?: string
           created_at?: string | null
           id?: string

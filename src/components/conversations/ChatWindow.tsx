@@ -588,7 +588,11 @@ export const ChatWindow = ({
       toast.error(`A instância "${active.row.name}" não está conectada.`);
       return;
     }
-    const phone = contact?.phone || '';
+    const phone = phoneOf(contact);
+    if (!phone) {
+      toast.error(SEM_ENDERECO);
+      return;
+    }
     const uploaded = await uploadWhatsAppMedia(file, tenant.id);
     const mediaType = detectMediaTypeFromMime(uploaded.mimeType);
     const providerResult = await active.adapter.sendMedia(phone, {
@@ -638,6 +642,14 @@ export const ChatWindow = ({
     }
     if (!active.adapter.isReadyToSend()) {
       toast.error(`A instância "${active.row.name}" não está conectada.`);
+      return;
+    }
+    // Contato sem telefone: até a fatia 1 do Instagram isso era impossível
+    // (contacts.phone era NOT NULL). Agora é possível, e sem esta guarda o
+    // envio sairia com destinatário vazio — o provedor devolveria um erro
+    // genérico e a mensagem ficaria "pending" para sempre na tela.
+    if (!phoneOf(contact)) {
+      toast.error(SEM_ENDERECO);
       return;
     }
     if (outsideMetaWindow && !pendingFile && message.trim()) {
@@ -1389,6 +1401,12 @@ export const ChatWindow = ({
 };
 
 /** Small helper so the text-send path reads cleanly. */
+/**
+ * Mensagem única para "não dá para enviar: o contato não tem endereço neste
+ * canal". Desde a fatia 1 do Instagram, `contacts.phone` pode ser nulo.
+ */
+const SEM_ENDERECO = 'Este contato não tem número de WhatsApp para receber a mensagem.';
+
 function phoneOf(contact: { phone?: string | null } | null | undefined): string {
   return contact?.phone || '';
 }

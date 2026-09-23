@@ -394,8 +394,13 @@ serve(async (req) => {
         }
       }
 
-      // Strip non-numeric from phone for safety
-      phone = phone.replace(/\D/g, '')
+      // Strip non-numeric from phone for safety.
+      // O `?? ''` não é decorativo: desde a fatia 1 do Instagram tanto
+      // `exec.contact_identifier` quanto `contacts.phone` podem ser nulos, e
+      // `null.replace` derrubaria o lote inteiro de disparos. Com a coalescência
+      // a linha cai no `if (!phone)` logo abaixo, que já cancela a execução com
+      // 'No valid phone number for recipient'.
+      phone = (phone ?? '').replace(/\D/g, '')
 
       if (!phone) {
         await supabase.from('campaign_executions').update({

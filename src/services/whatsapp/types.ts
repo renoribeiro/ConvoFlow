@@ -6,7 +6,8 @@
  * conforme a regra registrada em CLAUDE.md "Regras Obrigatórias para Trabalho com APIs de WhatsApp".
  */
 
-export type ProviderType = 'evolution' | 'waha' | 'official';
+/** `instagram` ainda não tem adapter — ver adapterFor em factory.ts. */
+export type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
 export interface ProviderInstance {
   id: string;
