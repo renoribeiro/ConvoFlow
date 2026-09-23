@@ -34,10 +34,10 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.instagram-webhook]
-# Sonda da fatia 2 do Instagram. Chamada de FORA pela Meta, que não manda JWT:
-# verify_jwt tem de ser false, senão o gateway barra antes do handshake.
-# Ela se autentica pelo próprio handshake (INSTAGRAM_VERIFY_TOKEN) e verifica a
-# assinatura do corpo — e não escreve nada no banco.
+# Entrada de mensagens do Instagram (fatia 2). Chamada de FORA pela Meta, que
+# não manda JWT: verify_jwt tem de ser false, senão o gateway barra antes do
+# handshake. Autentica-se pelo handshake (INSTAGRAM_VERIFY_TOKEN) e pela
+# assinatura do corpo (INSTAGRAM_APP_SECRET) — assinatura inválida = 401.
 verify_jwt = false
 
 [functions.whatsapp-meta-setup]

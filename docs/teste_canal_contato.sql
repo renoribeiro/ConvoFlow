@@ -317,9 +317,15 @@ BEGIN
   -- ===========================================================================
   -- K10 — whatsapp_instances aceita 'instagram' e nada mais
   -- ===========================================================================
+  -- Desde a 20260923000001 (fatia 2) instância de Instagram EXIGE
+  -- connection_config.igAccountId (é por ele que a entrega acha a instância).
+  -- K10a continua provando o que provava — o CHECK de provider aceita
+  -- 'instagram' —, agora com o campo obrigatório. A recusa SEM o campo é I1h
+  -- de teste_instagram_entrada.sql.
   PERFORM pg_temp.afirma('K10','K10a provider=instagram aceito','-',
-    pg_temp.estado($q$INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key, provider)
-      VALUES ('c4c4c4c4-aaaa-4000-8000-00000000000f','c4c4c4c4-0000-4000-8000-000000000002','FIX ig','fix-key-k-ig','instagram')$q$));
+    pg_temp.estado($q$INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key, provider, connection_config)
+      VALUES ('c4c4c4c4-aaaa-4000-8000-00000000000f','c4c4c4c4-0000-4000-8000-000000000002','FIX ig','fix-key-k-ig','instagram',
+              '{"igAccountId": "17841400000000777"}')$q$));
 
   PERFORM pg_temp.afirma('K10','K10b provider inventado recusado com 23514','23514',
     pg_temp.estado($q$INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key, provider)

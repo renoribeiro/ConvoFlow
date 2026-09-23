@@ -33,7 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type ProviderType = 'evolution' | 'waha' | 'official';
+type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
 interface WhatsAppInstance {
   id: string;
@@ -59,6 +59,9 @@ const PROVIDER_BADGE: Record<ProviderType, { label: string; className: string }>
   official: { label: 'Oficial', className: 'bg-emerald-600 hover:bg-emerald-600 text-white' },
   waha: { label: 'WAHA', className: 'bg-sky-600 hover:bg-sky-600 text-white' },
   evolution: { label: 'Evolution', className: 'bg-slate-600 hover:bg-slate-600 text-white' },
+  // Instância de Instagram (fatia 2) é criada por procedimento manual, sem tela
+  // própria. Sem esta entrada o mapa devolve undefined e a página inteira cai.
+  instagram: { label: 'Instagram', className: 'bg-fuchsia-600 hover:bg-fuchsia-600 text-white' },
 };
 
 export default function WhatsAppNumbers() {

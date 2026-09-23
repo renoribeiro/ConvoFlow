@@ -109,6 +109,12 @@ BEGIN
   -- ---------------------------------------------------------------------------
   -- 1. Semeadura (triggers e FK suspensos)
   -- ---------------------------------------------------------------------------
+  -- Fatia 1 do Instagram (20260922000002): contacts.external_id virou NOT NULL e
+  -- quem preenche é a trigger trg_contacts_set_external_id. Sob
+  -- session_replication_role = replica ela NÃO dispara, e a semeadura morria com
+  -- 23502. ENABLE ALWAYS liga SÓ essa trigger, SÓ dentro desta transação (o
+  -- 23502. ENABLE ALWAYS liga SÓ essa trigger; o RAISE do fim desfaz.
+  ALTER TABLE public.contacts ENABLE ALWAYS TRIGGER trg_contacts_set_external_id;
   SET LOCAL session_replication_role = replica;
 
   -- Ana e Bruno precisam existir no Auth: `notifications.user_id` tem FK para
