@@ -31,6 +31,14 @@ export function adapterFor(instance: ProviderInstance): IWhatsAppProvider {
       return new WahaAdapter(instance);
     case 'official':
       return new MetaAdapter(instance);
+    // O adapter de Instagram chega na fatia 2. Até lá isto é inalcançável:
+    // nenhuma tela cria instância com provider='instagram'. Falha alto de
+    // propósito — cair no `default` devolveria um adapter de Evolution, que
+    // mandaria chamadas de WhatsApp para um endereço de Instagram.
+    case 'instagram':
+      throw new Error(
+        `Instância de Instagram ainda não tem adapter (instância: ${instance.instanceKey}).`,
+      );
     case 'evolution':
     default:
       return new EvolutionAdapter(instance);
@@ -43,6 +51,8 @@ export function providerLabel(provider: ProviderType): string {
       return 'WAHA';
     case 'official':
       return 'WhatsApp Cloud (Meta)';
+    case 'instagram':
+      return 'Instagram';
     case 'evolution':
     default:
       return 'Evolution API';

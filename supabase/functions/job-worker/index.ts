@@ -252,6 +252,13 @@ async function processCampaignMessage(supabase: SupabaseClient, jobData: JobData
     throw new Error('Contact not found')
   }
 
+  // contacts.phone virou anulável na fatia 1 do Instagram. Campanha por
+  // WhatsApp não alcança contato sem telefone — falha explícita em vez de
+  // mandar um destinatário vazio para o provedor.
+  if (!contact.phone) {
+    throw new Error('Contact has no phone number (não é um contato de WhatsApp)')
+  }
+
   const { data: campaign } = await supabase
     .from('mass_message_campaigns')
     .select('enable_message_randomization, message_templates, message_template')
@@ -343,6 +350,11 @@ async function processFollowUpMessage(supabase: SupabaseClient, jobData: JobData
     throw new Error('Contact not found')
   }
 
+  // Ver processCampaignMessage: phone anulável desde a fatia 1 do Instagram.
+  if (!contact.phone) {
+    throw new Error('Contact has no phone number (não é um contato de WhatsApp)')
+  }
+
   const finalMessage = processSpintax(step.message_text, {
     nome: contact.name || contact.phone,
     telefone: contact.phone,
@@ -380,6 +392,11 @@ async function processChatbotResponse(supabase: SupabaseClient, jobData: JobData
 
     if (contactError || !contact) {
       throw new Error(`Contact not found: ${contactError?.message}`);
+    }
+
+    // Ver processCampaignMessage: phone anulável desde a fatia 1 do Instagram.
+    if (!contact.phone) {
+      throw new Error('Contact has no phone number (não é um contato de WhatsApp)');
     }
 
     const { data: processedMessage, error: processError } = await supabase

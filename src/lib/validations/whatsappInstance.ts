@@ -85,12 +85,20 @@ export type OfficialInstanceInput = z.infer<typeof officialSchema>;
 export type WahaInstanceInput = z.infer<typeof wahaSchema>;
 export type EvolutionInstanceInput = z.infer<typeof evolutionSchema>;
 
-export type ProviderType = 'official' | 'waha' | 'evolution';
+/**
+ * `instagram` existe no tipo desde a fatia 1 do Instagram, para que o banco
+ * (CHECK de whatsapp_instances.provider) e o front falem a mesma língua. Ele
+ * NÃO aparece em nenhuma tela: o seletor de provedor em ProviderSelector.tsx
+ * tem a própria lista escrita à mão e não passa por aqui, e nenhuma instância
+ * de Instagram é criada enquanto a fatia 2 não existir.
+ */
+export type ProviderType = 'official' | 'waha' | 'evolution' | 'instagram';
 
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
   official: 'API Oficial',
   waha: 'WAHA',
   evolution: 'Evolution',
+  instagram: 'Instagram',
 };
 
 export const validateNewInstance = (data: unknown) => newInstanceSchema.safeParse(data);
