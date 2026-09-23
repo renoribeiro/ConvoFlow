@@ -10,7 +10,7 @@ e o que fazer quando algo não bate.
 |---|---|
 | Migração `20260923000001_instagram_inbound` | **Aplicada** em produção (ledger ok) |
 | Suíte `docs/teste_instagram_entrada.sql` | 61/61 verde; sabotagem derruba exatamente os 8 gates |
-| Edge function `instagram-webhook` (receptor real) | Deployada a partir da branch `feat/instagram-fatia2-sonda-webhook` |
+| Edge function `instagram-webhook` (receptor real) | **Falta deploy** — em produção ainda roda a sonda (v3), que não grava nada. Passo 0 abaixo |
 | Secrets `INSTAGRAM_APP_SECRET`, `INSTAGRAM_VERIFY_TOKEN` | Já existiam (usados pela sonda) |
 | Instância de teste (Conta Teste Gerente) | **Falta criar — passo 2 abaixo** |
 
@@ -32,6 +32,18 @@ Uma linha em `whatsapp_instances` (nome histórico da tabela) com:
   (`instance_secrets`). Na tabela fica só a validade.
 
 ## Passo a passo
+
+### 0. Deploy do receptor (PowerShell, na pasta do projeto, uma linha por vez)
+
+```powershell
+git checkout feat/instagram-fatia2-sonda-webhook
+Remove-Item Env:\SUPABASE_ACCESS_TOKEN -ErrorAction SilentlyContinue
+npx supabase functions deploy instagram-webhook --project-ref pqjkuwyshybxldzpfbbs --use-api
+```
+
+**Deu certo quando** termina com `Deployed Functions on project pqjkuwyshybxldzpfbbs: instagram-webhook`.
+Deploya SÓ essa função; `meta-webhook` e as outras não são tocadas. Enquanto
+não houver instância, toda entrega vira `unknown_account` no log e nada é gravado.
 
 ### 1. Gerar o token (painel da Meta)
 
