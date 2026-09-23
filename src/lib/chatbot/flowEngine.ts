@@ -182,6 +182,13 @@ export interface FlowValidationResult {
 }
 
 /**
+ * Resumo dos erros por nó. Fica em `errors` para quem só lê a lista, mas a tela
+ * de publicação o substitui pela lista de blocos (que diz qual e leva até ele) —
+ * por isso a constante é exportada, em vez de comparada por texto solto.
+ */
+export const FLOW_NODE_CONNECTION_ERROR = 'Há nós sem conexões de saída obrigatórias.';
+
+/**
  * Validate a flow graph before publishing:
  *  - exactly one start node
  *  - the start node has an outgoing edge
@@ -238,7 +245,7 @@ export function validateFlowForPublish(
   }
 
   if (Object.keys(nodeErrors).length) {
-    errors.push('Há nós sem conexões de saída obrigatórias.');
+    errors.push(FLOW_NODE_CONNECTION_ERROR);
   }
 
   return { valid: errors.length === 0, errors, nodeErrors };

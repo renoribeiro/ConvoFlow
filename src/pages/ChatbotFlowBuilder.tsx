@@ -15,6 +15,7 @@ import {
   type Node,
   type NodeChange,
   type EdgeChange,
+  type ReactFlowInstance,
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -47,9 +48,14 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useIsBelowLg } from '@/hooks/use-mobile';
 import { useChatbotFlowFull, useSaveFlow, useUpdateChatbotMeta } from '@/hooks/useChatbotFlow';
-import { validateFlowForPublish, type FlowValidationResult } from '@/lib/chatbot/flowEngine';
+import {
+  validateFlowForPublish,
+  FLOW_NODE_CONNECTION_ERROR,
+  type FlowValidationResult,
+} from '@/lib/chatbot/flowEngine';
 import {
   BLOCK_DEFINITIONS,
+  BLOCK_BY_TYPE,
   NODE_CATEGORIES,
   CATEGORY_HEADER_CLASS,
   defaultNodeData,
@@ -103,6 +109,25 @@ function dbEdgesToFlow(dbEdges: any[]): Edge[] {
 }
 
 // ---------------------------------------------------------------------------
+// Como o nó aparece na lista de erros de publicação.
+//
+// A borda vermelha no canvas só ajuda quem já sabe onde olhar: num fluxo com
+// dezenas de blocos, "Há nós sem conexões de saída obrigatórias" mandava o
+// usuário caçar. Aqui o bloco é nomeado pelo rótulo da paleta e por um trecho
+// do texto que ELE escreveu — é assim que ele reconhece o bloco.
+// ---------------------------------------------------------------------------
+function describeNode(node: Node): string {
+  const blockLabel = BLOCK_BY_TYPE[node.type as ChatbotNodeType]?.label ?? node.type ?? 'Bloco';
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  const raw = [data.message, data.variable_name, data.variable, data.label]
+    .find((v) => typeof v === 'string' && v.trim().length > 0) as string | undefined;
+
+  if (!raw) return blockLabel;
+  const text = raw.trim().replace(/\s+/g, ' ');
+  return `${blockLabel} — "${text.length > 50 ? `${text.slice(0, 50)}…` : text}"`;
+}
+
+// ---------------------------------------------------------------------------
 // ChatbotFlowBuilder
 // ---------------------------------------------------------------------------
 const ChatbotFlowBuilder: React.FC = () => {
@@ -136,6 +161,9 @@ const ChatbotFlowBuilder: React.FC = () => {
   const [publishModal, setPublishModal] = useState<{ open: boolean; result?: FlowValidationResult }>({ open: false });
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  // Guardada no onInit: sem ReactFlowProvider em volta da página, `useReactFlow`
+  // não existe aqui. É o que permite centralizar o canvas num nó com erro.
+  const flowInstanceRef = useRef<ReactFlowInstance | null>(null);
 
   // ---------------------------------------------------------------------------
   // Load initial data
@@ -532,6 +560,25 @@ const ChatbotFlowBuilder: React.FC = () => {
     }
   };
 
+  /**
+   * Fecha o modal de erro e leva o canvas até o nó. No celular não abre o painel
+   * de configuração junto: a gaveta cobriria o canvas, e o que ela precisa ver é
+   * a saída sem conexão, não os campos do bloco.
+   */
+  const focusNode = (nodeId: string) => {
+    setPublishModal({ open: false });
+    if (!compact) {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (node) setSelectedNode(node);
+    }
+    flowInstanceRef.current?.fitView({
+      nodes: [{ id: nodeId }],
+      duration: 500,
+      maxZoom: 1.1,
+      padding: 0.6,
+    });
+  };
+
   // ---------------------------------------------------------------------------
   // Sidebar drag start
   // ---------------------------------------------------------------------------
@@ -721,6 +768,7 @@ const ChatbotFlowBuilder: React.FC = () => {
             onReconnectEnd={onReconnectEnd}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onInit={(instance) => { flowInstanceRef.current = instance; }}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             edgesReconnectable
@@ -805,15 +853,55 @@ const ChatbotFlowBuilder: React.FC = () => {
               Corrija os erros abaixo antes de publicar o chatbot.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-64">
+          <ScrollArea className="max-h-72">
             <ul className="space-y-2 py-2">
-              {(publishModal.result?.errors ?? []).map((err, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                  {err}
-                </li>
-              ))}
+              {/* Erros do fluxo inteiro (falta o nó de Início, há dois...). O erro
+                  genérico de conexão sai daqui: quem responde por ele é a lista
+                  de blocos abaixo, que diz QUAL bloco e leva até ele. */}
+              {(publishModal.result?.errors ?? [])
+                .filter((err) => err !== FLOW_NODE_CONNECTION_ERROR)
+                .map((err, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                    {err}
+                  </li>
+                ))}
             </ul>
+
+            {Object.keys(publishModal.result?.nodeErrors ?? {}).length > 0 && (
+              <div className="space-y-2 py-2">
+                <p className="text-sm">
+                  Estes blocos estão com saída sem conexão. Ligue a bolinha da saída ao
+                  próximo bloco:
+                </p>
+                <ul className="space-y-2">
+                  {Object.entries(publishModal.result?.nodeErrors ?? {}).map(([nodeId, message]) => {
+                    const node = nodes.find((n) => n.id === nodeId);
+                    return (
+                      <li
+                        key={nodeId}
+                        className="rounded-md border border-destructive/40 bg-destructive/5 p-2 space-y-1"
+                      >
+                        <p className="text-sm font-medium">
+                          {node ? describeNode(node) : 'Bloco removido do fluxo'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{message}</p>
+                        {node && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => focusNode(nodeId)}
+                          >
+                            Ver no fluxo
+                          </Button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </ScrollArea>
           <DialogFooter>
             <Button onClick={() => setPublishModal({ open: false })}>Entendi</Button>
