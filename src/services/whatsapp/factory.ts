@@ -1,6 +1,7 @@
 import type { Tables } from '@/integrations/supabase/types';
 import { EvolutionAdapter } from './evolution.adapter';
 import { MetaAdapter } from './meta.adapter';
+import { InstagramAdapter } from './instagram.adapter';
 import { WahaAdapter } from './waha.adapter';
 import type { IWhatsAppProvider } from './provider.interface';
 import { type ProviderInstance, type ProviderType } from './types';
@@ -31,14 +32,12 @@ export function adapterFor(instance: ProviderInstance): IWhatsAppProvider {
       return new WahaAdapter(instance);
     case 'official':
       return new MetaAdapter(instance);
-    // O adapter de Instagram chega na fatia 2. Até lá isto é inalcançável:
-    // nenhuma tela cria instância com provider='instagram'. Falha alto de
-    // propósito — cair no `default` devolveria um adapter de Evolution, que
-    // mandaria chamadas de WhatsApp para um endereço de Instagram.
+    // Nunca pode cair no `default`: um adapter de Evolution mandaria chamadas
+    // de WhatsApp para um endereço de Instagram. Instância sem igAccountId faz
+    // o construtor lançar — e a conversa fica SEM instância (ver
+    // instanceForConversation.ts), nunca com a do WhatsApp.
     case 'instagram':
-      throw new Error(
-        `Instância de Instagram ainda não tem adapter (instância: ${instance.instanceKey}).`,
-      );
+      return new InstagramAdapter(instance);
     case 'evolution':
     default:
       return new EvolutionAdapter(instance);

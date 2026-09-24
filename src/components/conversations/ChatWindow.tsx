@@ -73,6 +73,16 @@ import { useConversationBotSession } from '@/hooks/useChatbotSessions';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter, pickActiveInstance } from '@/hooks/useWhatsAppApi';
+import { resolveConversationInstance } from '@/lib/conversations/instanceForConversation';
+import { useInstagramReplyWindow } from '@/hooks/useInstagramReplyWindow';
+import {
+  INSTAGRAM_COMPOSER_TEXT,
+  INSTAGRAM_TEXT_MAX_BYTES,
+  INSTAGRAM_TEXT_WARN_BYTES,
+  isInstagramConnectionExpired,
+  utf8ByteLength,
+} from '@/lib/instagram/reply';
+import { sendInstagramReply } from '@/services/instagram/sendInstagramReply';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { providerLabel, WhatsAppAdapterError } from '@/services/whatsapp';
@@ -217,11 +227,25 @@ export const ChatWindow = ({
     [contact],
   );
   const conversationInstanceId = (conversation as any)?.whatsapp_instance_id ?? null;
+  // Canal da conversa (fatia 1 do Instagram). A conversa carrega o seu; o do
+  // contato é a rede para dado sem a coluna.
+  const conversationChannel: string | null =
+    (conversation as any)?.channel ?? (contact as any)?.channel ?? null;
+  const isInstagram = conversationChannel === 'instagram';
 
-  // Active instance + adapter — resolvido pelo provider correto da instância vinculada
+  // Active instance + adapter. WhatsApp: o escolhedor de sempre. Qualquer
+  // outro canal: SÓ a instância da própria conversa — nunca cai no WhatsApp da
+  // Conta (ver instanceForConversation.ts).
   const active = useMemo(
-    () => pickActiveInstance(instances, conversationInstanceId),
-    [instances, conversationInstanceId],
+    () =>
+      resolveConversationInstance({
+        list: instances,
+        preferredInstanceId: conversationInstanceId,
+        channel: conversationChannel,
+        contactPhone: contact?.phone,
+        legacyPick: pickActiveInstance,
+      }),
+    [instances, conversationInstanceId, conversationChannel, contact?.phone],
   );
   const capabilities = active?.adapter.getCapabilities();
 
@@ -235,6 +259,32 @@ export const ChatWindow = ({
   const messagesLoading = messagesQuery.isLoading;
   const messagesError = messagesQuery.error;
 
+  // ---- Instagram: janela de 24 h, conexão vencida, limite em bytes ---------
+  // A última mensagem recebida refaz a consulta da janela quando o cliente
+  // escreve de novo.
+  const lastInboundMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].direction === 'inbound') return messages[i].id as string;
+    }
+    return null;
+  }, [messages]);
+  const igWindow = useInstagramReplyWindow(contactId, isInstagram, lastInboundMessageId);
+  const igConnectionExpired =
+    isInstagram && !!active && isInstagramConnectionExpired(active.row.connection_config, new Date());
+  const igBytes = isInstagram ? utf8ByteLength(message.trim()) : 0;
+  const igTooLong = igBytes > INSTAGRAM_TEXT_MAX_BYTES;
+  /** Por que o compositor do Instagram está travado (null = não está). */
+  const igBlockedReason: string | null = !isInstagram
+    ? null
+    : !active
+      ? INSTAGRAM_COMPOSER_TEXT.noConnection
+      : igConnectionExpired
+        ? INSTAGRAM_COMPOSER_TEXT.connectionExpired
+        : !igWindow.isLoading && !igWindow.isError && !igWindow.open
+          ? INSTAGRAM_COMPOSER_TEXT.windowClosed
+          : null;
+  const igSendDisabled = isInstagram && (!!igBlockedReason || igWindow.isLoading || igTooLong);
+
   useRealtimeMessages({
     contactId: contactId || undefined,
     enabled: !!contactId,
@@ -245,7 +295,8 @@ export const ChatWindow = ({
 
   // Auto-sync de histórico — só faz sentido para providers que SUPORTAM fetchHistory.
   useEffect(() => {
-    if (!contactId || !contact?.phone || !active) return;
+    // Instagram: nada de histórico nem foto de perfil (o adapter também não faz nada).
+    if (!contactId || !contact?.phone || !active || isInstagram) return;
     if (syncedContactRef.current === contactId) return;
     syncedContactRef.current = contactId;
 
@@ -269,7 +320,7 @@ export const ChatWindow = ({
         })
         .catch(() => {});
     }
-  }, [contactId, contact?.phone, (contact as any)?.avatar_url, active, capabilities?.fetchHistory, syncConversation, conversationId, tenant?.id, queryClient]);
+  }, [contactId, contact?.phone, (contact as any)?.avatar_url, active, isInstagram, capabilities?.fetchHistory, syncConversation, conversationId, tenant?.id, queryClient]);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
@@ -580,6 +631,12 @@ export const ChatWindow = ({
 
   /** Shared media sender used by the attachment flow and the audio recorder. */
   const sendMediaFile = async (file: File, caption: string) => {
+    // Os controles de mídia nem aparecem numa conversa do Instagram; isto é a
+    // rede de baixo.
+    if (isInstagram) {
+      toast.error('O Instagram só responde texto por aqui.');
+      return;
+    }
     if (!contactId || !tenant?.id || !active) {
       toast.error('Nenhuma instância de WhatsApp disponível.');
       return;
@@ -633,9 +690,69 @@ export const ChatWindow = ({
     }
   };
 
+  /**
+   * Resposta de texto para o Instagram (fatia 3). Caminho próprio: nunca passa
+   * pelo envio do WhatsApp logo abaixo. A linha é gravada com a sessão do
+   * usuário (autor e participante); ver sendInstagramReply.
+   */
+  const handleSendInstagram = async () => {
+    const text = message.trim();
+    if (!text || !contactId || !tenant?.id) return;
+    if (igBlockedReason) {
+      toast.error(igBlockedReason);
+      return;
+    }
+    if (!active) {
+      toast.error(INSTAGRAM_COMPOSER_TEXT.noConnection);
+      return;
+    }
+    if (igTooLong) {
+      toast.error(INSTAGRAM_COMPOSER_TEXT.tooLong(igBytes));
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = await sendInstagramReply({
+        client: supabase as unknown as Parameters<typeof sendInstagramReply>[0]['client'],
+        adapter: active.adapter,
+        tenantId: (conversation as any)?.tenant_id ?? tenant.id,
+        instanceId: active.row.id,
+        contactId,
+        recipientId: (contact as any)?.external_id ?? '',
+        text,
+      });
+      queryClient.invalidateQueries({ queryKey: ['messages', contactId, tenant.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', tenant.id] });
+
+      if (!res.ok) {
+        toast.error(res.error);
+        if (res.reason === 'outside_window') {
+          queryClient.invalidateQueries({ queryKey: ['instagram-window', contactId] });
+        }
+        return; // o texto fica no campo para o atendente decidir
+      }
+      if (res.warning && res.warning !== 'sem_message_id') toast.warning(res.warning);
+      setMessage('');
+      resetTextareaHeight();
+    } catch (e) {
+      logger.error('[ChatWindow] envio pelo Instagram falhou', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      toast.error('Erro ao enviar pelo Instagram.');
+    } finally {
+      setIsSending(false);
+      refocusComposer();
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!contactId || isSending || !tenant?.id) return;
     if (!message.trim() && !pendingFile) return;
+    if (isInstagram) {
+      await handleSendInstagram();
+      return;
+    }
     if (!active) {
       toast.error('Nenhuma instância de WhatsApp disponível.');
       return;
@@ -785,7 +902,7 @@ export const ChatWindow = ({
     }
     setMessage(val);
     requestAnimationFrame(autoGrow);
-    if (!active || !contact?.phone) return;
+    if (!active || !contact?.phone || isInstagram) return;
     const now = Date.now();
     if (now - lastTypingSentRef.current > 3000) {
       lastTypingSentRef.current = now;
@@ -838,7 +955,8 @@ export const ChatWindow = ({
 
   const commonEmojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '❤️', '🔥', '💯', '🎉', '😢', '😡', '🙏', '👏', '💪'];
   const hasText = message.trim().length > 0;
-  const showAudioButton = !hasText && !pendingFile;
+  // Instagram: sem áudio — o botão Enviar fica sempre no lugar.
+  const showAudioButton = !isInstagram && !hasText && !pendingFile;
   const seenLabel = lastSeenLabel((contact as any)?.last_interaction_at);
 
   if (conversationLoading || messagesLoading) {
@@ -1132,7 +1250,7 @@ export const ChatWindow = ({
                 >
                   <MessageBubble
                     message={msg}
-                    onReply={setReplyTo}
+                    onReply={isInstagram ? undefined : setReplyTo}
                     searchTerm={searchOpen ? searchTerm : undefined}
                     isActiveMatch={activeMatchId === msg.id}
                     onSaveAsQuickReply={handleSaveAsQuickReply}
@@ -1182,8 +1300,30 @@ export const ChatWindow = ({
           </div>
         )}
 
+        {/* Instagram: por que não dá para responder (sem botão: não há como reabrir) */}
+        {igBlockedReason && (
+          <Alert
+            className="rounded-none border-x-0 border-warning/30 bg-warning/10 text-warning"
+            data-testid="instagram-composer-blocked"
+          >
+            <AlertCircle className="w-4 h-4" />
+            <AlertDescription className="text-xs">{igBlockedReason}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Input */}
         <div className="p-4 border-t border-border flex-shrink-0">
+          {isInstagram && igBytes > INSTAGRAM_TEXT_WARN_BYTES && (
+            <p
+              className={igTooLong ? 'mb-2 text-xs text-destructive' : 'mb-2 text-xs text-muted-foreground'}
+              data-testid="instagram-byte-counter"
+              role={igTooLong ? 'alert' : undefined}
+            >
+              {igTooLong
+                ? INSTAGRAM_COMPOSER_TEXT.tooLong(igBytes)
+                : igBytes + ' de ' + INSTAGRAM_TEXT_MAX_BYTES + ' bytes'}
+            </p>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -1216,14 +1356,16 @@ export const ChatWindow = ({
           <form onSubmit={handleSend} className="flex items-end gap-2">
             {!isRecording && (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button type="button" variant="ghost" size="sm" onClick={handleAttachClick} aria-label="Anexar arquivo">
-                      <Paperclip className="w-5 h-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">Anexar arquivo</TooltipContent>
-                </Tooltip>
+                {!isInstagram && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="sm" onClick={handleAttachClick} aria-label="Anexar arquivo">
+                        <Paperclip className="w-5 h-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">Anexar arquivo</TooltipContent>
+                  </Tooltip>
+                )}
 
                 <QuickRepliesPopover
                   open={quickRepliesOpen}
@@ -1247,7 +1389,13 @@ export const ChatWindow = ({
                   value={message}
                   onChange={(e) => handleTypingChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={pendingFile ? 'Adicionar legenda (opcional)...' : 'Digite sua mensagem...'}
+                  placeholder={
+                    isInstagram
+                      ? INSTAGRAM_COMPOSER_TEXT.placeholder
+                      : pendingFile
+                        ? 'Adicionar legenda (opcional)...'
+                        : 'Digite sua mensagem...'
+                  }
                   rows={1}
                   className={`flex-1 min-h-[40px] resize-none py-2 ${isSending ? 'opacity-70' : ''}`}
                   style={{ maxHeight: MAX_TEXTAREA_HEIGHT }}
@@ -1257,12 +1405,20 @@ export const ChatWindow = ({
                      em handleSendMessage. */
                   readOnly={isSending}
                   aria-busy={isSending}
+                  /* Instagram travado (janela fechada, sem conexão, conexão vencida):
+                     aqui sim disabled — não é um estado passageiro de envio. */
+                  disabled={isInstagram && !!igBlockedReason}
                 />
               </>
             )}
 
             {!isRecording && !showAudioButton && (
-              <Button type="submit" size="sm" disabled={(!message.trim() && !pendingFile) || isSending} aria-label="Enviar">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!message.trim() && !pendingFile) || isSending || igSendDisabled}
+                aria-label="Enviar"
+              >
                 {isSending ? (
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (

@@ -6,7 +6,7 @@
  * conforme a regra registrada em CLAUDE.md "Regras Obrigatórias para Trabalho com APIs de WhatsApp".
  */
 
-/** `instagram` ainda não tem adapter — ver adapterFor em factory.ts. */
+/** `instagram` responde só texto, pelo InstagramAdapter (fatia 3). */
 export type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
 export interface ProviderInstance {
@@ -63,6 +63,11 @@ export interface SendResult {
   providerMessageId?: string;
   status: SendStatus;
   error?: string;
+  /**
+   * Motivo estável da recusa, quando o provider informa. Hoje só o Instagram
+   * (ver `instagram-send-message/logic.ts`: outside_window, token_expired…).
+   */
+  reason?: string;
 }
 
 export interface SendTextOptions {
