@@ -62,6 +62,13 @@
 
 BEGIN;
 
+-- Fatia 1 do Instagram (20260922000002): contacts.external_id virou NOT NULL e
+-- quem preenche é a trigger trg_contacts_set_external_id. Sob
+-- session_replication_role = replica ela NÃO dispara, e a semeadura morria com
+-- 23502. ENABLE ALWAYS liga SÓ essa trigger, SÓ dentro desta transação (o
+-- ROLLBACK desfaz) — a semeadura passa a obedecer a mesma regra da produção.
+ALTER TABLE public.contacts ENABLE ALWAYS TRIGGER trg_contacts_set_external_id;
+
 -- -----------------------------------------------------------------------------
 -- 0. Guardas
 -- -----------------------------------------------------------------------------

@@ -73,9 +73,11 @@ INSERT INTO public.profiles (id, user_id, tenant_id, role, status, first_name, l
   ('66666666-0000-4000-8000-0000000000fd','66666666-0000-4000-8000-00000000000d','66666666-0000-4000-8000-000000000002','atendente','active','FIX','Bruno');
 INSERT INTO public.whatsapp_instances (id, tenant_id, name, instance_key) VALUES
   ('66666666-aaaa-4000-8000-000000000002','66666666-0000-4000-8000-000000000002','FIX C','fix-key-c');
-INSERT INTO public.contacts (id, tenant_id, whatsapp_instance_id, phone, name) VALUES
-  ('66666666-cccc-4000-8000-000000000001','66666666-0000-4000-8000-000000000002','66666666-aaaa-4000-8000-000000000002','5551966660001','FIX C1'),
-  ('66666666-cccc-4000-8000-000000000002','66666666-0000-4000-8000-000000000002','66666666-aaaa-4000-8000-000000000002','5551966660002','FIX C2');
+-- external_id explícito: sob replica a trigger da fatia 1 não preenche, e esta
+-- suíte COMMITA — não dá para ligar a trigger aqui como nas outras.
+INSERT INTO public.contacts (id, tenant_id, whatsapp_instance_id, phone, external_id, name) VALUES
+  ('66666666-cccc-4000-8000-000000000001','66666666-0000-4000-8000-000000000002','66666666-aaaa-4000-8000-000000000002','5551966660001','5551966660001','FIX C1'),
+  ('66666666-cccc-4000-8000-000000000002','66666666-0000-4000-8000-000000000002','66666666-aaaa-4000-8000-000000000002','5551966660002','5551966660002','FIX C2');
 SET LOCAL session_replication_role = origin;
 SELECT public.rotation_rebalance('66666666-0000-4000-8000-000000000002');   -- Ana 50 / Bruno 50
 
