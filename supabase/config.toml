@@ -40,6 +40,11 @@ verify_jwt = false
 # assinatura do corpo (INSTAGRAM_APP_SECRET) — assinatura inválida = 401.
 verify_jwt = false
 
+[functions.instagram-send-message]
+# Resposta do inbox para o Instagram (fatia 3). Chamada pela sessão do
+# atendente: exige JWT, como o whatsapp-send-message.
+verify_jwt = true
+
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
