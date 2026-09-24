@@ -437,6 +437,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'A tela se atualiza sozinha a cada 30 segundos. Não precisa recarregar.',
       'Como Gerente ou Superadmin você troca a Conta em foco pelo seletor do topo. Como Gestor ou Atendente, você vê sempre a sua Loja.',
       'Gerente: ao escolher uma Loja no seletor, os dados dela aparecem: conversas, contatos, funil, campanhas. Você atende junto na caixa de entrada (responder, editar contato, marcar etiqueta); nas demais telas da Loja a visão é de acompanhamento, sem edição.',
+      'Gerente: para sair da Loja e voltar à sua Conta, abra o seletor e clique em "Voltar para a Conta", o primeiro item da lista. Ele só aparece enquanto uma Loja está aberta; com a Conta em foco, o seletor mostra "Selecionar loja". A Conta tem dados próprios, como a conexão do Instagram e as conversas dela.',
     ],
     category: 'tela',
     area: 'Operação',
