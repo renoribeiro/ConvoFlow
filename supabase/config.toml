@@ -60,6 +60,14 @@ verify_jwt = true
 # segredo no Vault, a função recusa tudo (503).
 verify_jwt = false
 
+[functions.instagram-connect]
+# Conectar/reconectar o Instagram pela tela (fatia 4b). verify_jwt = false por
+# causa do GET: é o endereço que o Instagram chama de volta depois do login, e
+# o navegador chega sem cabeçalho. O GET só devolve o navegador à tela (o
+# destino vem do banco, pelo state). Os dois POST (start / complete) validam a
+# sessão dentro da função (auth.getUser) e o start roda como o usuário.
+verify_jwt = false
+
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
