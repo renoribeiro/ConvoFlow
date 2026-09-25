@@ -155,6 +155,12 @@ e a Meta recebe 200. Religar é o mesmo comando com `true`.
 
 ## O dia 61 — o token expira
 
+> **Atualização 2026-09-24 (fatia 4):** a renovação automática existe — cron
+> diário, avisos no sino e a validade no cartão de Instâncias e APIs. Passo a
+> passo, estado e diagnóstico em `docs/RUNBOOK_instagram_renovacao.md`. O texto
+> abaixo é de quando ela não existia; a troca manual continua valendo para
+> reconectar.
+
 **O que o token faz hoje: nada.** Receber não usa o token: a entrega chega
 assinada com o segredo do app, e a instância é achada pelo `entry.id`. O token
 só está guardado para a fatia 3.
