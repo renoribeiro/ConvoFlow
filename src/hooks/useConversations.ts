@@ -12,6 +12,11 @@ interface Contact {
   phone: string;
   /** whatsapp | instagram. Ausente só em dado antigo sem a coluna. */
   channel?: string;
+  /** Instagram: o @ (sem "@") e o estado da busca do perfil (fatia 4a). */
+  username?: string | null;
+  profile_status?: string | null;
+  profile_checked_at?: string | null;
+  whatsapp_instance_id?: string | null;
   lead_source_id?: string;
   current_stage_id?: string;
   avatar_url?: string;
@@ -314,9 +319,18 @@ export const applyConversationScope = <T extends ScopeQuery<T>>(
   // gramática de filtros do PostgREST.
   if (scope.term) {
     const escaped = scope.term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    q = q.or(`name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`, {
-      referencedTable: 'contacts',
-    });
+    if (scope.channel === 'instagram') {
+      // Instagram: cliente não tem telefone; tem nome e @. "@ana" procura o @
+      // sem a arroba (ela não é gravada) e o nome com o texto como veio.
+      const semArroba = escaped.replace(/^@+/, '');
+      q = q.or(`name.ilike."%${escaped}%",username.ilike."%${semArroba}%"`, {
+        referencedTable: 'contacts',
+      });
+    } else {
+      q = q.or(`name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`, {
+        referencedTable: 'contacts',
+      });
+    }
   }
 
   // Etiquetas: filtro no caminho do alias (ver TAG_FILTER_EMBED). `in` = a
@@ -460,6 +474,10 @@ export const useConversations = ({
               name,
               phone,
               channel,
+              username,
+              profile_status,
+              profile_checked_at,
+              whatsapp_instance_id,
               avatar_url,
               lead_source_id,
               current_stage_id,
@@ -766,6 +784,10 @@ export interface ConversationDetail {
     phone: string;
     channel?: string | null;
     external_id?: string | null;
+    username?: string | null;
+    profile_status?: string | null;
+    profile_checked_at?: string | null;
+    whatsapp_instance_id?: string | null;
     email: string | null;
     avatar_url: string | null;
     notes: string | null;
@@ -818,6 +840,10 @@ export const useConversation = (conversationId: string) => {
             phone,
             channel,
             external_id,
+            username,
+            profile_status,
+            profile_checked_at,
+            whatsapp_instance_id,
             email,
             avatar_url,
             notes,

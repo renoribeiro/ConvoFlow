@@ -38,7 +38,8 @@ import { useContactFollowups } from '@/hooks/useContactFollowups';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsBelowXl } from '@/hooks/use-mobile';
-import { initialsOf, UNNAMED_CONTACT } from '@/lib/conversations/channel';
+import { initialsOf } from '@/lib/conversations/channel';
+import { contactDisplayName, instagramHandle } from '@/lib/instagram/contactProfile';
 
 interface ContactPanelProps {
   open: boolean;
@@ -188,7 +189,12 @@ function ContactPanelBody({
   const stageColor: string | undefined = contact.stage?.color ?? undefined;
   const isInstagramContact = (contact as { channel?: string | null }).channel === 'instagram';
   // Sem nome: "Cliente do Instagram" no Instagram; no WhatsApp, o de sempre.
-  const displayName = contact.name || (isInstagramContact ? UNNAMED_CONTACT.instagram : 'Contato');
+  const displayName = isInstagramContact
+    ? contactDisplayName(contact as { name?: string | null; username?: string | null }, 'instagram')
+    : contact.name || 'Contato';
+  const igHandle = isInstagramContact
+    ? instagramHandle((contact as { username?: string | null }).username)
+    : null;
   const initials = isInstagramContact
     ? initialsOf(displayName)
     : contact.name
@@ -221,8 +227,10 @@ function ContactPanelBody({
           </Avatar>
           <div className="text-center">
             <p className="font-semibold text-foreground">{displayName}</p>
-            {/* Contato do Instagram não tem telefone. */}
-            {!isInstagramContact && <p className="text-sm text-muted-foreground">{contact.phone}</p>}
+            {/* Contato do Instagram não tem telefone: mostra o @ (se o nome já não for ele). */}
+            {isInstagramContact
+              ? igHandle && igHandle !== displayName && <p className="text-sm text-muted-foreground">{igHandle}</p>
+              : <p className="text-sm text-muted-foreground">{contact.phone}</p>}
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
           </div>
           <Button asChild variant="outline" size="sm" className="mt-1">

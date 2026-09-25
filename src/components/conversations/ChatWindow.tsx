@@ -73,9 +73,10 @@ import { invalidateConversationCounts } from '@/lib/conversations/countKeys';
 import {
   asChannel,
   initialsOf,
-  UNNAMED_CONTACT,
   type ConversationChannel,
 } from '@/lib/conversations/channel';
+import { contactDisplayName, instagramHandle } from '@/lib/instagram/contactProfile';
+import { useInstagramContactProfiles } from '@/hooks/useInstagramContactProfiles';
 import { useConversationBotSession } from '@/hooks/useChatbotSessions';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
@@ -252,8 +253,13 @@ export const ChatWindow = ({
     onChannelDetected?.(asChannel(conversationChannel));
   }, [conversationId, conversationChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Nome no cabeçalho. Sem nome: "Cliente do Instagram" no Instagram, "Contato" no WhatsApp. */
-  const headerName = contact?.name || (isInstagram ? UNNAMED_CONTACT.instagram : 'Contato');
+  /** Nome no cabeçalho. Instagram: nome, senão @, senão "Cliente do Instagram". WhatsApp: o de sempre. */
+  const headerName = isInstagram
+    ? contactDisplayName(contact, 'instagram')
+    : contact?.name || 'Contato';
+  /** O @ embaixo do nome — só quando o nome já não é o próprio @. */
+  const igHandle = isInstagram ? instagramHandle((contact as any)?.username) : null;
+  const igHandleLine = igHandle && igHandle !== headerName ? igHandle : null;
 
   // Active instance + adapter. WhatsApp: o escolhedor de sempre. Qualquer
   // outro canal: SÓ a instância da própria conversa — nunca cai no WhatsApp da
@@ -270,6 +276,18 @@ export const ChatWindow = ({
     [instances, conversationInstanceId, conversationChannel, contact?.phone],
   );
   const capabilities = active?.adapter.getCapabilities();
+
+  // Conversa do Instagram aberta sem nome ainda: pede o perfil agora (a lista
+  // também pede; a marca do servidor garante uma busca só).
+  useInstagramContactProfiles({
+    contacts: contact ? [contact as any] : [],
+    instances,
+    enabled: isInstagram,
+    onUpdated: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversation', conversationId, tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', tenant?.id] });
+    },
+  });
 
   const messagesQuery = useMessages({
     contactId: contactId || '',
@@ -1041,7 +1059,11 @@ export const ChatWindow = ({
                 </span>
               ) : (
                 <div className="flex items-center gap-2">
-                  {!isInstagram && (
+                  {isInstagram ? (
+                    igHandleLine && (
+                      <span className="text-xs sm:text-sm text-muted-foreground truncate">{igHandleLine}</span>
+                    )
+                  ) : (
                     <span className="text-xs sm:text-sm text-muted-foreground truncate">
                       {formatPhoneBR(contact?.phone)}
                     </span>

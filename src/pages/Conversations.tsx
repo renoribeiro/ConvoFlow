@@ -14,6 +14,7 @@ import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
 import { TagFilterChips } from '@/components/conversations/TagFilterChips';
 import { OwnerFilterChips } from '@/components/conversations/OwnerFilterChips';
 import { ChannelSwitch } from '@/components/conversations/ChannelSwitch';
+import { contactDisplayName } from '@/lib/instagram/contactProfile';
 import {
   asChannel,
   CONVERSATIONS_PAGE_DESCRIPTION,
@@ -224,14 +225,21 @@ export default function Conversations() {
       try {
         const { data: contact } = await supabase
           .from('contacts')
-          .select('name, phone, channel')
+          .select('name, phone, channel, username')
           .eq('id', message.contactId)
           .limit(1)
           .maybeSingle();
         if (contact) {
-          const c = contact as { name: string | null; phone: string | null; channel?: string | null };
+          const c = contact as {
+            name: string | null;
+            phone: string | null;
+            channel?: string | null;
+            username?: string | null;
+          };
           contactName =
-            c.name || c.phone || (c.channel === 'instagram' ? UNNAMED_CONTACT.instagram : 'Contato');
+            c.channel === 'instagram'
+              ? contactDisplayName(c, 'instagram')
+              : c.name || c.phone || 'Contato';
           contactPhone = c.phone || '';
         }
       } catch {

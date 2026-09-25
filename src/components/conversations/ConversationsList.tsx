@@ -16,6 +16,8 @@ import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
 import { ALL_INSTANCES_VALUE, InstanceSelector } from './InstanceSelector';
+import { contactDisplayName } from '@/lib/instagram/contactProfile';
+import { useInstagramContactProfiles } from '@/hooks/useInstagramContactProfiles';
 import {
   asChannel,
   hasInstagramInstance,
@@ -232,6 +234,22 @@ export const ConversationsList = ({
   const isLoading = conversationsQuery.isLoading;
   const error = conversationsQuery.error;
 
+  // Nome e @ dos clientes do Instagram: pedidos sob demanda para quem aparece
+  // na lista (nunca no recebimento). Uma vez por contato; a lista recarrega
+  // quando a resposta chega.
+  const profileContacts = useMemo(
+    () => conversations.map((conv: any) => conv.contacts ?? null),
+    [conversations],
+  );
+  useInstagramContactProfiles({
+    contacts: profileContacts,
+    instances,
+    enabled: channel === 'instagram',
+    onUpdated: () => {
+      void conversationsQuery.refetch();
+    },
+  });
+
   const { isSyncing, syncAllChats } = useChatHistorySync();
 
   useRealtimeConversations();
@@ -270,7 +288,7 @@ export const ConversationsList = ({
           id: conv.id,
           contact_id: conv.contact_id,
           channel: rowChannel,
-          contact_name: conv.contacts?.name || UNNAMED_CONTACT[rowChannel],
+          contact_name: contactDisplayName(conv.contacts, rowChannel),
           contact_phone: conv.contacts?.phone || '',
           contact_avatar: (conv.contacts as any)?.avatar_url ?? null,
           last_interaction_at: (conv.contacts as any)?.last_interaction_at ?? null,

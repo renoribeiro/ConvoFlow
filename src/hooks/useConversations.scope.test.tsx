@@ -332,7 +332,8 @@ describe('paridade lista × contagem — canal', () => {
       'eq:is_archived',
       'eq:channel',
       'eq:whatsapp_instance_id',
-      'or:name.ilike."%ana%",phone.ilike."%ana%"',
+      // Instagram busca no nome e no @ (o cliente não tem telefone).
+      'or:name.ilike."%ana%",username.ilike."%ana%"',
       `in:contacts.${TAG_FILTER_EMBED}.tag_id`,
       'in:assigned_profile_id',
       'gt:unread_count',
@@ -360,8 +361,8 @@ describe('selo do outro canal — "aguardando resposta" no servidor', () => {
     gravador.queries.length = 0;
     renderHook(() => useConversationsCount(opts), { wrapper });
     await waitFor(() => expect(gravador.queries).toHaveLength(1));
-    await waitFor(() => expect(gravador.queries[0].calls.length).toBeGreaterThan(0));
-    return gravador.queries[0];
+    await waitFor(() => expect(gravador.queries[0]!.calls.length).toBeGreaterThan(0));
+    return gravador.queries[0]!;
   };
 
   it('conta exato, no canal pedido, só não arquivadas, com a regra da pílula "Aguardando"', async () => {
@@ -387,5 +388,45 @@ describe('selo do outro canal — "aguardando resposta" no servidor', () => {
   it('sem awaitingReply a contagem não ganha `.or()` nenhum', async () => {
     const q = await rodarContagem({ channel: 'whatsapp' });
     expect(q.calls.map((c) => c.method)).not.toContain('or');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Busca pelo @ do Instagram (fatia 4a, nome do contato)
+// ---------------------------------------------------------------------------
+describe('busca — @ do Instagram', () => {
+  it('no Instagram procura nome e @; "@ana" procura o @ sem a arroba', async () => {
+    const { lista, contagem } = await rodarOsDois({ channel: 'instagram', searchQuery: '@ana' });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista)).toContainEqual({
+      method: 'or',
+      args: ['name.ilike."%@ana%",username.ilike."%ana%"', { referencedTable: 'contacts' }],
+    });
+    // Busca com filtro no contato precisa de join inner nos dois.
+    expect(normalizar(lista.select)).toContain('contacts!inner (');
+    expect(contagem.select).toBe('id, contacts!inner(id)');
+  });
+
+  it('sem arroba procura o mesmo texto no nome e no @', async () => {
+    const { lista } = await rodarOsDois({ channel: 'instagram', searchQuery: 'yuri' });
+    expect(recorte(lista)).toContainEqual({
+      method: 'or',
+      args: ['name.ilike."%yuri%",username.ilike."%yuri%"', { referencedTable: 'contacts' }],
+    });
+  });
+
+  it('WhatsApp continua nome e telefone, igual a antes', async () => {
+    const { lista, contagem } = await rodarOsDois({ channel: 'whatsapp', searchQuery: 'ana' });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista)).toContainEqual({
+      method: 'or',
+      args: ['name.ilike."%ana%",phone.ilike."%ana%"', { referencedTable: 'contacts' }],
+    });
+  });
+
+  it('a lista traz o @ e o estado da busca do perfil no embed do contato', async () => {
+    const { lista } = await rodarOsDois({ channel: 'instagram' });
+    const select = normalizar(lista.select);
+    expect(select).toContain('channel, username, profile_status, profile_checked_at, whatsapp_instance_id,');
   });
 });
