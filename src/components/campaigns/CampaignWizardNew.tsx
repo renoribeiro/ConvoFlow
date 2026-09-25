@@ -318,10 +318,15 @@ export const CampaignWizard = ({
     if (state.audience_type !== 'contact_list' || !tenantId) return;
     void (async () => {
       setLoadingContacts(true);
+      // Só WhatsApp: campanha é disparo de WhatsApp, e contato do Instagram não
+      // tem telefone (decisão do dono, 2026-09-25: nem é oferecido aqui). A rede
+      // de segurança continua no servidor — schedule_campaign_messages só
+      // agenda quem tem phone, e process-campaign-dispatch falha sem telefone.
       const { data } = await supabase
         .from('contacts')
         .select('id, name, phone, current_stage_id')
         .eq('tenant_id', tenantId)
+        .eq('channel', 'whatsapp')
         .order('name');
       setContacts(data ?? []);
       setLoadingContacts(false);
@@ -336,10 +341,13 @@ export const CampaignWizard = ({
         setContactCount(0);
         return;
       }
+      // A contagem é de quem a campanha alcança: contato do Instagram com a
+      // mesma etiqueta não entra (o servidor também não o agenda).
       const { data: ctRows } = await supabase
         .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', state.selectedTagIds);
+        .select('contact_id, contacts!inner(channel)')
+        .in('tag_id', state.selectedTagIds)
+        .eq('contacts.channel', 'whatsapp');
       const ids = [...new Set((ctRows ?? []).map((r: { contact_id: string }) => r.contact_id))];
       setContactCount(ids.length);
     })();

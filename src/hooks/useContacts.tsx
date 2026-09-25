@@ -10,6 +10,10 @@ export interface Contact {
    * `contacts.external_id`, que é o identificador de verdade.
    */
   phone: string | null;
+  /** 'whatsapp' | 'instagram' (coluna contacts.channel). */
+  channel?: string;
+  /** @ do Instagram, sem o "@". */
+  username?: string | null;
   name: string | null;
   email: string | null;
   current_stage_id: string | null;

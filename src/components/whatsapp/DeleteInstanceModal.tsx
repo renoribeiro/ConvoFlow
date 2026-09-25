@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { mensagemDaEdgeFunction } from '@/lib/edgeFunctionError';
 import { SUPORTE_EMAIL } from '@/lib/billing/checkout';
+import { instagramAccountHandle } from '@/lib/whatsapp/connectionSections';
 import { Loader2, AlertTriangle, Trash2, ShieldCheck } from 'lucide-react';
 
 /**
@@ -26,7 +27,7 @@ import { Loader2, AlertTriangle, Trash2, ShieldCheck } from 'lucide-react';
  * da instância e ainda mostrava "sucesso".
  */
 
-type ProviderType = 'evolution' | 'waha' | 'official';
+type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
 interface WhatsAppInstance {
   id: string;
@@ -36,7 +37,46 @@ interface WhatsAppInstance {
   profile_name?: string;
   status: 'close' | 'open' | 'connecting' | string;
   provider?: ProviderType | null;
+  connection_config?: unknown;
 }
+
+/**
+ * Textos que mudam quando o que se exclui é uma conta do Instagram — que para
+ * quem usa nunca é "instância" nem tem "chave". Os do WhatsApp são os de
+ * sempre, palavra por palavra.
+ */
+export const DELETE_TEXTS = {
+  whatsapp: {
+    title: 'Excluir instância',
+    checking: 'Conferindo o que esta instância guarda…',
+    checkFailed: 'Não deu para conferir a instância',
+    refusedTitle: 'Exclusão recusada: esta instância guarda histórico',
+    refusedBody:
+      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui instância com histórico — e não há como forçar.',
+    refusedOther: 'Você não pode excluir esta instância.',
+    emptyTitle: 'Esta instância está vazia',
+    webhookLine: 'Os registros de webhook desta instância são apagados junto.',
+    confirm: 'Excluir instância',
+    fallbackError: 'Não foi possível excluir a instância.',
+    doneTitle: 'Instância excluída',
+    doneBody: 'Nenhum histórico foi apagado: a instância estava vazia.',
+  },
+  instagram: {
+    title: 'Excluir conta do Instagram',
+    checking: 'Conferindo o que esta conta guarda…',
+    checkFailed: 'Não deu para conferir a conta',
+    refusedTitle: 'Exclusão recusada: esta conta guarda histórico',
+    refusedBody:
+      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui conta do Instagram com histórico — e não há como forçar.',
+    refusedOther: 'Você não pode excluir esta conta.',
+    emptyTitle: 'Esta conta está vazia',
+    webhookLine: 'Os registros de webhook e os alertas de validade desta conta são apagados junto.',
+    confirm: 'Excluir conta',
+    fallbackError: 'Não foi possível excluir a conta.',
+    doneTitle: 'Conta do Instagram excluída',
+    doneBody: 'Nenhum histórico foi apagado: a conta estava vazia.',
+  },
+} as const;
 
 export interface DeleteInstanceCounts {
   conversations: number;
@@ -96,6 +136,16 @@ const fmt = (n: number) => n.toLocaleString('pt-BR');
 /** O que acontece no provedor — por provedor, sem mentir para a Meta. */
 export function providerEffectLines(provider: ProviderType | null | undefined): string[] {
   const p = provider || 'evolution';
+  if (p === 'instagram') {
+    // A edge function não chama o Instagram (planProviderCleanup: nada a
+    // encerrar lá). A RPC apaga a linha, o acesso no cofre (instance_secrets
+    // → vault.secrets) e, em cascata, webhook_logs e os alertas de validade.
+    return [
+      'No Instagram, nada muda: a conta continua sua, e o ConvoFlow não chama o Instagram para excluir.',
+      'O que é apagado é o vínculo aqui: a conta conectada e o acesso guardado no cofre.',
+      'Mensagens novas no direct desta conta deixam de entrar no ConvoFlow.',
+    ];
+  }
   if (p === 'official') {
     return [
       'Na Meta, nada muda: o número continua registrado lá e o app do ConvoFlow continua inscrito na sua conta do WhatsApp Business.',
@@ -118,6 +168,8 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
   const [preview, setPreview] = useState<PreviewState>({ kind: 'loading' });
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+  const isInstagram = instance.provider === 'instagram';
+  const texts = DELETE_TEXTS[isInstagram ? 'instagram' : 'whatsapp'];
 
   const loadPreview = useCallback(async () => {
     setPreview({ kind: 'loading' });
@@ -150,7 +202,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
         body: { instance_id: instance.id },
       });
       if (error) {
-        throw new Error(await mensagemDaEdgeFunction(error, 'Não foi possível excluir a instância.'));
+        throw new Error(await mensagemDaEdgeFunction(error, texts.fallbackError));
       }
       if (!data || data.ok !== true) {
         // Recusa que o preview não viu (ex.: mensagem chegou no meio). Nada foi
@@ -169,12 +221,12 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Instância excluída', description: 'Nenhum histórico foi apagado: a instância estava vazia.' });
+        toast({ title: texts.doneTitle, description: texts.doneBody });
       }
       onSuccess();
       onOpenChange(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Não foi possível excluir a instância.';
+      const message = err instanceof Error ? err.message : texts.fallbackError;
       logger.error('Erro ao excluir instância', { instanceId: instance.id, error: message });
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
@@ -188,6 +240,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
   const refusedOther = !!loaded && !loaded.ok && loaded.reason !== 'has_history';
   const providerLabel =
     instance.provider === 'official' ? 'API Oficial (Meta)' : instance.provider === 'waha' ? 'WAHA' : 'Evolution';
+  const instagramHandle = isInstagram ? instagramAccountHandle(instance) : null;
 
   const renderCounts = (counts: DeleteInstanceCounts) => (
     <div className="rounded-lg border divide-y text-sm" data-testid="delete-counts">
@@ -209,7 +262,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <Trash2 className="h-5 w-5" />
-            Excluir instância
+            {texts.title}
           </DialogTitle>
         </DialogHeader>
 
@@ -219,25 +272,40 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
               <span className="font-medium">Nome</span>
               <span className="text-right">{instance.name}</span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="font-medium">Chave</span>
-              <code className="bg-background px-2 py-0.5 rounded text-xs">{instance.instance_key}</code>
-            </div>
-            {instance.phone_number && (
-              <div className="flex justify-between gap-4">
-                <span className="font-medium">Número</span>
-                <span>{instance.phone_number}</span>
-              </div>
+            {isInstagram ? (
+              <>
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium">Conta</span>
+                  <span>{instagramHandle ?? '@ não informado'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium">Canal</span>
+                  <span>Instagram</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium">Chave</span>
+                  <code className="bg-background px-2 py-0.5 rounded text-xs">{instance.instance_key}</code>
+                </div>
+                {instance.phone_number && (
+                  <div className="flex justify-between gap-4">
+                    <span className="font-medium">Número</span>
+                    <span>{instance.phone_number}</span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4">
+                  <span className="font-medium">Provedor</span>
+                  <span>{providerLabel}</span>
+                </div>
+              </>
             )}
-            <div className="flex justify-between gap-4">
-              <span className="font-medium">Provedor</span>
-              <span>{providerLabel}</span>
-            </div>
           </div>
 
           {preview.kind === 'loading' && (
             <div className="space-y-2" data-testid="delete-preview-loading">
-              <p className="text-sm text-muted-foreground">Conferindo o que esta instância guarda…</p>
+              <p className="text-sm text-muted-foreground">{texts.checking}</p>
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-5/6" />
               <Skeleton className="h-4 w-2/3" />
@@ -247,7 +315,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
           {preview.kind === 'error' && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Não deu para conferir a instância</AlertTitle>
+              <AlertTitle>{texts.checkFailed}</AlertTitle>
               <AlertDescription className="space-y-2">
                 <p>{preview.message}</p>
                 <p>Sem essa conferência, a exclusão não é oferecida.</p>
@@ -262,16 +330,20 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
             <>
               <Alert className="border-red-200 bg-red-50">
                 <AlertTriangle className="h-4 w-4 text-red-600" />
-                <AlertTitle className="text-red-800">Exclusão recusada: esta instância guarda histórico</AlertTitle>
-                <AlertDescription className="text-red-800">
-                  Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui
-                  instância com histórico — e não há como forçar.
-                </AlertDescription>
+                <AlertTitle className="text-red-800">{texts.refusedTitle}</AlertTitle>
+                <AlertDescription className="text-red-800">{texts.refusedBody}</AlertDescription>
               </Alert>
               {renderCounts(loaded.counts)}
               <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-2">
                 <p className="font-medium">O que fazer em vez de excluir</p>
                 <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                  {isInstagram ? (
+                    <li>
+                      Quer trocar a conta conectada, ou reconectar esta? Isso é <strong>reconectar</strong>, não
+                      excluir, e o histórico fica. Escreva para{' '}
+                      <a className="underline" href={`mailto:${SUPORTE_EMAIL}`}>{SUPORTE_EMAIL}</a> antes de mexer.
+                    </li>
+                  ) : (
                   <li>
                     Quer usar este número de novo, ou trocar a conexão? Isso é <strong>reconectar</strong>, não
                     excluir.{' '}
@@ -291,6 +363,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
                       </>
                     )}
                   </li>
+                  )}
                   {(!instance.provider || instance.provider === 'evolution') && (
                     <li>Quer só parar de receber por este número? Use "Desconectar" na linha da instância; o histórico fica.</li>
                   )}
@@ -303,7 +376,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Exclusão recusada</AlertTitle>
-              <AlertDescription>{loaded?.message || 'Você não pode excluir esta instância.'}</AlertDescription>
+              <AlertDescription>{loaded?.message || texts.refusedOther}</AlertDescription>
             </Alert>
           )}
 
@@ -311,7 +384,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
             <>
               <Alert className="border-emerald-200 bg-emerald-50">
                 <ShieldCheck className="h-4 w-4 text-emerald-700" />
-                <AlertTitle className="text-emerald-900">Esta instância está vazia</AlertTitle>
+                <AlertTitle className="text-emerald-900">{texts.emptyTitle}</AlertTitle>
                 <AlertDescription className="text-emerald-900">
                   Nenhuma conversa, mensagem, contato, chatbot, campanha ou follow-up depende dela. Excluir não
                   apaga histórico nenhum.
@@ -324,7 +397,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
                   {providerEffectLines(instance.provider).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
-                  <li>Os registros de webhook desta instância são apagados junto.</li>
+                  <li>{texts.webhookLine}</li>
                   <li>Esta ação não pode ser desfeita.</li>
                 </ul>
               </div>
@@ -339,7 +412,7 @@ export const DeleteInstanceModal = ({ open, onOpenChange, instance, onSuccess }:
           {canDelete && (
             <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Excluir instância
+              {texts.confirm}
             </Button>
           )}
         </DialogFooter>
