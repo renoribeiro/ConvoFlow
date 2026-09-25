@@ -1,11 +1,22 @@
-import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2, Pencil, Instagram } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2, Pencil, Instagram, Power, RotateCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -43,6 +54,20 @@ import {
   splitByChannel,
   totalCardTexts,
 } from '@/lib/whatsapp/connectionSections';
+import {
+  callbackErrorText,
+  connectSuccessText,
+  instagramActions,
+  readInstagramCallback,
+  toggleConfirmText,
+  withoutInstagramCallback,
+} from '@/lib/instagram/connectFlow';
+import {
+  completeInstagramConnect,
+  setInstagramAccountActive,
+  startInstagramConnect,
+  useInstagramConnectEnabled,
+} from '@/hooks/useInstagramConnect';
 
 type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
@@ -123,6 +148,18 @@ export default function WhatsAppNumbers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { verifyConnection: verifyMetaConnection } = useMetaApi();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Instagram pela tela (fatia 4b). O botão só aparece na Loja que o
+  // superadmin liberou — quem decide é instagram_connect_enabled no banco.
+  const { data: igConnectEnabled = false } = useInstagramConnectEnabled(tenant?.id);
+  const igActions = instagramActions({ connectEnabled: igConnectEnabled, canConfigure });
+  const [igStarting, setIgStarting] = useState<string | null>(null);
+  const [igCompleting, setIgCompleting] = useState(false);
+  const [igToggle, setIgToggle] = useState<WhatsAppInstance | null>(null);
+  const [igToggling, setIgToggling] = useState(false);
+  const igCallbackHandled = useRef<string | null>(null);
 
   // Query para buscar instâncias do WhatsApp
   const { 
@@ -203,6 +240,67 @@ export default function WhatsAppNumbers() {
       clearTimeout(timeout);
     };
   }, [instances, updateInstanceMutation]);
+
+  // Volta do Instagram: a edge function devolve o navegador para cá com
+  // ?ig_state&ig_code (ou &ig_error). Tira os parâmetros da barra na hora
+  // (um F5 não pode repetir o pedido) e conclui UMA vez — o ref segura o
+  // efeito duplo do StrictMode, e o servidor recusaria o state repetido.
+  useEffect(() => {
+    const cb = readInstagramCallback(location.search);
+    if (cb.kind === 'none') return;
+    if (igCallbackHandled.current === location.search) return;
+    igCallbackHandled.current = location.search;
+    navigate({ pathname: location.pathname, search: withoutInstagramCallback(location.search) }, { replace: true });
+
+    if (cb.kind === 'error') {
+      const t = callbackErrorText(cb.error);
+      toast({ title: t.title, description: t.description, variant: 'destructive' });
+      return;
+    }
+    setIgCompleting(true);
+    void completeInstagramConnect(cb.code, cb.state)
+      .then((r) => {
+        if (r.ok) {
+          const t = connectSuccessText(r);
+          toast({ title: t.title, description: t.description });
+        } else {
+          toast({ title: 'Instagram não conectado', description: r.message, variant: 'destructive' });
+        }
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+        refetch();
+      })
+      .finally(() => setIgCompleting(false));
+  }, [location.pathname, location.search, navigate, toast, queryClient, refetch]);
+
+  const handleInstagramStart = async (instanceId: string | null) => {
+    setIgStarting(instanceId ?? 'new');
+    const r = await startInstagramConnect({ tenantId: tenant?.id ?? null, instanceId });
+    // No caminho feliz a página já saiu para o Instagram.
+    if (!r.ok) {
+      toast({ title: 'Não foi possível abrir o Instagram', description: r.message, variant: 'destructive' });
+      setIgStarting(null);
+    }
+  };
+
+  const confirmInstagramToggle = async () => {
+    if (!igToggle) return;
+    const turnOn = !igToggle.is_active;
+    setIgToggling(true);
+    const r = await setInstagramAccountActive(igToggle.id, turnOn);
+    setIgToggling(false);
+    setIgToggle(null);
+    if (!r.ok) {
+      toast({ title: 'Nada foi alterado', description: r.message, variant: 'destructive' });
+      return;
+    }
+    toast(
+      turnOn
+        ? { title: 'Instagram religado', description: 'As mensagens que chegarem a partir de agora entram no ConvoFlow.' }
+        : { title: 'Instagram desligado', description: 'O histórico ficou. Mensagens que chegarem enquanto estiver desligada não entram.' },
+    );
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+    refetch();
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -754,22 +852,44 @@ export default function WhatsAppNumbers() {
         </CardContent>
           </Card>
 
-          {/* Contas do Instagram — só na Loja que tem. Sem "instância" e sem
-              "chave": para quem usa, é a conta do Instagram conectada. Conectar,
-              reconectar e desconectar ficam para a próxima entrega. */}
-          {sections.instagram.length > 0 && (
+          {/* Contas do Instagram — na Loja que tem conta, ou na Loja liberada
+              pelo superadmin para conectar (fatia 4b). Sem "instância" e sem
+              "chave": para quem usa, é a conta do Instagram conectada. Na Loja
+              sem conta e sem a chave (a EncaixaRH) a seção não existe. */}
+          {(sections.instagram.length > 0 || igActions.showSection) && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                 <CardTitle className="flex items-center gap-2">
                   <Instagram className="h-5 w-5 text-[#E4405F]" aria-hidden />
                   Contas do Instagram
                 </CardTitle>
+                {igActions.showConnect && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleInstagramStart(null)}
+                    disabled={igStarting !== null || igCompleting}
+                    data-testid="instagram-connect"
+                  >
+                    {igStarting === 'new' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                    Conectar Instagram
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
+                {igCompleting && (
+                  <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" data-testid="instagram-completing">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Concluindo a conexão com o Instagram…
+                  </p>
+                )}
+                {sections.instagram.length === 0 && (
+                  <p className="text-sm text-muted-foreground" data-testid="no-instagram-accounts">
+                    Nenhuma conta do Instagram conectada nesta Loja. Clique em Conectar Instagram e entre com a conta profissional da Loja.
+                  </p>
+                )}
                 <div className="space-y-4">
                   {sections.instagram.map((account) => {
                     const ig = instagramConnectionView(account.connection_config, now);
-                    const igTexts = instagramConnectionTexts(ig);
+                    const igTexts = instagramConnectionTexts(ig, { canReconnectHere: igActions.showReconnect });
                     const handle = instagramAccountHandle(account);
                     return (
                       <div
@@ -790,7 +910,7 @@ export default function WhatsAppNumbers() {
                                 {PROVIDER_BADGE.instagram.label}
                               </Badge>
                               <Badge variant={account.is_active ? 'default' : 'secondary'}>
-                                {account.is_active ? 'Ativa' : 'Inativa'}
+                                {account.is_active ? 'Ligada' : 'Desligada'}
                               </Badge>
                             </div>
 
@@ -826,6 +946,30 @@ export default function WhatsAppNumbers() {
                           </Badge>
 
                           <div className="flex flex-wrap items-center gap-1">
+                            {igActions.showReconnect && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleInstagramStart(account.id)}
+                                disabled={igStarting !== null || igCompleting}
+                              >
+                                {igStarting === account.id
+                                  ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  : <RotateCw className="h-4 w-4 mr-1" />}
+                                Reconectar
+                              </Button>
+                            )}
+                            {igActions.showToggle && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setIgToggle(account)}
+                                className={account.is_active ? 'text-red-600 hover:text-red-700' : undefined}
+                              >
+                                <Power className="h-4 w-4 mr-1" />
+                                {account.is_active ? 'Desligar' : 'Religar'}
+                              </Button>
+                            )}
                             {canConfigure && (
                               <Button
                                 variant="ghost"
@@ -914,6 +1058,39 @@ export default function WhatsAppNumbers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Desligar / religar o Instagram — a confirmação diz exatamente o que acontece. */}
+      <AlertDialog open={!!igToggle} onOpenChange={(open) => { if (!open && !igToggling) setIgToggle(null); }}>
+        {igToggle && (() => {
+          const t = toggleConfirmText({
+            handle: instagramAccountHandle(igToggle) ?? igToggle.name,
+            turnOn: !igToggle.is_active,
+          });
+          return (
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t.title}</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2">
+                    {t.body.map((line) => <p key={line}>{line}</p>)}
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={igToggling}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); void confirmInstagramToggle(); }}
+                  disabled={igToggling}
+                  className={igToggle.is_active ? 'bg-red-600 hover:bg-red-700' : undefined}
+                >
+                  {igToggling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {t.action}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          );
+        })()}
+      </AlertDialog>
 
       {/* Modais */}
       <CreateInstanceModal

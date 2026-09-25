@@ -82,15 +82,13 @@ export const unownedNotice = (view: AttendantMetricsView): string => {
   const { unowned, totalHeld, totalWaiting } = view;
   if (totalHeld === 0) return 'Nenhuma conversa aberta na Loja.';
   if (unowned.n_held === 0) return 'Todas as conversas abertas estão com alguém.';
-  const parts = [`${unowned.n_held} de ${totalHeld} conversas abertas estão sem responsável`];
-  if (unowned.n_waiting > 0) {
-    parts.push(
-      totalWaiting === unowned.n_waiting
-        ? `— ${unowned.n_waiting} delas esperam uma pessoa responder, e ninguém é dono de nenhuma`
-        : `— ${unowned.n_waiting} delas esperam uma pessoa responder`,
-    );
-  }
-  return parts.join(' ') + '.';
+  const held = `${unowned.n_held} de ${totalHeld} conversas abertas estão sem responsável`;
+  if (unowned.n_waiting === 0) return `${held}.`;
+  const waiting = `${held}, e ${unowned.n_waiting} delas esperam uma pessoa responder.`;
+  // Todas as que esperam estão sem dono: dizer isso, porque é o que manda agir.
+  return totalWaiting === unowned.n_waiting
+    ? `${waiting} Nenhuma conversa que espera resposta tem dono.`
+    : waiting;
 };
 
 /** "Maria Souza", "Maria Souza (suspenso)", "Camila (da Conta)". */

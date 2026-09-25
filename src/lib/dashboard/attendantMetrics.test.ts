@@ -51,14 +51,14 @@ describe('splitAttendantRows', () => {
 describe('unownedNotice — a frase honesta antes da tabela', () => {
   it('EncaixaRH: diz que 164 de 168 estão sem responsável e que ninguém é dono das 92 que esperam', () => {
     expect(unownedNotice(splitAttendantRows(ENCAIXA))).toBe(
-      '164 de 168 conversas abertas estão sem responsável — 92 delas esperam uma pessoa responder, e ninguém é dono de nenhuma.',
+      '164 de 168 conversas abertas estão sem responsável, e 92 delas esperam uma pessoa responder. Nenhuma conversa que espera resposta tem dono.',
     );
   });
   it('quando há gente esperando também com dono, não afirma "ninguém"', () => {
     const rows = [...ENCAIXA];
     rows[1] = row({ ...rows[1]!, n_waiting: 1 });
     expect(unownedNotice(splitAttendantRows(rows))).toBe(
-      '164 de 168 conversas abertas estão sem responsável — 92 delas esperam uma pessoa responder.',
+      '164 de 168 conversas abertas estão sem responsável, e 92 delas esperam uma pessoa responder.',
     );
   });
   it('sem responsável zero: diz que tudo está com alguém (não some)', () => {

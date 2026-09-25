@@ -119,3 +119,28 @@ describe('textos do cartão', () => {
     }
   });
 });
+
+describe('com o botão Reconectar no cartão (fatia 4b)', () => {
+  const opts = { canReconnectHere: true };
+
+  it('vencida e precisa reconectar apontam para o botão, não para o e-mail', () => {
+    const venceu = instagramConnectionTexts(instagramConnectionView(conf(-1), NOW), opts);
+    expect(venceu.detail).toContain('Para reconectar, clique em Reconectar neste cartão.');
+    expect(venceu.detail).not.toContain('contato@');
+
+    const rec = instagramConnectionTexts(instagramConnectionView(conf(20 * D, { status: 'needs_reconnect' }), NOW), opts);
+    expect(rec.detail).toContain('Para reconectar, clique em Reconectar neste cartão.');
+    expect(rec.detail).not.toContain('contato@');
+  });
+
+  it('vai vencer: se o aviso continuar, o botão', () => {
+    const t = instagramConnectionTexts(instagramConnectionView(conf(3 * D), NOW), opts);
+    expect(t.detail).toContain('Se este aviso continuar, clique em Reconectar neste cartão.');
+    expect(t.detail).not.toContain('contato@');
+  });
+
+  it('sem o botão (Loja sem a chave), o texto de antes, igual', () => {
+    const t = instagramConnectionTexts(instagramConnectionView(conf(3 * D), NOW), { canReconnectHere: false });
+    expect(t.detail).toMatch(/A renovação automática ainda não conseguiu renovar\. Se este aviso continuar, escreva para contato@convoflow\.com\.br\.$/);
+  });
+});

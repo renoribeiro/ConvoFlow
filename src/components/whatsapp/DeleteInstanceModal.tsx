@@ -52,7 +52,7 @@ export const DELETE_TEXTS = {
     checkFailed: 'Não deu para conferir a instância',
     refusedTitle: 'Exclusão recusada: esta instância guarda histórico',
     refusedBody:
-      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui instância com histórico — e não há como forçar.',
+      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui instância com histórico, e não há como forçar.',
     refusedOther: 'Você não pode excluir esta instância.',
     emptyTitle: 'Esta instância está vazia',
     webhookLine: 'Os registros de webhook desta instância são apagados junto.',
@@ -67,7 +67,7 @@ export const DELETE_TEXTS = {
     checkFailed: 'Não deu para conferir a conta',
     refusedTitle: 'Exclusão recusada: esta conta guarda histórico',
     refusedBody:
-      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui conta do Instagram com histórico — e não há como forçar.',
+      'Excluir apagaria tudo o que está abaixo, sem volta. Por isso o ConvoFlow não exclui conta do Instagram com histórico, e não há como forçar.',
     refusedOther: 'Você não pode excluir esta conta.',
     emptyTitle: 'Esta conta está vazia',
     webhookLine: 'Os registros de webhook e os alertas de validade desta conta são apagados junto.',

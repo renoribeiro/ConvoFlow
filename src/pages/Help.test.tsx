@@ -478,6 +478,7 @@ describe('Help — visibilidade por cargo', () => {
     expect(topic('Configurar sua equipe')).toBeNull();
     expect(topic('Antes de conectar seu WhatsApp')).toBeNull();
     expect(topic('Conectar seu WhatsApp')).toBeNull();
+    expect(topic('Conectar seu Instagram')).toBeNull();
     expect(topic('Disparar sua primeira campanha')).toBeNull();
     expect(topic('Montar seu funil de vendas')).not.toBeNull();
     expect(topic('Criar seu primeiro chatbot')).not.toBeNull();
@@ -489,6 +490,7 @@ describe('Help — visibilidade por cargo', () => {
     expect(topic('Configurar sua equipe')).not.toBeNull();
     expect(topic('Antes de conectar seu WhatsApp')).not.toBeNull();
     expect(topic('Conectar seu WhatsApp')).not.toBeNull();
+    expect(topic('Conectar seu Instagram')).not.toBeNull();
   });
 
   it('mostra o tutorial de equipe para gerente e superadmin', () => {

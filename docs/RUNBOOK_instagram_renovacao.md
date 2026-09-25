@@ -170,6 +170,12 @@ acesso novo funciona.
 
 ## Trocar o acesso à mão (enquanto não existe botão de conectar)
 
+> **Atualização 2026-09-25 (fatia 4b):** na Loja com a chave "Conectar
+> Instagram" ligada (Administração › Configurações), reconectar é o botão
+> **Reconectar** no cartão — ver `docs/RUNBOOK_instagram_conectar.md`. Os avisos
+> do sino dessas Lojas já mandam usar o botão. A troca à mão abaixo continua
+> valendo para as outras.
+
 Quando a conta precisar ser reconectada: gere um acesso novo no painel da Meta
 (passo 1 de `docs/RUNBOOK_instagram_instancia_manual.md`) e rode:
 

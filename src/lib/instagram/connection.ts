@@ -103,13 +103,30 @@ export function formatInstagramValidity(d: Date): string {
   return `${dateFmt.format(d)} às ${timeFmt.format(d)}`;
 }
 
-/** Contato para reconectar enquanto não existe botão de conectar na tela. */
+/**
+ * Contato para reconectar onde o botão Reconectar não aparece — Loja sem a
+ * chave da fatia 4b (o superadmin libera por Loja) ou quem não tem a
+ * capability whatsapp.configure.
+ */
 export const INSTAGRAM_RECONNECT_CONTACT = 'contato@convoflow.com.br';
 
+export interface InstagramConnectionTextOptions {
+  /** O botão Reconectar aparece neste cartão (fatia 4b). */
+  canReconnectHere?: boolean;
+}
+
 /** Textos do cartão — um lugar só, para a tela e os testes. */
-export function instagramConnectionTexts(view: InstagramConnectionView): { badge: string; detail: string } {
+export function instagramConnectionTexts(
+  view: InstagramConnectionView,
+  opts: InstagramConnectionTextOptions = {},
+): { badge: string; detail: string } {
   const when = view.validUntil ? formatInstagramValidity(view.validUntil) : null;
-  const reconnect = `Para reconectar, escreva para ${INSTAGRAM_RECONNECT_CONTACT}.`;
+  const reconnect = opts.canReconnectHere
+    ? 'Para reconectar, clique em Reconectar neste cartão.'
+    : `Para reconectar, escreva para ${INSTAGRAM_RECONNECT_CONTACT}.`;
+  const persist = opts.canReconnectHere
+    ? 'Se este aviso continuar, clique em Reconectar neste cartão.'
+    : `Se este aviso continuar, escreva para ${INSTAGRAM_RECONNECT_CONTACT}.`;
   const dias = (n: number) => (n === 1 ? '1 dia' : `${n} dias`);
 
   switch (view.state) {
@@ -128,7 +145,7 @@ export function instagramConnectionTexts(view: InstagramConnectionView): { badge
     case 'expiring':
       return {
         badge: `Vence em ${dias(view.daysLeft ?? 0)}`,
-        detail: `Válida até ${when}. A renovação automática ainda não conseguiu renovar. Se este aviso continuar, escreva para ${INSTAGRAM_RECONNECT_CONTACT}.`,
+        detail: `Válida até ${when}. A renovação automática ainda não conseguiu renovar. ${persist}`,
       };
     case 'unknown':
       return { badge: 'Conectado', detail: 'Validade da conexão desconhecida.' };

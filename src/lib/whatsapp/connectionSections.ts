@@ -11,6 +11,7 @@ import { instagramConnectionIsUsable, instagramConnectionView } from '@/lib/inst
 export interface ConnectionRow {
   provider?: string | null;
   status?: string | null;
+  is_active?: boolean | null;
   connection_config?: unknown;
   profile_name?: string | null;
 }
@@ -23,11 +24,24 @@ export function splitByChannel<T extends ConnectionRow>(rows: readonly T[]): { w
 }
 
 /**
- * Conectado = WhatsApp com status 'open' (como sempre) ou Instagram com acesso
- * que atende (válido, vencendo, ou sem validade legível).
+ * Só as instâncias de WhatsApp. Todo seletor de "Instância do WhatsApp"
+ * (campanha, chatbot, número de envio do sistema, nova conversa) passa por
+ * aqui: a conta do Instagram mora na mesma tabela, mas não envia campanha,
+ * não roda chatbot e não manda mensagem de WhatsApp. Provider nulo (legado) é
+ * WhatsApp.
+ */
+export function onlyWhatsApp<T extends { provider?: string | null }>(rows: readonly T[]): T[] {
+  return rows.filter((r) => channelOfProvider(r.provider) === 'whatsapp');
+}
+
+/**
+ * Conectado = WhatsApp com status 'open' (como sempre) ou Instagram LIGADO
+ * (fatia 4b: desligada não recebe nada) com acesso que atende (válido,
+ * vencendo, ou sem validade legível).
  */
 export function isConnected(row: ConnectionRow, now: Date): boolean {
   if (channelOfProvider(row.provider) === 'instagram') {
+    if (row.is_active === false) return false;
     return instagramConnectionIsUsable(instagramConnectionView(row.connection_config, now));
   }
   return row.status === 'open';
