@@ -3,6 +3,7 @@ import {
   connectionSummary,
   instagramAccountHandle,
   isConnected,
+  onlyWhatsApp,
   splitByChannel,
   totalCardTexts,
 } from './connectionSections';
@@ -78,5 +79,25 @@ describe('instagramAccountHandle', () => {
   it('sem nenhum dos dois: null (a tela diz "@ não informado")', () => {
     expect(instagramAccountHandle({ connection_config: null })).toBeNull();
     expect(instagramAccountHandle({ profile_name: '  ' })).toBeNull();
+  });
+});
+
+describe('onlyWhatsApp — seletores de "Instância do WhatsApp" (fatia 4b)', () => {
+  it('tira a conta do Instagram e mantém todo WhatsApp, inclusive o legado sem provider', () => {
+    expect(onlyWhatsApp([waOpen, igValid, waLegacy, igExpired, waClosed]).map((r) => r.id)).toEqual(['wa-1', 'wa-3', 'wa-2']);
+    expect(onlyWhatsApp([igValid])).toEqual([]);
+  });
+});
+
+describe('Instagram desligado (fatia 4b)', () => {
+  it('desligada conta como desconectada, mesmo com acesso válido', () => {
+    expect(isConnected({ ...igValid, is_active: false }, NOW)).toBe(false);
+    expect(isConnected({ ...igValid, is_active: true }, NOW)).toBe(true);
+    const s = connectionSummary([waOpen, { ...igValid, is_active: false }], NOW);
+    expect(s).toMatchObject({ connected: 1, disconnected: 1 });
+  });
+
+  it('is_active não muda nada no WhatsApp (o status manda, como sempre)', () => {
+    expect(isConnected({ ...waOpen, is_active: false }, NOW)).toBe(true);
   });
 });
