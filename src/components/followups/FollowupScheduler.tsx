@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { FollowupMode } from '@/lib/followups/types';
 import { toast } from 'sonner';
 import { contactChannel, contactIdentifier } from '@/lib/contacts/identity';
+import { contactAllowedInFollowupMode, followupPickerContacts } from '@/lib/followups/contactPicker';
 
 interface FollowupSchedulerProps {
   onClose: () => void;
@@ -113,10 +114,25 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
 
   const selectedContact = contacts.find((c) => c.id === formData.contactId);
   const selectedType = followupTypes.find((t) => t.id === formData.type);
+  // Agendado e Sequência mandam WhatsApp sozinhos: contato do Instagram não
+  // entra na lista deles (ver lib/followups/contactPicker.ts).
+  const pickerContacts = followupPickerContacts(contacts, mode);
+
+  const changeMode = (next: FollowupMode) => {
+    setMode(next);
+    // Contato do Instagram escolhido no Manual não pode seguir para um modo que
+    // envia WhatsApp: a escolha é desfeita e a pessoa escolhe de novo.
+    if (selectedContact && !contactAllowedInFollowupMode(selectedContact, next)) {
+      setFormData((p) => ({ ...p, contactId: '' }));
+    }
+  };
 
   const validateForm = () => {
     const e: Record<string, string> = {};
     if (!formData.contactId) e.contactId = 'Selecione um contato';
+    else if (selectedContact && !contactAllowedInFollowupMode(selectedContact, mode)) {
+      e.contactId = 'Contato do Instagram não recebe WhatsApp automático. Use o modo Manual.';
+    }
 
     if (mode === 'sequence') {
       if (!formData.sequenceId) e.sequenceId = 'Selecione a sequência';
@@ -228,8 +244,8 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
           <SelectValue placeholder={contactsLoading ? 'Carregando contatos...' : 'Selecione um contato'} />
         </SelectTrigger>
         <SelectContent>
-          {contacts && contacts.length > 0 ? (
-            contacts.map((c) => (
+          {pickerContacts.length > 0 ? (
+            pickerContacts.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4" />
@@ -385,7 +401,7 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
                     className={`cursor-pointer transition-all hover:shadow-md ${
                       mode === m.id ? 'ring-2 ring-primary' : ''
                     }`}
-                    onClick={() => setMode(m.id)}
+                    onClick={() => changeMode(m.id)}
                   >
                     <CardContent className="p-4 text-center">
                       <Icon className="w-6 h-6 mx-auto mb-2 text-primary" />

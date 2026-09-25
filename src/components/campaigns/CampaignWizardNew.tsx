@@ -19,7 +19,6 @@ import { useCampaignMutations, type Campaign, type CampaignCreateInput, type Mes
 import { logger } from '@/lib/logger';
 import { format, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { contactIdentifier, contactLabel } from '@/lib/contacts/identity';
 import {
   X,
   MessageSquare,
@@ -67,8 +66,6 @@ interface Contact {
   name: string | null;
   /** Nulo para contato que não é de WhatsApp. Campanha só alcança quem tem telefone. */
   phone: string | null;
-  channel?: string | null;
-  username?: string | null;
   current_stage_id: string | null;
 }
 
@@ -321,10 +318,15 @@ export const CampaignWizard = ({
     if (state.audience_type !== 'contact_list' || !tenantId) return;
     void (async () => {
       setLoadingContacts(true);
+      // Só WhatsApp: campanha é disparo de WhatsApp, e contato do Instagram não
+      // tem telefone (decisão do dono, 2026-09-25: nem é oferecido aqui). A rede
+      // de segurança continua no servidor — schedule_campaign_messages só
+      // agenda quem tem phone, e process-campaign-dispatch falha sem telefone.
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, phone, channel, username, current_stage_id')
+        .select('id, name, phone, current_stage_id')
         .eq('tenant_id', tenantId)
+        .eq('channel', 'whatsapp')
         .order('name');
       setContacts(data ?? []);
       setLoadingContacts(false);
@@ -339,10 +341,13 @@ export const CampaignWizard = ({
         setContactCount(0);
         return;
       }
+      // A contagem é de quem a campanha alcança: contato do Instagram com a
+      // mesma etiqueta não entra (o servidor também não o agenda).
       const { data: ctRows } = await supabase
         .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', state.selectedTagIds);
+        .select('contact_id, contacts!inner(channel)')
+        .in('tag_id', state.selectedTagIds)
+        .eq('contacts.channel', 'whatsapp');
       const ids = [...new Set((ctRows ?? []).map((r: { contact_id: string }) => r.contact_id))];
       setContactCount(ids.length);
     })();
@@ -578,8 +583,7 @@ export const CampaignWizard = ({
     const matchText =
       !q ||
       (c.name ?? '').toLowerCase().includes(q) ||
-      (c.phone ?? '').includes(q) ||
-      (!!q.replace(/^@+/, '') && (c.username ?? '').toLowerCase().includes(q.replace(/^@+/, '')));
+      (c.phone ?? '').includes(q);
     const matchStage =
       state.contactStageFilter === 'all' ||
       c.current_stage_id === state.contactStageFilter;
@@ -1166,10 +1170,9 @@ export const CampaignWizard = ({
                       }
                     />
                     <div>
-                      {/* Instagram não tem telefone: o @ (ou "Instagram") no lugar. */}
-                      <p className="text-sm font-medium">{contactLabel(c)}</p>
+                      <p className="text-sm font-medium">{c.name ?? c.phone}</p>
                       {c.name && (
-                        <p className="text-xs text-muted-foreground">{contactIdentifier(c)}</p>
+                        <p className="text-xs text-muted-foreground">{c.phone}</p>
                       )}
                     </div>
                   </label>

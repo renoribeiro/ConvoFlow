@@ -1,10 +1,18 @@
 # Instagram fatia 4a — Contatos e Instâncias e APIs (2ª entrega)
 
-Branch `feat/instagram-fatia4a-contatos-instancias`, três commits:
+Branch `feat/instagram-fatia4a-contatos-instancias`:
 
 1. `fix(contatos)`: o formulário de contato volta a salvar.
 2. `feat(contatos)`: canal WhatsApp / Instagram em Contatos.
 3. `feat(instancias)`: seções WhatsApp e Instagram em Instâncias e APIs.
+4. `docs`: este runbook.
+5. `feat(instagram)`: contato do Instagram fora do público da campanha e do
+   follow-up automático (Agendado e Sequência). Decisão do dono.
+
+A rede de segurança no servidor não foi tocada: `schedule_campaign_messages`
+só agenda contato com telefone, `process-campaign-dispatch` falha a execução
+sem telefone e `process-followup-dispatch` cancela o agendado e pula o passo
+de WhatsApp da sequência.
 
 ## Estado
 
@@ -81,11 +89,28 @@ Abra http://localhost:8080 e entre como o **Gerente da Conta Teste Gerente**.
 8. **Instâncias e APIs (Conta Teste Gerente).** Seletor › Conta Teste Gerente:
    uma seção só, "Total de Instâncias 2", linhas com "Chave:" e os botões de
    sempre. É a tela de antes.
+9. **Campanha: WhatsApp igual a antes.** Seletor › **Conta Teste Gerente** ›
+   Campanhas › "Nova Campanha". Preencha nome, a instância "Teste_APP_META" e
+   a mensagem, "Próximo", e no passo Público clique em **Contatos**: os
+   contatos de WhatsApp aparecem como sempre (nome e telefone). Feche sem
+   salvar. O Instagram escondido não dá para ver no localhost: nenhuma Loja de
+   teste tem, ao mesmo tempo, instância de WhatsApp conectada e contato do
+   Instagram — na Loja Teste o assistente para no passo 1, porque a única
+   conexão dela é o Instagram (aparece desabilitada, "(desconectada)"). Quem
+   prova o Instagram fora da lista é o teste
+   `src/components/campaigns/CampaignWizardNew.channel.test.tsx`.
+10. **Follow-up automático não oferece Instagram.** Loja Teste › Follow-ups ›
+    "Novo Follow-up". Em **Manual**, o seletor de contato mostra os 3 contatos
+    do Instagram (com o @) — junto com os de WhatsApp da Conta, porque o
+    Gerente enxerga as duas. Troque para **Agendado** e depois **Sequência**:
+    os do Instagram somem e os de WhatsApp continuam, com nome e telefone.
+    Escolha um do Instagram no Manual e troque para Agendado: a escolha volta
+    para "Selecione um contato". Feche sem salvar.
 
 Limpeza: apague a observação dos passos 1 e 3 (Editar › apague › Salvar — o
 campo vazio grava NULL).
 
 ## Desfazer
 
-Não mergear, ou reverter os três commits. Não há nada no servidor para
+Não mergear, ou reverter os commits da lista do topo. Não há nada no servidor para
 desfazer.

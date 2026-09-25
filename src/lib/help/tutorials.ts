@@ -443,7 +443,7 @@ export const TUTORIALS: Tutorial[] = [
       {
         title: 'No passo Público, escolha Tags, Contatos ou CSV',
         body:
-          'Selecione por Tags para usar a segmentação que você acabou de preparar. "Contatos" permite escolher um a um, e CSV serve para uma lista externa. Confira o total antes de avançar.',
+          'Selecione por Tags para usar a segmentação que você acabou de preparar. "Contatos" permite escolher um a um, e CSV serve para uma lista externa. Confira o total antes de avançar. Contato do Instagram não aparece em "Contatos" nem entra no total das Tags: campanha é disparo de WhatsApp, e ele não tem telefone.',
       },
       {
         title: 'No passo Agendamento, escolha "Enviar imediatamente" ou "Agendar"',
