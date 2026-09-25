@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Smartphone, Save, AlertTriangle, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { onlyWhatsApp } from '@/lib/whatsapp/connectionSections';
 
 const REPORT_WA_KEY = 'report_whatsapp_instance_id';
 
@@ -33,7 +34,8 @@ export const SystemSettings = () => {
         .select('id, name, phone_number, provider, status')
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      // Relatório sai por WhatsApp: a conta do Instagram não é opção.
+      return onlyWhatsApp(data ?? []);
     },
   });
 

@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { onlyWhatsApp } from '@/lib/whatsapp/connectionSections';
 import { useTenantId } from '@/contexts/TenantContext';
 import { useCampaignMutations, type Campaign, type CampaignCreateInput, type MessageType, type AudienceType } from '@/hooks/useCampaigns';
 import { logger } from '@/lib/logger';
@@ -307,7 +308,9 @@ export const CampaignWizard = ({
           .eq('tenant_id', tenantId)
           .order('order'),
       ]);
-      setInstances((inst ?? []).map((i) => ({ ...i, status: i.status ?? '', provider: i.provider ?? null })));
+      // Só WhatsApp: a conta do Instagram mora na mesma tabela, mas campanha
+      // não sai por ela (aparecia aqui como "(desconectada)").
+      setInstances(onlyWhatsApp(inst ?? []).map((i) => ({ ...i, status: i.status ?? '', provider: i.provider ?? null })));
       setTags((tgs ?? []).map((t) => ({ ...t, color: t.color ?? '' })));
       setStages((stgs ?? []).map((s) => ({ ...s, color: s.color ?? '' })));
     })();

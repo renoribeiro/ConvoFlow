@@ -23,6 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
+import { onlyWhatsApp } from '@/lib/whatsapp/connectionSections';
 import {
   useCreateChatbot,
   useUpdateChatbotMeta,
@@ -141,12 +142,14 @@ const NewChatbotFlowModal: React.FC<Props> = ({ open, onClose, initial, onSaved 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial?.id]);
 
-  const { data: instances = [] } = useSupabaseQuery({
+  const { data: allInstances = [] } = useSupabaseQuery({
     table: 'whatsapp_instances',
     queryKey: ['whatsapp_instances', 'active'],
-    select: 'id, name, status',
+    select: 'id, name, status, provider',
     filter: [{ column: 'is_active', operator: 'eq', value: true }],
   });
+  // O chatbot não roda no Instagram: a conta do Instagram fica fora do seletor.
+  const instances = onlyWhatsApp(allInstances as unknown as { id: string; name: string; provider?: string | null }[]);
 
   const { data: funnelStages = [] } = useSupabaseQuery({
     table: 'funnel_stages',
