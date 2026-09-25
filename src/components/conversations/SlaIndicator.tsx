@@ -13,6 +13,8 @@ interface SlaIndicatorProps {
   level: SlaLevel;
   lastMessageAt: string | null;
   className?: string;
+  /** Aviso do nível crítico. Padrão: o do WhatsApp (a janela de 24 h vale nos dois canais). */
+  criticalHint?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ interface SlaIndicatorProps {
  * Compacto de propósito — a coluna da lista tem 320px no desktop e esta linha
  * ainda divide espaço com as etiquetas do contato.
  */
-export const SlaIndicator = ({ level, lastMessageAt, className }: SlaIndicatorProps) => {
+export const SlaIndicator = ({ level, lastMessageAt, className, criticalHint = SLA_CRITICAL_HINT }: SlaIndicatorProps) => {
   if (level === 'ok') return null;
 
   const meta = SLA_LEVEL_META[level];
@@ -40,10 +42,10 @@ export const SlaIndicator = ({ level, lastMessageAt, className }: SlaIndicatorPr
           <TooltipTrigger asChild>
             <AlertTriangle
               className={cn('h-3 w-3 flex-shrink-0', meta.textClass)}
-              aria-label={SLA_CRITICAL_HINT}
+              aria-label={criticalHint}
             />
           </TooltipTrigger>
-          <TooltipContent className="text-xs">{SLA_CRITICAL_HINT}</TooltipContent>
+          <TooltipContent className="text-xs">{criticalHint}</TooltipContent>
         </Tooltip>
       )}
     </span>

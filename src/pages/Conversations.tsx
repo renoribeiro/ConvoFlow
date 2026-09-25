@@ -13,6 +13,14 @@ import {
 import { QuickFilterPills } from '@/components/conversations/QuickFilterPills';
 import { TagFilterChips } from '@/components/conversations/TagFilterChips';
 import { OwnerFilterChips } from '@/components/conversations/OwnerFilterChips';
+import { ChannelSwitch } from '@/components/conversations/ChannelSwitch';
+import {
+  asChannel,
+  CONVERSATIONS_PAGE_DESCRIPTION,
+  otherChannel,
+  UNNAMED_CONTACT,
+  type ConversationChannel,
+} from '@/lib/conversations/channel';
 import {
   isAdminOnlyFilter,
   mergeServerTotals,
@@ -47,6 +55,16 @@ import { useContactHasConversation } from '@/hooks/useContactHasConversation';
 import { toast } from 'sonner';
 
 const CONTACT_PANEL_STORAGE_KEY = 'convoflow:contact-panel-open';
+/** Último canal aberto na chave (conveniência por navegador). */
+const CHANNEL_STORAGE_KEY = 'convoflow:conversations-channel';
+
+const readStoredChannel = (): ConversationChannel => {
+  try {
+    return asChannel(localStorage.getItem(CHANNEL_STORAGE_KEY));
+  } catch {
+    return 'whatsapp';
+  }
+};
 
 /** Uma frase só para o deep link que aponta para conversa fora do alcance. */
 export const CONVERSATION_UNAVAILABLE_MESSAGE =
@@ -88,6 +106,15 @@ export default function Conversations() {
   );
   const [quickFilterCounts, setQuickFilterCounts] = useState<QuickFilterCounts>({});
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
+  // --- Chave WhatsApp / Instagram ---
+  // Sem conta de Instagram na Loja a chave não aparece e tudo é WhatsApp — a
+  // tela fica exatamente como era. Quem sabe se há Instagram é a lista (é ela
+  // que carrega as instâncias) e avisa por onChannelsChange.
+  const [storedChannel, setStoredChannel] = useState<ConversationChannel>(readStoredChannel);
+  const [hasInstagram, setHasInstagram] = useState(false);
+  const channel: ConversationChannel = hasInstagram ? storedChannel : 'whatsapp';
+  const channelRef = useRef(channel);
+  channelRef.current = channel;
   const [searchParams] = useSearchParams();
   const { notifyNewMessage } = useNotifications();
   const isMobile = useIsMobile();
@@ -150,6 +177,36 @@ export default function Conversations() {
     if (isBelowXl) setIsContactPanelOpen(false);
   }, [isBelowXl]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHANNEL_STORAGE_KEY, storedChannel);
+    } catch {
+      /* navegador sem armazenamento: a chave só não é lembrada */
+    }
+  }, [storedChannel]);
+
+  // Trocar de canal troca de lista: a instância escolhida e a conversa aberta
+  // são do outro canal, e as contagens derivadas eram da lista anterior.
+  const changeChannel = useCallback((next: ConversationChannel) => {
+    setStoredChannel(next);
+    setActiveInstanceId(null);
+    setSelectedConversation(null);
+    setQuickFilterCounts({});
+  }, []);
+
+  const handleChannelsChange = useCallback((info: { hasInstagram: boolean }) => {
+    setHasInstagram(info.hasInstagram);
+  }, []);
+
+  // A conversa aberta é de outro canal (link direto, "Conversar" em Contatos,
+  // notificação)? A chave vai para o canal dela, sem fechar a conversa.
+  const handleConversationChannel = useCallback((detected: ConversationChannel) => {
+    if (detected === channelRef.current) return;
+    setStoredChannel(detected);
+    setActiveInstanceId(null);
+    setQuickFilterCounts({});
+  }, []);
+
   // Reset transient chat state whenever the active conversation changes.
   useEffect(() => {
     setIsChatSearchOpen(false);
@@ -167,13 +224,15 @@ export default function Conversations() {
       try {
         const { data: contact } = await supabase
           .from('contacts')
-          .select('name, phone')
+          .select('name, phone, channel')
           .eq('id', message.contactId)
           .limit(1)
           .maybeSingle();
         if (contact) {
-          contactName = contact.name || contact.phone || 'Contato';
-          contactPhone = contact.phone || '';
+          const c = contact as { name: string | null; phone: string | null; channel?: string | null };
+          contactName =
+            c.name || c.phone || (c.channel === 'instagram' ? UNNAMED_CONTACT.instagram : 'Contato');
+          contactPhone = c.phone || '';
         }
       } catch {
         /* fallback */
@@ -341,7 +400,20 @@ export default function Conversations() {
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
     tagIds: filters.tagIds,
+    // O canal da chave entra em TODA contagem, pelo mesmo applyConversationScope
+    // da lista: pílula e lista contam o mesmo canal.
+    channel,
   };
+
+  // Selo do outro canal: conversas aguardando resposta lá, número exato do
+  // servidor (a regra da pílula "Aguardando"), sem os filtros desta lista —
+  // é "quanto espera do outro lado", não um recorte. Só existe com Instagram.
+  const aguardandoNoOutroCanal = useConversationsCount({
+    channel: otherChannel(channel),
+    isArchived: false,
+    awaitingReply: true,
+    enabled: hasInstagram,
+  });
 
   const totalTodas = useConversationsCount({
     ...filtrosDeServidor,
@@ -392,6 +464,14 @@ export default function Conversations() {
 
   const list = (
     <div className="flex h-full min-h-0 flex-col">
+      {hasInstagram && (
+        <ChannelSwitch
+          value={channel}
+          onChange={changeChannel}
+          awaitingInOther={aguardandoNoOutroCanal.data}
+          className={cn('flex-shrink-0', isMobile ? 'mx-0 mt-1' : 'mx-4 mt-4')}
+        />
+      )}
       <TagFilterChips
         tagIds={filters.tagIds}
         onRemove={removeTagFilter}
@@ -436,6 +516,8 @@ export default function Conversations() {
           whatsappInstanceId={activeInstanceId}
           onInstanceChange={setActiveInstanceId}
           onItemsChange={setItemIds}
+          channel={channel}
+          onChannelsChange={handleChannelsChange}
         />
       </div>
     </div>
@@ -457,7 +539,7 @@ export default function Conversations() {
         <PageHeader
           title="Conversas"
           helpKey="page:conversations"
-          description="Gerencie todas as suas conversas do WhatsApp em um só lugar"
+          description={CONVERSATIONS_PAGE_DESCRIPTION[channel]}
           breadcrumbs={[
             { label: 'Dashboard', href: '/dashboard' },
             { label: 'Conversas' },
@@ -546,6 +628,7 @@ export default function Conversations() {
                 onSearchOpenChange={setIsChatSearchOpen}
                 panelOpen={isContactPanelOpen}
                 onPanelOpenChange={setIsContactPanelOpen}
+                onChannelDetected={handleConversationChannel}
               />
             </div>
           ) : (
@@ -575,6 +658,7 @@ export default function Conversations() {
                   onSearchOpenChange={setIsChatSearchOpen}
                   panelOpen={isContactPanelOpen}
                   onPanelOpenChange={setIsContactPanelOpen}
+                  onChannelDetected={handleConversationChannel}
                 />
               </motion.div>
             </AnimatePresence>

@@ -38,6 +38,7 @@ import { useContactFollowups } from '@/hooks/useContactFollowups';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsBelowXl } from '@/hooks/use-mobile';
+import { initialsOf, UNNAMED_CONTACT } from '@/lib/conversations/channel';
 
 interface ContactPanelProps {
   open: boolean;
@@ -185,9 +186,14 @@ function ContactPanelBody({
   }
 
   const stageColor: string | undefined = contact.stage?.color ?? undefined;
-  const initials = contact.name
-    ? contact.name.split(' ').map((n: string) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2)
-    : 'C';
+  const isInstagramContact = (contact as { channel?: string | null }).channel === 'instagram';
+  // Sem nome: "Cliente do Instagram" no Instagram; no WhatsApp, o de sempre.
+  const displayName = contact.name || (isInstagramContact ? UNNAMED_CONTACT.instagram : 'Contato');
+  const initials = isInstagramContact
+    ? initialsOf(displayName)
+    : contact.name
+      ? contact.name.split(' ').map((n: string) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2)
+      : 'C';
 
   return (
     <div className="flex h-full flex-col">
@@ -210,12 +216,13 @@ function ContactPanelBody({
             </Button>
           </div>
           <Avatar className="w-14 h-14">
-            {contact.avatar_url && <AvatarImage src={contact.avatar_url} alt={contact.name || 'Contato'} />}
+            {contact.avatar_url && <AvatarImage src={contact.avatar_url} alt={displayName} />}
             <AvatarFallback className="text-base">{initials}</AvatarFallback>
           </Avatar>
           <div className="text-center">
-            <p className="font-semibold text-foreground">{contact.name || 'Contato'}</p>
-            <p className="text-sm text-muted-foreground">{contact.phone}</p>
+            <p className="font-semibold text-foreground">{displayName}</p>
+            {/* Contato do Instagram não tem telefone. */}
+            {!isInstagramContact && <p className="text-sm text-muted-foreground">{contact.phone}</p>}
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
           </div>
           <Button asChild variant="outline" size="sm" className="mt-1">

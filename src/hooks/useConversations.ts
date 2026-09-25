@@ -3,11 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
 import { logger } from '@/lib/logger';
+import { AWAITING_REPLY_FILTER, type ConversationChannel } from '@/lib/conversations/channel';
+import { invalidateConversationCounts } from '@/lib/conversations/countKeys';
 
 interface Contact {
   id: string;
   name: string;
   phone: string;
+  /** whatsapp | instagram. Ausente só em dado antigo sem a coluna. */
+  channel?: string;
   lead_source_id?: string;
   current_stage_id?: string;
   avatar_url?: string;
@@ -33,6 +37,8 @@ interface Contact {
 interface Conversation {
   id: string;
   contact_id: string;
+  /** whatsapp | instagram (conversations.channel). */
+  channel?: string;
   last_message_at: string;
   unread_count: number;
   is_archived: boolean;
@@ -236,6 +242,18 @@ export interface ConversationScope {
   assignedProfileIds: string[];
   /** Só conversas sem responsável (`assigned_profile_id IS NULL`) — a pílula "Sem responsável". */
   unassignedOnly: boolean;
+  /**
+   * Canal da chave WhatsApp/Instagram. Ausente = os dois canais (o comportamento
+   * de antes da chave). A tela de Conversas SEMPRE manda: é aqui, e não em cada
+   * chamador, que o canal entra — por isso a lista e cada contagem recortam o
+   * mesmo canal por construção.
+   */
+  channel?: ConversationChannel;
+  /**
+   * Só as que aguardam resposta: a regra da pílula "Aguardando", no servidor
+   * (ver AWAITING_REPLY_FILTER). É o selo do outro canal.
+   */
+  awaitingReply?: boolean;
 }
 
 /**
@@ -278,6 +296,12 @@ export const applyConversationScope = <T extends ScopeQuery<T>>(
   scope: ConversationScope,
 ): T => {
   let q = query.eq('is_archived', scope.isArchived);
+
+  // Canal: coluna da própria conversa, indexada junto com tenant e arquivada
+  // (idx_conversations_tenant_channel_archived_last_message).
+  if (scope.channel) {
+    q = q.eq('channel', scope.channel);
+  }
 
   // Only filter by instance if explicitly specified
   if (scope.whatsappInstanceId) {
@@ -324,9 +348,16 @@ export const applyConversationScope = <T extends ScopeQuery<T>>(
   if (scope.dateTo) {
     q = q.lte('last_message_at', endOfLocalDay(scope.dateTo).toISOString());
   }
+  // Aguardando resposta: colunas da própria conversa, então `.or()` sem embed.
+  if (scope.awaitingReply) {
+    q = q.or(AWAITING_REPLY_FILTER);
+  }
 
   return q;
 };
+
+// Contagens: ver src/lib/conversations/countKeys.ts (re-exportado aqui).
+export { invalidateConversationCounts };
 
 interface UseConversationsOptions {
   pageSize?: number;
@@ -345,6 +376,8 @@ interface UseConversationsOptions {
   assignedProfileIds?: string[];
   /** Só conversas sem responsável. */
   unassignedOnly?: boolean;
+  /** Canal da chave. Ausente = os dois. */
+  channel?: ConversationChannel;
 }
 
 // Hook para buscar conversas com paginação infinita
@@ -360,6 +393,7 @@ export const useConversations = ({
   tagIds = [],
   assignedProfileIds = [],
   unassignedOnly = false,
+  channel,
 }: UseConversationsOptions = {}) => {
   const { tenant } = useTenant();
 
@@ -377,6 +411,7 @@ export const useConversations = ({
       tagIds,
       assignedProfileIds,
       unassignedOnly,
+      channel ?? null,
     ],
     queryFn: async ({ pageParam = null }) => {
       if (!tenant?.id) {
@@ -393,6 +428,7 @@ export const useConversations = ({
         tagIds,
         assignedProfileIds,
         unassignedOnly,
+        channel,
       };
       const contactsEmbed = contactsEmbedFor(scope);
       // Segundo embed de contact_tags, só com filtro de etiqueta ligado. O de
@@ -412,6 +448,7 @@ export const useConversations = ({
           .select(`
             id,
             contact_id,
+            channel,
             last_message_at,
             unread_count,
             is_archived,
@@ -422,6 +459,7 @@ export const useConversations = ({
               id,
               name,
               phone,
+              channel,
               avatar_url,
               lead_source_id,
               current_stage_id,
@@ -584,6 +622,10 @@ export interface UseConversationsCountOptions {
   tagIds?: string[];
   assignedProfileIds?: string[];
   unassignedOnly?: boolean;
+  /** Canal da chave. Ausente = os dois. */
+  channel?: ConversationChannel;
+  /** Só as que aguardam resposta (o selo do outro canal). */
+  awaitingReply?: boolean;
   enabled?: boolean;
 }
 
@@ -613,6 +655,8 @@ export const useConversationsCount = ({
   tagIds = [],
   assignedProfileIds = [],
   unassignedOnly = false,
+  channel,
+  awaitingReply = false,
   enabled = true,
 }: UseConversationsCountOptions = {}) => {
   const { tenant } = useTenant();
@@ -635,6 +679,8 @@ export const useConversationsCount = ({
       tagIds,
       assignedProfileIds,
       unassignedOnly,
+      channel ?? null,
+      awaitingReply,
     ],
     queryFn: async () => {
       if (!tenant?.id) {
@@ -651,6 +697,8 @@ export const useConversationsCount = ({
         tagIds,
         assignedProfileIds,
         unassignedOnly,
+        channel,
+        awaitingReply,
       };
 
       // Mesmo `!inner` da lista: sem ele o `.or()` e o filtro de etiqueta
@@ -701,6 +749,7 @@ export interface ConversationDetail {
   id: string;
   contact_id: string;
   whatsapp_instance_id: string | null;
+  channel?: string | null;
   last_message_at: string | null;
   unread_count: number | null;
   is_archived: boolean | null;
@@ -715,6 +764,8 @@ export interface ConversationDetail {
     id: string;
     name: string | null;
     phone: string;
+    channel?: string | null;
+    external_id?: string | null;
     email: string | null;
     avatar_url: string | null;
     notes: string | null;
@@ -863,6 +914,8 @@ export const useMarkConversationAsRead = () => {
       queryClient.invalidateQueries({ 
         queryKey: ['recent-conversations', tenant?.id] 
       });
+      // "Não lidas", "Aguardando" do outro canal etc.: na hora, não em 30 s.
+      invalidateConversationCounts(queryClient);
     },
     onError: (error) => {
       console.error('Error marking conversation as read:', error);
@@ -902,6 +955,7 @@ export const useArchiveConversation = () => {
       queryClient.invalidateQueries({ 
         queryKey: ['conversations', tenant?.id] 
       });
+      invalidateConversationCounts(queryClient);
       queryClient.invalidateQueries({ 
         queryKey: ['conversation', conversationId, tenant?.id] 
       });

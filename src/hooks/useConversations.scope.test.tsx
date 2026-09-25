@@ -61,6 +61,7 @@ import {
   endOfLocalDay,
   TAG_FILTER_EMBED,
 } from './useConversations';
+import { AWAITING_REPLY_FILTER } from '@/lib/conversations/channel';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -287,5 +288,104 @@ describe('paridade lista × contagem — responsável', () => {
     expect(contagem.selectOptions).toEqual({ count: 'exact', head: true });
     const { contagem: minhas } = await rodarOsDois({ assignedProfileIds: ['eu'] });
     expect(minhas.selectOptions).toEqual({ count: 'exact', head: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Canal (fatia 4a do Instagram, 2026-09-25): a chave WhatsApp/Instagram entra
+// no MESMO applyConversationScope — lista e contagem recortam o mesmo canal por
+// construção. O selo do outro canal é uma contagem com `awaitingReply`.
+// ---------------------------------------------------------------------------
+describe('paridade lista × contagem — canal', () => {
+  it('só o canal: `eq channel` logo depois de arquivadas, nos dois', async () => {
+    const { lista, contagem } = await rodarOsDois({ channel: 'instagram' });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista).map((c) => `${c.method}:${c.args[0]}`)).toEqual([
+      'eq:tenant_id',
+      'eq:is_archived',
+      'eq:channel',
+    ]);
+    expect(recorte(lista)).toContainEqual({ method: 'eq', args: ['channel', 'instagram'] });
+  });
+
+  it('WhatsApp também filtra: a lista do WhatsApp não traz conversa do Instagram', async () => {
+    const { lista, contagem } = await rodarOsDois({ channel: 'whatsapp' });
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(contagem)).toContainEqual({ method: 'eq', args: ['channel', 'whatsapp'] });
+  });
+
+  it('canal + tudo (busca, etiquetas, responsável, não lidas, período, instância): igual nos dois, na mesma ordem', async () => {
+    const opts = {
+      channel: 'instagram' as const,
+      searchQuery: 'ana',
+      tagIds: ['t1'],
+      assignedProfileIds: ['maria'],
+      hasUnread: true,
+      whatsappInstanceId: 'ig-1',
+      dateFrom: new Date(2026, 8, 1),
+      dateTo: new Date(2026, 8, 20),
+    };
+    const { lista, contagem } = await rodarOsDois(opts);
+    expect(recorte(lista)).toEqual(recorte(contagem));
+    expect(recorte(lista).map((c) => `${c.method}:${c.args[0]}`)).toEqual([
+      'eq:tenant_id',
+      'eq:is_archived',
+      'eq:channel',
+      'eq:whatsapp_instance_id',
+      'or:name.ilike."%ana%",phone.ilike."%ana%"',
+      `in:contacts.${TAG_FILTER_EMBED}.tag_id`,
+      'in:assigned_profile_id',
+      'gt:unread_count',
+      'gte:last_message_at',
+      'lte:last_message_at',
+    ]);
+  });
+
+  it('sem canal (quem não é a tela de Conversas): nada de `eq channel`, como antes da chave', async () => {
+    const { lista, contagem } = await rodarOsDois({ tagIds: ['t1'] });
+    expect(recorte(lista).filter((c) => c.args[0] === 'channel')).toHaveLength(0);
+    expect(recorte(contagem).filter((c) => c.args[0] === 'channel')).toHaveLength(0);
+  });
+
+  it('a lista pede o canal da conversa e do contato no select', async () => {
+    const { lista } = await rodarOsDois({ channel: 'whatsapp' });
+    const select = normalizar(lista.select);
+    expect(select).toMatch(/^id, contact_id, channel, /);
+    expect(select).toMatch(/ contacts \( id, name, phone, channel, /);
+  });
+});
+
+describe('selo do outro canal — "aguardando resposta" no servidor', () => {
+  const rodarContagem = async (opts: Parameters<typeof useConversationsCount>[0]) => {
+    gravador.queries.length = 0;
+    renderHook(() => useConversationsCount(opts), { wrapper });
+    await waitFor(() => expect(gravador.queries).toHaveLength(1));
+    await waitFor(() => expect(gravador.queries[0].calls.length).toBeGreaterThan(0));
+    return gravador.queries[0];
+  };
+
+  it('conta exato, no canal pedido, só não arquivadas, com a regra da pílula "Aguardando"', async () => {
+    const q = await rodarContagem({ channel: 'instagram', isArchived: false, awaitingReply: true });
+    expect(q.selectOptions).toEqual({ count: 'exact', head: true });
+    expect(q.select).toBe('id');
+    expect(q.calls.map((c) => `${c.method}:${c.args[0]}`)).toEqual([
+      'eq:tenant_id',
+      'eq:is_archived',
+      'eq:channel',
+      `or:${AWAITING_REPLY_FILTER}`,
+    ]);
+    expect(q.calls).toContainEqual({ method: 'eq', args: ['is_archived', false] });
+    expect(q.calls).toContainEqual({ method: 'eq', args: ['channel', 'instagram'] });
+  });
+
+  it('o `.or()` é da própria conversa (sem referencedTable): não recorta o contato', async () => {
+    const q = await rodarContagem({ channel: 'whatsapp', awaitingReply: true });
+    const or = q.calls.find((c) => c.method === 'or')!;
+    expect(or.args).toEqual([AWAITING_REPLY_FILTER]);
+  });
+
+  it('sem awaitingReply a contagem não ganha `.or()` nenhum', async () => {
+    const q = await rodarContagem({ channel: 'whatsapp' });
+    expect(q.calls.map((c) => c.method)).not.toContain('or');
   });
 });
