@@ -214,9 +214,12 @@ describe('cobertura dos tutoriais de onboarding', () => {
     // Os seis primeiros montam a Loja (onboarding) — o primeiro é a decisão de
     // qual número vai para a API Oficial, antes de qualquer clique; o sétimo é
     // o dia a dia de quem atende nela e vem por último porque pressupõe os outros.
+    // Desde 2026-09-25 (fatia 4b): conectar-instagram logo depois do WhatsApp,
+    // o segundo canal da Loja.
     expect(TUTORIALS.map((t) => t.id)).toEqual([
       'antes-de-conectar',
       'conectar-whatsapp',
+      'conectar-instagram',
       'configurar-equipe',
       'montar-funil',
       'primeiro-chatbot',
@@ -246,6 +249,21 @@ describe('cobertura dos tutoriais de onboarding', () => {
     // conexão), então herda o mesmo cargo e o mesmo módulo.
     expect(getTutorial('antes-de-conectar')?.minRole).toBe('gestor');
     expect(getTutorial('antes-de-conectar')?.moduleName).toBe('whatsapp-numbers');
+    // conectar-instagram: mesma capability (whatsapp.configure) e mesma tela.
+    expect(getTutorial('conectar-instagram')?.minRole).toBe('gestor');
+    expect(getTutorial('conectar-instagram')?.moduleName).toBe('whatsapp-numbers');
+  });
+
+  it('o tutorial do Instagram diz o que a tela diz (fatia 4b)', () => {
+    const ig = getTutorial('conectar-instagram')!;
+    // O nome exato do botão e da seção, e as regras que a pessoa precisa saber
+    // antes de clicar: só Loja, conta profissional, a chave da Loja.
+    expect(tutorialMatches(ig, 'Conectar Instagram')).toBe(true);
+    expect(tutorialMatches(ig, 'Contas do Instagram')).toBe(true);
+    expect(tutorialMatches(ig, 'nunca na Conta')).toBe(true);
+    expect(tutorialMatches(ig, 'profissional')).toBe(true);
+    expect(tutorialMatches(ig, 'Reconectar')).toBe(true);
+    expect(tutorialMatches(ig, 'Desligar')).toBe(true);
   });
 
   it('todo nextTutorialId aponta para outro tutorial existente', () => {

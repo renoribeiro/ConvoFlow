@@ -190,6 +190,71 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
 
+  // ------------------------------------------------------------------ 2b
+  // Instagram logo depois do WhatsApp: é o segundo canal da Loja, e o mesmo
+  // público (quem tem whatsapp.configure). Fatia 4b, 2026-09-25.
+  {
+    id: 'conectar-instagram',
+    title: 'Conectar seu Instagram',
+    goal:
+      'No fim, a conta profissional do Instagram da Loja estará conectada, com as mensagens do direct entrando em Conversas e as respostas saindo por lá.',
+    forWhom:
+      'Gerente ou Gestor, com o usuário e a senha da conta do Instagram da Loja em mãos. Atendente não conecta conta.',
+    moduleName: 'whatsapp-numbers',
+    minRole: 'gestor',
+    steps: [
+      {
+        title: 'Confira se a conta do Instagram é profissional',
+        body:
+          'No aplicativo do Instagram, em Configurações, o tipo da conta precisa ser "Empresa" ou "Criador de conteúdo". Conta pessoal não conecta: o Instagram só libera as mensagens do direct para conta profissional. Tenha o usuário e a senha dessa conta com você, porque o Instagram vai pedir.',
+      },
+      {
+        title: 'Escolha a Loja no seletor do topo',
+        body:
+          'A conta do Instagram fica sempre numa Loja, nunca na Conta, do mesmo jeito que o WhatsApp de cada Loja. Gerente: escolha no seletor a Loja dona do Instagram antes de continuar. Gestor: você já está na sua Loja.',
+      },
+      {
+        title: 'Abra Instâncias e APIs e clique em "Conectar Instagram"',
+        body:
+          'O botão fica na seção "Contas do Instagram", abaixo das instâncias de WhatsApp. Ao clicar, o ConvoFlow leva você para a página de login do próprio Instagram.',
+        screen: '/dashboard/whatsapp-numbers',
+        helpKey: 'page:whatsapp-numbers',
+        note:
+          'Se a seção ou o botão não aparecem, a conexão do Instagram ainda não foi liberada para a sua Loja: escreva para contato@convoflow.com.br.',
+      },
+      {
+        title: 'Entre com a conta da Loja e autorize o ConvoFlow',
+        body:
+          'O Instagram pede usuário e senha mesmo que você já esteja logado no navegador. É de propósito: assim você escolhe a conta, em vez de o ConvoFlow pegar a que estiver aberta. Entre com a conta profissional da Loja e confirme as permissões de mensagens. Em seguida o Instagram devolve você para Instâncias e APIs.',
+        note:
+          'O pedido vale 10 minutos. Se você cancelar no Instagram ou demorar mais do que isso, nada muda no ConvoFlow: é só clicar de novo em "Conectar Instagram".',
+      },
+      {
+        title: 'Confira o cartão da conta',
+        body:
+          'De volta à tela, aparece "Instagram conectado" com a data até quando a conexão vale, e a conta entra em "Contas do Instagram" com o @, o selo "Ligada" e "Válida até". A renovação é automática: você não precisa voltar aqui antes da data.',
+        note:
+          'Se aparecer "Esta conta do Instagram já está conectada em outra Conta ou Loja", nada foi alterado: a conta está no ConvoFlow num lugar fora do seu alcance. Se ela é sua, escreva para contato@convoflow.com.br.',
+      },
+      {
+        title: 'Faça um teste real',
+        body:
+          'De outra conta do Instagram, mande uma mensagem no direct da Loja. Em Conversas, abra o lado "Instagram" da chave no topo da lista: a conversa aparece ali. Responda por ela e veja a resposta chegar no direct.',
+        screen: '/dashboard/conversations',
+        helpKey: 'page:conversations',
+        note:
+          'O ConvoFlow só responde dentro de 24 horas da última mensagem do cliente: é a regra do Instagram, e não existe template para reabrir a conversa.',
+      },
+      {
+        title: 'Quando precisar, reconecte ou desligue pelo cartão',
+        body:
+          '"Reconectar" troca o acesso da mesma conta sem perder nada: use quando o cartão mostrar "Reconectar" ou "Vencida", e entre no Instagram com a MESMA conta do cartão (outra conta é recusada). "Desligar" para de receber as mensagens da conta sem apagar o histórico; as que chegarem enquanto ela estiver desligada não entram no ConvoFlow e não voltam depois. "Religar" volta a receber.',
+        screen: '/dashboard/whatsapp-numbers',
+        helpKey: 'page:whatsapp-numbers',
+      },
+    ],
+  },
+
   // ------------------------------------------------------------------ 3
   {
     id: 'configurar-equipe',

@@ -25,6 +25,11 @@ Conta Teste Gerente = `baf2559e-1d38-4c5c-af7d-f6c268a9154e`.
 
 Conta do Instagram de teste (entry.id medido pela sonda) = `17841419262135883`.
 
+> **Atualização 2026-09-25 (fatia 4b):** conectar pela tela existe — botão
+> "Conectar Instagram" em Instâncias e APIs, nas Lojas liberadas pelo
+> superadmin. Ver `docs/RUNBOOK_instagram_conectar.md`. Este procedimento manual
+> continua valendo para quem não tem o botão.
+
 ## O que é uma instância de Instagram
 
 Uma linha em `whatsapp_instances` (nome histórico da tabela) com:
