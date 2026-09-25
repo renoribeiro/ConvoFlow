@@ -19,6 +19,7 @@ import { useCampaignMutations, type Campaign, type CampaignCreateInput, type Mes
 import { logger } from '@/lib/logger';
 import { format, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { contactIdentifier, contactLabel } from '@/lib/contacts/identity';
 import {
   X,
   MessageSquare,
@@ -66,6 +67,8 @@ interface Contact {
   name: string | null;
   /** Nulo para contato que não é de WhatsApp. Campanha só alcança quem tem telefone. */
   phone: string | null;
+  channel?: string | null;
+  username?: string | null;
   current_stage_id: string | null;
 }
 
@@ -320,7 +323,7 @@ export const CampaignWizard = ({
       setLoadingContacts(true);
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, phone, current_stage_id')
+        .select('id, name, phone, channel, username, current_stage_id')
         .eq('tenant_id', tenantId)
         .order('name');
       setContacts(data ?? []);
@@ -575,7 +578,8 @@ export const CampaignWizard = ({
     const matchText =
       !q ||
       (c.name ?? '').toLowerCase().includes(q) ||
-      (c.phone ?? '').includes(q);
+      (c.phone ?? '').includes(q) ||
+      (!!q.replace(/^@+/, '') && (c.username ?? '').toLowerCase().includes(q.replace(/^@+/, '')));
     const matchStage =
       state.contactStageFilter === 'all' ||
       c.current_stage_id === state.contactStageFilter;
@@ -1162,9 +1166,10 @@ export const CampaignWizard = ({
                       }
                     />
                     <div>
-                      <p className="text-sm font-medium">{c.name ?? c.phone}</p>
+                      {/* Instagram não tem telefone: o @ (ou "Instagram") no lugar. */}
+                      <p className="text-sm font-medium">{contactLabel(c)}</p>
                       {c.name && (
-                        <p className="text-xs text-muted-foreground">{c.phone}</p>
+                        <p className="text-xs text-muted-foreground">{contactIdentifier(c)}</p>
                       )}
                     </div>
                   </label>

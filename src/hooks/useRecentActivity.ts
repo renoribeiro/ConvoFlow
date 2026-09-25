@@ -1,6 +1,7 @@
 import { useSupabaseQuery } from './useSupabaseQuery';
 import { useTenant } from '@/contexts/TenantContext';
 import { subDays } from 'date-fns';
+import { contactChannel, contactLabel, instagramNameWithHandle } from '@/lib/contacts/identity';
 
 interface RecentActivityItem {
   id: string;
@@ -45,7 +46,9 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
       contacts!messages_contact_id_fkey(
         id,
         name,
-        phone
+        phone,
+        channel,
+        username
       )
     `,
     filters: [
@@ -65,6 +68,8 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
       id,
       name,
       phone,
+      channel,
+      username,
       created_at,
       current_stage_id,
       funnel_stages!contacts_current_stage_id_fkey(
@@ -129,11 +134,16 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
     
     // Processar mensagens
     recentMessages?.forEach((message: any) => {
+      // WhatsApp: o nome, ou "Contato" (como sempre). Instagram sem nome: o @.
+      const who =
+        message.contacts && contactChannel(message.contacts) === 'instagram'
+          ? contactLabel(message.contacts)
+          : message.contacts?.name || 'Contato';
       activities.push({
         id: `message-${message.id}`,
         type: 'message',
         title: message.direction === 'inbound' ? 'Nova mensagem recebida' : 'Mensagem enviada',
-        description: `${message.direction === 'inbound' ? 'De' : 'Para'} ${message.contacts?.name || 'Contato'}: ${message.content?.substring(0, 50)}${message.content?.length > 50 ? '...' : ''}`,
+        description: `${message.direction === 'inbound' ? 'De' : 'Para'} ${who}: ${message.content?.substring(0, 50)}${message.content?.length > 50 ? '...' : ''}`,
         timestamp: message.created_at,
         status: message.status === 'sent' ? 'success' :
                 message.status === 'pending' ? 'pending' :
@@ -150,7 +160,12 @@ export const useRecentActivity = (limit: number = 10): RecentActivityData => {
         id: `contact-${contact.id}`,
         type: 'contact',
         title: 'Novo contato adicionado',
-        description: `${contact.name} (${contact.phone}) foi adicionado ao funil`,
+        // WhatsApp: "Nome (telefone)", como sempre. Instagram: "Nome (@usuario)",
+        // ou só o @ quando não há nome — nunca "(null)".
+        description:
+          contactChannel(contact) === 'instagram'
+            ? `${instagramNameWithHandle(contact)} foi adicionado ao funil`
+            : `${contact.name} (${contact.phone}) foi adicionado ao funil`,
         timestamp: contact.created_at,
         status: 'success',
         metadata: {

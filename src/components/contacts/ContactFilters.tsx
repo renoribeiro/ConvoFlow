@@ -17,11 +17,13 @@ interface ContactFiltersProps {
     tags: string[];
   };
   onFiltersChange: (filters: any) => void;
+  /** A Loja tem Instagram: a busca também acha pelo @ e o placeholder diz isso. */
+  searchByHandle?: boolean;
 }
 
 
 
-export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps) => {
+export const ContactFilters = ({ filters, onFiltersChange, searchByHandle = false }: ContactFiltersProps) => {
   const { data: stages = [], isLoading: stagesLoading } = useSupabaseQuery({
     table: 'funnel_stages',
     queryKey: ['funnel-stages'],
@@ -89,7 +91,7 @@ export const ContactFilters = ({ filters, onFiltersChange }: ContactFiltersProps
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               id="search"
-              placeholder="Nome ou telefone..."
+              placeholder={searchByHandle ? 'Nome, telefone ou @...' : 'Nome ou telefone...'}
               value={filters.search}
               onChange={(e) => updateFilters('search', e.target.value)}
               className="pl-10"

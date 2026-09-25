@@ -24,6 +24,7 @@ import { useTenantId } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { FollowupMode } from '@/lib/followups/types';
 import { toast } from 'sonner';
+import { contactChannel, contactIdentifier } from '@/lib/contacts/identity';
 
 interface FollowupSchedulerProps {
   onClose: () => void;
@@ -232,8 +233,16 @@ export const FollowupScheduler = ({ onClose }: FollowupSchedulerProps) => {
               <SelectItem key={c.id} value={c.id}>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  <span>{c.name}</span>
-                  <span className="text-muted-foreground text-sm">({c.phone})</span>
+                  {/* WhatsApp: "Nome (telefone)", como sempre. Instagram: o @ no
+                      lugar do telefone — e só o @ quando ainda não há nome. */}
+                  {contactChannel(c) === 'instagram' && !c.name?.trim() ? (
+                    <span>{contactIdentifier(c)}</span>
+                  ) : (
+                    <>
+                      <span>{c.name}</span>
+                      <span className="text-muted-foreground text-sm">({contactIdentifier(c)})</span>
+                    </>
+                  )}
                 </div>
               </SelectItem>
             ))

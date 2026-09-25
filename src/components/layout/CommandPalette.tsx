@@ -8,6 +8,7 @@ import {
   FileText,
   Filter,
   GaugeCircle,
+  Instagram,
   LayoutDashboard,
   MessageCircle,
   Megaphone,
@@ -35,6 +36,8 @@ import {
 import { DialogTitle } from '@/components/ui/dialog';
 import { useModules } from '@/hooks/useModules';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
+import { channelOfProvider } from '@/lib/conversations/channel';
+import { contactIdentifier, contactLabel, contactSearchOrFilter } from '@/lib/contacts/identity';
 import {
   useHasMinRole,
   useIsSuperAdmin,
@@ -78,7 +81,10 @@ const PAGES: PageItem[] = [
 type ContactRow = {
   id: string;
   name: string | null;
-  phone: string;
+  /** Nulo no Instagram — a linha mostra o @ (contactIdentifier). */
+  phone: string | null;
+  channel: string | null;
+  username: string | null;
   last_interaction_at: string | null;
 };
 
@@ -94,6 +100,9 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
   const hasGerenteRole = useHasMinRole('gerente');
   const { visibleModules } = useModules();
   const { instances } = useWhatsAppInstances();
+  // Conta do Instagram não é "sessão WhatsApp": cada canal no seu grupo.
+  const whatsappInstances = instances.filter((i) => channelOfProvider(i.provider) === 'whatsapp');
+  const instagramAccounts = instances.filter((i) => channelOfProvider(i.provider) === 'instagram');
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -139,14 +148,15 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
     queryFn: async () => {
       let query = supabase
         .from('contacts')
-        .select('id, name, phone, last_interaction_at')
+        .select('id, name, phone, channel, username, last_interaction_at')
         .eq('tenant_id', tenantId!)
         .order('last_interaction_at', { ascending: false, nullsFirst: false })
         .limit(20);
 
-      if (debouncedSearch.length >= 2) {
-        const escaped = debouncedSearch.replace(/[%_,]/g, (c) => `\\${c}`);
-        query = query.or(`name.ilike.%${escaped}%,phone.ilike.%${escaped}%`);
+      // Nome, telefone ou @ do Instagram.
+      const orFilter = contactSearchOrFilter(debouncedSearch);
+      if (orFilter) {
+        query = query.or(orFilter);
       }
 
       const { data, error } = await query;
@@ -204,11 +214,11 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
           })}
         </CommandGroup>
 
-        {instances.length > 0 && (
+        {whatsappInstances.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Sessões WhatsApp">
-              {instances.map((instance) => (
+              {whatsappInstances.map((instance) => (
                 <CommandItem
                   key={instance.id}
                   value={`${instance.name} ${instance.number} ${instance.instanceKey}`}
@@ -229,6 +239,24 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
           </>
         )}
 
+        {instagramAccounts.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Contas do Instagram">
+              {instagramAccounts.map((account) => (
+                <CommandItem
+                  key={account.id}
+                  value={`${account.name} instagram`}
+                  onSelect={() => handleSelectInstance(account.id)}
+                >
+                  <Instagram className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{account.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         {contacts.length > 0 && (
           <>
             <CommandSeparator />
@@ -236,14 +264,14 @@ export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
               {contacts.map((contact) => (
                 <CommandItem
                   key={contact.id}
-                  value={`${contact.name ?? ''} ${contact.phone}`}
+                  value={`${contact.name ?? ''} ${contactIdentifier(contact)}`}
                   onSelect={() => handleSelectContact(contact.id)}
                 >
                   <Users className="mr-2 h-4 w-4 text-muted-foreground" />
                   <div className="flex flex-col">
-                    <span>{contact.name || contact.phone}</span>
+                    <span>{contactLabel(contact)}</span>
                     {contact.name && (
-                      <span className="text-xs text-muted-foreground">{contact.phone}</span>
+                      <span className="text-xs text-muted-foreground">{contactIdentifier(contact)}</span>
                     )}
                   </div>
                 </CommandItem>

@@ -10,11 +10,14 @@ import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '@/hooks/useSupabaseMutation';
 import { useLojaContactLastMessage } from '@/hooks/useLojaStats';
 import { Skeleton } from '@/components/ui/skeleton';
+import { contactChannel, contactIdentifier, type ContactIdentity } from '@/lib/contacts/identity';
+import { contactDisplayName } from '@/lib/instagram/contactProfile';
 
 interface Lead {
   id: string;
   name: string;
   email: string;
+  /** Linha de identificação do card: telefone (WhatsApp) ou @ (Instagram). */
   phone: string;
   source: string;
   value: number;
@@ -51,7 +54,7 @@ export const FunnelBoard = () => {
   // Buscar contatos simples primeiro
   const { data: contactsData = [], isLoading: contactsLoading } = useSupabaseQuery({
     table: 'contacts',
-    select: 'id, name, email, phone, lead_source_id, current_stage_id, created_at'
+    select: 'id, name, email, phone, channel, username, lead_source_id, current_stage_id, created_at'
   });
 
   // Buscar lead_sources separadamente
@@ -81,14 +84,21 @@ export const FunnelBoard = () => {
       // Encontrar lead source
       const leadSource = leadSourcesData.find(ls => ls.id === contact.lead_source_id);
       
+      // Canal/@ do contato (o tipo genérico da consulta não conhece as colunas)
+      const identity = contact as unknown as ContactIdentity;
+
       // Encontrar última mensagem
       const lastMessageAt = lastMessageByContact.get(contact.id);
       
       return {
         id: contact.id,
-        name: contact.name || 'Contato sem nome',
+        // WhatsApp como sempre; Instagram sem nome mostra o @, e o @ fica no
+        // lugar do telefone (que ele não tem).
+        name: contactChannel(identity) === 'instagram'
+          ? contactDisplayName(identity, 'instagram')
+          : contact.name || 'Contato sem nome',
         email: contact.email || '',
-        phone: contact.phone || '',
+        phone: contactIdentifier(identity),
         source: leadSource?.name || 'Desconhecido',
         value: 0,
         lastContact: lastMessageAt

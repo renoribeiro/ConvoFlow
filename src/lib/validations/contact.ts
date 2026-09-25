@@ -88,6 +88,14 @@ export const ContactFormSchema = z.object({
   notes: z.string().optional(),
 });
 
+/**
+ * O formulário por canal. WhatsApp exige telefone. Instagram não tem telefone
+ * (o contato é identificado pelo IGSID em external_id) e o formulário nem
+ * mostra o campo — o @ aparece só para leitura.
+ */
+export const contactFormSchemaFor = (channel: 'whatsapp' | 'instagram') =>
+  channel === 'instagram' ? ContactFormSchema.omit({ phone: true }) : ContactFormSchema;
+
 export type ContactFormValues = {
   name: string;
   phone: string;
@@ -105,17 +113,22 @@ const blankToNull = (v: string | undefined | null): string | null => {
 /**
  * O que vai para `contacts` a partir do formulário. Campo em branco vira NULL,
  * nunca string vazia: `''` em coluna opcional é dado falso (e em `phone`
- * colide na chave única antiga `tenant_id, phone, whatsapp_instance_id`).
+ * colide na chave única antiga `tenant_id, phone, whatsapp_instance_id`:
+ * dois contatos do Instagram da mesma conta com phone '' não cabem juntos).
+ *
+ * Instagram: o payload NÃO leva `phone` (nem `username`, que é do servidor) —
+ * o que está no banco fica como está, NULL.
  */
-export function buildContactPayload(values: ContactFormValues) {
-  return {
+export function buildContactPayload(values: ContactFormValues, channel: 'whatsapp' | 'instagram' = 'whatsapp') {
+  const common = {
     name: blankToNull(values.name),
-    phone: values.phone.replace(/\D/g, ''),
     email: blankToNull(values.email),
     current_stage_id: blankToNull(values.current_stage_id),
     lead_source_id: blankToNull(values.lead_source_id),
     notes: blankToNull(values.notes),
   };
+  if (channel === 'instagram') return common;
+  return { ...common, phone: values.phone.replace(/\D/g, '') };
 }
 
 // Type exports

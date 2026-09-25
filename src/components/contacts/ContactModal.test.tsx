@@ -83,6 +83,21 @@ const WHATSAPP_ROW = {
   contact_tags: [],
 };
 
+const INSTAGRAM_ROW = {
+  id: 'fceaa5b9-7c95-4f4d-a42e-294e264e3f1d',
+  tenant_id: 'e6a88a32-5deb-4aa1-b246-05a512882388',
+  channel: 'instagram',
+  name: 'Yuri Saldanha | Tráfego Pago',
+  phone: null,
+  username: 'oyurisaldanha',
+  external_id: '1834150354615655',
+  email: null,
+  notes: null,
+  current_stage_id: null,
+  lead_source_id: null,
+  contact_tags: [],
+};
+
 function renderModal(contactId: string | null) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const onClose = vi.fn();
@@ -180,6 +195,41 @@ describe('ContactModal — salvar', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
     expect(await screen.findByText('Telefone é obrigatório')).toBeInTheDocument();
     expect(contactWrites()).toHaveLength(0);
+  });
+
+  it('Instagram: sem campo de telefone, @ só para leitura, payload sem phone', async () => {
+    state.contact = { ...INSTAGRAM_ROW };
+    renderModal(INSTAGRAM_ROW.id);
+
+    expect(await screen.findByText('Editar Contato')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Telefone/)).not.toBeInTheDocument();
+    const handle = screen.getByLabelText('Instagram') as HTMLInputElement;
+    expect(handle.value).toBe('@oyurisaldanha');
+    expect(handle).toHaveAttribute('readonly');
+
+    fireEvent.change(screen.getByLabelText(/Observações/), { target: { value: 'Veio pelo direct' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(contactWrites()).toHaveLength(1));
+    const write = onlyWrite();
+    expect(write.op).toBe('update');
+    expect(write.filter).toEqual(['id', INSTAGRAM_ROW.id]);
+    expect(write.payload).not.toHaveProperty('phone');
+    expect(write.payload).not.toHaveProperty('username');
+    expect(write.payload).toMatchObject({ name: 'Yuri Saldanha | Tráfego Pago', notes: 'Veio pelo direct', email: null });
+    expect(Object.values(write.payload)).not.toContain('');
+  });
+
+  it('Instagram sem @ ainda: mostra o aviso e salva sem inventar telefone', async () => {
+    state.contact = { ...INSTAGRAM_ROW, username: null, name: null };
+    renderModal(INSTAGRAM_ROW.id);
+    const handle = (await screen.findByLabelText('Instagram')) as HTMLInputElement;
+    expect(handle.value).toBe('');
+    expect(handle.placeholder).toBe('@ ainda não informado');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(contactWrites()).toHaveLength(1));
+    expect(onlyWrite().payload).not.toHaveProperty('phone');
+    expect(onlyWrite().payload.name).toBeNull();
   });
 
   it('cria contato novo: INSERT com o tenant_id da sessão', async () => {

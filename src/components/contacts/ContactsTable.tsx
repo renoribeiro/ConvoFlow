@@ -18,11 +18,23 @@ import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog';
 import { Pagination } from '@/components/shared/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { logger } from '@/lib/logger';
+import { ChannelLogo } from '@/components/conversations/ChannelLogo';
+import { CHANNEL_LABEL } from '@/lib/conversations/channel';
+import { contactDisplayName } from '@/lib/instagram/contactProfile';
+import {
+  contactChannel,
+  contactIdentifier,
+  contactMatchesSearch,
+  type ContactChannelFilter,
+} from '@/lib/contacts/identity';
 
 interface Contact {
   id: string;
-  name: string;
-  phone: string;
+  name: string | null;
+  /** Nulo no Instagram — a linha de identificação usa o @ (ver contactIdentifier). */
+  phone: string | null;
+  channel?: string | null;
+  username?: string | null;
   email?: string;
   current_stage_id?: string;
   lead_source_id?: string;
@@ -60,13 +72,15 @@ interface ContactsTableProps {
     tags: string[];
   };
   whatsappInstanceId?: string | null;
+  /** Canal: filtrado no servidor e parte da chave do cache. */
+  channel?: ContactChannelFilter;
   onEdit: (id: string) => void;
 }
 
 
 
 
-export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsTableProps) => {
+export const ContactsTable = ({ filters, whatsappInstanceId, channel = 'all', onEdit }: ContactsTableProps) => {
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     contactId: string | null;
@@ -129,12 +143,22 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
       });
     }
 
+    // Filtro de canal — no servidor. Contato nunca é juntado entre canais: a
+    // mesma pessoa no WhatsApp e no Instagram são duas linhas.
+    if (channel !== 'all') {
+      filters_array.push({
+        column: 'channel',
+        operator: 'eq',
+        value: channel
+      });
+    }
+
     return { ...query, filter: filters_array };
   };
 
   const { data: allContactsRaw = [], isLoading, error } = useSupabaseQuery({
     table: 'contacts',
-    queryKey: ['contacts', filters.stage, filters.source, filters.tags, whatsappInstanceId ?? 'all'],
+    queryKey: ['contacts', filters.stage, filters.source, filters.tags, whatsappInstanceId ?? 'all', channel],
     ...buildQuery()
   });
 
@@ -160,12 +184,8 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
       return filteredContacts;
     }
     
-    const searchTerm = filters.search.trim().toLowerCase();
-    return filteredContacts.filter(contact => 
-      contact.name?.toLowerCase().includes(searchTerm) ||
-      contact.phone?.toLowerCase().includes(searchTerm) ||
-      contact.email?.toLowerCase().includes(searchTerm)
-    );
+    // Nome, telefone, e-mail e @ do Instagram (com ou sem o "@").
+    return filteredContacts.filter(contact => contactMatchesSearch(contact, filters.search));
   }, [allContacts, filters.search, filters.tags]);
 
   // Configurar paginação
@@ -269,6 +289,8 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
     setDeleteConfirmation({ isOpen: false, contactId: null, contactName: '' });
   };
 
+  const displayName = (contact: Contact) => contactDisplayName(contact, contactChannel(contact));
+
   const renderContato = (contact: Contact, showSourceInline: boolean) => (
     <div className="flex items-center gap-3">
       <Avatar className="w-8 h-8">
@@ -280,8 +302,14 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">
-        <p className="font-medium text-foreground">{contact.name?.trim() || 'Contato sem nome'}</p>
-        <p className="text-sm text-muted-foreground whitespace-nowrap">{contact.phone}</p>
+        <p className="font-medium text-foreground flex items-center gap-1.5">
+          <span title={CHANNEL_LABEL[contactChannel(contact)]} className="flex-shrink-0">
+            <ChannelLogo channel={contactChannel(contact)} className="h-3.5 w-3.5" />
+            <span className="sr-only">{CHANNEL_LABEL[contactChannel(contact)]}: </span>
+          </span>
+          <span className="min-w-0">{displayName(contact)}</span>
+        </p>
+        <p className="text-sm text-muted-foreground whitespace-nowrap">{contactIdentifier(contact)}</p>
         {contact.email && (
           <p className="text-xs text-muted-foreground break-all">{contact.email}</p>
         )}
@@ -486,7 +514,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Nenhum contato encontrado</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {filters.search || filters.stage || filters.source
+              {filters.search || filters.stage || filters.source || channel !== 'all'
                 ? 'Tente ajustar os filtros de busca'
                 : 'Adicione seu primeiro contato para começar'}
             </p>
@@ -508,7 +536,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
             actions={(contact) => (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`Ações de ${contact.name?.trim() || 'contato sem nome'}`}>
+                  <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`Ações de ${contact.name?.trim() || (contactChannel(contact) === 'instagram' ? displayName(contact) : 'contato sem nome')}`}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -524,7 +552,7 @@ export const ContactsTable = ({ filters, whatsappInstanceId, onEdit }: ContactsT
                     Editar
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => handleDeleteClick(contact.id, contact.name?.trim() || 'Contato sem nome')}
+                    onClick={() => handleDeleteClick(contact.id, displayName(contact))}
                     className="text-red-600"
                     disabled={deleteMutation.isPending}
                   >

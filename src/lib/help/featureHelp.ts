@@ -583,6 +583,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Complete nome e e-mail e aplique tags. Tag é o que você vai usar depois para segmentar campanha.',
       'Não existe importação de planilha: base antiga entra sozinha, à medida que essas pessoas escrevem, ou à mão em "Novo Contato". Cadastre antes só quem precisa estar numa campanha segmentada, e já aplique a tag no cadastro.',
       'Em "Novo Contato", digite o telefone com DDI e DDD, como 55 11 99999-9999. Pode colar com espaço, parêntese ou traço: fica gravado só com os dígitos.',
+      'Na Loja com Instagram, use o filtro "Todos / WhatsApp / Instagram" acima da lista. Cada contato traz o logo do canal ao lado do nome, e a busca também acha pelo @, com ou sem o "@".',
     ],
     example:
       'Você marca com a tag "interesse-cobertura" quem pediu alto padrão. Quando entra um lançamento nesse perfil, a campanha vai só para essa tag em vez de ir para a base toda.',
@@ -590,6 +591,10 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Campos personalizados são preenchidos automaticamente pelo chatbot quando você usa "Salvar resposta como variável". Não precisa criar o campo antes.',
       'Padronize a tag em minúscula e sem acento ("lead-quente"): fica muito mais fácil de acertar na hora de segmentar.',
       'Contato sem tag nenhuma é contato que nunca vai entrar numa campanha segmentada.',
+      'Contato do Instagram não tem telefone. No lugar do número aparece o @ (ou "Instagram", enquanto o @ não chegou), e em "Editar" o @ fica só para leitura. Nome, e-mail, observações e etiquetas você edita igual.',
+      'A mesma pessoa no WhatsApp e no Instagram são dois contatos. O sistema não junta os dois, nem quando o nome é igual.',
+      '"Novo Contato" cria contato de WhatsApp. Contato do Instagram só aparece quando a pessoa manda mensagem no direct.',
+      'Na exportação, as colunas "Canal" e "Usuário do Instagram" dizem de onde cada contato veio. O filtro de canal e o de conexão também valem para o arquivo.',
     ],
     category: 'tela',
     area: 'Operação',

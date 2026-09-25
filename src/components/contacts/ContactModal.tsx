@@ -12,7 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Loader2, X, Plus } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
-import { ContactFormSchema, buildContactPayload, type ContactFormValues } from '@/lib/validations/contact';
+import { contactFormSchemaFor, buildContactPayload, type ContactFormValues } from '@/lib/validations/contact';
+import { ChannelLogo } from '@/components/conversations/ChannelLogo';
+import { CHANNEL_LABEL, asChannel } from '@/lib/conversations/channel';
+import { instagramHandle } from '@/lib/instagram/contactProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,7 +54,8 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   // Função para validar um campo específico
   const validateField = (fieldName: string, value: any) => {
     try {
-      const fieldSchema = ContactFormSchema.shape[fieldName as keyof typeof ContactFormSchema.shape];
+      const shape = contactFormSchemaFor(channel).shape as Record<string, z.ZodTypeAny>;
+      const fieldSchema = shape[fieldName];
       if (fieldSchema) {
         fieldSchema.parse(value);
         setValidationErrors(prev => {
@@ -77,7 +81,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
     try {
       setIsValidating(true);
-      ContactFormSchema.parse(dataToValidate);
+      contactFormSchemaFor(channel).parse(dataToValidate);
       setValidationErrors({});
       return true;
     } catch (error) {
@@ -125,6 +129,11 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   });
 
   const contact = contactData?.[0];
+  // Canal do contato. "Novo Contato" é sempre WhatsApp: contato do Instagram só
+  // nasce quando a pessoa manda mensagem.
+  const contactChannelInfo = contact as unknown as { channel?: string | null; username?: string | null } | undefined;
+  const channel = contactId ? asChannel(contactChannelInfo?.channel) : 'whatsapp';
+  const handle = channel === 'instagram' ? instagramHandle(contactChannelInfo?.username) : null;
 
   // Query para buscar estágios do funil
   const { data: stages = [], isLoading: stagesLoading } = useSupabaseQuery({
@@ -286,7 +295,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
       return;
     }
     
-    const contactData = buildContactPayload(formData);
+    const contactData = buildContactPayload(formData, channel);
 
     try {
       if (contactId) {
@@ -349,7 +358,13 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {contactId && contact && (
+              <span title={CHANNEL_LABEL[channel]} className="flex items-center">
+                <ChannelLogo channel={channel} />
+                <span className="sr-only">{CHANNEL_LABEL[channel]}</span>
+              </span>
+            )}
             {contactId ? 'Editar Contato' : 'Novo Contato'}
           </DialogTitle>
         </DialogHeader>
@@ -396,26 +411,41 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                   <p className="text-sm text-red-500 mt-1">{validationErrors.name}</p>
                 )}
               </div>
-              <div>
-                <Label htmlFor="phone">Telefone *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData({ ...formData, phone: value });
-                    validateField('phone', value);
-                  }}
-                  onBlur={() => validateField('phone', formData.phone)}
-                  required
-                  disabled={isLoading}
-                  className={validationErrors.phone ? 'border-red-500' : ''}
-                  placeholder="55 11 99999-9999"
-                />
-                {validationErrors.phone && (
-                  <p className="text-sm text-red-500 mt-1">{validationErrors.phone}</p>
-                )}
-              </div>
+              {channel === 'instagram' ? (
+                <div>
+                  {/* Instagram não tem telefone: o contato é o @, e o @ vem do
+                      Instagram — aqui só se lê. */}
+                  <Label htmlFor="instagram-handle">Instagram</Label>
+                  <Input
+                    id="instagram-handle"
+                    value={handle ?? ''}
+                    placeholder="@ ainda não informado"
+                    readOnly
+                    disabled
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="phone">Telefone *</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, phone: value });
+                      validateField('phone', value);
+                    }}
+                    onBlur={() => validateField('phone', formData.phone)}
+                    required
+                    disabled={isLoading}
+                    className={validationErrors.phone ? 'border-red-500' : ''}
+                    placeholder="55 11 99999-9999"
+                  />
+                  {validationErrors.phone && (
+                    <p className="text-sm text-red-500 mt-1">{validationErrors.phone}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
