@@ -69,6 +69,14 @@ import {
   useArchiveConversation,
 } from '@/hooks/useConversations';
 import { useEndChatbotSession, SESSION_END_FORBIDDEN_MESSAGE } from '@/hooks/useEndChatbotSession';
+import { invalidateConversationCounts } from '@/lib/conversations/countKeys';
+import {
+  asChannel,
+  initialsOf,
+  type ConversationChannel,
+} from '@/lib/conversations/channel';
+import { contactDisplayName, instagramHandle } from '@/lib/instagram/contactProfile';
+import { useInstagramContactProfiles } from '@/hooks/useInstagramContactProfiles';
 import { useConversationBotSession } from '@/hooks/useChatbotSessions';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
@@ -111,6 +119,11 @@ interface ChatWindowProps {
   onPanelOpenChange?: (open: boolean) => void;
   /** When provided (mobile), shows a back arrow in the header to return to the list. */
   onBack?: () => void;
+  /**
+   * Avisa o canal da conversa aberta, para a chave WhatsApp/Instagram da página
+   * acompanhar (link direto para uma conversa do outro canal, por exemplo).
+   */
+  onChannelDetected?: (channel: ConversationChannel) => void;
 }
 
 /** Max auto-grow height for the message textarea (~5 rows). */
@@ -173,6 +186,7 @@ export const ChatWindow = ({
   panelOpen = false,
   onPanelOpenChange,
   onBack,
+  onChannelDetected,
 }: ChatWindowProps) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -233,6 +247,20 @@ export const ChatWindow = ({
     (conversation as any)?.channel ?? (contact as any)?.channel ?? null;
   const isInstagram = conversationChannel === 'instagram';
 
+  // A chave da página segue o canal da conversa aberta.
+  useEffect(() => {
+    if (!conversationId || !conversation) return;
+    onChannelDetected?.(asChannel(conversationChannel));
+  }, [conversationId, conversationChannel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Nome no cabeçalho. Instagram: nome, senão @, senão "Cliente do Instagram". WhatsApp: o de sempre. */
+  const headerName = isInstagram
+    ? contactDisplayName(contact, 'instagram')
+    : contact?.name || 'Contato';
+  /** O @ embaixo do nome — só quando o nome já não é o próprio @. */
+  const igHandle = isInstagram ? instagramHandle((contact as any)?.username) : null;
+  const igHandleLine = igHandle && igHandle !== headerName ? igHandle : null;
+
   // Active instance + adapter. WhatsApp: o escolhedor de sempre. Qualquer
   // outro canal: SÓ a instância da própria conversa — nunca cai no WhatsApp da
   // Conta (ver instanceForConversation.ts).
@@ -248,6 +276,18 @@ export const ChatWindow = ({
     [instances, conversationInstanceId, conversationChannel, contact?.phone],
   );
   const capabilities = active?.adapter.getCapabilities();
+
+  // Conversa do Instagram aberta sem nome ainda: pede o perfil agora (a lista
+  // também pede; a marca do servidor garante uma busca só).
+  useInstagramContactProfiles({
+    contacts: contact ? [contact as any] : [],
+    instances,
+    enabled: isInstagram,
+    onUpdated: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversation', conversationId, tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', tenant?.id] });
+    },
+  });
 
   const messagesQuery = useMessages({
     contactId: contactId || '',
@@ -569,7 +609,9 @@ export const ChatWindow = ({
     updateContactMutation.mutate({
       data: {
         name: editForm.name?.trim() || null,
-        phone: editForm.phone,
+        // Contato do Instagram não tem telefone: mandar o campo gravaria '' no
+        // lugar de NULL. O identificador dele é o do Instagram (external_id).
+        ...(isInstagram ? {} : { phone: editForm.phone }),
         lead_source_id: editForm.lead_source_id || null,
         current_stage_id: editForm.current_stage_id || null,
       },
@@ -599,6 +641,7 @@ export const ChatWindow = ({
     } else {
       toast.success('Conversa marcada como não lida.');
       queryClient.invalidateQueries({ queryKey: ['conversations', tenant.id] });
+      invalidateConversationCounts(queryClient);
     }
   };
 
@@ -996,13 +1039,15 @@ export const ChatWindow = ({
               </Button>
             )}
             <Avatar className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0">
-              {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={contact?.name || 'Contato'} />}
+              {(contact as any)?.avatar_url && <AvatarImage src={(contact as any).avatar_url} alt={headerName} />}
               <AvatarFallback>
-                {contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2) : 'C'}
+                {isInstagram
+                  ? initialsOf(headerName)
+                  : contact?.name ? contact.name.split(' ').map((n) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2) : 'C'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground truncate">{contact?.name || 'Contato'}</h3>
+              <h3 className="font-semibold text-foreground truncate">{headerName}</h3>
               {isContactTyping ? (
                 <span className="flex items-center gap-1 text-xs text-accent">
                   digitando
@@ -1014,9 +1059,15 @@ export const ChatWindow = ({
                 </span>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground truncate">
-                    {formatPhoneBR(contact?.phone)}
-                  </span>
+                  {isInstagram ? (
+                    igHandleLine && (
+                      <span className="text-xs sm:text-sm text-muted-foreground truncate">{igHandleLine}</span>
+                    )
+                  ) : (
+                    <span className="text-xs sm:text-sm text-muted-foreground truncate">
+                      {formatPhoneBR(contact?.phone)}
+                    </span>
+                  )}
                   {(contact as any)?.stage?.name && (
                     <Badge variant="outline" className="text-xs">{(contact as any).stage.name}</Badge>
                   )}
@@ -1181,7 +1232,9 @@ export const ChatWindow = ({
           <Alert variant="destructive" className="rounded-none border-x-0">
             <AlertCircle className="w-4 h-4" />
             <AlertDescription>
-              Instância "{active.row.name}" está {active.row.status}. Reconecte antes de enviar.
+              {isInstagram
+                ? `A conexão do Instagram "${active.row.name}" não está ativa. Nada é enviado até ela voltar.`
+                : `Instância "${active.row.name}" está ${active.row.status}. Reconecte antes de enviar.`}
             </AlertDescription>
           </Alert>
         )}
@@ -1219,7 +1272,7 @@ export const ChatWindow = ({
               </AlertDescription>
             </Alert>
           )}
-        {!capabilities?.fetchHistory && (
+        {!capabilities?.fetchHistory && !isInstagram && (
           <p className="text-[11px] text-muted-foreground bg-muted/40 px-4 py-1 border-b border-border">
             Este provider não suporta puxar histórico: apenas mensagens recebidas via webhook aparecem aqui.
           </p>
@@ -1460,10 +1513,12 @@ export const ChatWindow = ({
               <Label htmlFor="name" className="md:text-right">Nome</Label>
               <Input id="name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="md:col-span-3" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
-              <Label htmlFor="phone" className="md:text-right">Telefone</Label>
-              <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="md:col-span-3" />
-            </div>
+            {!isInstagram && (
+              <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
+                <Label htmlFor="phone" className="md:text-right">Telefone</Label>
+                <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="md:col-span-3" />
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-4 items-center gap-2 md:gap-4">
               <Label htmlFor="lead_source" className="md:text-right">Fonte</Label>
               <Select value={editForm.lead_source_id} onValueChange={(value) => setEditForm({ ...editForm, lead_source_id: value })}>

@@ -483,6 +483,8 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Abra Conversas e leia o cabeçalho: de quem é esta conversa?',
         body:
           'Ao abrir uma conversa, o cabeçalho mostra o responsável por ela. "Sem responsável" quer dizer que ninguém pegou; um nome quer dizer que a conversa é daquela pessoa. A lista tem as pílulas "Minhas" (o que está com você) e "Sem responsável" (a fila) para você separar uma coisa da outra.',
+        note:
+          'Se a Loja tem Instagram, o topo da lista tem a chave "WhatsApp" / "Instagram": cada lado é uma fila própria, e o número no lado que não está aberto mostra quantas conversas esperam resposta lá.',
         screen: '/dashboard/conversations',
         helpKey: 'page:conversations',
       },
@@ -533,6 +535,8 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Use as cores e a pílula "Não respondidas" para priorizar',
         body:
           'Com a sinalização ligada em Configurações › Atendimento, a conversa em que o cliente espera fica amarela, laranja e vermelha conforme as horas passam, e a pílula "Não respondidas" filtra só elas. Responda as vermelhas primeiro: perto de 24 horas sem resposta, um número da API Oficial só reabre com template.',
+        note:
+          'No Instagram não existe template: passadas 24 horas da última mensagem do cliente, o campo trava e só volta quando ele escrever de novo. Lá a mensagem enviada mostra um risco só, porque o Instagram não avisa entrega nem leitura.',
         screen: '/dashboard/conversations',
         helpKey: 'page:settings-attendance',
       },

@@ -87,7 +87,9 @@ INSERT INTO auth.users (id, aud, role, email, created_at, updated_at) VALUES
   ('b8b8b8b8-0000-4000-8000-00000000000c','authenticated','authenticated','fix-r-outra@fixture.invalid',   now(), now());
 
 INSERT INTO public.tenants (id, name, slug, kind, parent_tenant_id, status, subscription_status, settings) VALUES
-  ('b8b8b8b8-0000-4000-8000-000000000001','FIXTURE Conta R','fixture-conta-r','account', NULL,'active','active','{}'),
+  -- Desde 2026-09-25 o Instagram mora só em Loja (create_instagram_instance
+  -- recusa Conta): o tenant da fixture é uma Loja. Nada das afirmações muda.
+  ('b8b8b8b8-0000-4000-8000-000000000001','FIXTURE Loja R','fixture-loja-r','store', NULL,'active','active','{}'),
   ('b8b8b8b8-0000-4000-8000-000000000009','FIXTURE Outra R','fixture-outra-r','account', NULL,'active','active','{}');
 
 INSERT INTO public.profiles (id, user_id, tenant_id, role, parent_id, status, first_name, last_name, created_at) VALUES

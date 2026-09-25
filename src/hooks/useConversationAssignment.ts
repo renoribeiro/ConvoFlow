@@ -11,6 +11,7 @@ import {
   type ConversationsClient,
 } from '@/lib/conversations/assignment';
 import { memberFirstName, useTeamMemberLookup } from '@/hooks/useTeamDirectory';
+import { invalidateConversationCounts } from '@/lib/conversations/countKeys';
 
 /**
  * Assumir e transferir conversa — a camada React em cima de
@@ -33,6 +34,8 @@ const invalidarConversa = (
   queryClient.invalidateQueries({ queryKey: ['conversations', tenantId] });
   queryClient.invalidateQueries({ queryKey: ['conversation', conversationId, tenantId] });
   queryClient.invalidateQueries({ queryKey: ['recent-conversations', tenantId] });
+  // "Minhas" / "Sem responsável" mudam na hora, não no próximo ciclo de 30 s.
+  invalidateConversationCounts(queryClient);
 };
 
 // O builder do Supabase é estruturalmente compatível com o mínimo que

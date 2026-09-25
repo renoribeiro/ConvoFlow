@@ -38,6 +38,8 @@ import { useContactFollowups } from '@/hooks/useContactFollowups';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsBelowXl } from '@/hooks/use-mobile';
+import { initialsOf } from '@/lib/conversations/channel';
+import { contactDisplayName, instagramHandle } from '@/lib/instagram/contactProfile';
 
 interface ContactPanelProps {
   open: boolean;
@@ -185,9 +187,19 @@ function ContactPanelBody({
   }
 
   const stageColor: string | undefined = contact.stage?.color ?? undefined;
-  const initials = contact.name
-    ? contact.name.split(' ').map((n: string) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2)
-    : 'C';
+  const isInstagramContact = (contact as { channel?: string | null }).channel === 'instagram';
+  // Sem nome: "Cliente do Instagram" no Instagram; no WhatsApp, o de sempre.
+  const displayName = isInstagramContact
+    ? contactDisplayName(contact as { name?: string | null; username?: string | null }, 'instagram')
+    : contact.name || 'Contato';
+  const igHandle = isInstagramContact
+    ? instagramHandle((contact as { username?: string | null }).username)
+    : null;
+  const initials = isInstagramContact
+    ? initialsOf(displayName)
+    : contact.name
+      ? contact.name.split(' ').map((n: string) => n?.[0] ?? '').join('').toUpperCase().slice(0, 2)
+      : 'C';
 
   return (
     <div className="flex h-full flex-col">
@@ -210,12 +222,15 @@ function ContactPanelBody({
             </Button>
           </div>
           <Avatar className="w-14 h-14">
-            {contact.avatar_url && <AvatarImage src={contact.avatar_url} alt={contact.name || 'Contato'} />}
+            {contact.avatar_url && <AvatarImage src={contact.avatar_url} alt={displayName} />}
             <AvatarFallback className="text-base">{initials}</AvatarFallback>
           </Avatar>
           <div className="text-center">
-            <p className="font-semibold text-foreground">{contact.name || 'Contato'}</p>
-            <p className="text-sm text-muted-foreground">{contact.phone}</p>
+            <p className="font-semibold text-foreground">{displayName}</p>
+            {/* Contato do Instagram não tem telefone: mostra o @ (se o nome já não for ele). */}
+            {isInstagramContact
+              ? igHandle && igHandle !== displayName && <p className="text-sm text-muted-foreground">{igHandle}</p>
+              : <p className="text-sm text-muted-foreground">{contact.phone}</p>}
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
           </div>
           <Button asChild variant="outline" size="sm" className="mt-1">

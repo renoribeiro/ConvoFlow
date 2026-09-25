@@ -15,6 +15,14 @@ e o que fazer quando algo não bate.
 | Instância de teste (Conta Teste Gerente) | **Falta criar — passo 2 abaixo** |
 
 Conta Teste Gerente = `baf2559e-1d38-4c5c-af7d-f6c268a9154e`.
+
+> **Atualização 2026-09-25 (fatia 4a):** a conta do Instagram mora SÓ numa
+> Loja, nunca na Conta. A instância de teste foi movida para a **Loja Teste**
+> (`e6a88a32-5deb-4aa1-b246-05a512882388`) por
+> `docs/mover_instagram_teste_para_loja.sql`, e `create_instagram_instance`
+> passou a recusar Conta (migração `20260925000002`). Para criar outra, passe o
+> id de uma Loja no primeiro argumento.
+
 Conta do Instagram de teste (entry.id medido pela sonda) = `17841419262135883`.
 
 ## O que é uma instância de Instagram

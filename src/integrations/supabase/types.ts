@@ -1389,10 +1389,13 @@ export type Database = {
           opt_out_mass_message: boolean | null
           opt_out_source: string | null
           phone: string | null
+          profile_checked_at: string | null
+          profile_status: string | null
           source_details: Json | null
           stage_entered_at: string | null
           tenant_id: string
           updated_at: string
+          username: string | null
           whatsapp_instance_id: string | null
         }
         Insert: {
@@ -1418,10 +1421,13 @@ export type Database = {
           opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
           phone?: string | null
+          profile_checked_at?: string | null
+          profile_status?: string | null
           source_details?: Json | null
           stage_entered_at?: string | null
           tenant_id: string
           updated_at?: string
+          username?: string | null
           whatsapp_instance_id?: string | null
         }
         Update: {
@@ -1447,10 +1453,13 @@ export type Database = {
           opt_out_mass_message?: boolean | null
           opt_out_source?: string | null
           phone?: string | null
+          profile_checked_at?: string | null
+          profile_status?: string | null
           source_details?: Json | null
           stage_entered_at?: string | null
           tenant_id?: string
           updated_at?: string
+          username?: string | null
           whatsapp_instance_id?: string | null
         }
         Relationships: [

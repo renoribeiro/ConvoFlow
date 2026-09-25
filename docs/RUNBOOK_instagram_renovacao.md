@@ -19,7 +19,7 @@ olhar em cada passo.
 | Tela (cartão do Instagram em Instâncias e APIs) e ajuda | Na branch `feat/instagram-fatia4-renovacao-token`, prévia da Vercel. Não mergeada |
 | `meta-webhook`, `instagram-webhook`, `instagram-send-message`, WhatsApp | Intocados (byte a byte iguais à `main`) e não redeployados |
 
-Instância de teste = `0c4029bb-e0b6-4307-849b-d947ec4e4164` (Conta Teste Gerente).
+Instância de teste = `0c4029bb-e0b6-4307-849b-d947ec4e4164` (Loja Teste desde 2026-09-25; antes, Conta Teste Gerente).
 
 ## Como funciona, em uma tela
 

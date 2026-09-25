@@ -45,6 +45,12 @@ verify_jwt = false
 # atendente: exige JWT, como o whatsapp-send-message.
 verify_jwt = true
 
+[functions.instagram-contact-profile]
+# Nome e @ do cliente do Instagram, sob demanda (fatia 4a). Chamada pela tela
+# com a sessão de quem está logado: exige JWT. Os contatos passam pela RLS de
+# quem chama antes de qualquer busca.
+verify_jwt = true
+
 [functions.instagram-token-renewal]
 # Renovação diária do acesso das contas de Instagram (fatia 4). Chamada por
 # pg_cron via public.instagram_token_renewal_kick(). verify_jwt = false porque

@@ -15,7 +15,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useChatHistorySync } from '@/hooks/useChatHistorySync';
 import { useWhatsAppInstancesWithAdapter } from '@/hooks/useWhatsAppApi';
-import { InstanceSelector } from './InstanceSelector';
+import { ALL_INSTANCES_VALUE, InstanceSelector } from './InstanceSelector';
+import { contactDisplayName } from '@/lib/instagram/contactProfile';
+import { useInstagramContactProfiles } from '@/hooks/useInstagramContactProfiles';
+import {
+  asChannel,
+  hasInstagramInstance,
+  initialsOf,
+  INSTANCE_SELECTOR_ALL_LABEL,
+  instancesOfChannel,
+  SLA_CRITICAL_HINT_BY_CHANNEL,
+  UNNAMED_CONTACT,
+  type ConversationChannel,
+} from '@/lib/conversations/channel';
 import { pickMessagePreview } from './MessageBubble';
 import { MessageStatusIcon } from './MessageStatusIcon';
 import { TagBadge } from '@/components/etiquetas/TagBadge';
@@ -79,6 +91,17 @@ interface ConversationsListProps {
   onInstanceChange?: (id: string | null) => void;
   /** Permite que o pai (atalhos de teclado) controle qual item está em foco. */
   onItemsChange?: (ids: string[]) => void;
+  /**
+   * Canal aberto na chave WhatsApp/Instagram. A lista, o seletor de instância
+   * e os botões só do WhatsApp seguem ele. Ausente = os dois canais juntos (o
+   * comportamento de antes da chave).
+   */
+  channel?: ConversationChannel;
+  /**
+   * Avisa o pai se a Loja tem conta de Instagram — é a lista que já carrega as
+   * instâncias, e sem Instagram a chave nem aparece.
+   */
+  onChannelsChange?: (info: { hasInstagram: boolean }) => void;
 }
 
 /** "Online" se houve interação nos últimos 5 minutos. */
@@ -141,8 +164,23 @@ export const ConversationsList = ({
   whatsappInstanceId,
   onInstanceChange,
   onItemsChange,
+  channel,
+  onChannelsChange,
 }: ConversationsListProps) => {
   const { instances } = useWhatsAppInstancesWithAdapter();
+  // O seletor mostra só as instâncias do canal aberto.
+  const channelInstances = useMemo(
+    () => (channel ? instancesOfChannel(instances, channel) : instances),
+    [instances, channel],
+  );
+  const hasInstagram = hasInstagramInstance(instances);
+  const lastHasInstagram = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (lastHasInstagram.current === hasInstagram) return;
+    lastHasInstagram.current = hasInstagram;
+    onChannelsChange?.({ hasInstagram });
+  }, [hasInstagram, onChannelsChange]);
+  const isInstagramSide = channel === 'instagram';
 
   // Responsável por conversa: "Minhas" precisa saber quem sou eu, e o chip
   // precisa do diretório para trocar profiles.id por nome e avatar.
@@ -184,6 +222,7 @@ export const ConversationsList = ({
     tagIds,
     assignedProfileIds,
     unassignedOnly,
+    channel,
   });
 
   // Memoize so the flattened array keeps a stable identity between renders
@@ -194,6 +233,22 @@ export const ConversationsList = ({
   );
   const isLoading = conversationsQuery.isLoading;
   const error = conversationsQuery.error;
+
+  // Nome e @ dos clientes do Instagram: pedidos sob demanda para quem aparece
+  // na lista (nunca no recebimento). Uma vez por contato; a lista recarrega
+  // quando a resposta chega.
+  const profileContacts = useMemo(
+    () => conversations.map((conv: any) => conv.contacts ?? null),
+    [conversations],
+  );
+  useInstagramContactProfiles({
+    contacts: profileContacts,
+    instances,
+    enabled: channel === 'instagram',
+    onUpdated: () => {
+      void conversationsQuery.refetch();
+    },
+  });
 
   const { isSyncing, syncAllChats } = useChatHistorySync();
 
@@ -228,10 +283,12 @@ export const ConversationsList = ({
               media_url: null,
             })
           : 'Nenhuma mensagem';
+        const rowChannel = asChannel(conv.channel ?? conv.contacts?.channel);
         return {
           id: conv.id,
           contact_id: conv.contact_id,
-          contact_name: conv.contacts?.name || 'Contato sem nome',
+          channel: rowChannel,
+          contact_name: contactDisplayName(conv.contacts, rowChannel),
           contact_phone: conv.contacts?.phone || '',
           contact_avatar: (conv.contacts as any)?.avatar_url ?? null,
           last_interaction_at: (conv.contacts as any)?.last_interaction_at ?? null,
@@ -409,6 +466,8 @@ export const ConversationsList = ({
               <AvatarFallback>
                 {conversation.is_group ? (
                   <Users className="w-4 h-4" />
+                ) : conversation.channel === 'instagram' ? (
+                  initialsOf(conversation.contact_name)
                 ) : (
                   conversation.contact_name.split(' ').map((n: string) => n[0] ?? '').join('').toUpperCase().slice(0, 2)
                 )}
@@ -452,7 +511,11 @@ export const ConversationsList = ({
                   assignedProfileId={conversation.assigned_profile_id}
                   size="sm"
                 />
-                <SlaIndicator level={slaLevel} lastMessageAt={conversation.last_message_at} />
+                <SlaIndicator
+                  level={slaLevel}
+                  lastMessageAt={conversation.last_message_at}
+                  criticalHint={SLA_CRITICAL_HINT_BY_CHANNEL[conversation.channel]}
+                />
                 {conversation.has_bot_session && <BotSessionBadge botName={null} size="sm" />}
                 {isNewLead && (
                   <Badge variant="outline" className="border-0 bg-accent/15 text-accent text-[10px] font-medium px-1.5">
@@ -516,30 +579,38 @@ export const ConversationsList = ({
             cortado. O seletor de exibição desceu para a linha da contagem. */}
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold text-foreground truncate">Conversas Ativas</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="flex-shrink-0"
-                aria-label={SYNC_LABEL}
-                onClick={() => syncAllChats(whatsappInstanceId ?? null)}
-                disabled={isSyncing}
-              >
-                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">{SYNC_LABEL}</TooltipContent>
-          </Tooltip>
+          {/* Sincronizar e "Nova Conversa" são do WhatsApp: o Instagram não tem
+              histórico para puxar e não deixa começar conversa — só responder
+              quem escreveu nas últimas 24 horas. */}
+          {!isInstagramSide && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="flex-shrink-0"
+                  aria-label={SYNC_LABEL}
+                  onClick={() => syncAllChats(whatsappInstanceId ?? null)}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">{SYNC_LABEL}</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
-        <NewConversationModal onConversationCreated={() => { /* lista invalidada via realtime */ }} />
+        {!isInstagramSide && (
+          <NewConversationModal onConversationCreated={() => { /* lista invalidada via realtime */ }} />
+        )}
 
-        {instances.length > 0 && (
+        {channelInstances.length > 0 && (
           <InstanceSelector
-            instances={instances}
+            instances={channelInstances}
             selectedId={whatsappInstanceId ?? null}
-            onChange={(id) => onInstanceChange?.(id === '__all__' ? null : id)}
+            allLabel={INSTANCE_SELECTOR_ALL_LABEL[channel ?? 'whatsapp']}
+            onChange={(id) => onInstanceChange?.(id === ALL_INSTANCES_VALUE ? null : id)}
           />
         )}
 
