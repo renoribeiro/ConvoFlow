@@ -22,8 +22,9 @@ const BACK_TO_ACCOUNT_VALUE = '__voltar_para_conta__';
  * Com uma Loja aberta, o primeiro item é "Voltar para a Conta": limpa a escolha
  * (`setActiveTenant(null)`, o mesmo que o "Sair" do seletor do superadmin) e a
  * tela volta à Conta do próprio gerente. Antes dele, o único caminho de volta
- * era sair e entrar de novo — e a Conta tem dados próprios (ex.: a conexão do
- * Instagram e as conversas dela).
+ * era sair e entrar de novo — e a Conta tem dados próprios (ex.: as conversas
+ * dela). A conexão do Instagram NÃO é um deles: ela fica sempre numa Loja
+ * (decisão de 2026-09-25; create_instagram_instance recusa Conta).
  */
 export const StoreSwitcher = () => {
   const isGerente = useIsGerente();
