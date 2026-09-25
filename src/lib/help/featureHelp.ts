@@ -582,6 +582,7 @@ export const FEATURE_HELP: Record<string, FeatureHelpEntry> = {
       'Não precisa cadastrar nada para começar: o contato é criado sozinho na primeira mensagem recebida.',
       'Complete nome e e-mail e aplique tags. Tag é o que você vai usar depois para segmentar campanha.',
       'Não existe importação de planilha: base antiga entra sozinha, à medida que essas pessoas escrevem, ou à mão em "Novo Contato". Cadastre antes só quem precisa estar numa campanha segmentada, e já aplique a tag no cadastro.',
+      'Em "Novo Contato", digite o telefone com DDI e DDD, como 55 11 99999-9999. Pode colar com espaço, parêntese ou traço: fica gravado só com os dígitos.',
     ],
     example:
       'Você marca com a tag "interesse-cobertura" quem pediu alto padrão. Quando entra um lançamento nesse perfil, a campanha vai só para essa tag em vez de ir para a base toda.',

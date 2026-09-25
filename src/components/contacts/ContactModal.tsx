@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Loader2, X, Plus } from 'lucide-react';
 import { useSupabaseQuery } from '@/hooks/useSupabaseQuery';
 import { useEnhancedSupabaseMutation } from '@/hooks/enhanced/useEnhancedSupabaseMutation';
-import { ContactSchema, ContactCreateSchema, ContactUpdateSchema } from '@/lib/validations/contact';
+import { ContactFormSchema, buildContactPayload, type ContactFormValues } from '@/lib/validations/contact';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -27,37 +27,31 @@ interface ContactModalProps {
   contactId?: string | null;
 }
 
+const EMPTY_FORM: ContactFormValues = {
+  name: '',
+  phone: '',
+  email: '',
+  current_stage_id: '',
+  lead_source_id: '',
+  notes: '',
+};
 
 
 export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) => {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isSavingTag, setIsSavingTag] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    current_stage_id: '',
-    lead_source_id: '',
-    assigned_to: '',
-    notes: ''
-  });
+  const [formData, setFormData] = useState<ContactFormValues>(EMPTY_FORM);
   
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
 
-  // Schema de validação baseado no contexto (criar vs editar)
-  const getValidationSchema = () => {
-    return contactId ? ContactUpdateSchema : ContactCreateSchema;
-  };
-
   // Função para validar um campo específico
   const validateField = (fieldName: string, value: any) => {
     try {
-      const schema = getValidationSchema();
-      const fieldSchema = schema.shape[fieldName as keyof typeof schema.shape];
+      const fieldSchema = ContactFormSchema.shape[fieldName as keyof typeof ContactFormSchema.shape];
       if (fieldSchema) {
         fieldSchema.parse(value);
         setValidationErrors(prev => {
@@ -79,28 +73,18 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
   // Função para validar todo o formulário
   const validateForm = () => {
     // Preparar dados para validação — fora do try para continuar acessível no catch
-    const dataToValidate = {
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || undefined,
-      current_stage_id: formData.current_stage_id || undefined,
-      lead_source_id: formData.lead_source_id || undefined,
-      assigned_to: formData.assigned_to || undefined,
-      notes: formData.notes || undefined,
-    };
+    const dataToValidate = { ...formData };
 
     try {
       setIsValidating(true);
-      const schema = getValidationSchema();
-
-      schema.parse(dataToValidate);
+      ContactFormSchema.parse(dataToValidate);
       setValidationErrors({});
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errors: Record<string, string> = {};
         error.errors.forEach((err) => {
-          if (err.path.length > 0) {
+          if (err.path.length > 0 && !errors[err.path[0] as string]) {
             errors[err.path[0] as string] = err.message;
           }
         });
@@ -151,15 +135,6 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     enabled: isOpen,
   });
 
-  // Query para buscar usuários
-  const { data: users = [], isLoading: usersLoading } = useSupabaseQuery({
-    table: 'profiles',
-    queryKey: ['users'],
-    select: 'id, first_name, last_name',
-    orderBy: [{ column: 'first_name', ascending: true }],
-    enabled: isOpen,
-  });
-
   // Query para buscar fontes de lead
   const { data: leadSources = [], isLoading: leadSourcesLoading } = useSupabaseQuery({
     table: 'lead_sources',
@@ -178,14 +153,15 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
     enabled: isOpen,
   });
 
-  // Mutation para criar/atualizar contato com validação enhanced
+  // Mutation para criar/atualizar contato. Sem inputSchema: o formulário já
+  // validou, e o payload leva NULL em campo vazio, que os schemas de entidade
+  // recusam. No insert o hook acrescenta o tenant_id da sessão.
   const saveMutation = useEnhancedSupabaseMutation({
     table: 'contacts',
     operation: contactId ? 'update' : 'insert',
     invalidateQueries: [['contacts'], ['contact', contactId]],
     successMessage: contactId ? 'Contato atualizado com sucesso!' : 'Contato criado com sucesso!',
     errorMessage: contactId ? 'Erro ao atualizar contato' : 'Erro ao criar contato',
-    inputSchema: getValidationSchema(),
     enableLogging: true,
     showSuccessToast: true,
     showErrorToast: true,
@@ -215,7 +191,6 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
         email: contact.email || '',
         current_stage_id: contact.current_stage_id?.toString() || '',
         lead_source_id: contact.lead_source_id || '',
-        assigned_to: contact.assigned_to?.toString() || '',
         notes: contact.notes || ''
       });
       
@@ -223,15 +198,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
       const contactTagIds = contact.contact_tags?.map(ct => ct.tags?.id).filter(Boolean) || [];
       setSelectedTags(contactTagIds);
     } else if (!contactId) {
-      setFormData({
-        name: '',
-        phone: '',
-        email: '',
-        current_stage_id: '',
-        lead_source_id: '',
-        assigned_to: '',
-        notes: ''
-      });
+      setFormData(EMPTY_FORM);
       setSelectedTags([]);
     }
   }, [contact, contactId, isOpen]);
@@ -319,15 +286,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
       return;
     }
     
-    const contactData = {
-      name: formData.name.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email?.trim() || null,
-      current_stage_id: formData.current_stage_id || null,
-      lead_source_id: formData.lead_source_id || null,
-      assigned_to: formData.assigned_to || null,
-      notes: formData.notes?.trim() || null,
-    };
+    const contactData = buildContactPayload(formData);
 
     try {
       if (contactId) {
@@ -356,15 +315,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
 
   // Função para limpar formulário e erros
   const resetForm = () => {
-    setFormData({
-      name: '',
-      phone: '',
-      email: '',
-      current_stage_id: '',
-      lead_source_id: '',
-      assigned_to: '',
-      notes: ''
-    });
+    setFormData(EMPTY_FORM);
     setSelectedTags([]);
     setNewTagName('');
     setValidationErrors({});
@@ -407,7 +358,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Nome *</Label>
+                <Label>Nome</Label>
                 <Skeleton className="h-10 w-full" />
               </div>
               <div>
@@ -428,7 +379,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Nome *</Label>
+                <Label htmlFor="name">Nome</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -438,7 +389,6 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                     validateField('name', value);
                   }}
                   onBlur={() => validateField('name', formData.name)}
-                  required
                   disabled={isLoading}
                   className={validationErrors.name ? 'border-red-500' : ''}
                 />
@@ -460,7 +410,7 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                   required
                   disabled={isLoading}
                   className={validationErrors.phone ? 'border-red-500' : ''}
-                  placeholder="(11) 99999-9999"
+                  placeholder="55 11 99999-9999"
                 />
                 {validationErrors.phone && (
                   <p className="text-sm text-red-500 mt-1">{validationErrors.phone}</p>
@@ -541,30 +491,6 @@ export const ContactModal = ({ isOpen, onClose, contactId }: ContactModalProps) 
                   </Select>
                 )}
               </div>
-            </div>
-
-            <div>
-              <Label>Responsável</Label>
-              {usersLoading ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <Select 
-                  value={formData.assigned_to} 
-                  onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id.toString()}>
-                        {`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Usuário sem nome'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
             </div>
 
             {/* Seção de Tags */}

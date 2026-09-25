@@ -67,6 +67,57 @@ export const ContactExportSchema = z.object({
   tenant_id: CommonSchemas.uuid
 });
 
+// Formulário de contato (ContactModal). Valida só o que a pessoa digita: a
+// Conta vem da sessão no insert e o id filtra o update, então não há tenant_id
+// aqui — exigi-lo foi o que impediu o formulário de salvar qualquer contato de
+// 2025-08-18 até a correção. O nome não passa por filtro de caracteres: nomes
+// reais do WhatsApp e do Instagram têm emoji, "|" e acento combinante.
+const optionalId = z.string().uuid('ID inválido').optional().or(z.literal(''));
+
+export const ContactFormSchema = z.object({
+  name: z.string().trim().max(255, 'Nome deve ter no máximo 255 caracteres'),
+  phone: z.preprocess(
+    (v) => (typeof v === 'string' ? v.replace(/\D/g, '') : v),
+    z.string()
+      .min(1, 'Telefone é obrigatório')
+      .regex(/^[1-9]\d{7,14}$/, 'Telefone inválido: use DDI + DDD + número'),
+  ),
+  email: z.string().trim().email('Email inválido').optional().or(z.literal('')),
+  current_stage_id: optionalId,
+  lead_source_id: optionalId,
+  notes: z.string().optional(),
+});
+
+export type ContactFormValues = {
+  name: string;
+  phone: string;
+  email: string;
+  current_stage_id: string;
+  lead_source_id: string;
+  notes: string;
+};
+
+const blankToNull = (v: string | undefined | null): string | null => {
+  const t = (v ?? '').trim();
+  return t === '' ? null : t;
+};
+
+/**
+ * O que vai para `contacts` a partir do formulário. Campo em branco vira NULL,
+ * nunca string vazia: `''` em coluna opcional é dado falso (e em `phone`
+ * colide na chave única antiga `tenant_id, phone, whatsapp_instance_id`).
+ */
+export function buildContactPayload(values: ContactFormValues) {
+  return {
+    name: blankToNull(values.name),
+    phone: values.phone.replace(/\D/g, ''),
+    email: blankToNull(values.email),
+    current_stage_id: blankToNull(values.current_stage_id),
+    lead_source_id: blankToNull(values.lead_source_id),
+    notes: blankToNull(values.notes),
+  };
+}
+
 // Type exports
 export type ContactFormData = z.infer<typeof ContactSchema>;
 export type ContactCreateData = z.infer<typeof ContactCreateSchema>;
