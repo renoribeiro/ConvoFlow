@@ -4,7 +4,10 @@ import {
   classifyMessagingItem,
   isEchoItem,
   isWellFormedSignatureHeader,
+  META_TS_MAX_AHEAD_MS,
+  META_TS_MIN_MS,
   parseInstagramDelivery,
+  parseMetaTimestamp,
   summarizeForLog,
   toRpcArgs,
   verifyInstagramSignature,
@@ -151,7 +154,10 @@ describe('parseInstagramDelivery — o formato medido pela sonda', () => {
     expect(p.isInstagram).toBe(true);
     expect(p.skipped).toEqual([]);
     expect(p.texts).toEqual([
-      { accountId: IGID, senderId: IGSID, recipientId: IGID, mid: MID, text: TEXTO, isEcho: false },
+      {
+        accountId: IGID, senderId: IGSID, recipientId: IGID, mid: MID, text: TEXTO, isEcho: false,
+        metaTimestamp: '2026-05-08T07:02:02.476Z',
+      },
     ]);
     expect(MID.length).toBe(164);
   });
@@ -164,6 +170,7 @@ describe('parseInstagramDelivery — o formato medido pela sonda', () => {
       p_mid: MID,
       p_text: TEXTO,
       p_is_echo: false,
+      p_meta_ts: '2026-05-08T07:02:02.476Z',
     });
   });
 
@@ -259,6 +266,88 @@ describe('classifyMessagingItem — tudo que não é texto fica de fora nesta fa
 });
 
 // -----------------------------------------------------------------------------
+// O horário da Meta decide se um eco pode zerar as não lidas (migração
+// 20260925000004). Errar para "sem horário" é seguro; errar para um horário
+// inventado não é.
+describe('parseMetaTimestamp — o horário da Meta de cada item', () => {
+  // Relógio fixo: nada aqui depende do dia em que o teste roda.
+  const NOW = Date.UTC(2026, 8, 25, 20, 0, 0);
+
+  it('milissegundos viram ISO 8601 exato, sem perder o milissegundo', () => {
+    expect(parseMetaTimestamp(1778223722476, NOW)).toBe('2026-05-08T07:02:02.476Z');
+    expect(parseMetaTimestamp(NOW, NOW)).toBe('2026-09-25T20:00:00.000Z');
+  });
+
+  it('é o mesmo instante: ida e volta pelo Date dá o número original', () => {
+    const iso = parseMetaTimestamp(1790179200123, NOW)!;
+    expect(new Date(iso).getTime()).toBe(1790179200123);
+  });
+
+  it('valor em SEGUNDOS é recusado, não "consertado" por palpite de unidade', () => {
+    expect(parseMetaTimestamp(1778223722, NOW)).toBeNull();
+    expect(parseMetaTimestamp(Math.floor(NOW / 1000), NOW)).toBeNull();
+  });
+
+  it('faixa: de 2020-01-01 até um dia à frente do relógio, com as bordas incluídas', () => {
+    expect(parseMetaTimestamp(META_TS_MIN_MS, NOW)).toBe('2020-01-01T00:00:00.000Z');
+    expect(parseMetaTimestamp(META_TS_MIN_MS - 1, NOW)).toBeNull();
+    expect(parseMetaTimestamp(NOW + META_TS_MAX_AHEAD_MS, NOW)).not.toBeNull();
+    expect(parseMetaTimestamp(NOW + META_TS_MAX_AHEAD_MS + 1, NOW)).toBeNull();
+  });
+
+  it('só número inteiro: string (mesmo numérica), fração, NaN, infinito e lixo viram null', () => {
+    for (const bad of ['1778223722476', '2026-05-08T07:02:02Z', 1778223722476.5, NaN, Infinity,
+      -Infinity, -1778223722476, 0, 1, null, undefined, true, {}, [], 2 ** 60]) {
+      expect(parseMetaTimestamp(bad, NOW)).toBeNull();
+    }
+  });
+
+  it('o parser leva o horário de cada item, inclusive do eco', () => {
+    const p = parseInstagramDelivery({
+      object: 'instagram',
+      entry: [{ id: IGID, messaging: [
+        { ...IG_PAYLOAD.entry[0].messaging[0] },
+        { ...IG_ECHO_PAYLOAD.entry[0].messaging[0] },
+      ] }],
+    }, NOW);
+    expect(p.texts.map((t) => [t.isEcho, t.metaTimestamp])).toEqual([
+      [false, '2026-05-08T07:02:02.476Z'],
+      [true, '2026-05-08T07:03:19.999Z'],
+    ]);
+  });
+
+  it('usa o timestamp do ITEM, não o entry[].time (hora do envio da notificação)', () => {
+    const p = parseInstagramDelivery(IG_PAYLOAD, NOW);
+    expect(IG_PAYLOAD.entry[0].time).not.toBe(IG_PAYLOAD.entry[0].messaging[0].timestamp);
+    expect(p.texts[0].metaTimestamp).toBe(new Date(IG_PAYLOAD.entry[0].messaging[0].timestamp).toISOString());
+  });
+
+  it('item sem horário, ou com horário ruim, continua sendo gravado, só que com null', () => {
+    const p = parseInstagramDelivery({
+      object: 'instagram',
+      entry: [{ id: IGID, messaging: [
+        { sender: { id: IGSID }, recipient: { id: IGID }, message: { mid: 'sem-ts', text: 'a' } },
+        item({ mid: 'ts-texto', text: 'b' }, { timestamp: '1778223722476' }),
+        item({ mid: 'ts-segundos', text: 'c', is_echo: true }, { sender: { id: IGID }, recipient: { id: IGSID }, timestamp: 1778223722 }),
+      ] }],
+    }, NOW);
+    expect(p.skipped).toEqual([]);
+    expect(p.texts.map((t) => [t.mid, t.metaTimestamp])).toEqual([
+      ['sem-ts', null], ['ts-texto', null], ['ts-segundos', null],
+    ]);
+    expect(toRpcArgs(p.texts[2])).toMatchObject({ p_is_echo: true, p_meta_ts: null });
+    expect(summarizeForLog(p).withoutMetaTime).toBe(3);
+  });
+
+  it('a RPC recebe o horário como p_meta_ts, no eco também', () => {
+    expect(toRpcArgs(parseInstagramDelivery(IG_ECHO_PAYLOAD, NOW).texts[0])).toMatchObject({
+      p_is_echo: true,
+      p_meta_ts: '2026-05-08T07:03:19.999Z',
+    });
+  });
+});
+
+// -----------------------------------------------------------------------------
 describe('summarizeForLog — contagens, nunca conteúdo', () => {
   it('conta cliente, eco e descartes por tipo', () => {
     const p = parseInstagramDelivery({
@@ -274,6 +363,7 @@ describe('summarizeForLog — contagens, nunca conteúdo', () => {
       object: 'instagram',
       inbound: 1,
       echoes: 1,
+      withoutMetaTime: 0,
       skippedKinds: { read: 2 },
       accounts: [IGID],
     });

@@ -12,6 +12,11 @@
 //   * a resposta enviada pelo app do Instagram no celular volta como eco:
 //     mesmo formato, message.is_echo = true.
 //
+// O `timestamp` de cada item (horário do evento na Meta, em MILISSEGUNDOS desde
+// 1970 — é o que os exemplos da doc da Meta mostram; a doc não diz a unidade
+// por extenso) vai para a RPC desde a migração 20260925000004. É ele que decide
+// se o eco pode zerar as não lidas: ver `parseMetaTimestamp`.
+//
 // Tudo aqui é função pura e testada em `src/lib/instagramWebhook.test.ts`.
 //
 // ⚠️ NOMES DE CAMPO: o `EdgeLogger` (_shared/logger.ts) censura qualquer chave
@@ -78,6 +83,11 @@ export interface InstagramTextEvent {
   text: string;
   /** true = o próprio negócio falou (resposta pelo app do celular). */
   isEcho: boolean;
+  /**
+   * Horário do evento na Meta (messaging[].timestamp), em ISO 8601. `null`
+   * quando faltou ou não é plausível — e aí o eco nunca zera as não lidas.
+   */
+  metaTimestamp: string | null;
 }
 
 export interface InstagramSkippedEvent {
@@ -104,6 +114,34 @@ const asObj = (v: unknown): Obj | null =>
  * gravar um id errado é pior que descartar.
  */
 const idOf = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+
+// -----------------------------------------------------------------------------
+// Horário da Meta
+// -----------------------------------------------------------------------------
+
+/** Antes disto não existe mensagem nossa: valor menor é outra unidade ou lixo. */
+export const META_TS_MIN_MS = Date.UTC(2020, 0, 1);
+/** Folga para relógio adiantado da Meta. Mais que isso no futuro é lixo. */
+export const META_TS_MAX_AHEAD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `messaging[].timestamp` → ISO 8601, ou `null`.
+ *
+ * Só aceita NÚMERO inteiro de milissegundos entre 2020-01-01 e amanhã (pelo
+ * relógio `nowMs`). Tudo o mais vira `null`, inclusive:
+ *   * string, mesmo numérica — a sonda viu número, e o resto do parser também
+ *     não adivinha tipo;
+ *   * valor em SEGUNDOS (~1,7e9): cairia em 1970 e é recusado pelo piso, em
+ *     vez de ser "consertado" por palpite de unidade.
+ *
+ * `null` é o lado seguro: a mensagem é gravada normalmente, e um eco sem
+ * horário nunca zera as não lidas (a RPC aplica a mesma faixa de novo).
+ */
+export function parseMetaTimestamp(raw: unknown, nowMs: number = Date.now()): string | null {
+  if (typeof raw !== 'number' || !Number.isSafeInteger(raw)) return null;
+  if (raw < META_TS_MIN_MS || raw > nowMs + META_TS_MAX_AHEAD_MS) return null;
+  return new Date(raw).toISOString();
+}
 
 /**
  * É eco? `is_echo === true` é o sinal que a Meta documenta e que a sonda viu.
@@ -145,7 +183,10 @@ export function classifyMessagingItem(item: unknown): InstagramEventKind {
  * Lê uma entrega inteira. Tolerante a lixo: nunca levanta; o que não for
  * reconhecível sai em `skipped` como `malformed`/`other`.
  */
-export function parseInstagramDelivery(payload: unknown): ParsedInstagramDelivery {
+export function parseInstagramDelivery(
+  payload: unknown,
+  nowMs: number = Date.now(),
+): ParsedInstagramDelivery {
   const root = asObj(payload) ?? {};
   const object = typeof root.object === 'string' ? root.object : null;
   const out: ParsedInstagramDelivery = {
@@ -189,6 +230,7 @@ export function parseInstagramDelivery(payload: unknown): ParsedInstagramDeliver
         mid,
         text: msg.text as string,
         isEcho,
+        metaTimestamp: parseMetaTimestamp(o.timestamp, nowMs),
       });
     }
   }
@@ -205,6 +247,8 @@ export interface InstagramDeliveryLogSummary {
   inbound: number;
   /** Ecos (respostas do negócio pelo app) a gravar. */
   echoes: number;
+  /** Mensagens a gravar SEM horário da Meta utilizável (eco assim não zera não lidas). */
+  withoutMetaTime: number;
   /** Contagem por tipo do que foi descartado. */
   skippedKinds: Record<string, number>;
   /** entry[].id distintos — a CONTA do negócio, não o cliente. */
@@ -226,6 +270,7 @@ export function summarizeForLog(parsed: ParsedInstagramDelivery): InstagramDeliv
     object: parsed.object,
     inbound: parsed.texts.filter((t) => !t.isEcho).length,
     echoes: parsed.texts.filter((t) => t.isEcho).length,
+    withoutMetaTime: parsed.texts.filter((t) => t.metaTimestamp === null).length,
     skippedKinds,
     accounts: [...accounts].sort(),
   };
@@ -240,5 +285,6 @@ export function toRpcArgs(ev: InstagramTextEvent) {
     p_mid: ev.mid,
     p_text: ev.text,
     p_is_echo: ev.isEcho,
+    p_meta_ts: ev.metaTimestamp,
   };
 }

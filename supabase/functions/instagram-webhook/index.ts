@@ -28,6 +28,14 @@ import {
  * para o atendente ver que alguém já respondeu. Nunca conta como não lida,
  * nunca cria contato, nunca aciona nada.
  *
+ * Desde a migração 20260925000004 o horário da Meta de cada item
+ * (messaging[].timestamp) vai junto (p_meta_ts), e TODO eco — do celular ou da
+ * resposta do próprio inbox — zera as não lidas da conversa, desde que nenhuma
+ * mensagem do cliente tenha horário da Meta igual ou posterior ao do eco. A
+ * decisão é da RPC (instagram_echo_mark_read); o resultado sai no log como
+ * `unread` (cleared, later_inbound, nothing_unread, customer_spoke_last,
+ * no_meta_time...). Eco sem horário utilizável nunca zera.
+ *
  * NÃO aciona bot, automações, rodízio, regra de tempo de resposta nem webhooks
  * de saída — decisão do dono para esta fatia. Esta função não chama o bot; as
  * triggers do banco têm `WHEN (channel = 'whatsapp')` (migração 20260923000001).
@@ -199,6 +207,9 @@ Deno.serve(async (req: Request) => {
       messageId: r.message_id ?? null,
       conversationId: r.conversation_id ?? null,
       instanceId: r.instance_id ?? null,
+      // Só vem em eco: o que a guarda decidiu sobre as não lidas.
+      unread: r.unread ?? null,
+      horarioMeta: ev.metaTimestamp !== null,
     };
 
     if (outcome === 'stored' || outcome === 'duplicate') {
