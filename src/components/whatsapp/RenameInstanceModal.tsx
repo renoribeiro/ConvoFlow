@@ -34,7 +34,29 @@ export interface RenameableInstance {
   id: string;
   name: string;
   instance_key: string;
+  /** 'instagram' troca os textos: conta do Instagram não é "instância" nem tem "chave". */
+  provider?: string | null;
 }
+
+/** Textos por canal. Os do WhatsApp são os de sempre, palavra por palavra. */
+export const RENAME_TEXTS = {
+  whatsapp: {
+    title: 'Renomear instância',
+    description: 'Muda só o nome que aparece nas telas. A conexão, as conversas e o número continuam os mesmos.',
+    label: 'Nome da Instância',
+    duplicate: 'Já existe uma instância com esse nome nesta Conta.',
+    forbidden: 'Você não tem permissão para renomear esta instância.',
+    renamed: (name: string) => `Agora a instância se chama "${name}".`,
+  },
+  instagram: {
+    title: 'Renomear conta do Instagram',
+    description: 'Muda só o nome que aparece nas telas. A conexão, as conversas e o @ da conta continuam os mesmos.',
+    label: 'Nome da conta',
+    duplicate: 'Já existe uma conexão com esse nome nesta Conta.',
+    forbidden: 'Você não tem permissão para renomear esta conta.',
+    renamed: (name: string) => `Agora a conta se chama "${name}".`,
+  },
+} as const;
 
 interface RenameInstanceModalProps {
   open: boolean;
@@ -57,6 +79,8 @@ export const RenameInstanceModal = ({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isInstagram = instance.provider === 'instagram';
+  const texts = RENAME_TEXTS[isInstagram ? 'instagram' : 'whatsapp'];
 
   // Reabrir para outra instância tem que mostrar o nome dela, não o anterior.
   useEffect(() => {
@@ -81,7 +105,7 @@ export const RenameInstanceModal = ({
     // mais barato que explicar depois.
     const colide = siblingNames.some((n) => normalizado(n) === normalizado(parsed.data));
     if (colide) {
-      setFieldError('Já existe uma instância com esse nome nesta Conta.');
+      setFieldError(texts.duplicate);
       return;
     }
 
@@ -98,11 +122,11 @@ export const RenameInstanceModal = ({
 
       if (error) throw new Error(error.message);
       if (!data) {
-        throw new Error('Você não tem permissão para renomear esta instância.');
+        throw new Error(texts.forbidden);
       }
 
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
-      toast({ title: 'Renomeado', description: `Agora a instância se chama "${parsed.data}".` });
+      toast({ title: 'Renomeado', description: texts.renamed(parsed.data) });
       onSuccess?.();
       onOpenChange(false);
     } catch (err) {
@@ -120,16 +144,13 @@ export const RenameInstanceModal = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
-            Renomear instância
+            {texts.title}
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Muda só o nome que aparece nas telas. A conexão, as conversas e o número continuam os
-            mesmos.
-          </DialogDescription>
+          <DialogDescription className="text-xs">{texts.description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
-          <Label htmlFor="rename-instance">Nome da Instância</Label>
+          <Label htmlFor="rename-instance">{texts.label}</Label>
           <Input
             id="rename-instance"
             value={name}
@@ -146,7 +167,7 @@ export const RenameInstanceModal = ({
           />
           {fieldError ? (
             <p className="text-xs text-destructive">{fieldError}</p>
-          ) : (
+          ) : isInstagram ? null : (
             <p className="text-xs text-muted-foreground">
               Chave técnica: <code className="px-1">{instance.instance_key}</code> (essa não muda).
             </p>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2, Pencil } from 'lucide-react';
+import { Plus, Smartphone, Wifi, WifiOff, QrCode, Trash2, RefreshCw, Webhook, Settings, Bug, Activity, AlertCircle, KeyRound, Loader2, Pencil, Instagram } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,11 +33,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  instagramConnectionIsUsable,
   instagramConnectionTexts,
   instagramConnectionView,
   type InstagramConnectionState,
 } from '@/lib/instagram/connection';
+import {
+  connectionSummary,
+  instagramAccountHandle,
+  splitByChannel,
+  totalCardTexts,
+} from '@/lib/whatsapp/connectionSections';
 
 type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
@@ -95,13 +100,6 @@ function instagramStateIcon(state: InstagramConnectionState) {
       return <WifiOff className="h-4 w-4 text-red-600" />;
   }
 }
-
-// `unknown` porque as linhas de useSupabaseQuery chegam sem o tipo da tabela
-// (o resto da página faz o mesmo com `as WhatsAppInstance[]`).
-const instagramViewFor = (instance: unknown, now: Date) => {
-  const row = instance as Pick<WhatsAppInstance, 'provider' | 'connection_config'>;
-  return row.provider === 'instagram' ? instagramConnectionView(row.connection_config, now) : null;
-};
 
 export default function WhatsAppNumbers() {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
@@ -394,11 +392,12 @@ export default function WhatsAppNumbers() {
   };
 
   const now = new Date();
-  const connectedInstances = instances.filter((i) => {
-    const ig = instagramViewFor(i, now);
-    return ig ? instagramConnectionIsUsable(ig) : i.status === 'open';
-  }).length;
-  const totalInstances = instances.length;
+  // Duas seções: instâncias de WhatsApp e contas do Instagram. Os contadores do
+  // topo somam as duas; sem Instagram, a tela é a de sempre.
+  const typedInstances = instances as unknown as WhatsAppInstance[];
+  const sections = splitByChannel(typedInstances);
+  const summary = connectionSummary(typedInstances, now);
+  const totalCard = totalCardTexts(summary);
 
   // Tenant ainda carregando — skeletons
   if (tenantLoading) {
@@ -479,7 +478,11 @@ export default function WhatsAppNumbers() {
       <PageHeader
         title="Instâncias e APIs"
         helpKey="page:whatsapp-numbers"
-        description="Gerencie suas instâncias e integrações de WhatsApp"
+        description={
+          sections.instagram.length > 0
+            ? 'Gerencie suas instâncias de WhatsApp e as contas do Instagram da Loja'
+            : 'Gerencie suas instâncias e integrações de WhatsApp'
+        }
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Instâncias e APIs' }
@@ -531,8 +534,11 @@ export default function WhatsAppNumbers() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Instâncias</p>
-                <p className="text-2xl font-bold">{totalInstances}</p>
+                <p className="text-sm font-medium text-muted-foreground">{totalCard.label}</p>
+                <p className="text-2xl font-bold">{summary.total}</p>
+                {totalCard.breakdown && (
+                  <p className="text-xs text-muted-foreground" data-testid="total-breakdown">{totalCard.breakdown}</p>
+                )}
               </div>
               <Smartphone className="h-8 w-8 text-blue-500" />
             </div>
@@ -544,7 +550,7 @@ export default function WhatsAppNumbers() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Conectados</p>
-                <p className="text-2xl font-bold text-green-600">{connectedInstances}</p>
+                <p className="text-2xl font-bold text-green-600">{summary.connected}</p>
               </div>
               <Wifi className="h-8 w-8 text-green-500" />
             </div>
@@ -556,7 +562,7 @@ export default function WhatsAppNumbers() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Desconectados</p>
-                <p className="text-2xl font-bold text-red-600">{totalInstances - connectedInstances}</p>
+                <p className="text-2xl font-bold text-red-600">{summary.disconnected}</p>
               </div>
               <WifiOff className="h-8 w-8 text-red-500" />
             </div>
@@ -592,16 +598,19 @@ export default function WhatsAppNumbers() {
             // flex-wrap + min-w-0 em cada linha: no celular o grupo de ações
             // (status, QR, webhook, desconectar) desce para a linha de baixo em
             // vez de empurrar a página para o lado.
+            sections.whatsapp.length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="no-whatsapp-instances">
+                Nenhuma instância de WhatsApp cadastrada.
+              </p>
+            ) : (
             <div className="space-y-4">
-              {instances.map((instance) => {
-                const ig = instagramViewFor(instance, now);
-                const igTexts = ig ? instagramConnectionTexts(ig) : null;
+              {sections.whatsapp.map((instance) => {
                 return (
                 <div key={instance.id} className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${ig ? INSTAGRAM_STATE_DOT[ig.state] : getStatusColor(instance.status)}`} />
-                      {ig ? instagramStateIcon(ig.state) : getStatusIcon(instance.status)}
+                      <div className={`w-3 h-3 rounded-full ${getStatusColor(instance.status)}`} />
+                      {getStatusIcon(instance.status)}
                     </div>
                     
                     <div className="flex-1 min-w-0">
@@ -628,42 +637,14 @@ export default function WhatsAppNumbers() {
                         {instance.last_connected_at && (
                           <p>Última conexão: {format(new Date(instance.last_connected_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
                         )}
-                        {ig && igTexts && (
-                          <p
-                            data-testid="instagram-validity"
-                            className={
-                              ig.state === 'expired' || ig.state === 'needs_reconnect'
-                                ? 'text-red-600'
-                                : ig.state === 'expiring'
-                                  ? 'text-yellow-700'
-                                  : undefined
-                            }
-                          >
-                            {igTexts.detail}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {ig && igTexts ? (
-                      <Badge
-                        variant={
-                          ig.state === 'expired' || ig.state === 'needs_reconnect'
-                            ? 'destructive'
-                            : ig.state === 'expiring'
-                              ? 'secondary'
-                              : 'default'
-                        }
-                      >
-                        {igTexts.badge}
-                      </Badge>
-                    ) : (
-                      <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
-                        {getStatusText(instance.status)}
-                      </Badge>
-                    )}
+                    <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
+                      {getStatusText(instance.status)}
+                    </Badge>
                     
                     <div className="flex flex-wrap items-center gap-1">
                       {(!instance.provider || instance.provider === 'evolution') && (
@@ -768,9 +749,115 @@ export default function WhatsAppNumbers() {
                 );
               })}
             </div>
+            )
           )}
         </CardContent>
           </Card>
+
+          {/* Contas do Instagram — só na Loja que tem. Sem "instância" e sem
+              "chave": para quem usa, é a conta do Instagram conectada. Conectar,
+              reconectar e desconectar ficam para a próxima entrega. */}
+          {sections.instagram.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Instagram className="h-5 w-5 text-[#E4405F]" aria-hidden />
+                  Contas do Instagram
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {sections.instagram.map((account) => {
+                    const ig = instagramConnectionView(account.connection_config, now);
+                    const igTexts = instagramConnectionTexts(ig);
+                    const handle = instagramAccountHandle(account);
+                    return (
+                      <div
+                        key={account.id}
+                        data-testid="instagram-account"
+                        className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${INSTAGRAM_STATE_DOT[ig.state]}`} />
+                            {instagramStateIcon(ig.state)}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-semibold">{account.name}</h4>
+                              <Badge className={PROVIDER_BADGE.instagram.className}>
+                                {PROVIDER_BADGE.instagram.label}
+                              </Badge>
+                              <Badge variant={account.is_active ? 'default' : 'secondary'}>
+                                {account.is_active ? 'Ativa' : 'Inativa'}
+                              </Badge>
+                            </div>
+
+                            <div className="text-sm text-muted-foreground space-y-1">
+                              <p data-testid="instagram-handle">Conta: {handle ?? '@ não informado'}</p>
+                              <p
+                                data-testid="instagram-validity"
+                                className={
+                                  ig.state === 'expired' || ig.state === 'needs_reconnect'
+                                    ? 'text-red-600'
+                                    : ig.state === 'expiring'
+                                      ? 'text-yellow-700'
+                                      : undefined
+                                }
+                              >
+                                {igTexts.detail}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={
+                              ig.state === 'expired' || ig.state === 'needs_reconnect'
+                                ? 'destructive'
+                                : ig.state === 'expiring'
+                                  ? 'secondary'
+                                  : 'default'
+                            }
+                          >
+                            {igTexts.badge}
+                          </Badge>
+
+                          <div className="flex flex-wrap items-center gap-1">
+                            {canConfigure && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRename(account)}
+                                title="Renomear conta"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {/* O bloqueio real é a RPC delete_whatsapp_instance,
+                                que recusa com histórico — igual ao WhatsApp. */}
+                            {canConfigure && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(account)}
+                                className="text-red-600 hover:text-red-700"
+                                title="Excluir conta do Instagram"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
         
         <TabsContent value="monitoring" className="space-y-6">
