@@ -118,7 +118,7 @@ export function toggleConfirmText(p: { handle: string; turnOn: boolean }): {
     title: `Desligar ${p.handle}?`,
     body: [
       'O histórico fica: conversas, mensagens e contatos continuam aqui.',
-      'Enquanto estiver desligada, as mensagens que chegarem pelo Instagram NÃO entram no ConvoFlow e se perdem — não voltam quando você religar.',
+      'Enquanto estiver desligada, as mensagens que chegarem pelo Instagram NÃO entram no ConvoFlow e se perdem: não voltam quando você religar.',
       'Também não dá para responder por aqui, e a renovação automática do acesso para. Se ficar desligada até a validade, vai ser preciso reconectar.',
     ],
     action: 'Desligar',

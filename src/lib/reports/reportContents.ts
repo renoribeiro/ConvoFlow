@@ -33,7 +33,7 @@ export const REPORT_CONTENTS: ReadonlyArray<ReportContentItem> = [
   {
     id: 'first_human_reply_median',
     label: '1ª resposta de uma pessoa (mediana)',
-    description: 'Nas conversas iniciadas no período, quanto o cliente esperou até alguém do time responder — na metade delas foi até esse tempo. Não conta bot nem campanha.',
+    description: 'Nas conversas iniciadas no período, quanto o cliente esperou até alguém do time responder: na metade delas, a espera foi de até esse tempo. Não conta bot nem campanha.',
   },
   {
     id: 'waiting_human_now',

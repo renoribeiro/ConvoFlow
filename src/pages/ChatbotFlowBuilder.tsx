@@ -124,7 +124,7 @@ function describeNode(node: Node): string {
 
   if (!raw) return blockLabel;
   const text = raw.trim().replace(/\s+/g, ' ');
-  return `${blockLabel} — "${text.length > 50 ? `${text.slice(0, 50)}…` : text}"`;
+  return `${blockLabel}: "${text.length > 50 ? `${text.slice(0, 50)}…` : text}"`;
 }
 
 // ---------------------------------------------------------------------------

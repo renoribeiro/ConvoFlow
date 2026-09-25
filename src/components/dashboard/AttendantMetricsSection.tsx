@@ -36,7 +36,7 @@ export const AttendantMetricsSection = () => {
             Por atendente
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
-            Quem está com cada conversa aberta agora. Não diz quem respondeu — só quem é o responsável.
+            Quem está com cada conversa aberta agora. Mostra quem é o responsável, não quem respondeu.
           </p>
         </div>
         <Button

@@ -42,7 +42,9 @@ conta nascia por `create_instagram_instance`, no SQL Editor.
    - `POST /me/subscribed_apps?subscribed_fields=messages` — só se aceita.
    - `instagram_connect_commit` — repete a decisão sob lock e grava linha +
      acesso no cofre numa transação. Reconexão = **mesma linha** (mesmo id,
-     mesmo histórico), `renewal` apagado, validade nova.
+     mesmo histórico), `renewal` apagado, acesso novo no cofre. A validade
+     gravada é a que a Meta devolve no `expires_in`, que pode ser a mesma data
+     de antes (ver 5a).
 5. **Desligar/Religar** no cartão: `set_instagram_account_active`
    (`is_active`). Não depende da chave da Loja.
 
@@ -136,9 +138,15 @@ Entre em http://localhost:8081 como **gerente.teste@re9.online**, escolha a
 
 **5a. Reconectar a conta de teste (@convoflow).** No cartão, clique em
 **Reconectar**, entre no Instagram com a @convoflow e autorize.
-Esperado: volta para a tela com "Instagram reconectado — @convoflow foi
-reconectada no mesmo cartão; o histórico continua. Válida até …" (≈ 60 dias
-depois de agora). No banco:
+Esperado: volta para a tela com "Instagram reconectado: @convoflow foi
+reconectada no mesmo cartão; o histórico continua. Válida até …". A data é a
+que a Meta devolve, e **não precisa ser 60 dias depois de agora**: se o acesso
+anterior ainda valia, ela pode ser a mesma que o cartão já mostrava. Foi o que
+aconteceu no primeiro teste real, em 25/09/2026 às 19:21 UTC: a Meta devolveu
+um `expires_in` que termina em 24/11 10:43:30 UTC, um segundo depois do acesso
+renovado de manhã. Um prazo novo de cerca de 60 dias só vem quando o acesso
+anterior já não valia (vencido ou recusado pelo Instagram; esse caso ainda não
+foi medido). No banco:
 
 ```sql
 SELECT id, is_active, profile_name,
@@ -150,8 +158,11 @@ SELECT id, is_active, profile_name,
  WHERE id = '0c4029bb-e0b6-4307-849b-d947ec4e4164';
 ```
 
-Esperado: mesmo id, `emitido` = agora, `vale_ate` ≈ agora + 60 dias,
-`onboarding = instagram_login`, `renovacao` = null.
+Esperado: mesmo id, `emitido` = agora, `vale_ate` = a data que apareceu na
+tela (a que a Meta devolveu), `onboarding = instagram_login`, `renovacao` =
+null. No log da função, a linha `instagram-connect: conectada` traz
+`mode: reconnect` e `expiryFromMeta: true` (a Meta informou a validade; com
+`false`, o ConvoFlow teria usado 60 dias a partir de agora).
 
 **5b. Outra conta no cartão (se houver outra conta com papel no app).**
 Reconectar, entrar com a outra conta. Esperado: "Você entrou no Instagram com

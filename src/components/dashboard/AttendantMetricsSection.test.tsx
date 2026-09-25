@@ -72,7 +72,7 @@ describe('AttendantMetricsSection', () => {
     renderSection();
     const notice = await screen.findByTestId('attendant-unowned-notice');
     expect(notice).toHaveTextContent(
-      '164 de 170 conversas abertas estão sem responsável — 92 delas esperam uma pessoa responder.',
+      '164 de 170 conversas abertas estão sem responsável, e 92 delas esperam uma pessoa responder.',
     );
     expect(notice).toHaveAttribute('role', 'alert');
   });
@@ -81,7 +81,7 @@ describe('AttendantMetricsSection', () => {
     rows = ENCAIXA.slice(0, 3);
     renderSection();
     expect(await screen.findByTestId('attendant-unowned-notice')).toHaveTextContent(
-      '164 de 168 conversas abertas estão sem responsável — 92 delas esperam uma pessoa responder, e ninguém é dono de nenhuma.',
+      '164 de 168 conversas abertas estão sem responsável, e 92 delas esperam uma pessoa responder. Nenhuma conversa que espera resposta tem dono.',
     );
   });
 
