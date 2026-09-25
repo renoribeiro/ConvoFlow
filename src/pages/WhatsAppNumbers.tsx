@@ -32,6 +32,12 @@ import { logger } from '@/lib/logger';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import {
+  instagramConnectionIsUsable,
+  instagramConnectionTexts,
+  instagramConnectionView,
+  type InstagramConnectionState,
+} from '@/lib/instagram/connection';
 
 type ProviderType = 'evolution' | 'waha' | 'official' | 'instagram';
 
@@ -62,6 +68,39 @@ const PROVIDER_BADGE: Record<ProviderType, { label: string; className: string }>
   // Instância de Instagram (fatia 2) é criada por procedimento manual, sem tela
   // própria. Sem esta entrada o mapa devolve undefined e a página inteira cai.
   instagram: { label: 'Instagram', className: 'bg-fuchsia-600 hover:bg-fuchsia-600 text-white' },
+};
+
+// Instagram não tem open/connecting: o que diz se a conexão atende é a
+// validade do acesso (connection_config.tokenExpiresAt) e o estado da
+// renovação automática. Só exibição — ver src/lib/instagram/connection.ts.
+const INSTAGRAM_STATE_DOT: Record<InstagramConnectionState, string> = {
+  valid: 'bg-green-500',
+  unknown: 'bg-green-500',
+  expiring: 'bg-yellow-500',
+  needs_reconnect: 'bg-red-500',
+  expired: 'bg-red-500',
+};
+
+function instagramStateIcon(state: InstagramConnectionState) {
+  switch (state) {
+    case 'valid':
+    case 'unknown':
+      return <Wifi className="h-4 w-4 text-green-600" />;
+    case 'expiring':
+      return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+    case 'needs_reconnect':
+      return <AlertCircle className="h-4 w-4 text-red-600" />;
+    case 'expired':
+    default:
+      return <WifiOff className="h-4 w-4 text-red-600" />;
+  }
+}
+
+// `unknown` porque as linhas de useSupabaseQuery chegam sem o tipo da tabela
+// (o resto da página faz o mesmo com `as WhatsAppInstance[]`).
+const instagramViewFor = (instance: unknown, now: Date) => {
+  const row = instance as Pick<WhatsAppInstance, 'provider' | 'connection_config'>;
+  return row.provider === 'instagram' ? instagramConnectionView(row.connection_config, now) : null;
 };
 
 export default function WhatsAppNumbers() {
@@ -354,7 +393,11 @@ export default function WhatsAppNumbers() {
     setShowRenameModal(false);
   };
 
-  const connectedInstances = instances.filter(i => i.status === 'open').length;
+  const now = new Date();
+  const connectedInstances = instances.filter((i) => {
+    const ig = instagramViewFor(i, now);
+    return ig ? instagramConnectionIsUsable(ig) : i.status === 'open';
+  }).length;
   const totalInstances = instances.length;
 
   // Tenant ainda carregando — skeletons
@@ -550,12 +593,15 @@ export default function WhatsAppNumbers() {
             // (status, QR, webhook, desconectar) desce para a linha de baixo em
             // vez de empurrar a página para o lado.
             <div className="space-y-4">
-              {instances.map((instance) => (
+              {instances.map((instance) => {
+                const ig = instagramViewFor(instance, now);
+                const igTexts = ig ? instagramConnectionTexts(ig) : null;
+                return (
                 <div key={instance.id} className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${getStatusColor(instance.status)}`} />
-                      {getStatusIcon(instance.status)}
+                      <div className={`w-3 h-3 rounded-full ${ig ? INSTAGRAM_STATE_DOT[ig.state] : getStatusColor(instance.status)}`} />
+                      {ig ? instagramStateIcon(ig.state) : getStatusIcon(instance.status)}
                     </div>
                     
                     <div className="flex-1 min-w-0">
@@ -582,14 +628,42 @@ export default function WhatsAppNumbers() {
                         {instance.last_connected_at && (
                           <p>Última conexão: {format(new Date(instance.last_connected_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
                         )}
+                        {ig && igTexts && (
+                          <p
+                            data-testid="instagram-validity"
+                            className={
+                              ig.state === 'expired' || ig.state === 'needs_reconnect'
+                                ? 'text-red-600'
+                                : ig.state === 'expiring'
+                                  ? 'text-yellow-700'
+                                  : undefined
+                            }
+                          >
+                            {igTexts.detail}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
-                      {getStatusText(instance.status)}
-                    </Badge>
+                    {ig && igTexts ? (
+                      <Badge
+                        variant={
+                          ig.state === 'expired' || ig.state === 'needs_reconnect'
+                            ? 'destructive'
+                            : ig.state === 'expiring'
+                              ? 'secondary'
+                              : 'default'
+                        }
+                      >
+                        {igTexts.badge}
+                      </Badge>
+                    ) : (
+                      <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
+                        {getStatusText(instance.status)}
+                      </Badge>
+                    )}
                     
                     <div className="flex flex-wrap items-center gap-1">
                       {(!instance.provider || instance.provider === 'evolution') && (
@@ -691,7 +765,8 @@ export default function WhatsAppNumbers() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

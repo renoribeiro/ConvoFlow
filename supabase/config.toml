@@ -45,6 +45,15 @@ verify_jwt = false
 # atendente: exige JWT, como o whatsapp-send-message.
 verify_jwt = true
 
+[functions.instagram-token-renewal]
+# Renovação diária do acesso das contas de Instagram (fatia 4). Chamada por
+# pg_cron via public.instagram_token_renewal_kick(). verify_jwt = false porque
+# a chave anon (pública) não pode autorizar nada aqui: quem chama tem de mandar
+# o cabeçalho x-cron-secret com o segredo do Vault
+# instagram_token_renewal_cron_secret, comparado em tempo constante. Sem o
+# segredo no Vault, a função recusa tudo (503).
+verify_jwt = false
+
 [functions.whatsapp-meta-setup]
 verify_jwt = true
 
