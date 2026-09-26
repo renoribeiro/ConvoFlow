@@ -76,7 +76,7 @@ BEGIN
               WHERE connection_config ->> 'igAccountId' IN ('17841400000000001', '17841400000000999')) THEN
     RAISE EXCEPTION 'ABORTADO: já existe fixture b7b7b7b7- ou conta de Instagram de fixture. Limpe antes.';
   END IF;
-  IF to_regprocedure('public.process_instagram_message(text,text,text,text,text,boolean)') IS NULL THEN
+  IF to_regprocedure('public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)') IS NULL THEN
     RAISE EXCEPTION 'ABORTADO: a migração 20260923000001 não está aplicada.';
   END IF;
 END
@@ -521,9 +521,9 @@ BEGIN
   -- I8 — permissões
   -- ===========================================================================
   PERFORM pg_temp.afirma('I8','I8a process_instagram_message: anon/authenticated/service_role','false|false|true',
-    has_function_privilege('anon', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text || '|' ||
-    has_function_privilege('authenticated', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text || '|' ||
-    has_function_privilege('service_role', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text);
+    has_function_privilege('anon', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text || '|' ||
+    has_function_privilege('authenticated', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text || '|' ||
+    has_function_privilege('service_role', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text);
 
   PERFORM pg_temp.afirma('I8','I8b create_instagram_instance: anon/authenticated/service_role','false|false|false',
     has_function_privilege('anon', 'public.create_instagram_instance(uuid,text,text,text,text,timestamptz)', 'EXECUTE')::text || '|' ||

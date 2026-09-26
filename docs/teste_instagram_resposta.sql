@@ -108,7 +108,7 @@ SET LOCAL session_replication_role = origin;
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- DO $sab$
 -- DECLARE
---   v_def text := pg_get_functiondef('public.process_instagram_message(text,text,text,text,text,boolean)'::regprocedure);
+--   v_def text := pg_get_functiondef('public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)'::regprocedure);
 --   v_old constant text := E'LIMIT 1\n     FOR UPDATE OF m;';
 -- BEGIN
 --   IF (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old) <> 1 THEN
@@ -233,9 +233,9 @@ BEGIN
     has_function_privilege('anon', 'public.reconcile_instagram_send(uuid,text)', 'EXECUTE')::text || '|' ||
     has_function_privilege('authenticated', 'public.reconcile_instagram_send(uuid,text)', 'EXECUTE')::text);
   PERFORM pg_temp.afirma('R0','R0d process_instagram_message: anon/authenticated/service_role','false|false|true',
-    has_function_privilege('anon', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text || '|' ||
-    has_function_privilege('authenticated', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text || '|' ||
-    has_function_privilege('service_role', 'public.process_instagram_message(text,text,text,text,text,boolean)', 'EXECUTE')::text);
+    has_function_privilege('anon', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text || '|' ||
+    has_function_privilege('authenticated', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text || '|' ||
+    has_function_privilege('service_role', 'public.process_instagram_message(text,text,text,text,text,boolean,timestamptz)', 'EXECUTE')::text);
   SELECT relrowsecurity::text INTO txt FROM pg_class WHERE oid = 'public.instagram_echo_claims'::regclass;
   PERFORM pg_temp.afirma('R0','R0e instagram_echo_claims com RLS ligada','true', txt);
 
