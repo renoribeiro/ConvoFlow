@@ -90,10 +90,19 @@ O `.env` local já aponta para o banco de produção.
 8. **Instâncias.** Em Contatos e em Conversas, o seletor de instância tem
    "Todas as instâncias" e, sem escolha, mostra isso (e não a primeira).
 
-## O eco do celular (resposta pelo app do Instagram) — NÃO entrou
+## O eco do celular (resposta pelo app do Instagram) — ENTROU DEPOIS
 
-A resposta dada pelo app do Instagram continua sem zerar as não lidas, então a
-conversa segue em "Aguardando" até alguém abri-la no ConvoFlow.
+> **Atualização 2026-09-25:** feito na migração `20260925000004` e no
+> `instagram-webhook` v6. O runbook vigente é
+> `docs/RUNBOOK_instagram_eco_nao_lidas.md`. O texto abaixo é o registro do
+> motivo de ter ficado de fora desta fatia. Duas diferenças em relação à
+> receita: a função continuou sendo `process_instagram_message` (ganhou um 7º
+> argumento com DEFAULT NULL, no lugar de uma `_v2`) e a guarda também trata
+> as linhas sem horário.
+
+Nesta fatia, a resposta dada pelo app do Instagram continuava sem zerar as
+não lidas, então a conversa seguia em "Aguardando" até alguém abri-la no
+ConvoFlow.
 
 Por quê: a guarda combinada compara o **horário da Meta** do eco com o das
 mensagens do cliente (para o eco nunca zerar uma mensagem que chegou depois
